@@ -1,0 +1,5 @@
+# Don't ignore these - Vercel needs them!
+!server
+!shared
+!api
+

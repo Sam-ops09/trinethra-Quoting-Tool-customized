@@ -1,0 +1,566 @@
+<html>
+<head>
+<title>USER_ROLES_VISUAL_DIAGRAMS.md</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #c77dbb; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+USER_ROLES_VISUAL_DIAGRAMS.md</font>
+</center></td></tr></table>
+<pre><span class="s0"># </span><span class="s2">User Roles - Visual Diagrams &amp; Process Flows</span>
+
+<span class="s0">## </span><span class="s2">Role Hierarchy</span>
+
+<span class="s0">```</span>
+                        <span class="s3">ADMIN ⭐⭐⭐⭐⭐</span>
+                    <span class="s3">(Full System Access)</span>
+                            <span class="s3">│</span>
+            <span class="s3">┌───────────────┼───────────────┐</span>
+            <span class="s3">│               │               │</span>
+      <span class="s3">SALES_MANAGER    FINANCE_ACCOUNTS   PURCHASE_OPS</span>
+         <span class="s3">⭐⭐⭐⭐          ⭐⭐⭐           ⭐⭐⭐</span>
+            <span class="s3">│               │               │</span>
+    <span class="s3">SALES_EXECUTIVE    (Shared View)    (Shared View)</span>
+          <span class="s3">⭐⭐⭐         │                   │</span>
+            <span class="s3">│             └───────────────────┘</span>
+            <span class="s3">│</span>
+         <span class="s3">VIEWER</span>
+           <span class="s3">⭐</span>
+       <span class="s3">(Read-Only)</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Permission Levels by Feature</span>
+
+<span class="s0">### </span><span class="s2">📋 Quote Management</span>
+<span class="s0">```</span>
+<span class="s3">ADMIN (5)</span>
+<span class="s3">├─ Full control</span>
+<span class="s3">│</span>
+<span class="s3">SALES_MANAGER (4)</span>
+<span class="s3">├─ Create, Edit, Approve, Cancel</span>
+<span class="s3">│</span>
+<span class="s3">SALES_EXECUTIVE (3)</span>
+<span class="s3">├─ Create, Edit (draft/sent only)</span>
+<span class="s3">│  └─ Cannot approve own quotes</span>
+<span class="s3">│</span>
+<span class="s3">PURCHASE_OPS (1)</span>
+<span class="s3">├─ View only</span>
+<span class="s3">│</span>
+<span class="s3">FINANCE (1)</span>
+<span class="s3">├─ View only</span>
+<span class="s3">│</span>
+<span class="s3">VIEWER (1)</span>
+<span class="s3">└─ View only</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">💼 Invoice Management</span>
+<span class="s0">```</span>
+<span class="s3">ADMIN (5)</span>
+<span class="s3">├─ Full control</span>
+<span class="s3">│</span>
+<span class="s3">FINANCE_ACCOUNTS (4)</span>
+<span class="s3">├─ Create, Edit, Finalize, Lock, Cancel</span>
+<span class="s3">│  └─ Complete financial control</span>
+<span class="s3">│</span>
+<span class="s3">SALES_MANAGER (3)</span>
+<span class="s3">├─ Create, Edit only</span>
+<span class="s3">│  └─ Cannot finalize or lock</span>
+<span class="s3">│</span>
+<span class="s3">PURCHASE_OPS (1)</span>
+<span class="s3">├─ View only</span>
+<span class="s3">│  └─ Information for reconciliation</span>
+<span class="s3">│</span>
+<span class="s3">SALES_EXECUTIVE (1)</span>
+<span class="s3">├─ View only</span>
+<span class="s3">│</span>
+<span class="s3">VIEWER (1)</span>
+<span class="s3">└─ View only</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">📦 Vendor PO &amp; GRN Management</span>
+<span class="s0">```</span>
+<span class="s3">ADMIN (5)</span>
+<span class="s3">├─ Full control</span>
+<span class="s3">│</span>
+<span class="s3">PURCHASE_OPS (4)</span>
+<span class="s3">├─ Create, Edit, Delete</span>
+<span class="s3">│  └─ Complete PO/GRN lifecycle</span>
+<span class="s3">│</span>
+<span class="s3">SALES_MANAGER (1)</span>
+<span class="s3">├─ View only</span>
+<span class="s3">│  └─ Reference for quote context</span>
+<span class="s3">│</span>
+<span class="s3">FINANCE (1)</span>
+<span class="s3">├─ View only</span>
+<span class="s3">│  └─ Reconciliation purposes</span>
+<span class="s3">│</span>
+<span class="s3">OTHERS</span>
+<span class="s3">└─ View/Access based on role</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Complete Quote-to-Invoice Process Flow</span>
+
+<span class="s0">```</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                    SALES EXECUTIVE                              │</span>
+<span class="s3">│  1. Creates draft quote                                         │</span>
+<span class="s3">│     └─ Specifies client, products, quantities, pricing          │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  2. Quote Status: DRAFT                                         │</span>
+<span class="s3">│     └─ Sales Executive can view/edit draft quote                │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                    SALES EXECUTIVE                              │</span>
+<span class="s3">│  3. Sends quote to client                                       │</span>
+<span class="s3">│     └─ Updates quote status to SENT                             │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  4. Quote Status: SENT                                          │</span>
+<span class="s3">│     └─ Sales Executive can still edit sent quote                │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                    SALES MANAGER                                │</span>
+<span class="s3">│  5. Reviews quote                                               │</span>
+<span class="s3">│     └─ Approves or requests modifications                       │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  6. Quote Status: APPROVED                                      │</span>
+<span class="s3">│     └─ Only Sales Manager can edit now (or Admin)               │</span>
+<span class="s3">│     └─ Sales Executive cannot edit anymore                      │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+        <span class="s3">┌───────────────────┴───────────────────┐</span>
+        <span class="s3">│                   │                   │</span>
+        <span class="s3">↓                   ↓                   ↓</span>
+    <span class="s3">┌───────┐          ┌────────┐         ┌───────┐</span>
+    <span class="s3">│FINANCE│          │PURCHASE│         │SALES  │</span>
+    <span class="s3">│/ACCTS │          │ OPS    │         │MGR    │</span>
+    <span class="s3">└───────┘          └────────┘         └───────┘</span>
+        <span class="s3">│                   │                   │</span>
+        <span class="s3">│ Creates Invoice   │ Creates PO        │ Monitors</span>
+        <span class="s3">│ from Quote        │ from Quote        │ Status</span>
+        <span class="s3">│                   │                   │</span>
+        <span class="s3">↓                   ↓                   ↓</span>
+    <span class="s3">┌────────────────┬────────────────┬────────────────┐</span>
+    <span class="s3">│PARALLEL FLOWS  │ (Can happen    │ (All track     │</span>
+    <span class="s3">│                │ simultaneously)│  same quote)   │</span>
+    <span class="s3">└────────────────┴────────────────┴────────────────┘</span>
+        <span class="s3">│</span>
+        <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                      FINANCE/ACCOUNTS                           │</span>
+<span class="s3">│  7. Creates and sends invoice                                   │</span>
+<span class="s3">│     └─ Based on approved quote amounts                          │</span>
+<span class="s3">│     └─ Sets payment terms, due date                             │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  8. Invoice Status: DRAFT                                       │</span>
+<span class="s3">│     └─ Finance can edit any fields                              │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                      FINANCE/ACCOUNTS                           │</span>
+<span class="s3">│  9. Finalizes invoice                                           │</span>
+<span class="s3">│     └─ Locks most fields (qty, prices, terms)                   │</span>
+<span class="s3">│     └─ Can still record payments                                │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  10. Invoice Status: FINALIZED                                  │</span>
+<span class="s3">│      └─ All core financial data locked                          │</span>
+<span class="s3">│      └─ Awaiting payment                                        │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                      FINANCE/ACCOUNTS                           │</span>
+<span class="s3">│  11. Records payment when received                              │</span>
+<span class="s3">│      └─ Adds payment date, amount, method                       │</span>
+<span class="s3">│      └─ Updates payment status                                  │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  12. Invoice Status: PAID (with Finalized lock)                 │</span>
+<span class="s3">│      └─ Invoice locked for compliance/audit                     │</span>
+<span class="s3">│      └─ Finance can still record additional payments            │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                      FINANCE/ACCOUNTS                           │</span>
+<span class="s3">│  13. Locks invoice for accounting                               │</span>
+<span class="s3">│      └─ No changes allowed (except payment)                     │</span>
+<span class="s3">│      └─ Ready for financial reporting                           │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+        <span class="s3">QUOTE → INVOICE → PAYMENT → LOCKED (Archived)</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">PO &amp; GRN Flow </span><span class="s1">(</span><span class="s2">Operations</span><span class="s1">)</span>
+
+<span class="s0">```</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                  PURCHASE / OPERATIONS                          │</span>
+<span class="s3">│  1. Receives approved quote from Sales Manager                  │</span>
+<span class="s3">│     └─ Identifies vendors, quantities, requirements             │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  2. Creates Vendor Purchase Order (PO)                          │</span>
+<span class="s3">│     └─ Specifies vendor, items, quantities, delivery terms      │</span>
+<span class="s3">│     └─ Status: DRAFT                                            │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                  PURCHASE / OPERATIONS                          │</span>
+<span class="s3">│  3. Sends PO to vendor                                          │</span>
+<span class="s3">│     └─ Updates PO status to SENT                                │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  4. PO Status: SENT                                             │</span>
+<span class="s3">│     └─ Operations can edit or cancel if needed                  │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+        <span class="s3">┌───────────────────────────────────────────┐</span>
+        <span class="s3">│ VENDOR FULFILLS PO - SHIPS ITEMS          │</span>
+        <span class="s3">│ (System not involved in shipping)         │</span>
+        <span class="s3">└───────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                  PURCHASE / OPERATIONS                          │</span>
+<span class="s3">│  5. Receives goods from vendor                                  │</span>
+<span class="s3">│     └─ Inspects items against PO                                │</span>
+<span class="s3">│     └─ Verifies quantities and quality                          │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  6. Creates Goods Received Note (GRN)                           │</span>
+<span class="s3">│     └─ Records actual received quantities                       │</span>
+<span class="s3">│     └─ Status: DRAFT                                            │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                  PURCHASE / OPERATIONS                          │</span>
+<span class="s3">│  7. Enters serial numbers for items                             │</span>
+<span class="s3">│     └─ Critical for asset tracking                              │</span>
+<span class="s3">│     └─ Links serial numbers to GRN line items                   │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│  8. Confirms GRN                                                │</span>
+<span class="s3">│     └─ Status: CONFIRMED                                        │</span>
+<span class="s3">│     └─ Operations can still edit if errors found                │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                      FINANCE/ACCOUNTS                           │</span>
+<span class="s3">│  9. Uses GRN to create final invoice                            │</span>
+<span class="s3">│     └─ Matches GRN quantities with PO prices                    │</span>
+<span class="s3">│     └─ Creates invoice for exact items received                 │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────────┘</span>
+                            <span class="s3">↓</span>
+        <span class="s3">PO → SENT → GRN → INVOICE → PAYMENT → LOCKED</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Team Interaction Matrix</span>
+
+<span class="s0">```</span>
+           <span class="s3">Sales Exec  Sales Mgr  Finance  Operations  Admin  Viewer</span>
+<span class="s3">Create       ┌─────┬──────┬──────┬────────┬──────┬─────┐</span>
+<span class="s3">Quote        │Create│Create│     │        │Create│     │</span>
+             <span class="s3">└─────┴──────┴──────┴────────┴──────┴─────┘</span>
+
+<span class="s3">Approve      ┌─────┬──────┬──────┬────────┬──────┬─────┐</span>
+<span class="s3">Quote        │     │Approve      │        │Approve     │</span>
+             <span class="s3">└─────┴──────┴──────┴────────┴──────┴─────┘</span>
+
+<span class="s3">Create       ┌─────┬──────┬──────┬────────┬──────┬─────┐</span>
+<span class="s3">Invoice      │     │Create│Create│        │Create│     │</span>
+             <span class="s3">└─────┴──────┴──────┴────────┴──────┴─────┘</span>
+
+<span class="s3">Finalize     ┌─────┬──────┬──────┬────────┬──────┬─────┐</span>
+<span class="s3">Invoice      │     │      │Final │        │Final │     │</span>
+             <span class="s3">└─────┴──────┴──────┴────────┴──────┴─────┘</span>
+
+<span class="s3">Record       ┌─────┬──────┬──────┬────────┬──────┬─────┐</span>
+<span class="s3">Payment      │     │      │Record│        │Record│     │</span>
+             <span class="s3">└─────┴──────┴──────┴────────┴──────┴─────┘</span>
+
+<span class="s3">Create PO    ┌─────┬──────┬──────┬────────┬──────┬─────┐</span>
+             <span class="s3">│     │      │      │Create  │Create│     │</span>
+             <span class="s3">└─────┴──────┴──────┴────────┴──────┴─────┘</span>
+
+<span class="s3">Create GRN   ┌─────┬──────┬──────┬────────┬──────┬─────┐</span>
+             <span class="s3">│     │      │      │Create  │Create│     │</span>
+             <span class="s3">└─────┴──────┴──────┴────────┴──────┴─────┘</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Permission Expansion by Status</span>
+
+<span class="s0">### </span><span class="s2">Quote Permissions Change by Status</span>
+
+<span class="s0">```</span>
+<span class="s3">DRAFT</span>
+<span class="s3">├─ Sales Exec: ✅ Edit</span>
+<span class="s3">├─ Sales Mgr:  ✅ Edit, Approve</span>
+<span class="s3">└─ Others:     ❌ Cannot edit</span>
+
+        <span class="s3">↓ (Sent by Sales Exec)</span>
+
+<span class="s3">SENT</span>
+<span class="s3">├─ Sales Exec: ✅ Edit (can make adjustments)</span>
+<span class="s3">├─ Sales Mgr:  ✅ Edit, Approve</span>
+<span class="s3">└─ Others:     ❌ Cannot edit</span>
+
+        <span class="s3">↓ (Approved by Sales Mgr)</span>
+
+<span class="s3">APPROVED</span>
+<span class="s3">├─ Sales Exec: ❌ Cannot edit (frozen)</span>
+<span class="s3">├─ Sales Mgr:  ✅ Edit (can still adjust)</span>
+<span class="s3">├─ Finance:    ✅ Can now create invoice</span>
+<span class="s3">├─ Operations: ✅ Can now create PO</span>
+<span class="s3">└─ Others:     ❌ Cannot edit</span>
+
+        <span class="s3">↓ (Used for invoicing/PO)</span>
+
+<span class="s3">CONVERTED TO INVOICE/PO</span>
+<span class="s3">├─ Original quote: ✅ Can be referenced</span>
+<span class="s3">└─ Cannot reuse: ✅ Once converted, cannot be re-approved</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Invoice Permissions Change by Status</span>
+
+<span class="s0">```</span>
+<span class="s3">DRAFT</span>
+<span class="s3">├─ Finance:    ✅ Edit all fields</span>
+<span class="s3">├─ Sales Mgr:  ✅ Edit</span>
+<span class="s3">└─ Others:     ❌ Cannot edit</span>
+
+        <span class="s3">↓ (Sent to client)</span>
+
+<span class="s3">SENT</span>
+<span class="s3">├─ Finance:    ✅ Edit (awaiting payment)</span>
+<span class="s3">├─ Sales Mgr:  ❌ Cannot edit</span>
+<span class="s3">└─ Others:     ❌ Cannot edit</span>
+
+        <span class="s3">↓ (Finalized by Finance)</span>
+
+<span class="s3">FINALIZED</span>
+<span class="s3">├─ Finance:    ❌ Cannot edit core fields</span>
+<span class="s3">├─ Finance:    ✅ Can still record payments</span>
+<span class="s3">├─ Others:     ❌ Cannot edit</span>
+<span class="s3">└─ Payment:    Can be recorded (updates payment status)</span>
+
+        <span class="s3">↓ (Payment recorded)</span>
+
+<span class="s3">PAID (Finalized + Payment recorded)</span>
+<span class="s3">├─ Finance:    ✅ Can record additional payments</span>
+<span class="s3">├─ Finance:    ✅ Can lock for compliance</span>
+<span class="s3">└─ Others:     ❌ Cannot edit</span>
+
+        <span class="s3">↓ (Locked by Finance)</span>
+
+<span class="s3">LOCKED</span>
+<span class="s3">├─ All users:  ❌ Cannot edit anything</span>
+<span class="s3">├─ Finance:    ✅ Read-only access</span>
+<span class="s3">└─ All:        ✅ Read-only access (archived)</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Decision Matrix</span><span class="s1">: &quot;</span><span class="s2">Can I do this?</span><span class="s1">&quot;</span>
+
+<span class="s0">### </span><span class="s2">Scenario 1</span><span class="s1">: &quot;</span><span class="s2">I want to create a quote</span><span class="s1">&quot;</span>
+<span class="s0">```</span>
+<span class="s3">Are you...?</span>
+<span class="s3">├─ Admin?          → YES ✅</span>
+<span class="s3">├─ Sales Manager?  → YES ✅</span>
+<span class="s3">├─ Sales Exec?     → YES ✅</span>
+<span class="s3">├─ Operations?     → NO ❌</span>
+<span class="s3">├─ Finance?        → NO ❌</span>
+<span class="s3">└─ Viewer?         → NO ❌</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Scenario 2</span><span class="s1">: &quot;</span><span class="s2">I want to approve a quote</span><span class="s1">&quot;</span>
+<span class="s0">```</span>
+<span class="s3">Are you...?</span>
+<span class="s3">├─ Admin?          → YES ✅</span>
+<span class="s3">├─ Sales Manager?  → YES ✅ (your main job!)</span>
+<span class="s3">├─ Sales Exec?     → NO ❌ (you created it, manager approves)</span>
+<span class="s3">├─ Operations?     → NO ❌ (not your role)</span>
+<span class="s3">├─ Finance?        → NO ❌ (not your role)</span>
+<span class="s3">└─ Viewer?         → NO ❌ (read-only)</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Scenario 3</span><span class="s1">: &quot;</span><span class="s2">I want to create an invoice</span><span class="s1">&quot;</span>
+<span class="s0">```</span>
+<span class="s3">Are you...?</span>
+<span class="s3">├─ Admin?          → YES ✅</span>
+<span class="s3">├─ Sales Manager?  → YES ✅ (from approved quotes)</span>
+<span class="s3">├─ Sales Exec?     → NO ❌ (manager does it)</span>
+<span class="s3">├─ Operations?     → NO ❌ (not your role)</span>
+<span class="s3">├─ Finance?        → YES ✅ (your main job!)</span>
+<span class="s3">└─ Viewer?         → NO ❌ (read-only)</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Scenario 4</span><span class="s1">: &quot;</span><span class="s2">I want to finalize an invoice</span><span class="s1">&quot;</span>
+<span class="s0">```</span>
+<span class="s3">Are you...?</span>
+<span class="s3">├─ Admin?          → YES ✅</span>
+<span class="s3">├─ Sales Manager?  → NO ❌</span>
+<span class="s3">├─ Sales Exec?     → NO ❌</span>
+<span class="s3">├─ Operations?     → NO ❌</span>
+<span class="s3">├─ Finance?        → YES ✅ (your main job!)</span>
+<span class="s3">└─ Viewer?         → NO ❌</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Scenario 5</span><span class="s1">: &quot;</span><span class="s2">I want to create a Vendor PO</span><span class="s1">&quot;</span>
+<span class="s0">```</span>
+<span class="s3">Are you...?</span>
+<span class="s3">├─ Admin?          → YES ✅</span>
+<span class="s3">├─ Sales Manager?  → NO ❌</span>
+<span class="s3">├─ Sales Exec?     → NO ❌</span>
+<span class="s3">├─ Operations?     → YES ✅ (your main job!)</span>
+<span class="s3">├─ Finance?        → NO ❌</span>
+<span class="s3">└─ Viewer?         → NO ❌</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Information Flow</span>
+
+<span class="s0">```</span>
+<span class="s3">┌─────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                    QUOTE FLOW                               │</span>
+<span class="s3">├─────────────────────────────────────────────────────────────┤</span>
+<span class="s3">│                                                             │</span>
+<span class="s3">│  Sales Executive          Sales Manager       Finance       │</span>
+<span class="s3">│       │                        │                 │          │</span>
+<span class="s3">│       ├─ Creates Quote         │                 │          │</span>
+<span class="s3">│       │                        │                 │          │</span>
+<span class="s3">│       ├─ Sends Quote ──────────► Reviews         │          │</span>
+<span class="s3">│       │                        │                 │          │</span>
+<span class="s3">│       │                  Approves Quote          │          │</span>
+<span class="s3">│       │                        │                 │          │</span>
+<span class="s3">│       │                        ├─ Approved ────► Views      │</span>
+<span class="s3">│       │                        │                 │          │</span>
+<span class="s3">│       │                        │           Creates Invoice  │</span>
+<span class="s3">│       │                        │                 │          │</span>
+<span class="s3">│       │                        │◄─────── Invoice Details    │</span>
+<span class="s3">│       │                        │                 │          │</span>
+<span class="s3">│       │◄────── Updates Quote Status ─────────────┘          │</span>
+<span class="s3">│                                                             │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────┘</span>
+
+
+<span class="s3">┌─────────────────────────────────────────────────────────────┐</span>
+<span class="s3">│                 OPERATIONS &amp; FINANCE FLOW                   │</span>
+<span class="s3">├─────────────────────────────────────────────────────────────┤</span>
+<span class="s3">│                                                             │</span>
+<span class="s3">│  Operations              Finance                            │</span>
+<span class="s3">│       │                     │                               │</span>
+<span class="s3">│       ├─ Creates PO         │                               │</span>
+<span class="s3">│       │                     │                               │</span>
+<span class="s3">│       ├─ Receives Goods     │                               │</span>
+<span class="s3">│       │                     │                               │</span>
+<span class="s3">│       ├─ Creates GRN ──────► References for Invoice         │</span>
+<span class="s3">│       │                     │                               │</span>
+<span class="s3">│       ├─ Updates Serials    │                               │</span>
+<span class="s3">│       │                     │                               │</span>
+<span class="s3">│       │              Creates Invoice                        │</span>
+<span class="s3">│       │                     │                               │</span>
+<span class="s3">│       │  ◄──── Reconciliation Request ─────┐                │</span>
+<span class="s3">│       │                     │              │                │</span>
+<span class="s3">│       ├─ Provides Details ──┘              │                │</span>
+<span class="s3">│       │                     │              │                │</span>
+<span class="s3">│       │                Records Payment     │                │</span>
+<span class="s3">│       │                     │              │                │</span>
+<span class="s3">│       │                Finalizes Invoice ──┘                │</span>
+<span class="s3">│       │                     │                               │</span>
+<span class="s3">│       └────► Closed ◄───────┘                               │</span>
+<span class="s3">│                                                             │</span>
+<span class="s3">└─────────────────────────────────────────────────────────────┘</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Implementation Details</span>
+
+<span class="s0">### </span><span class="s2">Tech Stack</span>
+<span class="s0">```</span>
+<span class="s3">Authentication</span>
+    <span class="s3">↓</span>
+<span class="s3">JWT Token with user.role</span>
+    <span class="s3">↓</span>
+<span class="s3">Middleware checks req.user.role</span>
+    <span class="s3">↓</span>
+<span class="s3">Permission Service validates action</span>
+    <span class="s3">↓</span>
+<span class="s3">✅ Allowed OR ❌ Denied</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">API Response Examples</span>
+
+<span class="s1">**</span><span class="s2">✅ Allowed Request</span><span class="s1">**</span>
+<span class="s0">```</span><span class="s4">json</span>
+<span class="s3">{</span>
+  <span class="s3">&quot;status&quot;: &quot;success&quot;,</span>
+  <span class="s3">&quot;data&quot;: { /* resource data */ }</span>
+<span class="s3">}</span>
+<span class="s0">```</span>
+
+<span class="s1">**</span><span class="s2">❌ Denied Request</span><span class="s1">**</span>
+<span class="s0">```</span><span class="s4">json</span>
+<span class="s3">{</span>
+  <span class="s3">&quot;error&quot;: &quot;Insufficient permissions&quot;,</span>
+  <span class="s3">&quot;requiredRole&quot;: &quot;finance_accounts&quot;,</span>
+  <span class="s3">&quot;userRole&quot;: &quot;sales_executive&quot;,</span>
+  <span class="s3">&quot;resource&quot;: &quot;invoices&quot;,</span>
+  <span class="s3">&quot;action&quot;: &quot;finalize&quot;</span>
+<span class="s3">}</span>
+<span class="s0">```</span>
+
+<span class="s0">---</span>
+
+<span class="s0">## </span><span class="s2">Best Practices</span>
+
+<span class="s0">1. </span><span class="s1">**</span><span class="s2">Least Privilege</span><span class="s1">**: </span><span class="s2">Start with Viewer, escalate as needed</span>
+<span class="s0">2. </span><span class="s1">**</span><span class="s2">Separation of Duties</span><span class="s1">**: </span><span class="s2">Different roles approve vs execute</span>
+<span class="s0">3. </span><span class="s1">**</span><span class="s2">Audit Trail</span><span class="s1">**: </span><span class="s2">Log who did what and when</span>
+<span class="s0">4. </span><span class="s1">**</span><span class="s2">Regular Review</span><span class="s1">**: </span><span class="s2">Quarterly role assignments audit</span>
+<span class="s0">5. </span><span class="s1">**</span><span class="s2">Onboarding</span><span class="s1">**: </span><span class="s2">Clear role assignment process</span>
+
+<span class="s0">---</span>
+
+<span class="s1">**</span><span class="s2">Status</span><span class="s1">**: </span><span class="s2">Complete Reference  </span>
+<span class="s1">**</span><span class="s2">Last Updated</span><span class="s1">**: </span><span class="s2">2025-12-25  </span>
+<span class="s1">**</span><span class="s2">Audience</span><span class="s1">**: </span><span class="s2">System Admins, Team Leads, Developers</span>
+
+</pre>
+</body>
+</html>

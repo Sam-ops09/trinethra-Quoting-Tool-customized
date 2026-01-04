@@ -1,0 +1,244 @@
+<testsuites id="" name="" tests="15" failures="4" skipped="11" errors="0" time="67.187966">
+<testsuite name="admin-settings.spec.ts" timestamp="2025-12-03T17:39:11.055Z" hostname="chromium" tests="15" failures="4" skipped="11" time="251.36" errors="0">
+<testcase name="Admin Settings › should display all settings tabs" classname="admin-settings.spec.ts" time="33.338">
+<failure message="admin-settings.spec.ts:17:3 should display all settings tabs" type="FAILURE">
+<![CDATA[  [chromium] › admin-settings.spec.ts:17:3 › Admin Settings › should display all settings tabs ─────
+
+    TimeoutError: page.waitForURL: Timeout 30000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "/dashboard" until "load"
+    ============================================================
+
+       8 |     await page.fill('input[type="password"]', "Admin123!@#");
+       9 |     await page.click('button[type="submit"]');
+    > 10 |     await page.waitForURL("/dashboard");
+         |                ^
+      11 |
+      12 |     // Navigate to settings
+      13 |     await page.goto("/admin-settings");
+        at /Users/samanyu/Desktop/AICERA websites and tools/QuoteProGen/tests/e2e/admin-settings.spec.ts:10:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/video.webm]]
+
+[[ATTACHMENT|admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/error-context.md]]
+
+[[ATTACHMENT|admin-settings-Admin-Setti-8cfd0-d-display-all-settings-tabs-chromium/trace.zip]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Admin Settings › should update company settings" classname="admin-settings.spec.ts" time="33.298">
+<failure message="admin-settings.spec.ts:25:3 should update company settings" type="FAILURE">
+<![CDATA[  [chromium] › admin-settings.spec.ts:25:3 › Admin Settings › should update company settings ───────
+
+    TimeoutError: page.waitForURL: Timeout 30000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "/dashboard" until "load"
+    ============================================================
+
+       8 |     await page.fill('input[type="password"]', "Admin123!@#");
+       9 |     await page.click('button[type="submit"]');
+    > 10 |     await page.waitForURL("/dashboard");
+         |                ^
+      11 |
+      12 |     // Navigate to settings
+      13 |     await page.goto("/admin-settings");
+        at /Users/samanyu/Desktop/AICERA websites and tools/QuoteProGen/tests/e2e/admin-settings.spec.ts:10:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-update-company-settings-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-update-company-settings-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/admin-settings-Admin-Settings-should-update-company-settings-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-update-company-settings-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/admin-settings-Admin-Settings-should-update-company-settings-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-company-settings-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-company-settings-chromium/video.webm]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-company-settings-chromium/error-context.md]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-company-settings-chromium/trace.zip]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Admin Settings › should update quote settings" classname="admin-settings.spec.ts" time="33.262">
+<failure message="admin-settings.spec.ts:42:3 should update quote settings" type="FAILURE">
+<![CDATA[  [chromium] › admin-settings.spec.ts:42:3 › Admin Settings › should update quote settings ─────────
+
+    TimeoutError: page.waitForURL: Timeout 30000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "/dashboard" until "load"
+    ============================================================
+
+       8 |     await page.fill('input[type="password"]', "Admin123!@#");
+       9 |     await page.click('button[type="submit"]');
+    > 10 |     await page.waitForURL("/dashboard");
+         |                ^
+      11 |
+      12 |     // Navigate to settings
+      13 |     await page.goto("/admin-settings");
+        at /Users/samanyu/Desktop/AICERA websites and tools/QuoteProGen/tests/e2e/admin-settings.spec.ts:10:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-update-quote-settings-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-update-quote-settings-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/admin-settings-Admin-Settings-should-update-quote-settings-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-update-quote-settings-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/admin-settings-Admin-Settings-should-update-quote-settings-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-quote-settings-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-quote-settings-chromium/video.webm]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-quote-settings-chromium/error-context.md]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-update-quote-settings-chromium/trace.zip]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Admin Settings › should manage tax rates" classname="admin-settings.spec.ts" time="33.322">
+<failure message="admin-settings.spec.ts:57:3 should manage tax rates" type="FAILURE">
+<![CDATA[  [chromium] › admin-settings.spec.ts:57:3 › Admin Settings › should manage tax rates ──────────────
+
+    TimeoutError: page.waitForURL: Timeout 30000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "/dashboard" until "load"
+    ============================================================
+
+       8 |     await page.fill('input[type="password"]', "Admin123!@#");
+       9 |     await page.click('button[type="submit"]');
+    > 10 |     await page.waitForURL("/dashboard");
+         |                ^
+      11 |
+      12 |     // Navigate to settings
+      13 |     await page.goto("/admin-settings");
+        at /Users/samanyu/Desktop/AICERA websites and tools/QuoteProGen/tests/e2e/admin-settings.spec.ts:10:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-manage-tax-rates-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-manage-tax-rates-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../test-results/admin-settings-Admin-Settings-should-manage-tax-rates-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../test-results/admin-settings-Admin-Settings-should-manage-tax-rates-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../test-results/admin-settings-Admin-Settings-should-manage-tax-rates-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|admin-settings-Admin-Settings-should-manage-tax-rates-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-manage-tax-rates-chromium/video.webm]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-manage-tax-rates-chromium/error-context.md]]
+
+[[ATTACHMENT|admin-settings-Admin-Settings-should-manage-tax-rates-chromium/trace.zip]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Admin Settings › should manage pricing tiers" classname="admin-settings.spec.ts" time="29.559">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should delete tax rate" classname="admin-settings.spec.ts" time="29.582">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should delete pricing tier" classname="admin-settings.spec.ts" time="29.57">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should update currency settings" classname="admin-settings.spec.ts" time="29.429">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should display current currency settings" classname="admin-settings.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should validate required fields in company settings" classname="admin-settings.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should validate email format in company settings" classname="admin-settings.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should validate tax rate ranges" classname="admin-settings.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should persist settings after page reload" classname="admin-settings.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should show loading states" classname="admin-settings.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+<testcase name="Admin Settings › should handle empty states" classname="admin-settings.spec.ts" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+</testsuites>
