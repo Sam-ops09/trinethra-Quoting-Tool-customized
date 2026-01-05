@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -12,7 +12,8 @@ export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial",
 export const vendorPoStatusEnum = pgEnum("vendor_po_status", ["draft", "sent", "acknowledged", "fulfilled", "cancelled"]);
 export const invoiceItemStatusEnum = pgEnum("invoice_item_status", ["pending", "fulfilled", "partial"]);
 export const masterInvoiceStatusEnum = pgEnum("master_invoice_status", ["draft", "confirmed", "locked"]);
-
+export const salesOrderStatusEnum = pgEnum("sales_order_status", ["draft", "confirmed", "fulfilled", "cancelled"]);
+export const salesOrderItemStatusEnum = pgEnum("sales_order_item_status", ["pending", "partial", "fulfilled"]);
 // Users table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -104,6 +105,164 @@ export const quotes = pgTable("quotes", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const quoteVersions = pgTable("quote_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  // Snapshot data
+  clientId: varchar("client_id").notNull(),
+  status: text("status").notNull(),
+  validityDays: integer("validity_days"),
+  quoteDate: timestamp("quote_date"),
+  validUntil: timestamp("valid_until"),
+  referenceNumber: text("reference_number"),
+  attentionTo: text("attention_to"),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0"),
+  discount: decimal("discount", { precision: 12, scale: 2 }).default("0"),
+  cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+  sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+  igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+  shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 12, scale: 2 }).default("0"),
+  notes: text("notes"),
+  termsAndConditions: text("terms_and_conditions"),
+  bomSection: text("bom_section"),
+  slaSection: text("sla_section"),
+  timelineSection: text("timeline_section"),
+  itemsSnapshot: text("items_snapshot").notNull(), // JSON
+  revisionNotes: text("revision_notes"),
+  revisedBy: varchar("revised_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const quoteVersionsRelations = relations(quoteVersions, ({ one }) => ({
+  quote: one(quotes, {
+    fields: [quoteVersions.quoteId],
+    references: [quotes.id],
+  }),
+  reviser: one(users, {
+    fields: [quoteVersions.revisedBy],
+    references: [users.id],
+  }),
+}));
+
+export const salesOrders = pgTable("sales_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderNumber: text("order_number").notNull().unique(),
+  quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+  clientId: varchar("client_id").notNull().references(() => clients.id),
+  status: salesOrderStatusEnum("status").notNull().default("draft"),
+  orderDate: timestamp("order_date").notNull().defaultNow(),
+  expectedDeliveryDate: timestamp("expected_delivery_date"),
+  actualDeliveryDate: timestamp("actual_delivery_date"),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+  discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
+  cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
+  sgst: decimal("sgst", { precision: 12, scale: 2 }).notNull().default("0"),
+  igst: decimal("igst", { precision: 12, scale: 2 }).notNull().default("0"),
+  shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).notNull().default("0"),
+  total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  termsAndConditions: text("terms_and_conditions"),
+  confirmedAt: timestamp("confirmed_at"),
+  confirmedBy: varchar("confirmed_by").references(() => users.id),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const salesOrdersRelations = relations(salesOrders, ({ one, many }) => ({
+  quote: one(quotes, {
+    fields: [salesOrders.quoteId],
+    references: [quotes.id],
+  }),
+  client: one(clients, {
+    fields: [salesOrders.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [salesOrders.createdBy],
+    references: [users.id],
+  }),
+  confirmer: one(users, {
+    fields: [salesOrders.confirmedBy],
+    references: [users.id],
+  }),
+  items: many(salesOrderItems),
+  // One sales order can have multiple invoices (e.g. partial)
+  invoices: many(invoices),
+}));
+
+export const salesOrderItems = pgTable("sales_order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  salesOrderId: varchar("sales_order_id").notNull().references(() => salesOrders.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  hsnSac: varchar("hsn_sac", { length: 10 }),
+  status: salesOrderItemStatusEnum("status").notNull().default("pending"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const salesOrderItemsRelations = relations(salesOrderItems, ({ one }) => ({
+  salesOrder: one(salesOrders, {
+    fields: [salesOrderItems.salesOrderId],
+    references: [salesOrders.id],
+  }),
+}));
+
+export const quoteItems = pgTable("quote_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  hsnSac: varchar("hsn_sac", { length: 10 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+  salesOrderId: varchar("sales_order_id").references(() => salesOrders.id),
+  clientId: varchar("client_id").references(() => clients.id),
+  parentInvoiceId: varchar("parent_invoice_id"),
+  status: text("status").notNull().default("draft"),
+  masterInvoiceStatus: text("master_invoice_status").default("draft"),
+  paymentStatus: text("payment_status").default("pending"),
+  issueDate: timestamp("issue_date").notNull().defaultNow(),
+  dueDate: timestamp("due_date"),
+  paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
+  remainingAmount: decimal("remaining_amount", { precision: 12, scale: 2 }).default("0"),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0"),
+  discount: decimal("discount", { precision: 12, scale: 2 }).default("0"),
+  cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+  sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+  igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+  shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 12, scale: 2 }).default("0"),
+  notes: text("notes"),
+  deliveryNotes: text("delivery_notes"),
+  milestoneDescription: text("milestone_description"),
+  lastPaymentDate: timestamp("last_payment_date"),
+  paymentNotes: text("payment_notes"),
+  termsAndConditions: text("terms_and_conditions"),
+  isMaster: boolean("is_master").notNull().default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId),
+  };
+});
+
 export const quotesRelations = relations(quotes, ({ one, many }) => ({
   client: one(clients, {
     fields: [quotes.clientId],
@@ -124,60 +283,9 @@ export const quotesRelations = relations(quotes, ({ one, many }) => ({
   items: many(quoteItems),
   invoices: many(invoices),
   vendorPos: many(vendorPurchaseOrders),
+  versions: many(quoteVersions),
+  salesOrders: many(salesOrders),
 }));
-
-// Quote Items table
-export const quoteItems = pgTable("quote_items", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
-  description: text("description").notNull(),
-  quantity: integer("quantity").notNull().default(1),
-  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
-  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
-  sortOrder: integer("sort_order").notNull().default(0),
-  hsnSac: varchar("hsn_sac", { length: 10 }), // HSN/SAC code for GST compliance
-});
-
-export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
-  quote: one(quotes, {
-    fields: [quoteItems.quoteId],
-    references: [quotes.id],
-  }),
-}));
-
-// Invoices table
-export const invoices = pgTable("invoices", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  invoiceNumber: text("invoice_number").notNull().unique(),
-  parentInvoiceId: varchar("parent_invoice_id"), // For child invoices - self-reference added after table creation
-  quoteId: varchar("quote_id").notNull().references(() => quotes.id),
-  paymentStatus: paymentStatusEnum("payment_status").notNull().default("pending"),
-  dueDate: timestamp("due_date").notNull(),
-  paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).notNull().default("0"),
-  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
-  discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
-  cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
-  sgst: decimal("sgst", { precision: 12, scale: 2 }).notNull().default("0"),
-  igst: decimal("igst", { precision: 12, scale: 2 }).notNull().default("0"),
-  shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).notNull().default("0"),
-  total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
-  notes: text("notes"),
-  termsAndConditions: text("terms_and_conditions"),
-  isMaster: boolean("is_master").notNull().default(false),
-  masterInvoiceStatus: masterInvoiceStatusEnum("master_invoice_status"), // Only for master invoices
-  deliveryNotes: text("delivery_notes"),
-  milestoneDescription: text("milestone_description"), // For milestone billing
-  // Payment Tracking
-  lastPaymentDate: timestamp("last_payment_date"),
-  paymentMethod: text("payment_method"),
-  paymentNotes: text("payment_notes"),
-  paymentReminderSentAt: timestamp("payment_reminder_sent_at"),
-  overdueReminderSentAt: timestamp("overdue_reminder_sent_at"),
-  createdBy: varchar("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   quote: one(quotes, {
     fields: [invoices.quoteId],
@@ -205,7 +313,7 @@ export const paymentHistory = pgTable("payment_history", {
   invoiceId: varchar("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").notNull(), // bank_transfer, credit_card, check, cash, upi, etc.
-  transactionId: text("transaction_id"), // Reference number from payment gateway or bank
+  transactionId: text("transaction_id"),
   notes: text("notes"),
   paymentDate: timestamp("payment_date").notNull().defaultNow(),
   recordedBy: varchar("recorded_by").notNull().references(() => users.id),
@@ -240,6 +348,16 @@ export const invoiceItems = pgTable("invoice_items", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const invoiceAttachments = pgTable("invoice_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").notNull().references(() => invoices.id),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  content: text("content").notNull(), // Base64
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
   invoice: one(invoices, {
     fields: [invoiceItems.invoiceId],
@@ -253,8 +371,6 @@ export const vendors = pgTable("vendors", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),
-  address: text("address"),
-  gstin: text("gstin"),
   contactPerson: text("contact_person"),
   paymentTerms: text("payment_terms"),
   notes: text("notes"),
@@ -415,6 +531,7 @@ export const serialNumbers = pgTable("serial_numbers", {
   grnId: varchar("grn_id").references(() => goodsReceivedNotes.id),
   invoiceId: varchar("invoice_id").references(() => invoices.id),
   invoiceItemId: varchar("invoice_item_id").references(() => invoiceItems.id),
+  invoiceAttachmentId: varchar("invoice_attachment_id").references(() => invoiceAttachments.id), // Added this line based on the instruction's likely intent
   status: text("status").notNull().default("in_stock"), // in_stock, reserved, delivered, returned, defective
   warrantyStartDate: timestamp("warranty_start_date"),
   warrantyEndDate: timestamp("warranty_end_date"),
@@ -626,7 +743,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   refreshToken: true,
   refreshTokenExpiry: true,
 }).extend({
-  password: z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
+  password: z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
     "Password must contain uppercase, lowercase, number, and special character"),
 });
 
@@ -768,6 +885,24 @@ export const insertSerialNumberSchema = createInsertSchema(serialNumbers).omit({
   createdBy: true,
 });
 
+
+export const insertQuoteVersionSchema = createInsertSchema(quoteVersions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSalesOrderSchema = createInsertSchema(salesOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSalesOrderItemSchema = createInsertSchema(salesOrderItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -842,5 +977,25 @@ export type InsertGrn = z.infer<typeof insertGrnSchema>;
 
 // SERIAL NUMBERS TYPES
 export type SerialNumber = typeof serialNumbers.$inferSelect;
+
 export type InsertSerialNumber = z.infer<typeof insertSerialNumberSchema>;
+
+// NEW FEATURE - QUOTE VERSIONS TYPES
+export type QuoteVersion = typeof quoteVersions.$inferSelect;
+export type InsertQuoteVersion = z.infer<typeof insertQuoteVersionSchema>;
+
+// NEW FEATURE - SALES ORDERS TYPES
+export type SalesOrder = typeof salesOrders.$inferSelect;
+export type InsertSalesOrder = z.infer<typeof insertSalesOrderSchema>;
+
+export type SalesOrderItem = typeof salesOrderItems.$inferSelect;
+export type InsertSalesOrderItem = z.infer<typeof insertSalesOrderItemSchema>;
+
+export const insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments).omit({
+    id: true,
+    createdAt: true,
+});
+
+export type InvoiceAttachment = typeof invoiceAttachments.$inferSelect;
+export type InsertInvoiceAttachment = z.infer<typeof insertInvoiceAttachmentSchema>;
 

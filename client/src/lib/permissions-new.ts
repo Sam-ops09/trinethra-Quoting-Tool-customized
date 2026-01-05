@@ -22,6 +22,7 @@ export type Resource =
   | "products"
   | "grn"
   | "payments"
+  | "sales-orders"
   | "serial-search"
   | "analytics"
   | "admin/users"
@@ -98,6 +99,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "invoices", action: "delete" },
     { resource: "invoices", action: "finalize" },
     { resource: "invoices", action: "lock" },
+    { resource: "sales-orders", action: "view" },
+    { resource: "sales-orders", action: "create" },
+    { resource: "sales-orders", action: "edit" },
     { resource: "vendors", action: "view" },
     { resource: "vendors", action: "create" },
     { resource: "vendors", action: "edit" },
@@ -144,7 +148,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "invoices", action: "view" },
     { resource: "invoices", action: "create" },
     { resource: "invoices", action: "edit" },
-    { resource: "invoices", action: "finalize" }, // Can confirm master invoices
+    { resource: "invoices", action: "finalize" },
+    { resource: "sales-orders", action: "view" },
+    { resource: "sales-orders", action: "create" },
     { resource: "vendor-pos", action: "view" },
     { resource: "products", action: "view" },
     { resource: "serial-search", action: "view" },
@@ -164,6 +170,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "invoices", action: "view" },
     { resource: "invoices", action: "create" },
     { resource: "invoices", action: "edit" },
+    { resource: "sales-orders", action: "view" },
+    { resource: "sales-orders", action: "create" },
+    { resource: "sales-orders", action: "edit" },
+    { resource: "sales-orders", action: "approve" },
     { resource: "vendor-pos", action: "view" },
     { resource: "grn", action: "view" },
     { resource: "products", action: "view" },
@@ -178,6 +188,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "dashboard", action: "view" },
     { resource: "quotes", action: "view" },
     { resource: "invoices", action: "view" },
+    { resource: "sales-orders", action: "view" },
     { resource: "vendors", action: "view" },
     { resource: "vendors", action: "create" },
     { resource: "vendors", action: "edit" },
@@ -207,6 +218,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "invoices", action: "finalize" },
     { resource: "invoices", action: "lock" },
     { resource: "invoices", action: "cancel" },
+    { resource: "sales-orders", action: "view" },
     { resource: "payments", action: "view" },
     { resource: "payments", action: "create" },
     { resource: "payments", action: "delete" },
@@ -220,6 +232,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "quotes", action: "view" },
     { resource: "clients", action: "view" },
     { resource: "invoices", action: "view" },
+    { resource: "sales-orders", action: "view" },
     { resource: "vendors", action: "view" },
     { resource: "vendor-pos", action: "view" },
     { resource: "products", action: "view" },
@@ -256,7 +269,7 @@ export function canAccessRoute(role: UserRole, path: string): boolean {
   const isValidResource = (str: string): str is Resource => {
     const validResources: Resource[] = [
       "dashboard", "quotes", "clients", "invoices", "vendors", "vendor-pos",
-      "products", "grn", "payments", "serial-search", "analytics",
+      "products", "grn", "payments", "serial-search", "analytics", "sales-orders",
       "admin/users", "admin/settings", "admin/configuration", "admin/governance",
       "dashboards", "dashboards/sales-quotes", "dashboards/vendor-po",
       "dashboards/invoice-collections", "dashboards/serial-tracking"

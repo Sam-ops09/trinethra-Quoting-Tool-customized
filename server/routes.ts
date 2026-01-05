@@ -15,11 +15,11 @@ import { NumberingService } from "./services/numbering.service";
 import { requirePermission } from "./permissions-middleware";
 import { requireFeature, getFeatureFlagsEndpoint } from "./feature-flags-middleware";
 import analyticsRoutes from "./analytics-routes";
+import quoteWorkflowRoutes from "./quote-workflow-routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
 import { z } from "zod";
-
 // Validate SESSION_SECRET at runtime, not at module load
 function getJWTSecret(): string {
   if (!process.env.SESSION_SECRET) {
@@ -61,62 +61,28 @@ async function authMiddleware(req: AuthRequest, res: Response, next: NextFunctio
   }
 }
 
-// Helper to generate quote/invoice numbers
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.use(cookieParser());
 
-  // Feature Flags API endpoint (public for client to sync)
-  app.get("/api/feature-flags", getFeatureFlagsEndpoint);
 
-  // Auth Routes
-  app.post("/api/auth/signup", requireFeature('pages_signup'), async (req: Request, res: Response) => {
+  app.post("/api/auth/signup", async (req: Request, res: Response) => {
     try {
-      const { email, backupEmail, password, name } = req.body;
-
-      // Check if user exists
-      const existing = await storage.getUserByEmail(email);
-      if (existing) {
-        return res.status(400).json({ error: "Email already registered" });
+      const { email, password, name } = req.body;
+      if (!email || !password || !name) {
+        return res.status(400).json({ error: "Email, password and name are required" });
       }
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 10);
+      if (await storage.getUserByEmail(email)) {
+        return res.status(400).json({ error: "User already exists" });
+      }
 
-      // Generate refresh token
-      const refreshToken = nanoid(32);
-      const refreshTokenExpiry = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000); // 1 days
-
-      // Create user with default role "viewer"
+      const hashedPassword = await bcrypt.hash(password, 10);
       const user = await storage.createUser({
         email,
-        backupEmail,
-        passwordHash,
+        passwordHash: hashedPassword,
         name,
         role: "viewer",
-        status: "active",
-        refreshToken,
-        refreshTokenExpiry,
-      });
-
-      // Generate access token
-      const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        getJWTSecret(),
-        { expiresIn: JWT_EXPIRES_IN }
-      );
-
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
-
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        status: "active"
       });
 
       await storage.createActivityLog({
@@ -125,6 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "user",
         entityId: user.id,
       });
+
 
       // Send welcome email
       try {
@@ -448,6 +415,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
 
+    // Analytics & Dashboard Routes
+    app.use("/api", authMiddleware, analyticsRoutes);
+    
+    // Quote Workflow Routes
+    app.use("/api", authMiddleware, quoteWorkflowRoutes);
+
     // Users Routes (Admin only)
   app.get("/api/users", authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
@@ -579,9 +552,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/clients", requireFeature('clients_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
       const clients = await storage.getAllClients();
-      return res.json(clients);
+      res.json(clients);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch clients" });
+      res.status(500).json({ error: "Failed to fetch clients" });
     }
   });
 
@@ -695,9 +668,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      return res.json(quotesWithClients);
+      res.json(quotesWithClients);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch quotes" });
+      res.status(500).json({ error: "Failed to fetch quotes" });
     }
   });
 
@@ -712,14 +685,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const items = await storage.getQuoteItems(quote.id);
       const creator = await storage.getUser(quote.createdBy);
 
-      return res.json({
+      res.json({
         ...quote,
         client,
         items,
         createdByName: creator?.name || "Unknown",
       });
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch quote" });
+      res.status(500).json({ error: "Failed to fetch quote" });
     }
   });
 
@@ -794,6 +767,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Cannot edit an invoiced quote" });
       }
 
+      // Prevent editing finalized quotes (Sent/Approved/Rejected) unless only updating status
+      // We allow updating status (e.g. marking as Approved), but not content changes.
+      if (["sent", "approved", "rejected", "closed_paid", "closed_cancelled"].includes(existingQuote.status)) {
+         const keys = Object.keys(req.body);
+         const allowedKeys = ["status", "closureNotes", "closedBy", "closedAt"]; // Start with status and closure fields
+         const hasContentUpdates = keys.some(key => !allowedKeys.includes(key));
+         
+         if (hasContentUpdates) {
+             return res.status(400).json({ 
+                 error: `Quote is in '${existingQuote.status}' state and cannot be edited. Please use the 'Revise' option to create a new version.` 
+             });
+         }
+      }
+
       // Normalize date fields
       const toDate = (v: any) => {
         if (!v) return undefined;
@@ -805,13 +792,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return undefined;
       };
 
-      const updateData = { ...req.body };
+      const { items, ...updateFields } = req.body;
+      const updateData = { ...updateFields };
       if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
       if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
 
       const quote = await storage.updateQuote(req.params.id, updateData);
       if (!quote) {
         return res.status(404).json({ error: "Quote not found" });
+      }
+
+      // Update items if provided
+      if (items && Array.isArray(items)) {
+        await storage.deleteQuoteItems(quote.id);
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          await storage.createQuoteItem({
+            quoteId: quote.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: String(item.unitPrice),
+            subtotal: String(item.quantity * item.unitPrice),
+            sortOrder: i,
+            hsnSac: item.hsnSac || null,
+          });
+        }
       }
 
       await storage.createActivityLog({
@@ -821,7 +826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: quote.id,
       });
 
-      // Auto-send email if status changed to "sent"
+
       if (updateData.status === "sent" && existingQuote.status !== "sent") {
         try {
           const client = await storage.getClient(quote.clientId);
@@ -905,124 +910,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
               },
             });
 
-            // Convert stream to buffer
             const chunks: Buffer[] = [];
+            pdfStream.on("data", (chunk: any) => chunks.push(chunk));
             await new Promise((resolve, reject) => {
-              pdfStream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
               pdfStream.on("end", resolve);
               pdfStream.on("error", reject);
             });
-            const pdfBuffer = Buffer.concat(chunks);
 
-            // Send email using EmailService
+            const pdfBuffer = Buffer.concat(chunks);
+            
             await EmailService.sendQuoteEmail(
               client.email,
               emailSubject,
               emailBody,
               pdfBuffer
             );
-
-            console.log(`[Auto-Email] Quote ${quote.quoteNumber} sent to ${client.email}`);
           }
         } catch (emailError) {
-          console.error("[Auto-Email] Failed to send email:", emailError);
-          // Don't fail the status update if email fails
+          console.error("Auto-send email error:", emailError);
         }
       }
 
       return res.json(quote);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Update quote error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update quote" });
-    }
-  });
-
-  app.put("/api/quotes/:id", requireFeature('quotes_edit'), authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
-    try {
-      // Check if quote exists and is not invoiced
-      const existingQuote = await storage.getQuote(req.params.id);
-      if (!existingQuote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-
-      // Prevent editing invoiced quotes
-      if (existingQuote.status === "invoiced") {
-        return res.status(400).json({ error: "Cannot edit an invoiced quote" });
-      }
-
-      const { items, ...quoteData } = req.body;
-
-      // Convert date strings to Date objects if present
-      if (quoteData.quoteDate && typeof quoteData.quoteDate === 'string') {
-        quoteData.quoteDate = new Date(quoteData.quoteDate);
-      }
-      if (quoteData.validUntil && typeof quoteData.validUntil === 'string') {
-        quoteData.validUntil = new Date(quoteData.validUntil);
-      }
-
-      // Update quote
-      const quote = await storage.updateQuote(req.params.id, quoteData);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-
-      // Update quote items if provided
-      if (items && Array.isArray(items)) {
-        // Delete existing items
-        await storage.deleteQuoteItems(req.params.id);
-
-        // Create new items
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          await storage.createQuoteItem({
-            quoteId: quote.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: String(item.unitPrice),
-            subtotal: String(item.quantity * item.unitPrice),
-            sortOrder: i,
-            hsnSac: item.hsnSac || null,
-          });
-        }
-      }
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "update_quote",
-        entityType: "quote",
-        entityId: quote.id,
-      });
-
-      return res.json(quote);
-    } catch (error: any) {
-      console.error("Update quote error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update quote" });
+      res.status(500).json({ error: "Failed to update quote" });
     }
   });
 
   app.post("/api/quotes/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
     try {
       const quote = await storage.getQuote(req.params.id);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
+      if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+      if (quote.status === "invoiced") {
+        return res.status(400).json({ error: "Quote is already invoiced" });
       }
 
-      // Check if already has master invoice
-      const existingInvoices = await storage.getInvoicesByQuote(quote.id);
-      const masterInvoice = existingInvoices.find(inv => inv.isMaster);
-      if (masterInvoice) {
-        return res.status(400).json({ error: "Quote already has a master invoice" });
-      }
+      // Generate a new master invoice number
+      const invoiceNumber = await NumberingService.generateInvoiceNumber();
 
-      // Generate master invoice number using NumberingService
-      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
-
-      // Create master invoice with all quote details
+      // Create the invoice
       const invoice = await storage.createInvoice({
         invoiceNumber,
         quoteId: quote.id,
-        paymentStatus: "pending",
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        isMaster: true,
+        masterInvoiceStatus: "draft", 
+        paymentStatus: "pending", 
+        dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1000), // Default due date based on validity
         paidAmount: "0",
         subtotal: quote.subtotal,
         discount: quote.discount,
@@ -1033,12 +968,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         total: quote.total,
         notes: quote.notes,
         termsAndConditions: quote.termsAndConditions,
-        isMaster: true,
-        masterInvoiceStatus: "draft" as const,
         createdBy: req.user!.id,
       });
 
-      // Copy quote items to invoice items
+      // Get quote items and create invoice items
       const quoteItems = await storage.getQuoteItems(quote.id);
       for (const item of quoteItems) {
         await storage.createInvoiceItem({
@@ -1050,24 +983,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           subtotal: item.subtotal,
           status: "pending",
           sortOrder: item.sortOrder,
-          hsnSac: (item as any).hsnSac || null,
+          hsnSac: item.hsnSac
         });
       }
 
       // Update quote status
       await storage.updateQuote(quote.id, { status: "invoiced" });
 
+      // Log activity
       await storage.createActivityLog({
         userId: req.user!.id,
-        action: "convert_to_invoice",
-        entityType: "quote",
-        entityId: quote.id,
+        action: "convert_quote_to_invoice",
+        entityType: "invoice",
+        entityId: invoice.id,
       });
 
       return res.json(invoice);
+      
     } catch (error: any) {
-      console.error("Convert to invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to convert to invoice" });
+      console.error("Convert quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to convert quote" });
     }
   });
 
@@ -1458,6 +1393,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           invoiceNumber: masterInvoice.invoiceNumber,
           status: masterInvoice.masterInvoiceStatus || "draft",
           total: masterInvoice.total,
+          subtotal: masterInvoice.subtotal,
+          discount: masterInvoice.discount,
+          cgst: masterInvoice.cgst,
+          sgst: masterInvoice.sgst,
+          igst: masterInvoice.igst,
+          shippingCharges: masterInvoice.shippingCharges,
           createdAt: masterInvoice.createdAt,
         },
         items: itemsSummary,
@@ -1848,15 +1789,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        updateData.lastPaymentDate = new Date();
-      }
+        }
 
-      // If payment status is explicitly set to "paid", also update paid amount to total if not already set
-      if (paymentStatus === "paid" && paidAmount === undefined) {
-        const totalAmount = invoice.total ? Number(invoice.total) : Number(quote.total);
-        updateData.paidAmount = String(totalAmount);
-        updateData.lastPaymentDate = new Date();
-      }
 
       const updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
 
@@ -1886,7 +1820,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateInvoice(masterInvoice.id, {
             paidAmount: String(totalChildPaidAmount),
             paymentStatus: masterPaymentStatus,
-            lastPaymentDate: new Date(),
           });
 
           // Check if we should auto-close the quote
@@ -1999,7 +1932,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paidAmount: String(newPaidAmount),
         paymentStatus: newPaymentStatus,
         lastPaymentDate: new Date(),
-        paymentMethod: paymentMethod,
       });
 
       // If this is a child invoice, update the master invoice payment totals
@@ -2156,7 +2088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoiceId: invoice.id,
         paidAmount: invoice.paidAmount,
         lastPaymentDate: invoice.lastPaymentDate,
-        paymentMethod: invoice.paymentMethod,
+
         history,
       });
     } catch (error) {
@@ -2205,7 +2137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paidAmount: String(newPaidAmount),
         paymentStatus: newPaymentStatus,
         lastPaymentDate: lastPayment?.paymentDate || null,
-        paymentMethod: lastPayment?.paymentMethod || null,
+
       });
 
       // If this is a child invoice, update the master invoice payment totals
@@ -2435,25 +2367,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           gstin: companyGSTIN,
         },
         invoiceNumber: invoice.invoiceNumber,
-        dueDate: new Date(invoice.dueDate),
-        paidAmount: invoice.paidAmount,
-        paymentStatus: invoice.paymentStatus,
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : new Date(),
+        paidAmount: invoice.paidAmount || "0",
+        paymentStatus: invoice.paymentStatus || "pending",
         // Master/Child invoice specific fields
         isMaster: invoice.isMaster,
         masterInvoiceStatus: invoice.masterInvoiceStatus || undefined,
         parentInvoiceNumber: parentInvoice?.invoiceNumber,
         childInvoices: childInvoices,
-        deliveryNotes: invoice.deliveryNotes,
-        milestoneDescription: invoice.milestoneDescription,
+        deliveryNotes: invoice.deliveryNotes || undefined,
+        milestoneDescription: invoice.milestoneDescription || undefined,
         // Use invoice totals (not quote totals)
-        subtotal: invoice.subtotal,
-        discount: invoice.discount,
-        cgst: invoice.cgst,
-        sgst: invoice.sgst,
-        igst: invoice.igst,
-        shippingCharges: invoice.shippingCharges,
-        total: invoice.total,
-        notes: invoice.notes,
+        subtotal: invoice.subtotal || "0",
+        discount: invoice.discount || "0",
+        cgst: invoice.cgst || "0",
+        sgst: invoice.sgst || "0",
+        igst: invoice.igst || "0",
+        shippingCharges: invoice.shippingCharges || "0",
+        total: invoice.total || "0",
+        notes: invoice.notes || undefined,
         termsAndConditions: invoice.termsAndConditions,
         // Bank details
         bankName,
@@ -2549,7 +2481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "{INVOICE_NUMBER}": invoice.invoiceNumber,
         "{TOTAL}": `₹${Number(invoice.total).toLocaleString()}`,
         "{OUTSTANDING}": `₹${(Number(invoice.total) - Number(invoice.paidAmount)).toLocaleString()}`,
-        "{DUE_DATE}": new Date(invoice.dueDate).toLocaleDateString(),
+        "{DUE_DATE}": invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : new Date().toLocaleDateString(),
         "{BANK_DETAILS}": bankDetailsForEmail,
       };
 
@@ -2589,23 +2521,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           gstin: companyGSTIN,
         },
         invoiceNumber: invoice.invoiceNumber,
-        dueDate: new Date(invoice.dueDate),
-        paidAmount: invoice.paidAmount,
-        paymentStatus: invoice.paymentStatus,
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : new Date(),
+        paidAmount: invoice.paidAmount || "0",
+        paymentStatus: invoice.paymentStatus || "pending",
         // Add missing invoice fields
         isMaster: invoice.isMaster,
         masterInvoiceStatus: invoice.masterInvoiceStatus || undefined,
-        deliveryNotes: invoice.deliveryNotes,
-        milestoneDescription: invoice.milestoneDescription,
+        deliveryNotes: invoice.deliveryNotes || undefined,
+        milestoneDescription: invoice.milestoneDescription || undefined,
         // Use invoice totals (not quote totals)
-        subtotal: invoice.subtotal,
-        discount: invoice.discount,
-        cgst: invoice.cgst,
-        sgst: invoice.sgst,
-        igst: invoice.igst,
-        shippingCharges: invoice.shippingCharges,
-        total: invoice.total,
-        notes: invoice.notes,
+        subtotal: invoice.subtotal || "0",
+        discount: invoice.discount || "0",
+        cgst: invoice.cgst || "0",
+        sgst: invoice.sgst || "0",
+        igst: invoice.igst || "0",
+        shippingCharges: invoice.shippingCharges || "0",
+        total: invoice.total || "0",
+        notes: invoice.notes || undefined,
         termsAndConditions: invoice.termsAndConditions,
         // Bank details from dedicated table
         bankName: bankDetailRecord?.bankName || undefined,
@@ -2680,7 +2612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const emailBodyTemplate = settings.find((s) => s.key === "email_payment_reminder_body")?.value || "Dear {CLIENT_NAME},\n\nThis is a friendly reminder that invoice {INVOICE_NUMBER} is due for payment.\n\nAmount Due: {OUTSTANDING}\nDue Date: {DUE_DATE}\nDays Overdue: {DAYS_OVERDUE}\n\nPlease arrange payment at your earliest convenience.\n\nBest regards,\n{COMPANY_NAME}";
 
       // Calculate days overdue
-      const dueDate = new Date(invoice.dueDate);
+      const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : new Date();
       const today = new Date();
       const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
       const daysOverdueText = daysOverdue > 0 ? `${daysOverdue} days` : "Not overdue";
@@ -2960,7 +2892,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== BANK DETAILS ROUTES ====================
-  
+
   app.get("/api/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
       if (req.user!.role !== "admin") {
@@ -3036,8 +2968,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...(branch !== undefined && { branch }),
           ...(swiftCode !== undefined && { swiftCode }),
           ...(isActive !== undefined && { isActive }),
-        },
-        req.user!.id
+          updatedBy: req.user!.id,
+        }
       );
 
       if (!detail) {
@@ -3327,61 +3259,465 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentStatus: "pending",
         dueDate,
         paidAmount: "0",
-        subtotal: req.body.subtotal || quote.subtotal,
-        discount: req.body.discount || quote.discount,
-        cgst: req.body.cgst || quote.cgst,
-        sgst: req.body.sgst || quote.sgst,
-        igst: req.body.igst || quote.igst,
-        shippingCharges: req.body.shippingCharges || quote.shippingCharges,
-        total: req.body.total || quote.total,
-        notes: req.body.notes || quote.notes,
-        termsAndConditions: req.body.termsAndConditions || quote.termsAndConditions,
-        deliveryNotes: req.body.deliveryNotes || null,
-        milestoneDescription: req.body.milestoneDescription || null,
+        clientId: quote.clientId,
+        subtotal: String(quote.subtotal || 0),
+        discount: String(quote.discount || 0),
+        cgst: String(quote.cgst || 0),
+        sgst: String(quote.sgst || 0),
+        igst: String(quote.igst || 0),
+        total: String(quote.total || 0),
+        remainingAmount: String(quote.total || 0),
+        status: "draft",
         createdBy: req.user!.id,
       });
 
       // Create invoice items
-      if (req.body.items && Array.isArray(req.body.items) && req.body.items.length > 0) {
-        // Use provided items
-        for (const item of req.body.items) {
-          await storage.createInvoiceItem({
-            invoiceId: invoice.id,
-            description: item.description,
-            quantity: item.quantity,
-            fulfilledQuantity: 0,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            status: "pending",
-            sortOrder: item.sortOrder || 0,
-            hsnSac: item.hsnSac || null,
-          });
-        }
-      } else {
-        // For master invoices, create invoice items from quote items
-        // This ensures the master invoice has items for child invoice creation
-        const quoteItems = await storage.getQuoteItems(quote.id);
-        for (const item of quoteItems) {
-          await storage.createInvoiceItem({
-            invoiceId: invoice.id,
-            description: item.description,
-            quantity: item.quantity,
-            fulfilledQuantity: 0,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            status: "pending",
-            sortOrder: item.sortOrder,
-            hsnSac: (item as any).hsnSac || null,
-          });
-        }
+      const quoteItems = await storage.getQuoteItems(quote.id);
+      for (const item of quoteItems) {
+        await storage.createInvoiceItem({
+          invoiceId: invoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          hsnSac: item.hsnSac
+        });
       }
 
-      res.json(invoice);
-    } catch (error) {
-      console.error("Error creating invoice:", error);
-      res.status(500).json({ error: "Failed to create invoice" });
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "create_invoice",
+        entityType: "invoice",
+        entityId: invoice.id,
+      });
+
+      return res.json(invoice);
+    } catch (error: any) {
+      console.error("Create invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create invoice" });
     }
   });
+  app.get("/api/settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const settings = await storage.getAllSettings();
+      const settingsMap: Record<string, string> = {};
+      settings.forEach(s => {
+        settingsMap[s.key] = s.value;
+      });
+      return res.json(settingsMap);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  app.post("/api/settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const settingsData = req.body;
+
+      for (const [key, value] of Object.entries(settingsData)) {
+        await storage.upsertSetting({
+          key,
+          value: String(value),
+          updatedBy: req.user!.id,
+        });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "update_settings",
+        entityType: "settings",
+      });
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to update settings" });
+    }
+  });
+
+  // PDF Theme Routes
+  app.get("/api/themes", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const { getAllThemes } = await import("./services/pdf-themes");
+      const themes = getAllThemes();
+      return res.json(themes);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to get themes" });
+    }
+  });
+
+  app.get("/api/themes/segment/:segment", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const { getSuggestedTheme } = await import("./services/pdf-themes");
+      const theme = getSuggestedTheme(req.params.segment);
+      return res.json(theme);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to get suggested theme" });
+    }
+  });
+
+  app.patch("/api/clients/:id/theme", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const { preferredTheme, segment } = req.body;
+
+      const updateData: any = {};
+      if (preferredTheme !== undefined) updateData.preferredTheme = preferredTheme;
+      if (segment !== undefined) updateData.segment = segment;
+
+      const client = await storage.updateClient(req.params.id, updateData);
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "update_client_theme",
+        entityType: "client",
+        entityId: req.params.id,
+      });
+
+      return res.json(client);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to update client theme" });
+    }
+  });
+
+  // Governance & Activity Log Routes (Admin only)
+  app.get("/api/governance/stats", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user?.role !== "admin") {
+        return res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
+
+      // Get total and active users
+      const allUsers = await storage.getAllUsers();
+      const totalUsers = allUsers.length;
+      const activeUsers = allUsers.filter((u: any) => u.status === "active").length;
+
+      // Get activity logs count
+      const activityLogs = await db.select().from(schema.activityLogs);
+      const totalActivities = activityLogs.length;
+      const criticalActivities = activityLogs.filter(log =>
+        log.action.includes("delete") ||
+        log.action.includes("approve") ||
+        log.action.includes("lock") ||
+        log.action.includes("finalize")
+      ).length;
+
+      // Count unauthorized attempts (from activity logs)
+      const unauthorizedAttempts = activityLogs.filter(log =>
+        log.action.includes("unauthorized")
+      ).length;
+
+      // Recent approvals (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentApprovals = activityLogs.filter(log =>
+        log.action.includes("approve") &&
+        log.timestamp &&
+        new Date(log.timestamp) > thirtyDaysAgo
+      ).length;
+
+      return res.json({
+        totalUsers,
+        activeUsers,
+        totalActivities,
+        criticalActivities,
+        unauthorizedAttempts,
+        recentApprovals,
+      });
+    } catch (error: any) {
+      console.error("Error fetching governance stats:", error);
+      return res.status(500).json({ error: error.message || "Failed to fetch governance stats" });
+    }
+  });
+
+  app.get("/api/activity-logs/recent", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user?.role !== "admin") {
+        return res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
+
+      // Get recent activity logs (last 100)
+      const logs = await db
+        .select()
+        .from(schema.activityLogs)
+        .orderBy(desc(schema.activityLogs.timestamp))
+        .limit(100);
+
+      // Enrich with user information
+      const enrichedLogs = await Promise.all(
+        logs.map(async (log) => {
+          const user = log.userId ? await storage.getUser(log.userId) : null;
+          return {
+            ...log,
+            userName: user?.name || "Unknown User",
+            userEmail: user?.email || "unknown@example.com",
+          };
+        })
+      );
+
+      return res.json(enrichedLogs);
+    } catch (error: any) {
+      console.error("Error fetching activity logs:", error);
+      return res.status(500).json({ error: error.message || "Failed to fetch activity logs" });
+    }
+  });
+
+  // ==================== TAX RATES & PAYMENT TERMS ROUTES ====================
+
+  // Get all tax rates
+  app.get("/api/tax-rates", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const rates = await db.select().from(schema.taxRates).where(eq(schema.taxRates.isActive, true));
+      // Transform to simpler format for frontend
+      const simplifiedRates = rates.map(rate => ({
+        id: rate.id,
+        name: `${rate.taxType} ${rate.region}`,
+        percentage: parseFloat(rate.igstRate), // Use IGST as the main rate
+        sgstRate: parseFloat(rate.sgstRate),
+        cgstRate: parseFloat(rate.cgstRate),
+        igstRate: parseFloat(rate.igstRate),
+        region: rate.region,
+        taxType: rate.taxType,
+        isActive: rate.isActive,
+        effectiveFrom: rate.effectiveFrom,
+        effectiveTo: rate.effectiveTo,
+      }));
+      return res.json(simplifiedRates);
+    } catch (error: any) {
+      console.error("Error fetching tax rates:", error);
+      return res.status(500).json({ error: "Failed to fetch tax rates" });
+    }
+  });
+
+  // Create tax rate
+  app.post("/api/tax-rates", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
+      }
+
+      const { region, taxType, sgstRate, cgstRate, igstRate, description } = req.body;
+
+      if (!region || !taxType) {
+        return res.status(400).json({ error: "Region and taxType are required" });
+      }
+
+      // Use the rates provided by the client, default to 0 if not provided
+      const sgst = sgstRate !== undefined && sgstRate !== null ? String(sgstRate) : "0";
+      const cgst = cgstRate !== undefined && cgstRate !== null ? String(cgstRate) : "0";
+      const igst = igstRate !== undefined && igstRate !== null ? String(igstRate) : "0";
+
+      const newRate = await db.insert(schema.taxRates).values({
+        region,
+        taxType,
+        sgstRate: sgst,
+        cgstRate: cgst,
+        igstRate: igst,
+      }).returning();
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "create_tax_rate",
+        entityType: "tax_rate",
+        entityId: newRate[0].id,
+      });
+
+      return res.json({
+        id: newRate[0].id,
+        region,
+        taxType,
+        sgstRate: parseFloat(sgst),
+        cgstRate: parseFloat(cgst),
+        igstRate: parseFloat(igst),
+      });
+    } catch (error: any) {
+      console.error("Error creating tax rate:", error);
+      return res.status(500).json({ error: error.message || "Failed to create tax rate" });
+    }
+  });
+
+  // Delete tax rate
+  app.delete("/api/tax-rates/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
+      }
+
+      await db.delete(schema.taxRates).where(eq(schema.taxRates.id, req.params.id));
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "delete_tax_rate",
+        entityType: "tax_rate",
+        entityId: req.params.id,
+      });
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting tax rate:", error);
+      return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
+    }
+  });
+
+  // Get all payment terms
+  app.get("/api/payment-terms", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const terms = await db.select().from(schema.paymentTerms).where(eq(schema.paymentTerms.isActive, true));
+      return res.json(terms);
+    } catch (error: any) {
+      console.error("Error fetching payment terms:", error);
+      return res.status(500).json({ error: "Failed to fetch payment terms" });
+    }
+  });
+
+  // Create payment term
+  app.post("/api/payment-terms", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
+      }
+
+      const { name, days, description, isDefault } = req.body;
+
+      if (!name || days === undefined) {
+        return res.status(400).json({ error: "Name and days are required" });
+      }
+
+      // If this is set as default, remove default from others
+      if (isDefault) {
+        await db.update(schema.paymentTerms).set({ isDefault: false }).where(eq(schema.paymentTerms.isDefault, true));
+      }
+
+      const newTerm = await db.insert(schema.paymentTerms).values({
+        name,
+        days,
+        description: description || null,
+        isDefault: isDefault || false,
+        createdBy: req.user!.id,
+      }).returning();
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "create_payment_term",
+        entityType: "payment_term",
+        entityId: newTerm[0].id,
+      });
+
+      return res.json(newTerm[0]);
+    } catch (error: any) {
+      console.error("Error creating payment term:", error);
+      return res.status(500).json({ error: error.message || "Failed to create payment term" });
+    }
+  });
+
+  // Delete payment term
+  app.delete("/api/payment-terms/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
+      }
+
+      await db.delete(schema.paymentTerms).where(eq(schema.paymentTerms.id, req.params.id));
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "delete_payment_term",
+        entityType: "payment_term",
+        entityId: req.params.id,
+      });
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting payment term:", error);
+      return res.status(500).json({ error: error.message || "Failed to delete payment term" });
+    }
+  });
+
+  // ==================== DEBUG ENDPOINTS ====================
+  // These are public endpoints for debugging numbering system
+  // Admin should protect these endpoints at reverse proxy level if needed
+
+  app.get("/api/debug/counters", async (req: Request, res: Response) => {
+    try {
+      const year = new Date().getFullYear();
+      const types = ["quote", "master_invoice", "child_invoice", "vendor_po", "grn"];
+      const counters: Record<string, any> = {};
+
+      for (const type of types) {
+        const counterKey = `${type}_counter_${year}`;
+        const setting = await storage.getSetting(counterKey);
+        const currentValue = setting?.value || "0";
+        const nextValue = parseInt(String(currentValue), 10) + 1;
+        counters[counterKey] = {
+          current: currentValue,
+          next: String(nextValue).padStart(4, "0"),
+          exists: !!setting,
+        };
+      }
+
+      return res.json({
+        year,
+        counters,
+        message: "Next value shows what will be generated next"
+      });
+    } catch (error: any) {
+      console.error("Error fetching counters:", error);
+      return res.status(500).json({ error: error.message || "Failed to fetch counters" });
+    }
+  });
+
+  app.post("/api/debug/reset-counter/:type", async (req: Request, res: Response) => {
+    try {
+      const { type } = req.params;
+      const year = new Date().getFullYear();
+
+      console.log(`[DEBUG] Resetting counter for ${type} in year ${year}`);
+
+      await NumberingService.resetCounter(type, year);
+
+      return res.json({
+        success: true,
+        message: `Counter ${type}_counter_${year} has been reset to 0`,
+        nextNumber: "0001"
+      });
+    } catch (error: any) {
+      console.error("Error resetting counter:", error);
+      return res.status(500).json({ error: error.message || "Failed to reset counter" });
+    }
+  });
+
+  app.post("/api/debug/set-counter/:type/:value", async (req: Request, res: Response) => {
+    try {
+      const { type, value } = req.params;
+      const year = new Date().getFullYear();
+      const numValue = parseInt(value, 10);
+
+      if (isNaN(numValue) || numValue < 0) {
+        return res.status(400).json({ error: "Value must be a non-negative integer" });
+      }
+
+      console.log(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
+
+      await NumberingService.setCounter(type, year, numValue);
+
+      const nextValue = numValue + 1;
+      return res.json({
+        success: true,
+        message: `Counter ${type}_counter_${year} set to ${numValue}`,
+        nextNumber: String(nextValue).padStart(4, "0")
+      });
+    } catch (error: any) {
+      console.error("Error setting counter:", error);
+      return res.status(500).json({ error: error.message || "Failed to set counter" });
+    }
+  });
+
+
 
   app.patch("/api/invoices/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req: AuthRequest, res: Response) => {
     try {
@@ -5557,6 +5893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics & Dashboard Routes
   app.use("/api", authMiddleware, analyticsRoutes);
+  app.use("/api", authMiddleware, quoteWorkflowRoutes);
 
   const httpServer = createServer(app);
   return httpServer;

@@ -1,6 +1,7 @@
 import "dotenv/config"; // load environment variables early
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { registerReportRoutes } from "./reports-routes";
@@ -79,6 +80,8 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   const start = Date.now();

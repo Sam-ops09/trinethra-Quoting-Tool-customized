@@ -24,7 +24,8 @@ export type ResourceType =
   | "payments"
   | "serial_numbers"
   | "users"
-  | "settings";
+  | "settings"
+  | "sales_orders";
 
 export type ActionType =
   | "view"
@@ -81,6 +82,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "invoices", action: "finalize" },
       { resource: "invoices", action: "lock" },
       { resource: "invoices", action: "cancel" },
+      { resource: "sales_orders", action: "view" },
+      { resource: "sales_orders", action: "create" },
+      { resource: "sales_orders", action: "edit" },
+      { resource: "sales_orders", action: "delete" },
+      { resource: "sales_orders", action: "approve" },
+      { resource: "sales_orders", action: "cancel" },
       { resource: "vendor_pos", action: "view" },
       { resource: "vendor_pos", action: "create" },
       { resource: "vendor_pos", action: "edit" },
@@ -132,6 +139,9 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "invoices", action: "create" },
       { resource: "invoices", action: "edit" },
       { resource: "invoices", action: "finalize" },
+      { resource: "sales_orders", action: "view" },
+      { resource: "sales_orders", action: "create" },
+      { resource: "sales_orders", action: "edit" },
       { resource: "vendor_pos", action: "view" },
       { resource: "clients", action: "view" },
       { resource: "clients", action: "create" },
@@ -152,6 +162,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "invoices", action: "view" },
       { resource: "invoices", action: "create" },
       { resource: "invoices", action: "edit" },
+      { resource: "sales_orders", action: "view" },
+      { resource: "sales_orders", action: "create" },
+      { resource: "sales_orders", action: "edit" },
+      { resource: "sales_orders", action: "approve" },
+      { resource: "sales_orders", action: "cancel" },
       { resource: "vendor_pos", action: "view" },
       { resource: "grns", action: "view" },
       { resource: "clients", action: "view" },
@@ -175,6 +190,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "grns", action: "create" },
       { resource: "grns", action: "edit" },
       { resource: "grns", action: "delete" },
+      { resource: "sales_orders", action: "view" },
       { resource: "quotes", action: "view" },
       { resource: "invoices", action: "view" },
       { resource: "vendors", action: "view" },
@@ -201,6 +217,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "payments", action: "create" },
       { resource: "payments", action: "edit" },
       { resource: "payments", action: "delete" },
+      { resource: "sales_orders", action: "view" },
       { resource: "quotes", action: "view" },
       { resource: "clients", action: "view" },
       { resource: "serial_numbers", action: "view" },
@@ -212,6 +229,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
     permissions: [
       { resource: "quotes", action: "view" },
       { resource: "invoices", action: "view" },
+      { resource: "sales_orders", action: "view" },
       { resource: "vendor_pos", action: "view" },
       { resource: "grns", action: "view" },
       { resource: "clients", action: "view" },
@@ -662,6 +680,7 @@ export function getAuditableFields(resource: ResourceType): string[] {
     serial_numbers: ["serialNumber", "status"],
     users: ["role", "status", "email"],
     settings: ["*"], // All settings changes
+    sales_orders: ["total", "status", "discount", "orderDate"],
   };
 
   return auditableFieldsMap[resource] || [];

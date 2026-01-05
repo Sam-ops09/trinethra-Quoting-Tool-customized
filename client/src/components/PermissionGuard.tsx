@@ -1,11 +1,10 @@
 import React from "react";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { ReactNode } from "react";
-
 interface PermissionGuardProps {
   resource: string;
+  resource: string;
   action: string;
-  children: ReactNode;
   fallback?: ReactNode;
   showTooltip?: boolean;
   tooltipText?: string;
@@ -40,4 +39,5 @@ export function PermissionGuard({
 
   return <>{fallback}</>;
 }
+
 

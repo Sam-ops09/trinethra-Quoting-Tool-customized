@@ -67,6 +67,20 @@ const menuItems = [
         featureFlag: 'pages_quotes' as const,
     },
     {
+        title: "Sales Orders",
+        url: "/sales-orders",
+        icon: Package,
+        roles: [
+            "admin",
+            "sales_executive",
+            "sales_manager",
+            "finance_accounts",
+            "viewer",
+        ],
+        description: "Manage sales orders",
+        featureFlag: 'pages_quotes' as const,
+    },
+    {
         title: "Clients",
         url: "/clients",
         icon: Users,
@@ -235,7 +249,7 @@ export function AppSidebar() {
 
     // Grouping logic
     const salesItems = filteredMenuItems.filter((item) =>
-        ["Quotes", "Clients", "Invoices"].includes(item.title)
+        ["Quotes", "Sales Orders", "Clients", "Invoices"].includes(item.title)
     );
     const purchaseItems = filteredMenuItems.filter((item) =>
         ["Vendors", "Vendor POs", "Products", "GRN"].includes(item.title)

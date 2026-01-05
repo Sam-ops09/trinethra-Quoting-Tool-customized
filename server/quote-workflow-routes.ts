@@ -1,0 +1,900 @@
+
+import { Router, Response } from "express";
+import { AuthRequest } from "./routes";
+import { storage } from "./storage";
+import { requirePermission } from "./permissions-middleware";
+import { hasPermission } from "./permissions-service";
+import { requireFeature } from "./feature-flags-middleware";
+import * as ExcelJS from "exceljs";
+import { z } from "zod";
+import { NumberingService } from "./services/numbering.service";
+import { InvoicePDFService } from "./services/invoice-pdf.service";
+import { SalesOrderPDFService } from "./services/sales-order-pdf.service";
+import { EmailService } from "./services/email.service";
+import { Readable } from "stream";
+
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    stream.on("data", (chunk: any) => chunks.push(Buffer.from(chunk)));
+    stream.on("error", (err: any) => reject(err));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
+const router = Router();
+
+/**
+ * QUOTE VERSIONS
+ */
+
+// Revise a quote (Create version snapshot + Reset to Draft)
+router.post("/quotes/:id/revise",
+  requireFeature('quotes_module'),
+  requirePermission("quotes", "edit"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const quoteId = req.params.id;
+      const quote = await storage.getQuote(quoteId);
+
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      // Allow revision for all quotes (including drafts if manual snapshot is desired)
+      // Removed check blocking draft status
+
+      // 1. Create Snapshot (Logic copied from /versions endpoint)
+      const items = await storage.getQuoteItems(quoteId);
+
+      await storage.createQuoteVersion({
+        quoteId,
+        version: quote.version,
+        clientId: quote.clientId,
+        status: quote.status,
+        validityDays: quote.validityDays,
+        quoteDate: quote.quoteDate,
+        validUntil: quote.validUntil,
+        referenceNumber: quote.referenceNumber,
+        attentionTo: quote.attentionTo,
+        subtotal: quote.subtotal.toString(),
+        discount: quote.discount.toString(),
+        cgst: quote.cgst.toString(),
+        sgst: quote.sgst.toString(),
+        igst: quote.igst.toString(),
+        shippingCharges: quote.shippingCharges.toString(),
+        total: quote.total.toString(),
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        bomSection: quote.bomSection,
+        slaSection: quote.slaSection,
+        timelineSection: quote.timelineSection,
+        itemsSnapshot: JSON.stringify(items),
+        revisionNotes: req.body.revisionNotes || `Revision from status: ${quote.status}`,
+        revisedBy: req.user!.id,
+      });
+
+      // 2. Update Quote to Draft and Increment Version
+      const updatedQuote = await storage.updateQuote(quoteId, {
+        status: "draft",
+        version: quote.version + 1,
+        // Reset approval/sent fields if any? (Not explicitly in schema besides status)
+      });
+
+      // 3. Log Activity
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "revise_quote",
+        entityType: "quote",
+        entityId: quote.id,
+      });
+
+      return res.json(updatedQuote);
+    } catch (error: any) {
+      console.error("Revise quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to revise quote" });
+    }
+  }
+);
+
+// Create a new version snapshot OF THE CURRENT STATE (Manual snapshot without reset)
+router.post("/quotes/:id/versions", 
+  requireFeature('quotes_module'),
+  // authMiddleware is applied at mount level
+  requirePermission("quotes", "edit"), 
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const quoteId = req.params.id;
+      const quote = await storage.getQuote(quoteId);
+      
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      // Calculate next version number
+      const existingVersions = await storage.getQuoteVersions(quoteId);
+      const nextVersion = existingVersions.length > 0 
+        ? Math.max(...existingVersions.map(v => v.version)) + 1 
+        : 1;
+
+      // Get items for snapshot
+      const items = await storage.getQuoteItems(quoteId);
+
+      // Create version
+      const version = await storage.createQuoteVersion({
+        quoteId,
+        version: nextVersion,
+        clientId: quote.clientId,
+        status: quote.status,
+        validityDays: quote.validityDays,
+        quoteDate: quote.quoteDate,
+        validUntil: quote.validUntil,
+        referenceNumber: quote.referenceNumber,
+        attentionTo: quote.attentionTo,
+        subtotal: quote.subtotal.toString(),
+        discount: quote.discount.toString(),
+        cgst: quote.cgst.toString(),
+        sgst: quote.sgst.toString(),
+        igst: quote.igst.toString(),
+        shippingCharges: quote.shippingCharges.toString(),
+        total: quote.total.toString(),
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        bomSection: quote.bomSection,
+        slaSection: quote.slaSection,
+        timelineSection: quote.timelineSection,
+        itemsSnapshot: JSON.stringify(items),
+        revisionNotes: req.body.revisionNotes,
+        revisedBy: req.user!.id,
+      });
+
+      return res.json(version);
+    } catch (error: any) {
+      console.error("Create quote version error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create quote version" });
+    }
+  }
+);
+
+// Get versions for a quote
+router.get("/quotes/:id/versions", 
+  requireFeature('quotes_module'),
+  requirePermission("quotes", "view"), 
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const versions = await storage.getQuoteVersions(req.params.id);
+      return res.json(versions);
+    } catch (error: any) {
+      return res.status(500).json({ error: "Failed to fetch quote versions" });
+    }
+  }
+);
+
+// Get specific version
+router.get("/quotes/:id/versions/:version", 
+  requireFeature('quotes_module'),
+  requirePermission("quotes", "view"), 
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const version = await storage.getQuoteVersion(req.params.id, parseInt(req.params.version));
+      if (!version) {
+        return res.status(404).json({ error: "Version not found" });
+      }
+      return res.json(version);
+    } catch (error: any) {
+      return res.status(500).json({ error: "Failed to fetch version" });
+    }
+  }
+);
+
+
+/**
+ * SALES ORDERS
+ */
+
+// Create Sales Order from Quote
+router.post("/sales-orders",
+  requireFeature('quotes_module'),
+  requirePermission("sales_orders", "create"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { quoteId } = req.body;
+      
+      if (!quoteId) {
+        return res.status(400).json({ error: "Quote ID is required" });
+      }
+
+      // Check if quote exists
+      const quote = await storage.getQuote(quoteId);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      if (quote.status !== "approved") {
+        return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
+      }
+
+      // Check if sales order already exists
+      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+      if (existingOrder) {
+        return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
+      }
+
+      // Generate SO number
+      const orderNumber = `SO-${quote.quoteNumber}`; 
+
+      // Create Sales Order
+      const orderData = {
+        orderNumber,
+        quoteId: quote.id,
+        clientId: quote.clientId,
+        status: "draft" as const,
+        orderDate: new Date(),
+        subtotal: quote.subtotal.toString(),
+        discount: quote.discount.toString(),
+        cgst: quote.cgst.toString(),
+        sgst: quote.sgst.toString(),
+        igst: quote.igst.toString(),
+        shippingCharges: quote.shippingCharges.toString(),
+        total: quote.total.toString(),
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        createdBy: req.user!.id,
+      };
+
+      console.log(`[CREATE SO] Financials Check: Discount=${orderData.discount}, Tax=${orderData.cgst}/${orderData.sgst}/${orderData.igst}, Total=${orderData.total}`);
+
+      const salesOrder = await storage.createSalesOrder(orderData);
+
+      // Create Items
+      const quoteItems = await storage.getQuoteItems(quoteId);
+      for (const item of quoteItems) {
+        await storage.createSalesOrderItem({
+          salesOrderId: salesOrder.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice.toString(),
+          subtotal: item.subtotal.toString(),
+          hsnSac: item.hsnSac,
+          sortOrder: item.sortOrder,
+          status: "pending",
+          fulfilledQuantity: 0
+        });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "create", 
+        entityType: "sales_orders" as any,
+        entityId: salesOrder.id,
+      });
+
+      return res.json(salesOrder);
+    } catch (error: any) {
+      console.error("Create sales order error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create sales order" });
+    }
+  }
+);
+
+router.get("/sales-orders",
+  requirePermission("sales_orders", "view"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const orders = await storage.getAllSalesOrders();
+      // Enrich with client name
+      const ordersWithData = await Promise.all(orders.map(async (order) => {
+        const client = await storage.getClient(order.clientId);
+        const quote = await storage.getQuote(order.quoteId);
+        return {
+          ...order,
+          clientName: client?.name || "Unknown",
+          quoteNumber: quote?.quoteNumber || "Unknown"
+        };
+      }));
+      return res.json(ordersWithData);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch sales orders" });
+    }
+  }
+);
+
+router.get("/sales-orders/:id",
+  requirePermission("sales_orders", "view"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const order = await storage.getSalesOrder(req.params.id);
+      if (order) {
+          console.log(`[GET SO] ID: ${order.id}, Subtotal: ${order.subtotal}, Discount: ${order.discount}, Tax: ${order.cgst}/${order.sgst}/${order.igst}, Total: ${order.total}`);
+      }
+      if (!order) {
+        return res.status(404).json({ error: "Sales Order not found" });
+      }
+      
+      const items = await storage.getSalesOrderItems(order.id);
+      const client = await storage.getClient(order.clientId);
+      const quote = await storage.getQuote(order.quoteId);
+      const quoteItems = await storage.getQuoteItems(order.quoteId);
+      const creator = await storage.getUser(order.createdBy);
+
+      return res.json({
+        ...order,
+        client,
+        items,
+        quote: {
+          ...quote,
+          items: quoteItems
+        },
+        createdByName: creator?.name || "Unknown"
+      });
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch sales order" });
+    }
+  }
+);
+
+router.patch("/sales-orders/:id",
+  requirePermission("sales_orders", "edit"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const currentOrder = await storage.getSalesOrder(req.params.id);
+      if (!currentOrder) return res.status(404).json({ error: "Order not found" });
+      
+      // Handle status transitions with additional permissions
+      if (req.body.status && req.body.status !== currentOrder.status) {
+        const newStatus = req.body.status;
+        
+        // Check permissions for status changes
+        if (newStatus === "confirmed" && currentOrder.status === "draft") {
+          // Confirming requires approve permission
+          if (!req.user || !hasPermission(req.user.role as any, "sales_orders", "approve")) {
+            return res.status(403).json({ error: "Insufficient permissions to confirm orders" });
+          }
+          // Set confirmed timestamp
+          req.body.confirmedAt = new Date();
+          req.body.confirmedBy = req.user.id;
+        } else if (newStatus === "cancelled") {
+          // Cancelling requires cancel permission
+          if (!req.user || !hasPermission(req.user!.role as any, "sales_orders", "cancel")) {
+            return res.status(403).json({ error: "Insufficient permissions to cancel orders" });
+          }
+        } else if (newStatus === "fulfilled" && currentOrder.status !== "confirmed") {
+          return res.status(400).json({ error: "Only confirmed orders can be fulfilled" });
+        }
+      }
+      
+      // Handle items update if provided
+      const items = req.body.items;
+      console.log(`[PATCH SO] Body updates:`, { 
+        subtotal: req.body.subtotal,
+        discount: req.body.discount,
+        shipping: req.body.shippingCharges,
+        tax: `${req.body.cgst}/${req.body.sgst}/${req.body.igst}`,
+        total: req.body.total
+      });
+      console.log(`[PATCH SO] Items length: ${items?.length}`);
+      
+      delete req.body.items; // Remove items from body to avoid passing to updateSalesOrder
+      
+      // Convert date strings to Date objects if present
+      if (req.body.expectedDeliveryDate && typeof req.body.expectedDeliveryDate === 'string') {
+        req.body.expectedDeliveryDate = new Date(req.body.expectedDeliveryDate);
+      }
+      if (req.body.actualDeliveryDate && typeof req.body.actualDeliveryDate === 'string') {
+        req.body.actualDeliveryDate = new Date(req.body.actualDeliveryDate);
+      }
+      
+      
+      // Explicitly construct update object to ensure financial fields are captured
+      const updateData = {
+        ...req.body,
+        // Ensure decimal fields are strings
+        subtotal: req.body.subtotal?.toString(),
+        discount: req.body.discount?.toString(),
+        cgst: req.body.cgst?.toString(),
+        sgst: req.body.sgst?.toString(),
+        igst: req.body.igst?.toString(),
+        shippingCharges: req.body.shippingCharges?.toString(),
+        total: req.body.total?.toString(),
+      };
+
+      const order = await storage.updateSalesOrder(req.params.id, updateData);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      
+      // Update items if provided
+      if (items && Array.isArray(items)) {
+        // Delete existing items
+        await storage.deleteSalesOrderItems(req.params.id);
+        
+        // Create new items
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          await storage.createSalesOrderItem({
+            salesOrderId: req.params.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+            hsnSac: item.hsnSac || null,
+            sortOrder: i,
+          });
+        }
+      }
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "edit",
+        entityType: "sales_orders" as any,
+        entityId: order.id
+      });
+
+      return res.json(order);
+    } catch (error: any) {
+      console.error("Error updating sales order:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+router.post(
+  "/sales-orders/:id/convert-to-invoice",
+  requireFeature('invoices_module'),
+  requirePermission("invoices", "create"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const orderId = req.params.id;
+      const order = await storage.getSalesOrder(orderId);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Sales order not found" });
+      }
+
+      // Verify validation: Order must be fulfilled
+      if (order.status !== "fulfilled") {
+        return res.status(400).json({ 
+          error: "Only fulfilled sales orders can be converted to an invoice" 
+        });
+      }
+
+      // Check for approved quote
+      const quote = await storage.getQuote(order.quoteId);
+      if (!quote || quote.status !== "approved") {
+        return res.status(400).json({ 
+          error: "Linked quote must be approved" 
+        });
+      }
+
+      // Check if invoice already exists for this sales order
+      const existingInvoices = await storage.getInvoicesByQuote(order.quoteId);
+      const invoiceExists = existingInvoices.some(inv => inv.salesOrderId === orderId);
+      
+      if (invoiceExists) {
+        return res.status(409).json({ 
+          error: "An invoice has already been generated for this sales order" 
+        });
+      }
+
+      // Get items - try sales order items first, fallback to quote items
+      let items: any[] = await storage.getSalesOrderItems(orderId);
+      
+      if (!items || items.length === 0) {
+        items = await storage.getQuoteItems(order.quoteId);
+      }
+      
+      if (!items || items.length === 0) {
+        return res.status(400).json({ 
+          error: "No items found to invoice" 
+        });
+      }
+
+      // Generate Invoice Number
+      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+
+      // Create Invoice
+      const invoice = await storage.createInvoice({
+        invoiceNumber,
+        quoteId: order.quoteId,
+        salesOrderId: orderId,
+        clientId: order.clientId,
+        issueDate: new Date(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
+        status: "draft",
+        isMaster: true,
+        createdBy: req.user!.id,
+        
+        // Financials (copy from order)
+        subtotal: order.subtotal,
+        discount: order.discount,
+        cgst: order.cgst,
+        sgst: order.sgst,
+        igst: order.igst,
+        shippingCharges: order.shippingCharges,
+        total: order.total,
+        
+        // Notes
+        notes: order.notes,
+        termsAndConditions: order.termsAndConditions,
+        deliveryNotes: `Delivery Date: ${order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : 'N/A'}`,
+      });
+
+      // Create Invoice Items
+      for (const item of items) {
+        await storage.createInvoiceItem({
+          invoiceId: invoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          hsnSac: item.hsnSac || null,
+          sortOrder: item.sortOrder,
+          status: "pending",
+          fulfilledQuantity: item.quantity, // Fully fulfilled since order is fulfilled
+        });
+      }
+
+      // Fetch dependencies for PDF
+      const settings = await storage.getAllSettings();
+      const companyName = settings.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
+      const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+      const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
+      const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
+      const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
+      const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+
+      const bankDetail = await storage.getActiveBankDetails();
+      const client = await storage.getClient(invoice.clientId!);
+
+      // Generate Invoice PDF
+      const pdfStream = InvoicePDFService.generateInvoicePDF({
+        quote: quote as any,
+        client: client!,
+        items: items as any,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyDetails: {
+           name: companyName,
+           address: companyAddress,
+           phone: companyPhone,
+           email: companyEmail,
+           website: companyWebsite,
+           gstin: companyGSTIN,
+        },
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.createdAt || new Date(),
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : new Date(),
+        paidAmount: invoice.paidAmount || "0",
+        paymentStatus: invoice.paymentStatus || "pending",
+        isMaster: invoice.isMaster,
+        childInvoices: [],
+        deliveryNotes: invoice.deliveryNotes || undefined,
+        subtotal: invoice.subtotal || "0",
+        discount: invoice.discount || "0",
+        cgst: invoice.cgst || "0",
+        sgst: invoice.sgst || "0",
+        igst: invoice.igst || "0",
+        shippingCharges: invoice.shippingCharges || "0",
+        total: invoice.total || "0",
+        notes: invoice.notes || undefined,
+        termsAndConditions: invoice.termsAndConditions,
+        bankName: bankDetail?.bankName || "",
+        bankAccountNumber: bankDetail?.accountNumber || "",
+        bankAccountName: bankDetail?.accountName || "",
+        bankIfscCode: bankDetail?.ifscCode || "",
+      });
+
+      const buffer = await streamToBuffer(pdfStream as any);
+      
+      // Store generated PDF
+      await storage.createInvoiceAttachment({
+        invoiceId: invoice.id,
+        fileName: `Invoice-${invoice.invoiceNumber}.pdf`,
+        fileType: "application/pdf",
+        fileSize: buffer.length,
+        content: buffer.toString('base64')
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "create_invoice",
+        entityType: "invoice",
+        entityId: invoice.id,
+        metadata: { fromSalesOrder: orderId }
+      } as any); // Cast to any to allow metadata if schema type is partial
+
+      return res.status(201).json(invoice);
+    } catch (error: any) {
+      console.error("Error creating invoice from sales order:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// POST /quotes/parse-excel
+// Expects: { fileContent: string (base64) }
+// Returns: { items: Array<{ description, quantity, unitPrice, hsnSac }> }
+router.post(
+  "/quotes/parse-excel",
+  requirePermission("quotes", "create"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { fileContent } = req.body;
+      if (!fileContent) {
+        return res.status(400).json({ message: "No file content provided" });
+      }
+
+      const buffer = Buffer.from(fileContent, "base64");
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer as any);
+
+      const worksheet = workbook.worksheets[0]; // Assume first sheet
+      const items: any[] = [];
+
+      // Assume header is first row
+      const headerRow = worksheet.getRow(1);
+      const headers: Record<string, number> = {};
+      
+      headerRow.eachCell((cell, colNumber) => {
+        const value = cell.value?.toString().toLowerCase().trim() || "";
+        if (value.includes("description") || value.includes("item")) headers.description = colNumber;
+        if (value.includes("quantity") || value.includes("qty")) headers.quantity = colNumber;
+        if (value.includes("price") || value.includes("rate")) headers.unitPrice = colNumber;
+        if (value.includes("hsn") || value.includes("sac")) headers.hsnSac = colNumber;
+      });
+
+      if (!headers.description || !headers.quantity || !headers.unitPrice) {
+        return res.status(400).json({ 
+             message: "Invalid Excel format. Required columns: Description, Quantity, Unit Price" 
+        });
+      }
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+
+        const description = row.getCell(headers.description).value?.toString() || "";
+        const quantity = Number(row.getCell(headers.quantity).value) || 0;
+        const unitPrice = Number(row.getCell(headers.unitPrice).value) || 0;
+        const hsnSac = headers.hsnSac ? row.getCell(headers.hsnSac).value?.toString() || "" : "";
+
+        if (description && quantity > 0) {
+            items.push({
+                description,
+                quantity,
+                unitPrice,
+                hsnSac,
+                subtotal: quantity * unitPrice
+            });
+        }
+      });
+
+      res.json(items);
+    } catch (error) {
+      console.error("Error parsing Excel:", error);
+      res.status(500).json({ message: "Failed to parse Excel file" });
+    }
+  }
+);
+
+// Generate Sales Order PDF
+router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), async (req: AuthRequest, res: Response) => {
+  try {
+    const order = await storage.getSalesOrder(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+
+    const client = await storage.getClient(order.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+
+    // Fetch dependencies
+    const settings = await storage.getAllSettings();
+    const companyName = settings.find((s) => s.key === "company_name")?.value || "";
+    const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+    const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+
+    const items = await storage.getSalesOrderItems(order.id);
+
+    const pdfStream = SalesOrderPDFService.generateSalesOrderPDF({
+      quote: { quoteNumber: "-" } as any, // Placeholder if quote logic requires it
+      client,
+      items: items || [],
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyDetails: {
+        name: companyName,
+        address: companyAddress,
+        phone: companyPhone,
+        email: companyEmail,
+        website: companyWebsite,
+        gstin: companyGSTIN,
+      },
+      orderNumber: order.orderNumber,
+      orderDate: order.createdAt,
+      expectedDeliveryDate: order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : undefined,
+      subtotal: order.subtotal || "0",
+      discount: order.discount || "0",
+      cgst: order.cgst || "0",
+      sgst: order.sgst || "0",
+      igst: order.igst || "0",
+      shippingCharges: order.shippingCharges || "0",
+      total: order.total || "0",
+      notes: order.notes || undefined,
+      termsAndConditions: order.termsAndConditions || undefined,
+      deliveryNotes: undefined, // Add to schema if needed
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=SalesOrder-${order.orderNumber}.pdf`);
+    pdfStream.pipe(res);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    res.status(500).json({ error: "Failed to generate PDF" });
+  }
+});
+
+// Email Sales Order
+router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { email, subject, body } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+
+    const order = await storage.getSalesOrder(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+
+    const client = await storage.getClient(order.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+
+    // Generate PDF Buffer
+    const settings = await storage.getAllSettings();
+    const companyName = settings.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
+    const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+    const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+    const items = await storage.getSalesOrderItems(order.id);
+
+    const pdfStream = SalesOrderPDFService.generateSalesOrderPDF({
+      quote: { quoteNumber: "-" } as any,
+      client,
+      items: items || [],
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyDetails: {
+        name: companyName,
+        address: companyAddress,
+        phone: companyPhone,
+        email: companyEmail,
+        website: companyWebsite,
+        gstin: companyGSTIN,
+      },
+      orderNumber: order.orderNumber,
+      orderDate: order.createdAt,
+      expectedDeliveryDate: order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : undefined,
+      subtotal: order.subtotal || "0",
+      discount: order.discount || "0",
+      cgst: order.cgst || "0",
+      sgst: order.sgst || "0",
+      igst: order.igst || "0",
+      shippingCharges: order.shippingCharges || "0",
+      total: order.total || "0",
+      notes: order.notes || undefined,
+      termsAndConditions: order.termsAndConditions || undefined,
+    });
+
+    const buffer = await streamToBuffer(pdfStream as any);
+
+    await EmailService.sendSalesOrderEmail(
+        email,
+        subject || `Sales Order ${order.orderNumber} from ${companyName}`,
+        body || `Please find attached Sales Order ${order.orderNumber}.`,
+        buffer
+    );
+
+    res.json({ success: true, message: "Email sent successfully" });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).json({ error: "Failed to send email" });
+  }
+});
+
+// Convert Quote to Sales Order
+router.post("/quotes/:id/sales-orders",
+  requireFeature('sales_orders_module'),
+  requirePermission("sales_orders", "create"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const quoteId = req.params.id;
+      const quote = await storage.getQuote(quoteId);
+
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+
+      if (quote.status !== "approved") {
+        return res.status(400).json({ message: "Only approved quotes can be converted to sales orders" });
+      }
+
+      // Check if order already exists
+      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+      if (existingOrder) {
+        return res.status(400).json({ message: "A Sales Order already exists for this quote", orderId: existingOrder.id });
+      }
+
+      // Generate Order Number
+      const lastOrderNumber = await storage.getLastSalesOrderNumber();
+      let nextNumber = 1;
+      if (lastOrderNumber) {
+        const match = lastOrderNumber.match(/SO-(\d+)/);
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+      const orderNumber = `SO-${String(nextNumber).padStart(4, "0")}`;
+
+      // Create Sales Order
+      const newOrder = await storage.createSalesOrder({
+        quoteId,
+        orderNumber,
+        clientId: quote.clientId,
+        status: "draft",
+        subtotal: quote.subtotal,
+        discount: quote.discount || "0",
+        cgst: quote.cgst || "0",
+        sgst: quote.sgst || "0",
+        igst: quote.igst || "0",
+        shippingCharges: quote.shippingCharges || "0",
+        total: quote.total,
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        createdBy: req.user!.id,
+      });
+
+      // Copy Line Items - fetch them from the quote
+      const quoteItems = await storage.getQuoteItems(quoteId);
+      if (quoteItems && quoteItems.length > 0) {
+        let sortOrder = 0;
+        for (const item of quoteItems) {
+          await storage.createSalesOrderItem({
+            salesOrderId: newOrder.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+            hsnSac: item.hsnSac,
+            sortOrder: sortOrder++,
+          });
+        }
+      }
+
+      res.status(201).json(newOrder);
+    } catch (error: any) {
+      console.error("Failed to create sales order:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  }
+);
+
+export default router;

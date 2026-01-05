@@ -218,6 +218,92 @@ export class EmailService {
     }
   }
 
+  static async sendSalesOrderEmail(
+    email: string,
+    emailSubject: string,
+    emailBody: string,
+    pdfBuffer: Buffer
+  ): Promise<void> {
+    // Convert newlines to HTML with proper formatting
+    const lines = emailBody.split('\n');
+    const formattedLines: string[] = [];
+    let previousWasEmpty = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (trimmed === '') {
+        if (!previousWasEmpty) {
+          formattedLines.push('<br/>');
+          previousWasEmpty = true;
+        }
+      } else {
+        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
+        previousWasEmpty = false;
+      }
+    }
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
+        ${formattedLines.join('')}
+      </div>
+    `;
+
+    // Extract order number from subject for filename
+    const orderNumberMatch = emailSubject.match(/Order\s+([A-Z0-9-]+)/i);
+    const orderNumber = orderNumberMatch ? orderNumberMatch[1] : `Order_${Date.now()}`;
+
+    try {
+      if (this.useResend && this.resend) {
+        // Use Resend API
+        const base64Pdf = pdfBuffer.toString("base64");
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+          fromEmail = "onboarding@resend.dev";
+        }
+
+        const response = await this.resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          attachments: [
+            {
+              filename: `${orderNumber}.pdf`,
+              content: base64Pdf,
+            },
+          ],
+        });
+
+        if (response.error) {
+          console.error(`[Resend] Error sending sales order email:`, response.error);
+          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+        }
+      } else {
+        // Use nodemailer fallback
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          text: emailBody,
+          attachments: [
+            {
+              filename: `${orderNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf",
+            },
+          ],
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send sales order email:", error);
+      throw error;
+    }
+  }
+
   static async sendInvoiceEmail(
     email: string,
     emailSubject: string,

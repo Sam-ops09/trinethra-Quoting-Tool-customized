@@ -45,6 +45,12 @@ interface MasterSummary {
     invoiceNumber: string;
     status: "draft" | "confirmed" | "locked";
     total: string;
+    subtotal: string;
+    discount: string;
+    cgst: string;
+    sgst: string;
+    igst: string;
+    shippingCharges: string;
     createdAt: string;
   };
   items: Array<{
@@ -410,6 +416,32 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Financial Breakdown - New Section */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <Card className="border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-900/50">
+            <p className="text-[10px] text-slate-500 uppercase font-semibold">Subtotal</p>
+            <p className="text-sm font-bold">₹{Number(summary.masterInvoice.subtotal).toLocaleString()}</p>
+        </Card>
+        {Number(summary.masterInvoice.discount) > 0 && (
+            <Card className="border-emerald-200 dark:border-emerald-900 p-2.5 bg-emerald-50/50 dark:bg-emerald-950/20">
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-semibold">Discount</p>
+                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">-₹{Number(summary.masterInvoice.discount).toLocaleString()}</p>
+            </Card>
+        )}
+        {(Number(summary.masterInvoice.cgst) > 0 || Number(summary.masterInvoice.sgst) > 0 || Number(summary.masterInvoice.igst) > 0) && (
+             <Card className="border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-900/50">
+                <p className="text-[10px] text-slate-500 uppercase font-semibold">Taxes</p>
+                <p className="text-sm font-bold">₹{(Number(summary.masterInvoice.cgst) + Number(summary.masterInvoice.sgst) + Number(summary.masterInvoice.igst)).toLocaleString()}</p>
+            </Card>
+        )}
+        {Number(summary.masterInvoice.shippingCharges) > 0 && (
+            <Card className="border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-900/50">
+                <p className="text-[10px] text-slate-500 uppercase font-semibold">Shipping</p>
+                <p className="text-sm font-bold">₹{Number(summary.masterInvoice.shippingCharges).toLocaleString()}</p>
+            </Card>
+        )}
+      </div>
 
       {/* Items Breakdown - New Card Design */}
       <Card className="border-slate-200 dark:border-slate-800">

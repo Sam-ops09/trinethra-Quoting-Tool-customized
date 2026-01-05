@@ -16,6 +16,9 @@ import ClientDetail from "@/pages/client-detail";
 import Quotes from "@/pages/quotes";
 import QuoteCreate from "@/pages/quote-create";
 import QuoteDetail from "@/pages/quote-detail";
+import SalesOrdersList from "@/pages/sales-orders/list";
+import SalesOrderDetail from "@/pages/sales-orders/detail";
+import SalesOrderEdit from "@/pages/sales-orders/edit";
 import Invoices from "@/pages/invoices";
 import InvoiceDetail from "@/pages/invoice-detail";
 import AdminUsers from "@/pages/admin-users";
@@ -140,6 +143,11 @@ function AuthenticatedLayout() {
               <Route path="/quotes/:id" component={() => <ProtectedRoute component={QuoteDetail} requiredPath="/quotes" />} />
             </>
           )}
+
+          {/* Sales Orders */}
+          <Route path="/sales-orders" component={() => <ProtectedRoute component={SalesOrdersList} requiredPath="/sales-orders" />} />
+          <Route path="/sales-orders/:id/edit" component={() => <ProtectedRoute component={SalesOrderEdit} requiredPath="/sales-orders" />} />
+          <Route path="/sales-orders/:id" component={() => <ProtectedRoute component={SalesOrderDetail} requiredPath="/sales-orders" />} />
 
           {/* Invoices - with feature flag */}
           {isFeatureEnabled('pages_invoices') && (

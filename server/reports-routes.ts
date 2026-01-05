@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { db } from "./db";
-import { quotes, clients, users } from "@shared/schema";
+import { quotes, clients, users, invoices } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
@@ -15,8 +15,6 @@ export function registerReportRoutes(app: Express) {
         return res.status(400).send("Invalid format. Use 'excel' or 'pdf'");
       }
 
-      // Fetch all invoices with related data
-      const { invoices } = await import("@shared/schema");
       const allInvoices = await db
         .select({
           id: invoices.id,
@@ -30,8 +28,8 @@ export function registerReportRoutes(app: Express) {
           sgst: invoices.sgst,
           igst: invoices.igst,
           dueDate: invoices.dueDate,
-          paidAmount: invoices.paidAmount,
           remainingAmount: invoices.remainingAmount,
+          paidAmount: invoices.paidAmount,
           createdAt: invoices.createdAt,
           createdByName: users.name,
         })
@@ -386,7 +384,6 @@ async function generateInvoiceExcelReport(invoices: any[], res: any) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Invoices Report");
 
-  // Set column headers
   worksheet.columns = [
     { header: "Invoice Number", key: "invoiceNumber", width: 20 },
     { header: "Client", key: "clientName", width: 25 },
@@ -411,8 +408,6 @@ async function generateInvoiceExcelReport(invoices: any[], res: any) {
     pattern: "solid",
     fgColor: { argb: "FF4F81BD" },
   };
-  worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
-
   // Add data rows
   invoices.forEach((invoice) => {
     worksheet.addRow({
@@ -446,8 +441,6 @@ async function generateInvoiceExcelReport(invoices: any[], res: any) {
     total: invoices.reduce((sum, inv) => sum + parseFloat(inv.total || "0"), 0),
     paidAmount: invoices.reduce((sum, inv) => sum + parseFloat(inv.paidAmount || "0"), 0),
     remainingAmount: invoices.reduce((sum, inv) => sum + parseFloat(inv.remainingAmount || "0"), 0),
-    dueDate: "",
-    createdByName: "",
     createdAt: "",
   });
 
@@ -514,15 +507,16 @@ async function generateInvoicePDFReport(invoices: any[], res: any) {
   const totalPaid = invoices.reduce((sum, inv) => sum + parseFloat(inv.paidAmount || "0"), 0);
   const totalRemaining = invoices.reduce((sum, inv) => sum + parseFloat(inv.remainingAmount || "0"), 0);
   const collectionRate = totalValue > 0 ? ((totalPaid / totalValue) * 100).toFixed(1) : "0.0";
+  // Calculate status counts
   const statusCounts = invoices.reduce((acc: any, inv) => {
     acc[inv.status] = (acc[inv.status] || 0) + 1;
     return acc;
   }, {});
 
+
+
   // Summary box with metrics
   const summaryBoxY = doc.y;
-  doc.roundedRect(40, summaryBoxY, 515, 140, 5).fillAndStroke("#fef2f2", "#dc2626");
-
   doc.fillColor("#000000").fontSize(14).font("Helvetica-Bold").text("Financial Summary", 50, summaryBoxY + 10);
   doc.moveDown(0.5);
 
@@ -541,7 +535,7 @@ async function generateInvoicePDFReport(invoices: any[], res: any) {
   metrics.forEach((metric, i) => {
     const yPos = summaryY + (i * 18);
     doc.fillColor("#374151").font("Helvetica").text(metric.label, 60, yPos);
-    doc.fillColor(metric.color).font("Helvetica-Bold").text(metric.value, 200, yPos);
+    doc.fillColor(metric.color).font("Helvetica-Bold").text(metric.value, 180, yPos);
   });
 
   // Status breakdown on right
@@ -618,6 +612,7 @@ async function generateInvoicePDFReport(invoices: any[], res: any) {
     xPos = 45;
 
     // Invoice number
+    xPos = 45;
     doc.fillColor("#1e40af").text(invoice.invoiceNumber, xPos, y + 4, { width: colWidths[0] - 10, ellipsis: true });
     xPos += colWidths[0];
 
@@ -629,13 +624,14 @@ async function generateInvoicePDFReport(invoices: any[], res: any) {
     const statusColors: any = {
       draft: "#6b7280",
       sent: "#3b82f6",
-      partial: "#f59e0b",
       paid: "#059669",
-      overdue: "#dc2626"
+      overdue: "#dc2626",
+      void: "#dc2626"
     };
+    
     doc.fillColor(statusColors[invoice.status] || "#6b7280").fontSize(7).text(
-      invoice.status.toUpperCase(),
-      xPos, y + 5,
+      (invoice.status || "draft").toUpperCase(),
+      xPos, y + 4,
       { width: colWidths[2] - 10 }
     );
     xPos += colWidths[2];

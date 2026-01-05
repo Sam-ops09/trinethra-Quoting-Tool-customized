@@ -62,6 +62,7 @@ export interface FeatureFlags {
   quotes_cancel: boolean;
   quotes_close: boolean;
   quotes_version: boolean;
+  sales_orders_module: boolean;
 
   // Quote Advanced Sections
   quotes_bomSection: boolean;
@@ -361,6 +362,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_cancel: true,
   quotes_close: true,
   quotes_version: true,
+  sales_orders_module: true,
   quotes_bomSection: true,
   quotes_slaSection: true,
   quotes_timelineSection: true,

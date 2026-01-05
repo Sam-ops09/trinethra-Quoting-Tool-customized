@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,11 +19,14 @@ import type { SLAData } from "@/components/quote/sla-section";
 import type { TimelineData } from "@/components/quote/timeline-section";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions-new";
+
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { VersionComparisonDialog } from "@/components/quote/version-comparison-dialog";
 
 interface QuoteDetail {
   id: string;
   quoteNumber: string;
+  version: number;
   status: string;
   client: {
     name: string;
@@ -57,6 +60,7 @@ interface QuoteDetail {
   slaSection?: string; // JSON string
   timelineSection?: string; // JSON string
   createdByName?: string;
+  updatedAt: string;
 }
 
 export default function QuoteDetail() {
@@ -67,7 +71,9 @@ export default function QuoteDetail() {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailData, setEmailData] = useState({ email: "", message: "" });
   const [isDownloading, setIsDownloading] = useState(false);
+
   const [showVendorPoDialog, setShowVendorPoDialog] = useState(false);
+  const [comparingVersionNumber, setComparingVersionNumber] = useState<number | null>(null);
 
   // Feature flags
   const canCreateVendorPO = useFeatureFlag('vendorPO_create');
@@ -78,6 +84,55 @@ export default function QuoteDetail() {
   const { data: quote, isLoading } = useQuery<QuoteDetail>({
     queryKey: ["/api/quotes", params?.id],
     enabled: !!params?.id,
+  });
+
+  const { data: versions } = useQuery<any[]>({
+    queryKey: [`/api/quotes/${params?.id}/versions`],
+    enabled: !!params?.id,
+  });
+
+  const createSalesOrderMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/sales-orders`, {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Sales Order Created",
+        description: `Order #${data.orderNumber} has been created successfully.`,
+      });
+      setLocation(`/sales-orders/${data.id}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create Sales Order",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const reviseQuoteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/revise`, {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", params?.id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${params?.id}/versions`] });
+      toast({
+        title: "Quote Revised",
+        description: `New version ${data.version} created (Draft). Previous version saved.`,
+      });
+      // Optionally reload or just rely on query invalidation
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Revision Failed",
+        description: error.message || "Failed to revise quote",
+        variant: "destructive",
+      });
+    }
   });
 
   const updateStatusMutation = useMutation({
@@ -318,7 +373,7 @@ export default function QuoteDetail() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">
-                {quote.quoteNumber}
+                {quote.quoteNumber} <span className="text-slate-400 font-normal text-base">(v{quote.version})</span>
               </h1>
               <Badge className={`${getStatusColor(quote.status)} text-[10px] px-2 py-0.5`}>
                 {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
@@ -346,7 +401,7 @@ export default function QuoteDetail() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-1.5">
-                {quote.status !== "invoiced" && (
+                {quote.status !== "invoiced" && quote.status === "draft" && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -357,6 +412,20 @@ export default function QuoteDetail() {
                     <Pencil className="h-3 w-3 mr-1" />
                     <span className="hidden xs:inline">Edit</span>
                   </Button>
+                )}
+                {["draft", "sent", "approved", "rejected"].includes(quote.status) && (
+                   <PermissionGuard resource="quotes" action="edit" tooltipText="Only authorized users can revise quotes">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => reviseQuoteMutation.mutate()}
+                        disabled={reviseQuoteMutation.isPending}
+                        className="flex-1 sm:flex-initial h-7 text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:hover:bg-amber-900 dark:text-amber-400 dark:border-amber-800"
+                      >
+                         {reviseQuoteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <History className="h-3 w-3 mr-1" />}
+                         Revise
+                      </Button>
+                   </PermissionGuard>
                 )}
                 {canGeneratePDF && (
                   <Button
@@ -445,6 +514,17 @@ export default function QuoteDetail() {
                         Invoice
                       </Button>
                     )}
+                    <PermissionGuard resource="sales-orders" action="create" tooltipText="Only authorized users can create Sales Orders">
+                      <Button
+                        size="sm"
+                        onClick={() => createSalesOrderMutation.mutate()}
+                        disabled={createSalesOrderMutation.isPending}
+                        className="flex-1 sm:flex-initial h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                         {createSalesOrderMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Package className="h-3 w-3 mr-1" />}
+                         Create Order
+                      </Button>
+                    </PermissionGuard>
                     {canCreateVendorPO && user && hasPermission(user.role, "vendor-pos", "create") && (
                       <Button
                         size="sm"
@@ -640,7 +720,51 @@ export default function QuoteDetail() {
           </div>
 
           {/* Quote Summary Sidebar */}
-          <div className="lg:sticky lg:top-6">
+          <div className="lg:sticky lg:top-6 space-y-3">
+             {/* Versions History */}
+             {versions && versions.length > 0 && (
+                <Card className="border-slate-200 dark:border-slate-800">
+                    <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
+                        <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900 flex items-center justify-center shrink-0">
+                                <History className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                            </div>
+                            <CardTitle className="text-sm font-bold">Version History</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="max-h-[200px] overflow-y-auto">
+                            {versions.map((version: any) => (
+                                <div key={version.id} className="p-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors flex items-center justify-between group">
+                                    <div>
+                                        <p className="text-xs font-semibold text-slate-900 dark:text-white">Version {version.version}</p>
+                                        <p className="text-[10px] text-slate-500">{new Date(version.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Button variant="ghost" size="sm" className="h-6 w-16 text-[10px]" onClick={() => window.open(`/quotes/${version.id}`, "_blank")}>
+                                          View
+                                      </Button>
+                                      <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => {
+                                        console.log("Comparing version:", version.version);
+                                        setComparingVersionNumber(version.version);
+                                      }}>
+                                          Compare
+                                      </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+             )}
+
+             <VersionComparisonDialog
+                isOpen={!!comparingVersionNumber}
+                onOpenChange={(open) => !open && setComparingVersionNumber(null)}
+                currentQuote={quote!}
+                versionNumber={comparingVersionNumber}
+                quoteId={params?.id || ""}
+             />
             <Card className="border-slate-200 dark:border-slate-800">
               <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
                 <div className="flex items-center gap-2">

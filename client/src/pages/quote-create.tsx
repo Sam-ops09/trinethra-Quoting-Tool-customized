@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -23,7 +23,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Loader2, ArrowLeft, Home, ChevronRight, FileText } from "lucide-react";
+import { Plus, Trash2, Loader2, ArrowLeft, Home, ChevronRight, FileText, Upload } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
@@ -295,9 +295,10 @@ export default function QuoteCreate() {
         },
     });
 
+
     const updateMutation = useMutation({
         mutationFn: async (data: QuoteCreatePayload) => {
-            return await apiRequest("PUT", `/api/quotes/${params?.id}`, data);
+            return await apiRequest("PATCH", `/api/quotes/${params?.id}`, data);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
@@ -318,6 +319,62 @@ export default function QuoteCreate() {
             });
         },
     });
+
+    // Excel Import Logic
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const parseExcelMutation = useMutation({
+        mutationFn: async (fileContent: string) => {
+             const res = await apiRequest("POST", "/api/quotes/parse-excel", { fileContent });
+             return await res.json();
+        },
+        onSuccess: (data: any[]) => {
+             if (data && data.length > 0) {
+                 const currentItems = form.getValues("items");
+                 // If only one item exists and it's empty/default, clear it
+                 if (currentItems.length === 1 && !currentItems[0].description && currentItems[0].quantity === 1 && currentItems[0].unitPrice === 0) {
+                    remove(0);
+                 }
+                 
+                 data.forEach((item) => {
+                    append({
+                        description: item.description,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        hsnSac: item.hsnSac || ""
+                    });
+                 });
+                 
+                 toast({ title: "Import Successful", description: `${data.length} items imported from Excel.` });
+             } else {
+                 toast({ title: "No items found", description: "The Excel file didn't contain valid items.", variant: "destructive" });
+             }
+             if (fileInputRef.current) fileInputRef.current.value = "";
+        },
+        onError: (error: any) => {
+             toast({ title: "Import Failed", description: error.message || "Failed to parse Excel file", variant: "destructive" });
+             if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    });
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // check if file is excel
+        if (!file.name.match(/\.(xlsx|xls)$/)) {
+            toast({ title: "Invalid file type", description: "Please upload an Excel file (.xlsx, .xls)", variant: "destructive" });
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+             const base64String = evt.target?.result?.toString().split(',')[1];
+             if (base64String) {
+                 parseExcelMutation.mutate(base64String);
+             }
+        };
+        reader.readAsDataURL(file);
+    };
 
     const items = form.watch("items");
     const discount = form.watch("discount");
@@ -647,6 +704,28 @@ export default function QuoteCreate() {
                                                 <Plus className="h-4 w-4 mr-1.5" />
                                                 Add Item
                                             </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={parseExcelMutation.isPending}
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="h-9 px-4 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200"
+                                            >
+                                                {parseExcelMutation.isPending ? (
+                                                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                                ) : (
+                                                    <Upload className="h-4 w-4 mr-1.5" />
+                                                )}
+                                                Import Excel
+                                            </Button>
+                                            <input 
+                                                type="file" 
+                                                ref={fileInputRef} 
+                                                onChange={handleFileChange} 
+                                                className="hidden" 
+                                                accept=".xlsx, .xls"
+                                            />
                                         </div>
                                     </CardHeader>
                                     <CardContent className="space-y-4 p-4 sm:p-5 lg:p-6">
