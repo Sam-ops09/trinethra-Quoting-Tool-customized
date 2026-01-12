@@ -63,6 +63,8 @@ export interface FeatureFlags {
   quotes_close: boolean;
   quotes_version: boolean;
   sales_orders_module: boolean;
+  sales_orders_pdfGeneration: boolean;
+  sales_orders_emailSending: boolean;
 
   // Quote Advanced Sections
   quotes_bomSection: boolean;
@@ -363,13 +365,15 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_close: true,
   quotes_version: true,
   sales_orders_module: true,
+  sales_orders_pdfGeneration: true,
+  sales_orders_emailSending: false,
   quotes_bomSection: true,
   quotes_slaSection: true,
   quotes_timelineSection: true,
   quotes_convertToInvoice: true,
   quotes_convertToVendorPO: true,
   quotes_emailSending: false,
-  quotes_pdfGeneration: false,
+  quotes_pdfGeneration: true,
   quotes_templates: true,
   quotes_referenceNumber: true,
   quotes_attentionTo: true,
@@ -391,13 +395,13 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   invoices_masterInvoices: true,
   invoices_milestoneInvoices: true,
   invoices_emailSending: false,
-  invoices_pdfGeneration: false,  // Re-enabled for testing
+  invoices_pdfGeneration: true,  // Re-enabled for testing
   invoices_paymentTracking: true,
   invoices_paymentHistory: true,
   invoices_partialPayments: true,
-  invoices_paymentReminders: true,
+  invoices_paymentReminders: false,
   invoices_overdueNotifications: true,
-  invoices_autoReminders: true,
+  invoices_autoReminders: false,
 
   // ==================== CLIENT/CRM FEATURES ====================
   clients_module: true,
@@ -439,29 +443,29 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   serialNumber_history: false,
 
   // ==================== PRODUCTS & INVENTORY ====================
-  products_module: true,
-  products_create: true,
-  products_edit: true,
-  products_delete: true,
-  products_sku: true,
-  products_categories: true,
-  products_pricing: true,
-  products_reorderLevel: true,
+  products_module: false,
+  products_create: false,
+  products_edit: false,
+  products_delete: false,
+  products_sku: false,
+  products_categories: false,
+  products_pricing: false,
+  products_reorderLevel: false,
 
   // ==================== ANALYTICS & DASHBOARDS ====================
-  analytics_module: true,
-  analytics_revenueMetrics: true,
-  analytics_quoteMetrics: true,
-  analytics_invoiceMetrics: true,
-  analytics_vendorMetrics: true,
-  analytics_forecasting: true,
-  analytics_trends: true,
-  analytics_charts: true,
-  dashboard_salesQuotes: true,
-  dashboard_vendorPO: true,
-  dashboard_invoiceCollections: true,
-  dashboard_serialTracking: true,
-  dashboard_governance: true,
+  analytics_module: false,
+  analytics_revenueMetrics: false,
+  analytics_quoteMetrics: false,
+  analytics_invoiceMetrics: false,
+  analytics_vendorMetrics: false,
+  analytics_forecasting: false,
+  analytics_trends: false,
+  analytics_charts: false,
+  dashboard_salesQuotes: false,
+  dashboard_vendorPO: false,
+  dashboard_invoiceCollections: false,
+  dashboard_serialTracking: false,
+  dashboard_governance: false,
 
   // ==================== PAYMENT FEATURES ====================
   payments_module: true,
@@ -488,10 +492,10 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   pricing_automatic: true,
 
   // ==================== PDF & THEMES ====================
-  pdf_generation: false,  // Re-enabled for testing
-  pdf_themes: true,
-  pdf_customThemes: true,
-  pdf_clientSpecificThemes: true,
+  pdf_generation: true,  // Re-enabled for testing
+  pdf_themes: false,
+  pdf_customThemes: false,
+  pdf_clientSpecificThemes: false,
   pdf_logo: true,
   pdf_headerFooter: true,
   pdf_watermark: true,

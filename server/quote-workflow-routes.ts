@@ -693,17 +693,43 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
 
     // Fetch dependencies
     const settings = await storage.getAllSettings();
-    const companyName = settings.find((s) => s.key === "company_name")?.value || "";
-    const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+    const companyName = settings.find((s) => s.key === "company_companyName")?.value || "";
+    
+    const addr = settings.find((s) => s.key === "company_address")?.value || "";
+    const city = settings.find((s) => s.key === "company_city")?.value || "";
+    const state = settings.find((s) => s.key === "company_state")?.value || "";
+    const zip = settings.find((s) => s.key === "company_zipCode")?.value || "";
+    const country = settings.find((s) => s.key === "company_country")?.value || "";
+    
+    // Construct full address
+    const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+
     const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
     const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
     const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
     const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
+
+
+
+    // Fetch bank details from settings
+    const bankName = settings.find((s) => s.key === "bank_bankName")?.value || "";
+    const bankAccountNumber = settings.find((s) => s.key === "bank_accountNumber")?.value || "";
+    const bankAccountName = settings.find((s) => s.key === "bank_accountName")?.value || "";
+    const bankIfscCode = settings.find((s) => s.key === "bank_ifscCode")?.value || "";
+    const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
+    const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
+
+    const quote = await storage.getQuote(order.quoteId);
+    if (!quote) {
+      // Should rare, but handle it
+      console.warn(`Quote not found for order ${order.id}`);
+    }
 
     const items = await storage.getSalesOrderItems(order.id);
 
     const pdfStream = SalesOrderPDFService.generateSalesOrderPDF({
-      quote: { quoteNumber: "-" } as any, // Placeholder if quote logic requires it
+      quote: (quote || { quoteNumber: "-" }) as any, 
       client,
       items: items || [],
       companyName,
@@ -712,6 +738,7 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
       companyEmail,
       companyWebsite,
       companyGSTIN,
+      companyLogo,
       companyDetails: {
         name: companyName,
         address: companyAddress,
@@ -732,7 +759,23 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
       total: order.total || "0",
       notes: order.notes || undefined,
       termsAndConditions: order.termsAndConditions || undefined,
-      deliveryNotes: undefined, // Add to schema if needed
+      // Bank details (nested and top-level for backward compatibility)
+      bankDetails: {
+        bankName,
+        accountNumber: bankAccountNumber,
+        accountName: bankAccountName,
+        ifsc: bankIfscCode,
+        branch: bankBranch,
+        swift: bankSwiftCode,
+      },
+      // Pass top-level for existing PDF logic
+      bankName: bankName,
+      bankAccountNumber: bankAccountNumber,
+      bankAccountName: bankAccountName,
+      bankIfscCode: bankIfscCode,
+      bankBranch: bankBranch,
+      bankSwiftCode: bankSwiftCode,
+      deliveryNotes: undefined, // Schema update needed if this field is required
     });
 
     res.setHeader("Content-Type", "application/pdf");
@@ -764,12 +807,31 @@ router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view")
 
     // Generate PDF Buffer
     const settings = await storage.getAllSettings();
-    const companyName = settings.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-    const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+    const companyName = settings.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+    
+    const addr = settings.find((s) => s.key === "company_address")?.value || "";
+    const city = settings.find((s) => s.key === "company_city")?.value || "";
+    const state = settings.find((s) => s.key === "company_state")?.value || "";
+    const zip = settings.find((s) => s.key === "company_zipCode")?.value || "";
+    const country = settings.find((s) => s.key === "company_country")?.value || "";
+    
+    // Construct full address
+    const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+
     const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
     const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
     const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
     const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
+
+    // Fetch bank details from settings
+    const bankName = settings.find((s) => s.key === "bank_bankName")?.value || "";
+    const bankAccountNumber = settings.find((s) => s.key === "bank_accountNumber")?.value || "";
+    const bankAccountName = settings.find((s) => s.key === "bank_accountName")?.value || "";
+    const bankIfscCode = settings.find((s) => s.key === "bank_ifscCode")?.value || "";
+    const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
+    const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
+
     const items = await storage.getSalesOrderItems(order.id);
 
     const pdfStream = SalesOrderPDFService.generateSalesOrderPDF({
@@ -782,6 +844,7 @@ router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view")
       companyEmail,
       companyWebsite,
       companyGSTIN,
+      companyLogo,
       companyDetails: {
         name: companyName,
         address: companyAddress,

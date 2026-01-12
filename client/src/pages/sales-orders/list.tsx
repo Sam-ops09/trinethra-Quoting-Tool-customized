@@ -1,6 +1,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +62,18 @@ type SortOption = "newest" | "oldest" | "amount-high" | "amount-low" | "client";
 
 export default function SalesOrdersList() {
     const [, setLocation] = useLocation();
+    const isEnabled = useFeatureFlag("sales_orders_module");
     const [searchQuery, setSearchQuery] = useState("");
+
+    if (isEnabled === false) {
+        return (
+            <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
+                <h1 className="text-2xl font-bold">Feature Disabled</h1>
+                <p className="text-muted-foreground">The Sales Orders module is currently disabled.</p>
+                <Button onClick={() => setLocation("/")}>Go Home</Button>
+            </div>
+        );
+    }
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [sortBy, setSortBy] = useState<SortOption>("newest");
 

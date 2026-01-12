@@ -1428,84 +1428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
 
   // PDF Export for Quotes
-    app.get("/api/quotes/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) => {
-        try {
-            const quote = await storage.getQuote(req.params.id);
-            if (!quote) {
-                return res.status(404).json({ error: "Quote not found" });
-            }
 
-            const client = await storage.getClient(quote.clientId);
-            if (!client) {
-                return res.status(404).json({ error: "Client not found" });
-            }
-            const items = await storage.getQuoteItems(quote.id);
-
-            const creator = await storage.getUser(quote.createdBy);
-
-            // Fetch company settings
-            const settings = await storage.getAllSettings();
-            const companyName = settings.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-            const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
-            const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
-            const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
-            const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
-            const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
-
-            // Fetch bank details
-            const bankDetail = await storage.getActiveBankDetails();
-            const bankName = bankDetail?.bankName || "";
-            const bankAccountNumber = bankDetail?.accountNumber || "";
-            const bankAccountName = bankDetail?.accountName || "";
-            const bankIfscCode = bankDetail?.ifscCode || "";
-            const bankBranch = bankDetail?.branch || "";
-            const bankSwiftCode = bankDetail?.swiftCode || "";
-
-            const pdfStream = PDFService.generateQuotePDF({
-                quote,
-                client,
-                items,
-                companyName,
-                companyAddress,
-                companyPhone,
-                companyEmail,
-                companyWebsite,
-                companyGSTIN,
-                preparedBy: creator?.name,
-                preparedByEmail: creator?.email,
-                bankDetails: {
-                    bankName,
-                    accountNumber: bankAccountNumber,
-                    accountName: bankAccountName,
-                    ifsc: bankIfscCode,
-                    branch: bankBranch,
-                    swift: bankSwiftCode,
-                },
-            });
-
-            res.setHeader("Content-Type", "application/pdf");
-            res.setHeader("Content-Disposition", `attachment; filename="Quote-${quote.quoteNumber}.pdf"`);
-
-            pdfStream.on("error", (err) => {
-                console.error("PDF stream error:", err);
-                if (!res.headersSent) {
-                    res.status(500).end("Failed to generate PDF");
-                }
-            });
-
-            pdfStream.pipe(res);
-
-            await storage.createActivityLog({
-                userId: req.user!.id,
-                action: "export_pdf",
-                entityType: "quote",
-                entityId: quote.id,
-            });
-        } catch (error: any) {
-            console.error("PDF export error:", error);
-            return res.status(500).json({ error: error.message || "Failed to generate PDF" });
-        }
-    });
 
   // Email Quote
   app.post("/api/quotes/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req: AuthRequest, res: Response) => {
@@ -2205,21 +2128,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch company settings
       const settings = await storage.getAllSettings();
-      const companyName = settings.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+      // Debug logging to see what keys are available
+      console.log("Available settings keys:", settings.map(s => s.key));
+
+      const companyName = settings.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+      
+      const addr = settings.find((s) => s.key === "company_address")?.value || "";
+      const city = settings.find((s) => s.key === "company_city")?.value || "";
+      const state = settings.find((s) => s.key === "company_state")?.value || "";
+      const zip = settings.find((s) => s.key === "company_zipCode")?.value || "";
+      const country = settings.find((s) => s.key === "company_country")?.value || "";
+      
+      // Construct full address
+      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+
       const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
       const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
+      
+      console.log("Company Logo found:", !!companyLogo, "Length:", companyLogo?.length);
 
-      // Fetch bank details
-      const bankDetail = await storage.getActiveBankDetails();
-      const bankName = bankDetail?.bankName || "";
-      const bankAccountNumber = bankDetail?.accountNumber || "";
-      const bankAccountName = bankDetail?.accountName || "";
-      const bankIfscCode = bankDetail?.ifscCode || "";
-      const bankBranch = bankDetail?.branch || "";
-      const bankSwiftCode = bankDetail?.swiftCode || "";
+      // Fetch bank details from settings
+      const bankName = settings.find((s) => s.key === "bank_bankName")?.value || "";
+      const bankAccountNumber = settings.find((s) => s.key === "bank_accountNumber")?.value || "";
+      const bankAccountName = settings.find((s) => s.key === "bank_accountName")?.value || "";
+      const bankIfscCode = settings.find((s) => s.key === "bank_ifscCode")?.value || "";
+      const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
+      const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
+
+      console.error("!!! DEBUG BANK DETAILS !!!", {
+          bankName,
+          bankAccountNumber,
+          bankAccountName,
+          bankIfscCode
+      });
 
       const pdfStream = PDFService.generateQuotePDF({
         quote,
@@ -2231,6 +2175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companyEmail,
         companyWebsite,
         companyGSTIN,
+        companyLogo,
         preparedBy: creator?.name,
         preparedByEmail: creator?.email,
         bankDetails: {
@@ -2330,21 +2275,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch company settings
       const settings = await storage.getAllSettings();
-      const companyName = settings.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+      const companyName = settings.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+      
+      const addr = settings.find((s) => s.key === "company_address")?.value || "";
+      const city = settings.find((s) => s.key === "company_city")?.value || "";
+      const state = settings.find((s) => s.key === "company_state")?.value || "";
+      const zip = settings.find((s) => s.key === "company_zipCode")?.value || "";
+      const country = settings.find((s) => s.key === "company_country")?.value || "";
+      
+      // Construct full address
+      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+
       const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
       const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
 
-      // Fetch bank details from dedicated bank_details table
-      const bankDetail = await storage.getActiveBankDetails();
-      const bankName = bankDetail?.bankName || "";
-      const bankAccountNumber = bankDetail?.accountNumber || "";
-      const bankAccountName = bankDetail?.accountName || "";
-      const bankIfscCode = bankDetail?.ifscCode || "";
-      const bankBranch = bankDetail?.branch || "";
-      const bankSwiftCode = bankDetail?.swiftCode || "";
+      // Fetch bank details from settings
+      const bankName = settings.find((s) => s.key === "bank_bankName")?.value || "";
+      const bankAccountNumber = settings.find((s) => s.key === "bank_accountNumber")?.value || "";
+      const bankAccountName = settings.find((s) => s.key === "bank_accountName")?.value || "";
+      const bankIfscCode = settings.find((s) => s.key === "bank_ifscCode")?.value || "";
+      const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
+      const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
 
       const pdfStream = InvoicePDFService.generateInvoicePDF({
         quote,
@@ -2357,6 +2311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companyWebsite,
         companyGSTIN,
         preparedBy: creator?.name,
+        companyLogo,
         userEmail: req.user?.email,
         companyDetails: {
           name: companyName,
@@ -2457,21 +2412,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch company settings
       const settings = await storage.getAllSettings();
-      const companyName = settings.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+      const companyName = settings.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+
+      const addr = settings.find((s) => s.key === "company_address")?.value || "";
+      const city = settings.find((s) => s.key === "company_city")?.value || "";
+      const state = settings.find((s) => s.key === "company_state")?.value || "";
+      const zip = settings.find((s) => s.key === "company_zipCode")?.value || "";
+      const country = settings.find((s) => s.key === "company_country")?.value || "";
+
+      // Construct full address
+      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+
       const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
       const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
 
       // Fetch email templates
       const emailSubjectTemplate = settings.find((s) => s.key === "email_invoice_subject")?.value || "Invoice {INVOICE_NUMBER} from {COMPANY_NAME}";
       const emailBodyTemplate = settings.find((s) => s.key === "email_invoice_body")?.value || "Dear {CLIENT_NAME},\n\nPlease find attached invoice {INVOICE_NUMBER}.\n\nAmount Due: {TOTAL}\nDue Date: {DUE_DATE}\n\nPayment Details:\n{BANK_DETAILS}\n\nBest regards,\n{COMPANY_NAME}";
 
-      // Get bank details from dedicated bank_details table
-      const bankDetailRecord = await storage.getActiveBankDetails();
-      const bankDetailsForEmail = bankDetailRecord
-        ? `Bank: ${bankDetailRecord.bankName}\nAccount: ${bankDetailRecord.accountName}\nAccount Number: ${bankDetailRecord.accountNumber}\nIFSC: ${bankDetailRecord.ifscCode}`
+      // Get bank details from settings
+      const bankName = settings.find((s) => s.key === "bank_bankName")?.value || "";
+      const bankAccountNumber = settings.find((s) => s.key === "bank_accountNumber")?.value || "";
+      const bankAccountName = settings.find((s) => s.key === "bank_accountName")?.value || "";
+      const bankIfscCode = settings.find((s) => s.key === "bank_ifscCode")?.value || "";
+       
+      const bankDetailsForEmail = bankName
+        ? `Bank: ${bankName}\nAccount: ${bankAccountName}\nAccount Number: ${bankAccountNumber}\nIFSC: ${bankIfscCode}`
         : "Contact us for payment details";
 
       // Replace variables in templates
@@ -2511,6 +2480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companyWebsite,
         companyGSTIN,
         preparedBy: creator?.name,
+        companyLogo,
         userEmail: req.user?.email,
         companyDetails: {
           name: companyName,
@@ -2540,12 +2510,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: invoice.notes || undefined,
         termsAndConditions: invoice.termsAndConditions,
         // Bank details from dedicated table
-        bankName: bankDetailRecord?.bankName || undefined,
-        bankAccountNumber: bankDetailRecord?.accountNumber || undefined,
-        bankAccountName: bankDetailRecord?.accountName || undefined,
-        bankIfscCode: bankDetailRecord?.ifscCode || undefined,
-        bankBranch: bankDetailRecord?.branch || undefined,
-        bankSwiftCode: bankDetailRecord?.swiftCode || undefined,
+        // Bank details from settings
+        bankName: bankName || undefined,
+        bankAccountNumber: bankAccountNumber || undefined,
+        bankAccountName: bankAccountName || undefined,
+        bankIfscCode: bankIfscCode || undefined,
+        bankBranch: settings.find((s) => s.key === "bank_branch")?.value || undefined,
+        bankSwiftCode: settings.find((s) => s.key === "bank_swiftCode")?.value || undefined,
       });
 
       // Convert stream to buffer

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,9 @@ import {
     Truck,
     List,
     Pencil,
-    Mail
+    Mail,
+    Home,
+    ChevronRight
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -42,7 +45,20 @@ import {
 export default function SalesOrderDetail() {
     const { id } = useParams();
     const [, setLocation] = useLocation();
+    const isEnabled = useFeatureFlag("sales_orders_module");
+    const canGeneratePDF = useFeatureFlag("sales_orders_pdfGeneration");
+    const canSendEmail = useFeatureFlag("sales_orders_emailSending");
     const { toast } = useToast();
+
+    if (isEnabled === false) {
+        return (
+            <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
+                <h1 className="text-2xl font-bold">Feature Disabled</h1>
+                <p className="text-muted-foreground">The Sales Orders module is currently disabled.</p>
+                <Button onClick={() => setLocation("/")}>Go Home</Button>
+            </div>
+        );
+    }
     const queryClient = useQueryClient();
     const [showFulfillDialog, setShowFulfillDialog] = useState(false);
     const [actualDeliveryDate, setActualDeliveryDate] = useState(
@@ -179,11 +195,16 @@ export default function SalesOrderDetail() {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case "draft": return "bg-gray-100 text-gray-800";
-            case "confirmed": return "bg-blue-100 text-blue-800";
-            case "fulfilled": return "bg-green-100 text-green-800";
-            case "cancelled": return "bg-red-100 text-red-800";
-            default: return "bg-gray-100 text-gray-800";
+            case "draft":
+                return "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
+            case "confirmed":
+                return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800";
+            case "fulfilled":
+                return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800";
+            case "cancelled":
+                return "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800";
+            default:
+                return "bg-slate-100 text-slate-700 border-slate-200";
         }
     };
 
@@ -194,21 +215,35 @@ export default function SalesOrderDetail() {
     return (
         <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950/50 animate-in fade-in duration-500">
             <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+                {/* Breadcrumbs */}
+                <nav className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
+                    <button
+                        onClick={() => setLocation("/")}
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                    >
+                        <Home className="h-3.5 w-3.5" />
+                        <span>Home</span>
+                    </button>
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                    <button
+                        onClick={() => setLocation("/sales-orders")}
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                    >
+                        <Package className="h-3.5 w-3.5" />
+                        <span>Sales Orders</span>
+                    </button>
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-white">
+                        <span className="truncate max-w-[150px]">{order.orderNumber}</span>
+                    </span>
+                </nav>
+
                 {/* Header Navigation */}
                 <div className="flex flex-col sm:flex-row gap-4 sm:items-start justify-between">
                     <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setLocation("/sales-orders")}
-                            className="rounded-full hover:bg-white dark:hover:bg-slate-800 shadow-sm hover:shadow transition-all shrink-0 mt-1"
-                        >
-                            <ArrowLeft className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                        </Button>
                         <div className="space-y-1 min-w-0 flex-1">
                             <div className="flex items-center gap-3 flex-wrap">
                                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2 sm:gap-3 truncate">
-                                    <Package className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600 shrink-0" />
                                     <span className="truncate">{order.orderNumber}</span>
                                 </h1>
                                 <Badge className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-full capitalize border shadow-sm", getStatusColor(order.status))}>
@@ -286,26 +321,30 @@ export default function SalesOrderDetail() {
                                 </Button>
                             )}
 
-                            <Button
-                                onClick={() => window.open(`/api/sales-orders/${order.id}/pdf`, '_blank')}
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 sm:flex-none bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            >
-                                <Download className="h-4 w-4 mr-1.5" />
-                                PDF
-                            </Button>
+                            {canGeneratePDF && (
+                                <Button
+                                    onClick={() => window.open(`/api/sales-orders/${order.id}/pdf`, '_blank')}
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 sm:flex-none bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                >
+                                    <Download className="h-4 w-4 mr-1.5" />
+                                    PDF
+                                </Button>
+                            )}
                             
-                            <Button
-                                onClick={handleEmail}
-                                disabled={emailMutation.isPending}
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 sm:flex-none bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            >
-                                <Mail className="h-4 w-4 mr-1.5" />
-                                {emailMutation.isPending ? "Sending..." : "Email"}
-                            </Button>
+                            {canSendEmail && (
+                                <Button
+                                    onClick={handleEmail}
+                                    disabled={emailMutation.isPending}
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 sm:flex-none bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                >
+                                    <Mail className="h-4 w-4 mr-1.5" />
+                                    {emailMutation.isPending ? "Sending..." : "Email"}
+                                </Button>
+                            )}
                           </div>
                     </div>
                 </div>
@@ -323,7 +362,7 @@ export default function SalesOrderDetail() {
                                         </div>
                                         Order Items
                                     </CardTitle>
-                                    <Badge variant="outline" className="bg-white dark:bg-slate-800 text-slate-500 font-normal">
+                                    <Badge variant="outline" className="bg-white dark:bg-slate-800 text-slate-500 font-normal shadow-sm">
                                         {displayItems.length} Items
                                     </Badge>
                                 </div>
@@ -332,10 +371,10 @@ export default function SalesOrderDetail() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/30">
-                                            <TableHead className="pl-4 sm:pl-6 w-[45%] h-11 text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</TableHead>
-                                            <TableHead className="text-center w-[15%] h-11 text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</TableHead>
-                                            <TableHead className="text-right w-[20%] h-11 text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit Price</TableHead>
-                                            <TableHead className="text-right pr-4 sm:pr-6 w-[20%] h-11 text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</TableHead>
+                                            <TableHead className="pl-4 sm:pl-6 w-[45%] h-11 text-xs font-bold text-slate-500 uppercase tracking-wider">Description</TableHead>
+                                            <TableHead className="text-center w-[15%] h-11 text-xs font-bold text-slate-500 uppercase tracking-wider">Qty</TableHead>
+                                            <TableHead className="text-right w-[20%] h-11 text-xs font-bold text-slate-500 uppercase tracking-wider">Unit Price</TableHead>
+                                            <TableHead className="text-right pr-4 sm:pr-6 w-[20%] h-11 text-xs font-bold text-slate-500 uppercase tracking-wider">Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -437,28 +476,28 @@ export default function SalesOrderDetail() {
                         {/* Terms & Notes */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {order.notes && (
-                                <Card className="rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
-                                    <CardHeader className="p-4 sm:p-5 pb-2">
-                                        <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                            <FileText className="h-4 w-4" /> Notes
+                                <Card className="rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm bg-white dark:bg-slate-900">
+                                    <CardHeader className="p-4 sm:p-5 pb-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/30">
+                                        <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                            <FileText className="h-3.5 w-3.5" /> Notes
                                         </CardTitle>
                                     </CardHeader>
-                                    <CardContent className="p-4 sm:p-5 pt-2">
-                                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                                    <CardContent className="p-4 sm:p-5">
+                                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                                             {order.notes}
                                         </p>
                                     </CardContent>
                                 </Card>
                             )}
                             {order.termsAndConditions && (
-                                <Card className="rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
-                                    <CardHeader className="p-4 sm:p-5 pb-2">
-                                        <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                            <List className="h-4 w-4" /> Terms & Conditions
+                                <Card className="rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm bg-white dark:bg-slate-900">
+                                    <CardHeader className="p-4 sm:p-5 pb-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/30">
+                                        <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                            <List className="h-3.5 w-3.5" /> Terms & Conditions
                                         </CardTitle>
                                     </CardHeader>
-                                    <CardContent className="p-4 sm:p-5 pt-2">
-                                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                                    <CardContent className="p-4 sm:p-5">
+                                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                                             {order.termsAndConditions}
                                         </p>
                                     </CardContent>
