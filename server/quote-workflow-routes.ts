@@ -545,7 +545,10 @@ router.post(
       const client = await storage.getClient(invoice.clientId!);
 
       // Generate Invoice PDF
-      const pdfStream = InvoicePDFService.generateInvoicePDF({
+      const { PassThrough } = await import("stream");
+      const pt = new PassThrough();
+
+      const pdfPromise = InvoicePDFService.generateInvoicePDF({
         quote: quote as any,
         client: client!,
         items: items as any,
@@ -584,9 +587,10 @@ router.post(
         bankAccountNumber: bankDetail?.accountNumber || "",
         bankAccountName: bankDetail?.accountName || "",
         bankIfscCode: bankDetail?.ifscCode || "",
-      });
+      }, pt);
 
-      const buffer = await streamToBuffer(pdfStream as any);
+      const buffer = await streamToBuffer(pt);
+      await pdfPromise;
       
       // Store generated PDF
       await storage.createInvoiceAttachment({
@@ -728,7 +732,10 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
 
     const items = await storage.getSalesOrderItems(order.id);
 
-    const pdfStream = SalesOrderPDFService.generateSalesOrderPDF({
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=SalesOrder-${order.orderNumber}.pdf`);
+
+    await SalesOrderPDFService.generateSalesOrderPDF({
       quote: (quote || { quoteNumber: "-" }) as any, 
       client,
       items: items || [],
@@ -776,11 +783,7 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
       bankBranch: bankBranch,
       bankSwiftCode: bankSwiftCode,
       deliveryNotes: undefined, // Schema update needed if this field is required
-    });
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=SalesOrder-${order.orderNumber}.pdf`);
-    pdfStream.pipe(res);
+    }, res);
   } catch (error) {
     console.error("Error generating PDF:", error);
     res.status(500).json({ error: "Failed to generate PDF" });
@@ -834,7 +837,10 @@ router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view")
 
     const items = await storage.getSalesOrderItems(order.id);
 
-    const pdfStream = SalesOrderPDFService.generateSalesOrderPDF({
+    const { PassThrough } = await import("stream");
+    const pdfStream = new PassThrough();
+
+    const pdfPromise = SalesOrderPDFService.generateSalesOrderPDF({
       quote: { quoteNumber: "-" } as any,
       client,
       items: items || [],
@@ -865,9 +871,27 @@ router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view")
       total: order.total || "0",
       notes: order.notes || undefined,
       termsAndConditions: order.termsAndConditions || undefined,
-    });
+      // Bank details (nested and top-level for backward compatibility)
+      bankDetails: {
+        bankName,
+        accountNumber: bankAccountNumber,
+        accountName: bankAccountName,
+        ifsc: bankIfscCode,
+        branch: bankBranch,
+        swift: bankSwiftCode,
+      },
+      // Pass top-level for existing PDF logic
+      bankName: bankName,
+      bankAccountNumber: bankAccountNumber,
+      bankAccountName: bankAccountName,
+      bankIfscCode: bankIfscCode,
+      bankBranch: bankBranch,
+      bankSwiftCode: bankSwiftCode,
+      deliveryNotes: undefined, // Schema update needed if this field is required
+    }, pdfStream);
 
-    const buffer = await streamToBuffer(pdfStream as any);
+    const buffer = await streamToBuffer(pdfStream);
+    await pdfPromise;
 
     await EmailService.sendSalesOrderEmail(
         email,

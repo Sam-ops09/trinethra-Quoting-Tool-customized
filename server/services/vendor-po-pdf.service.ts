@@ -213,7 +213,7 @@ export class VendorPoPDFService {
     }
 
     doc.end();
-    return doc;
+    return doc as unknown as Readable;
   }
 }
 

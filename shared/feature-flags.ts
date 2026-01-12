@@ -395,7 +395,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   invoices_masterInvoices: true,
   invoices_milestoneInvoices: true,
   invoices_emailSending: false,
-  invoices_pdfGeneration: true,  // Re-enabled for testing
+  invoices_pdfGeneration: true,
   invoices_paymentTracking: true,
   invoices_paymentHistory: true,
   invoices_partialPayments: true,

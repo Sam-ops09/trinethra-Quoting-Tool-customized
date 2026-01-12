@@ -7,12 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Save, X, Plus, Trash2, Calendar, Home, ChevronRight, Package } from "lucide-react";
+import { ArrowLeft, Save, X, Plus, Trash2, Calendar, Home, ChevronRight, Package, DollarSign, FileText, Edit } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { SalesOrder, SalesOrderItem, Client } from "@shared/schema";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 
 export default function SalesOrderEdit() {
@@ -189,9 +188,9 @@ export default function SalesOrderEdit() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
-                <div className="max-w-5xl mx-auto space-y-6">
-                    <Skeleton className="h-12 w-48" />
+            <div className="min-h-screen bg-background">
+                <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6">
+                    <Skeleton className="h-10 w-48" />
                     <Skeleton className="h-96 w-full rounded-2xl" />
                 </div>
             </div>
@@ -200,9 +199,9 @@ export default function SalesOrderEdit() {
 
     if (!order) {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+            <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Order not found</h1>
+                    <h1 className="text-2xl font-bold text-foreground">Order not found</h1>
                     <Button onClick={() => setLocation("/sales-orders")} className="mt-4">Back to Orders</Button>
                 </div>
             </div>
@@ -211,10 +210,10 @@ export default function SalesOrderEdit() {
 
     if (order.status === "fulfilled" || order.status === "cancelled") {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+            <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cannot Edit</h1>
-                    <p className="text-slate-600 dark:text-slate-400 mt-2">
+                    <h1 className="text-2xl font-bold text-foreground">Cannot Edit</h1>
+                    <p className="text-muted-foreground mt-2">
                         {order.status === "fulfilled" ? "Fulfilled" : "Cancelled"} orders cannot be edited.
                     </p>
                     <Button onClick={() => setLocation(`/sales-orders/${id}`)} className="mt-4">Back to Order</Button>
@@ -224,13 +223,13 @@ export default function SalesOrderEdit() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950/50 animate-in fade-in duration-500">
-            <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+        <div className="min-h-screen w-full">
+            <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-[1600px] mx-auto space-y-4 sm:space-y-6 lg:space-y-8">
                 {/* Breadcrumbs */}
-                <nav className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
+                <nav className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
                     <button
                         onClick={() => setLocation("/")}
-                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
                     >
                         <Home className="h-3.5 w-3.5" />
                         <span>Home</span>
@@ -238,288 +237,526 @@ export default function SalesOrderEdit() {
                     <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                     <button
                         onClick={() => setLocation("/sales-orders")}
-                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
                     >
                         <Package className="h-3.5 w-3.5" />
                         <span>Sales Orders</span>
                     </button>
                     <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                     <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-white">
+                        <Edit className="h-3.5 w-3.5" />
                         <span>Edit Order</span>
                     </span>
                 </nav>
 
-                {/* Header */}
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setLocation(`/sales-orders/${id}`)}
-                        className="rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                        <ArrowLeft className="h-5 w-5 text-slate-500" />
-                    </Button>
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-                            Edit Order: {order.orderNumber}
-                        </h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Modify order details and line items
-                        </p>
-                    </div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Line Items */}
-                    <Card className="group relative overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm transition-all duration-300">
-                        <CardHeader className="border-b border-slate-100 dark:border-slate-800/60">
-                            <CardTitle className="flex items-center justify-between text-lg font-semibold text-slate-900 dark:text-white">
-                                <span>Line Items</span>
-                                <Button type="button" onClick={addItem} size="sm" className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-50 dark:text-slate-900 dark:hover:bg-slate-200">
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Add Item
+                {/* HEADER */}
+                <Card className="border border-border/70 bg-card/95 backdrop-blur-sm shadow-sm">
+                    <CardContent className="p-4 sm:p-5 lg:p-6 space-y-3 sm:space-y-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setLocation(`/sales-orders/${id}`)}
+                                    className="shrink-0 hover:bg-primary/10 hover:text-primary h-8 w-8 sm:h-9 sm:w-9"
+                                >
+                                    <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                                 </Button>
-                            </CardTitle>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                        <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+                                            Edit Order: {order.orderNumber}
+                                        </h1>
+                                    </div>
+                                    <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
+                                        Modify order details and line items
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <form onSubmit={handleSubmit} className="space-y-3">
+                    {/* LINE ITEMS */}
+                    <Card className="border bg-card shadow-sm overflow-hidden">
+                        <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                            <div className="flex items-center justify-between gap-2 sm:gap-3">
+                                <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
+                                        <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-sm sm:text-lg">Line Items</CardTitle>
+                                        <p className="hidden sm:block text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
+                                            Products and services breakdown
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button 
+                                    type="button" 
+                                    onClick={addItem} 
+                                    size="sm" 
+                                    className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm"
+                                >
+                                    <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                    <span className="hidden xs:inline">Add Item</span>
+                                    <span className="xs:hidden">Add</span>
+                                </Button>
+                            </div>
                         </CardHeader>
-                        <CardContent className="p-0 overflow-x-auto">
-                            <Table>
-                                <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
-                                    <TableRow className="border-slate-100 dark:border-slate-800">
-                                        <TableHead className="w-[40%] font-semibold text-xs uppercase tracking-wider text-slate-500">Description</TableHead>
-                                        <TableHead className="w-[15%] font-semibold text-xs uppercase tracking-wider text-slate-500">Quantity</TableHead>
-                                        <TableHead className="w-[20%] font-semibold text-xs uppercase tracking-wider text-slate-500">Unit Price</TableHead>
-                                        <TableHead className="w-[20%] font-semibold text-xs uppercase tracking-wider text-slate-500">Subtotal</TableHead>
-                                        <TableHead className="w-[5%]"></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {items.map((item, index) => (
-                                        <TableRow key={index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 border-slate-100 dark:border-slate-800">
-                                            <TableCell>
+
+                        <CardContent className="p-0">
+                            {/* MOBILE STACKED VIEW */}
+                            <div className="sm:hidden px-3 py-3 space-y-3">
+                                {items.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        className="rounded-xl border bg-muted/40 px-3 py-3 space-y-2"
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[11px] text-muted-foreground font-['Open_Sans']">
+                                                #{index + 1}
+                                            </span>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => removeItem(index)}
+                                                className="h-6 text-[10px] px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            >
+                                                <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div>
+                                                <Label className="text-[10px] text-muted-foreground uppercase">Description</Label>
                                                 <Input
                                                     value={item.description}
                                                     onChange={(e) => updateItem(index, "description", e.target.value)}
                                                     placeholder="Item description"
                                                     required
-                                                    className="bg-transparent border-slate-200 dark:border-slate-700"
+                                                    className="mt-1 text-xs"
                                                 />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    type="number"
-                                                    value={item.quantity}
-                                                    onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
-                                                    min="1"
-                                                    required
-                                                    className="bg-transparent border-slate-200 dark:border-slate-700"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    type="number"
-                                                    value={item.unitPrice}
-                                                    onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
-                                                    min="0"
-                                                    step="0.01"
-                                                    required
-                                                    className="bg-transparent border-slate-200 dark:border-slate-700"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    value={`₹${Number(item.subtotal).toLocaleString()}`}
-                                                    disabled
-                                                    className="bg-slate-50/50 dark:bg-slate-900/50 border-0"
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => removeItem(index)}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                            
-                            {/* Total */}
-                            <div className="p-6 bg-slate-50/30 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                                <div className="text-right">
-                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total</p>
-                                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                                        ₹{items.reduce((sum, item) => sum + Number(item.subtotal), 0).toLocaleString()}
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                                            </div>
 
-                    {/* Financials */}
-                    <Card className="group relative overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm transition-all duration-300">
-                        <CardHeader className="border-b border-slate-100 dark:border-slate-800/60">
-                            <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Financials & Taxes</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Discount (%)</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={formData.discount}
-                                        onChange={(e) => setFormData({ ...formData, discount: Number(e.target.value) })}
-                                        className="bg-transparent border-slate-200 dark:border-slate-700"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Shipping Charges (₹)</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        value={formData.shippingCharges}
-                                        onChange={(e) => setFormData({ ...formData, shippingCharges: Number(e.target.value) })}
-                                        className="bg-transparent border-slate-200 dark:border-slate-700"
-                                    />
-                                </div>
-                            </div>
-                            <Separator className="bg-slate-100 dark:bg-slate-800" />
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">CGST (%)</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={formData.cgst}
-                                        onChange={(e) => setFormData({ ...formData, cgst: Number(e.target.value) })}
-                                        className="bg-transparent border-slate-200 dark:border-slate-700"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">SGST (%)</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={formData.sgst}
-                                        onChange={(e) => setFormData({ ...formData, sgst: Number(e.target.value) })}
-                                        className="bg-transparent border-slate-200 dark:border-slate-700"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">IGST (%)</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={formData.igst}
-                                        onChange={(e) => setFormData({ ...formData, igst: Number(e.target.value) })}
-                                        className="bg-transparent border-slate-200 dark:border-slate-700"
-                                    />
-                                </div>
-                            </div>
-                            
-                            {/* Summary Calculation Display */}
-                            <div className="bg-slate-50/50 dark:bg-slate-800/50 p-6 rounded-xl space-y-3 text-right border border-slate-100 dark:border-slate-800">
-                                {(() => {
-                                    const subtotal = items.reduce((sum, item) => sum + Number(item.subtotal), 0);
-                                    const discountAmount = (subtotal * formData.discount) / 100;
-                                    const taxBase = subtotal - discountAmount;
-                                    const cgstAmount = (taxBase * formData.cgst) / 100;
-                                    const sgstAmount = (taxBase * formData.sgst) / 100;
-                                    const igstAmount = (taxBase * formData.igst) / 100;
-                                    const total = taxBase + cgstAmount + sgstAmount + igstAmount + Number(formData.shippingCharges);
-                                    
-                                    return (
-                                        <>
-                                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Subtotal: <span className="text-slate-900 dark:text-white ml-2">₹{subtotal.toFixed(2)}</span></p>
-                                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Discount: <span className="text-red-500 ml-2">-₹{discountAmount.toFixed(2)}</span></p>
-                                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Tax Base: <span className="text-slate-900 dark:text-white ml-2">₹{taxBase.toFixed(2)}</span></p>
-                                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Tax: <span className="text-slate-900 dark:text-white ml-2">₹{(cgstAmount + sgstAmount + igstAmount).toFixed(2)}</span></p>
-                                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Shipping: <span className="text-slate-900 dark:text-white ml-2">₹{Number(formData.shippingCharges).toFixed(2)}</span></p>
-                                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700 mt-2">
-                                                <p className="text-xl font-bold text-slate-900 dark:text-white flex items-center justify-end gap-3">
-                                                    Total: <span className="text-2xl">₹{total.toFixed(2)}</span>
+                                            {/* HSN/SAC */}
+                                            <div>
+                                                <Label className="text-[10px] text-muted-foreground uppercase">HSN/SAC</Label>
+                                                <Input
+                                                    value={item.hsnSac || ""}
+                                                    onChange={(e) => updateItem(index, "hsnSac", e.target.value)}
+                                                    placeholder="HSN/SAC code"
+                                                    className="mt-1 text-xs"
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <Label className="text-[10px] text-muted-foreground uppercase">Quantity</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={item.quantity}
+                                                        onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
+                                                        min="1"
+                                                        required
+                                                        className="mt-1 text-xs"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-[10px] text-muted-foreground uppercase">Unit Price</Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={item.unitPrice}
+                                                        onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
+                                                        min="0"
+                                                        step="0.01"
+                                                        required
+                                                        className="mt-1 text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between gap-3 pt-1.5 border-t border-border/60">
+                                                <span className="text-[10px] text-muted-foreground font-['Open_Sans']">
+                                                    Subtotal
+                                                </span>
+                                                <p className="text-sm font-bold text-primary">
+                                                    ₹{Number(item.subtotal).toLocaleString()}
                                                 </p>
                                             </div>
-                                        </>
-                                    );
-                                })()}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* DESKTOP / TABLE VIEW */}
+                            <div className="hidden sm:block w-full overflow-x-auto">
+                                <table className="w-full min-w-[700px] text-xs sm:text-sm">
+                                    <thead className="bg-muted/80 border-b">
+                                        <tr>
+                                            <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                #
+                                            </th>
+                                            <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                Description
+                                            </th>
+                                            <th className="text-center font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                HSN/SAC
+                                            </th>
+                                            <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                Qty
+                                            </th>
+                                            <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                Unit Price
+                                            </th>
+                                            <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                Total
+                                            </th>
+                                            <th className="text-center font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/70">
+                                        {items.map((item, index) => (
+                                            <tr
+                                                key={index}
+                                                className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
+                                            >
+                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 text-[11px] sm:text-sm text-muted-foreground">
+                                                    {index + 1}
+                                                </td>
+                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 align-top">
+                                                    <Input
+                                                        value={item.description}
+                                                        onChange={(e) => updateItem(index, "description", e.target.value)}
+                                                        placeholder="Item description"
+                                                        required
+                                                        className="bg-transparent border-0 focus-visible:ring-1 text-xs sm:text-sm"
+                                                    />
+                                                </td>
+                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
+                                                    <Input
+                                                        value={item.hsnSac || ""}
+                                                        onChange={(e) => updateItem(index, "hsnSac", e.target.value)}
+                                                        placeholder="HSN/SAC"
+                                                        className="bg-transparent border-0 focus-visible:ring-1 text-center text-xs sm:text-sm max-w-[120px] mx-auto"
+                                                    />
+                                                </td>
+                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right">
+                                                    <Input
+                                                        type="number"
+                                                        value={item.quantity}
+                                                        onChange={(e) => updateItem(index, "quantity", Number(e.target.value))}
+                                                        min="1"
+                                                        required
+                                                        className="bg-transparent border-0 focus-visible:ring-1 text-right text-xs sm:text-sm max-w-[80px] ml-auto"
+                                                    />
+                                                </td>
+                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right">
+                                                    <Input
+                                                        type="number"
+                                                        value={item.unitPrice}
+                                                        onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
+                                                        min="0"
+                                                        step="0.01"
+                                                        required
+                                                        className="bg-transparent border-0 focus-visible:ring-1 text-right text-xs sm:text-sm max-w-[100px] ml-auto"
+                                                    />
+                                                </td>
+                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right text-[11px] sm:text-sm font-semibold text-primary">
+                                                    ₹{Number(item.subtotal).toLocaleString()}
+                                                </td>
+                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => removeItem(index)}
+                                                        className="h-7 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* FOOTER ROW */}
+                            <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans'] bg-muted/40">
+                                <span>{items.length} line items</span>
+                                <span className="inline-flex items-center gap-1">
+                                    <DollarSign className="h-3 w-3" />
+                                    Subtotal:{" "}
+                                    <span className="font-semibold text-foreground">
+                                        ₹{items.reduce((sum, item) => sum + Number(item.subtotal), 0).toLocaleString()}
+                                    </span>
+                                </span>
                             </div>
                         </CardContent>
                     </Card>
-                    
-                    <Card className="group relative overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm transition-all duration-300">
-                        <CardHeader className="border-b border-slate-100 dark:border-slate-800/60">
-                            <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Order Details</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="space-y-2">
-                                <Label htmlFor="expectedDeliveryDate" className="text-xs font-semibold uppercase tracking-wider text-slate-500">Expected Delivery Date</Label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                    <Input
-                                        id="expectedDeliveryDate"
-                                        type="date"
-                                        value={formData.expectedDeliveryDate}
-                                        onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })}
-                                        className="pl-10 bg-transparent border-slate-200 dark:border-slate-700"
-                                    />
-                                </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="notes" className="text-xs font-semibold uppercase tracking-wider text-slate-500">Notes</Label>
-                                <Textarea
-                                    id="notes"
-                                    value={formData.notes}
-                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                    rows={4}
-                                    placeholder="Add any notes about this order..."
-                                    className="bg-transparent border-slate-200 dark:border-slate-700 resize-none"
-                                />
-                            </div>
+                    {/* FINANCIALS & SUMMARY */}
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                        {/* LEFT COLUMN - Financials */}
+                        <div className="space-y-3 lg:col-span-2 min-w-0">
+                            <Card className="border bg-card shadow-sm">
+                                <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                        <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
+                                            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-sm sm:text-lg">Financials & Taxes</CardTitle>
+                                            <p className="hidden sm:block text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
+                                                Discount, taxes, and shipping
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Discount (%)</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={formData.discount}
+                                                onChange={(e) => setFormData({ ...formData, discount: Number(e.target.value) })}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Shipping Charges (₹)</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                value={formData.shippingCharges}
+                                                onChange={(e) => setFormData({ ...formData, shippingCharges: Number(e.target.value) })}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <Separator />
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">CGST (%)</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={formData.cgst}
+                                                onChange={(e) => setFormData({ ...formData, cgst: Number(e.target.value) })}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SGST (%)</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={formData.sgst}
+                                                onChange={(e) => setFormData({ ...formData, sgst: Number(e.target.value) })}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">IGST (%)</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={formData.igst}
+                                                onChange={(e) => setFormData({ ...formData, igst: Number(e.target.value) })}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="terms" className="text-xs font-semibold uppercase tracking-wider text-slate-500">Terms & Conditions</Label>
-                                <Textarea
-                                    id="terms"
-                                    value={formData.termsAndConditions}
-                                    onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
-                                    rows={4}
-                                    placeholder="Enter terms and conditions..."
-                                    className="bg-transparent border-slate-200 dark:border-slate-700 resize-none"
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
+                            {/* ORDER DETAILS */}
+                            <Card className="border bg-card shadow-sm">
+                                <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                        <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
+                                            <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-sm sm:text-lg">Order Details</CardTitle>
+                                            <p className="hidden sm:block text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
+                                                Additional information
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="expectedDeliveryDate" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Expected Delivery Date</Label>
+                                        <div className="relative">
+                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                id="expectedDeliveryDate"
+                                                type="date"
+                                                value={formData.expectedDeliveryDate}
+                                                onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })}
+                                                className="pl-10 text-sm"
+                                            />
+                                        </div>
+                                    </div>
 
-                    {/* Actions */}
-                    <div className="flex justify-end gap-3 sticky bottom-6 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md p-4 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-lg">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setLocation(`/sales-orders/${id}`)}
-                            className="hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                            <X className="h-4 w-4 mr-2" />
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            disabled={updateMutation.isPending || items.length === 0}
-                            className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-50 dark:text-slate-900 dark:hover:bg-slate-200"
-                        >
-                            <Save className="h-4 w-4 mr-2" />
-                            {updateMutation.isPending ? "Saving..." : "Save Changes"}
-                        </Button>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="notes" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</Label>
+                                        <Textarea
+                                            id="notes"
+                                            value={formData.notes}
+                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                            rows={4}
+                                            placeholder="Add any notes about this order..."
+                                            className="resize-none text-sm"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="terms" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Terms & Conditions</Label>
+                                        <Textarea
+                                            id="terms"
+                                            value={formData.termsAndConditions}
+                                            onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
+                                            rows={4}
+                                            placeholder="Enter terms and conditions..."
+                                            className="resize-none text-sm"
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* RIGHT COLUMN - Summary */}
+                        <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-6 min-w-0">
+                            <Card className="border bg-card shadow-sm">
+                                <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                        <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
+                                            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <CardTitle className="text-sm sm:text-lg">
+                                                Order Summary
+                                            </CardTitle>
+                                            <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans'] truncate">
+                                                Financial overview
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-3 sm:space-y-4">
+                                    {(() => {
+                                        const subtotal = items.reduce((sum, item) => sum + Number(item.subtotal), 0);
+                                        const discountAmount = (subtotal * formData.discount) / 100;
+                                        const taxBase = subtotal - discountAmount;
+                                        const cgstAmount = (taxBase * formData.cgst) / 100;
+                                        const sgstAmount = (taxBase * formData.sgst) / 100;
+                                        const igstAmount = (taxBase * formData.igst) / 100;
+                                        const total = taxBase + cgstAmount + sgstAmount + igstAmount + Number(formData.shippingCharges);
+                                        
+                                        return (
+                                            <>
+                                                <div className="space-y-1.5 sm:space-y-2.5 font-['Open_Sans'] text-[11px] sm:text-sm">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-muted-foreground">Subtotal</span>
+                                                        <span className="font-semibold">
+                                                            ₹{subtotal.toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    {discountAmount > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-muted-foreground">Discount</span>
+                                                            <span className="font-semibold text-success">
+                                                                -₹{discountAmount.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {cgstAmount > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-muted-foreground">CGST</span>
+                                                            <span className="font-semibold">
+                                                                ₹{cgstAmount.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {sgstAmount > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-muted-foreground">SGST</span>
+                                                            <span className="font-semibold">
+                                                                ₹{sgstAmount.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {igstAmount > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-muted-foreground">IGST</span>
+                                                            <span className="font-semibold">
+                                                                ₹{igstAmount.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {formData.shippingCharges > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-muted-foreground">Shipping</span>
+                                                            <span className="font-semibold">
+                                                                ₹{Number(formData.shippingCharges).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <Separator className="bg-primary/10" />
+
+                                                <div className="rounded-xl border-2 border-primary/30 bg-primary/5 px-3 sm:px-4 py-3 sm:py-4">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-[11px] sm:text-sm font-semibold text-muted-foreground">
+                                                            Total Amount
+                                                        </span>
+                                                        <span className="text-lg sm:text-2xl font-bold text-primary">
+                                                            ₹{total.toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* ACTIONS */}
+                                                <div className="flex flex-col gap-2 pt-2">
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={updateMutation.isPending || items.length === 0}
+                                                        className="w-full justify-center gap-2 text-xs sm:text-sm"
+                                                    >
+                                                        <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                                        {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => setLocation(`/sales-orders/${id}`)}
+                                                        className="w-full justify-center gap-2 text-xs sm:text-sm"
+                                                    >
+                                                        <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                                        Cancel
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
                 </form>
             </div>

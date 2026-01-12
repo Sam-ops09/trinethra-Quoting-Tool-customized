@@ -65,14 +65,6 @@ interface SerialTraceabilityInfo {
     history: { action: string; user: string; timestamp: string }[];
 }
 
-/**
- * Trace Console: new design goals
- * - Sticky "console" search with ⌘K / Ctrl+K CommandDialog (recent searches + examples)
- * - Two-pane responsive layout:
- *   - Desktop: left entity rail + right investigation tabs
- *   - Mobile: collapses into stacked sections + horizontal "entity chips"
- * - Strong empty / loading / error states without layout jumps
- */
 export default function SerialNumberSearch() {
     const [query, setQuery] = React.useState("");
     const [term, setTerm] = React.useState("");
@@ -148,14 +140,14 @@ export default function SerialNumberSearch() {
         switch (status.toLowerCase()) {
             case "delivered":
             case "in_stock":
-                return "bg-emerald-600 text-white dark:bg-emerald-500";
+                return "bg-success/10 text-success dark:bg-success/20 dark:text-success";
             case "reserved":
-                return "bg-amber-500 text-white";
+                return "bg-amber-100/50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300";
             case "returned":
             case "defective":
-                return "bg-red-600 text-white";
+                return "bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive";
             default:
-                return "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900";
+                return "bg-muted text-muted-foreground";
         }
     };
 
@@ -194,7 +186,6 @@ export default function SerialNumberSearch() {
     const copyToClipboard = async (text: string) => {
         try {
             await navigator.clipboard.writeText(text);
-            // optional: hook toast here if you have it
         } catch {
             // ignore
         }
@@ -252,29 +243,30 @@ export default function SerialNumberSearch() {
     }, [data, navigate]);
 
     return (
-        <div className="min-h-[100dvh] bg-slate-50 dark:bg-slate-950 flex flex-col">
-            {/* Breadcrumbs */}
-            <Breadcrumbs data={data || null} />
-            {/* Sticky Console Header */}
-            <div className="sticky top-0 z-30 backdrop-blur bg-white/80 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800">
-                <div className="w-full max-w-full mx-auto px-2 xs:px-3 sm:px-4 lg:px-6 py-2 xs:py-2.5">
-                    <div className="flex flex-col gap-2 xs:gap-2.5">
-                        {/* Top row */}
-                        <div className="flex items-center justify-between gap-2 xs:gap-3">
-                            <div className="flex items-center gap-2 xs:gap-3 min-w-0 flex-1">
-                                <div className="h-9 xs:h-10 w-9 xs:w-10 rounded-lg xs:rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 flex items-center justify-center shrink-0">
-                                    <Search className="h-4 xs:h-5 w-4 xs:w-5" />
+        <div className="min-h-screen w-full">
+            <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-[1600px] mx-auto space-y-4 sm:space-y-6 lg:space-y-8">
+                {/* Premium Breadcrumbs */}
+                <Breadcrumbs data={data || null} />
+
+                {/* Premium Header */}
+                <Card className="border border-border/70 bg-card/95 backdrop-blur-sm shadow-sm">
+                    <CardContent className="p-4 sm:p-5 lg:p-6 space-y-3 sm:space-y-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                                <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary shrink-0">
+                                    <Search className="h-4 w-4 sm:h-5 sm:w-5" />
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <h1 className="text-sm xs:text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
-                                        Trace Console
-                                    </h1>
-                                    <p className="text-[11px] xs:text-xs text-slate-600 dark:text-slate-400 truncate">
-                                        Serial → Customer / Quote / PO / Invoice
+                                <div className="min-w-0 flex-1 space-y-1">
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                        <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+                                            Serial Number Trace
+                                        </h1>
+                                    </div>
+                                    <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
+                                        Track serials through Customer → Quote → PO → Invoice
                                     </p>
                                 </div>
                             </div>
-
                             <div className="flex items-center gap-1.5 xs:gap-2 shrink-0">
                                 <Button
                                     variant="outline"
@@ -282,8 +274,8 @@ export default function SerialNumberSearch() {
                                     onClick={() => setCmdOpen(true)}
                                 >
                                     <Search className="h-3.5 xs:h-4 w-3.5 xs:w-4 mr-1.5" />
-                                    Search
-                                    <span className="ml-1.5 text-[10px] xs:text-xs text-slate-500 dark:text-slate-400">
+                                    Quick Search
+                                    <span className="ml-1.5 text-[10px] xs:text-xs text-muted-foreground">
                                         ⌘K
                                     </span>
                                 </Button>
@@ -301,13 +293,13 @@ export default function SerialNumberSearch() {
                         <div className="flex flex-col xs:flex-row gap-1.5 xs:gap-2">
                             <div className="relative flex-1">
                                 <div className="absolute left-2.5 xs:left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                    <Search className="h-3.5 xs:h-4 w-3.5 xs:w-4 text-slate-400" />
+                                    <Search className="h-3.5 xs:h-4 w-3.5 xs:w-4 text-muted-foreground" />
                                 </div>
                                 <Input
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     onKeyDown={onEnter}
-                                    placeholder="Serial number…"
+                                    placeholder="Enter serial number..."
                                     className="pl-8 xs:pl-9 h-9 xs:h-10 text-xs xs:text-sm"
                                 />
                             </div>
@@ -315,7 +307,7 @@ export default function SerialNumberSearch() {
                                 <Button
                                     onClick={onSearch}
                                     disabled={!query.trim() || isLoading}
-                                    className="h-9 xs:h-10 px-3 xs:px-4 text-xs xs:text-sm bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900"
+                                    className="h-9 xs:h-10 px-3 xs:px-4 text-xs xs:text-sm"
                                 >
                                     <Search className="h-3.5 xs:h-4 w-3.5 xs:w-4 mr-1" />
                                     <span className="hidden xs:inline">Search</span>
@@ -333,90 +325,79 @@ export default function SerialNumberSearch() {
                             </div>
                         </div>
 
-                        {/* Subtle “searching…” chip */}
+                        {/* Subtle "searching…" chip */}
                         {term && (
-                            <div className="flex items-center justify-between gap-2">
-                                <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${isFetching ? "border-slate-200 dark:border-slate-800" : "border-slate-200 dark:border-slate-800"}`}>
-                                    <span className={`h-2 w-2 rounded-full ${isFetching ? "bg-slate-600 animate-pulse" : "bg-slate-400"}`} />
-                                    <span className="text-slate-700 dark:text-slate-300">
-                    Current query: <span className="font-mono font-semibold text-slate-900 dark:text-white">{term}</span>
-                  </span>
+                            <div className="flex items-center gap-2">
+                                <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${isFetching ? "border-border" : "border-border"}`}>
+                                    <span className={`h-2 w-2 rounded-full ${isFetching ? "bg-primary animate-pulse" : "bg-muted-foreground"}`} />
+                                    <span className="text-muted-foreground">
+                                        Current query: <span className="font-mono font-semibold text-foreground">{term}</span>
+                                    </span>
                                 </div>
-
-                                <Button
-                                    variant="ghost"
-                                    className="sm:hidden"
-                                    onClick={() => setCmdOpen(true)}
-                                >
-                                    ⌘K
-                                </Button>
                             </div>
                         )}
-                    </div>
-                </div>
-            </div>
+                    </CardContent>
+                </Card>
 
-            {/* Command Palette */}
-            <CommandDialog open={cmdOpen} onOpenChange={setCmdOpen}>
-                <CommandInput placeholder="Search serial…" />
-                <CommandList>
-                    <CommandEmpty>No matches.</CommandEmpty>
+                {/* Command Palette */}
+                <CommandDialog open={cmdOpen} onOpenChange={setCmdOpen}>
+                    <CommandInput placeholder="Search serial…" />
+                    <CommandList>
+                        <CommandEmpty>No matches.</CommandEmpty>
 
-                    <CommandGroup heading="Recent">
-                        {recent.length === 0 && (
-                            <CommandItem disabled>No recent searches</CommandItem>
-                        )}
-                        {recent.map((r) => (
-                            <CommandItem
-                                key={r}
-                                value={r}
-                                onSelect={() => {
-                                    setCmdOpen(false);
-                                    setQuery(r);
-                                    setTerm(r);
-                                    pushRecent(r);
-                                }}
-                            >
-                                <Clock className="h-4 w-4 mr-2" />
-                                <span className="font-mono">{r}</span>
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
+                        <CommandGroup heading="Recent">
+                            {recent.length === 0 && (
+                                <CommandItem disabled>No recent searches</CommandItem>
+                            )}
+                            {recent.map((r) => (
+                                <CommandItem
+                                    key={r}
+                                    value={r}
+                                    onSelect={() => {
+                                        setCmdOpen(false);
+                                        setQuery(r);
+                                        setTerm(r);
+                                        pushRecent(r);
+                                    }}
+                                >
+                                    <Clock className="h-4 w-4 mr-2" />
+                                    <span className="font-mono">{r}</span>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
 
-                    <CommandSeparator />
+                        <CommandSeparator />
 
-                    <CommandGroup heading="Examples">
-                        {["SN12345", "BATCH-001", "INV-0001-S1"].map((ex) => (
-                            <CommandItem
-                                key={ex}
-                                value={ex}
-                                onSelect={() => {
-                                    setCmdOpen(false);
-                                    setQuery(ex);
-                                    setTerm(ex);
-                                    pushRecent(ex);
-                                }}
-                            >
-                                <Search className="h-4 w-4 mr-2" />
-                                <span className="font-mono">{ex}</span>
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
-                </CommandList>
-            </CommandDialog>
+                        <CommandGroup heading="Examples">
+                            {["SN12345", "BATCH-001", "INV-0001-S1"].map((ex) => (
+                                <CommandItem
+                                    key={ex}
+                                    value={ex}
+                                    onSelect={() => {
+                                        setCmdOpen(false);
+                                        setQuery(ex);
+                                        setTerm(ex);
+                                        pushRecent(ex);
+                                    }}
+                                >
+                                    <Search className="h-4 w-4 mr-2" />
+                                    <span className="font-mono">{ex}</span>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </CommandDialog>
 
-            {/* Main */}
-            <div className="flex-1 w-full max-w-full mx-auto px-2 xs:px-3 sm:px-4 lg:px-6 py-3 xs:py-4">
                 {/* Error */}
                 {error && (
-                    <Alert className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 mb-4 xs:mb-5">
+                    <Alert className="border-destructive/50 bg-destructive/10">
                         <div className="flex items-start gap-2.5 xs:gap-3">
-                            <div className="h-9 xs:h-10 w-9 xs:w-10 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0">
-                                <AlertCircle className="h-4.5 xs:h-5 w-4.5 xs:w-5 text-red-600 dark:text-red-400" />
+                            <div className="h-9 xs:h-10 w-9 xs:w-10 rounded-lg bg-destructive/20 flex items-center justify-center shrink-0">
+                                <AlertCircle className="h-4.5 xs:h-5 w-4.5 xs:w-5 text-destructive" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-red-900 dark:text-red-100 text-sm xs:text-base mb-0.5 xs:mb-1">Not Found</h3>
-                                <AlertDescription className="text-xs xs:text-sm text-red-700 dark:text-red-300">
+                                <h3 className="font-semibold text-destructive text-sm xs:text-base mb-0.5 xs:mb-1">Not Found</h3>
+                                <AlertDescription className="text-xs xs:text-sm text-destructive/80">
                                     {(error as Error)?.message || "We couldn't find records for this serial number."}
                                 </AlertDescription>
                             </div>
@@ -427,24 +408,24 @@ export default function SerialNumberSearch() {
                 {/* Loading skeleton */}
                 {isLoading && (
                     <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3 xs:gap-4">
-                        <Card className="border-slate-200 dark:border-slate-800">
+                        <Card className="border bg-card shadow-sm">
                             <CardContent className="p-3 xs:p-4 space-y-3">
-                                <div className="h-5 w-2/3 bg-slate-200 dark:bg-slate-800 rounded" />
-                                <div className="h-9 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-                                <div className="h-9 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-                                <div className="h-9 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+                                <div className="h-5 w-2/3 bg-muted rounded" />
+                                <div className="h-9 w-full bg-muted rounded" />
+                                <div className="h-9 w-full bg-muted rounded" />
+                                <div className="h-9 w-full bg-muted rounded" />
                             </CardContent>
                         </Card>
-                        <Card className="border-slate-200 dark:border-slate-800">
+                        <Card className="border bg-card shadow-sm">
                             <CardContent className="p-3 xs:p-4 space-y-3">
-                                <div className="h-7 w-1/2 bg-slate-200 dark:bg-slate-800 rounded" />
+                                <div className="h-7 w-1/2 bg-muted rounded" />
                                 <div className="grid grid-cols-2 gap-2.5">
-                                    <div className="h-16 xs:h-20 bg-slate-200 dark:bg-slate-800 rounded" />
-                                    <div className="h-16 xs:h-20 bg-slate-200 dark:bg-slate-800 rounded" />
-                                    <div className="h-16 xs:h-20 bg-slate-200 dark:bg-slate-800 rounded" />
-                                    <div className="h-16 xs:h-20 bg-slate-200 dark:bg-slate-800 rounded" />
+                                    <div className="h-16 xs:h-20 bg-muted rounded" />
+                                    <div className="h-16 xs:h-20 bg-muted rounded" />
+                                    <div className="h-16 xs:h-20 bg-muted rounded" />
+                                    <div className="h-16 xs:h-20 bg-muted rounded" />
                                 </div>
-                                <div className="h-32 xs:h-40 bg-slate-200 dark:bg-slate-800 rounded" />
+                                <div className="h-32 xs:h-40 bg-muted rounded" />
                             </CardContent>
                         </Card>
                     </div>
@@ -452,17 +433,17 @@ export default function SerialNumberSearch() {
 
                 {/* Empty */}
                 {!term && !isLoading && !error && (
-                    <Card className="border-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <Card className="border-2 border-dashed border-border">
                         <CardContent className="py-12 xs:py-16 text-center">
                             <div className="mx-auto max-w-2xl space-y-4">
-                                <div className="mx-auto h-14 xs:h-16 w-14 xs:w-16 rounded-2xl bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-                                    <Search className="h-7 xs:h-8 w-7 xs:w-8 text-slate-400" />
+                                <div className="mx-auto h-14 xs:h-16 w-14 xs:w-16 rounded-2xl bg-muted flex items-center justify-center">
+                                    <Search className="h-7 xs:h-8 w-7 xs:w-8 text-muted-foreground" />
                                 </div>
                                 <div>
-                                    <h2 className="text-lg xs:text-xl font-bold text-slate-900 dark:text-white">
+                                    <h2 className="text-lg xs:text-xl font-bold text-foreground">
                                         Search a Serial Number
                                     </h2>
-                                    <p className="text-xs xs:text-sm text-slate-600 dark:text-slate-400 mt-1">
+                                    <p className="text-xs xs:text-sm text-muted-foreground mt-1">
                                         Use the search box above or press <span className="font-semibold">⌘K / Ctrl+K</span>
                                     </p>
                                 </div>
@@ -476,7 +457,7 @@ export default function SerialNumberSearch() {
                                                 setTerm(chip);
                                                 pushRecent(chip);
                                             }}
-                                            className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 xs:px-3 py-1 xs:py-1.5 text-[10px] xs:text-xs font-mono text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                                            className="rounded-full border border-border bg-card px-2.5 xs:px-3 py-1 xs:py-1.5 text-[10px] xs:text-xs font-mono text-foreground hover:border-border/80 hover:bg-accent transition-colors"
                                         >
                                             {chip}
                                         </button>
@@ -493,12 +474,12 @@ export default function SerialNumberSearch() {
                         {/* Left: Entity Rail */}
                         <div className="space-y-3 xs:space-y-4">
                             {/* Serial summary */}
-                            <Card className="border-slate-200 dark:border-slate-800 overflow-hidden">
-                                <CardHeader className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 xs:p-4">
+                            <Card className="border bg-card shadow-sm overflow-hidden">
+                                <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                     <div className="flex items-start justify-between gap-2 xs:gap-3">
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-[10px] xs:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                                Serial
+                                            <p className="text-[10px] xs:text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Serial Number
                                             </p>
                                             <CardTitle className="mt-1 text-base xs:text-lg sm:text-xl font-mono break-all">
                                                 {data.serialNumber}
@@ -529,7 +510,7 @@ export default function SerialNumberSearch() {
                                     </div>
                                 </CardHeader>
 
-                                <CardContent className="p-3 xs:p-4 space-y-2.5 xs:space-y-3">
+                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-2.5 xs:space-y-3">
                                     <div className={`rounded-lg border px-2.5 xs:px-3 py-2 xs:py-2.5 ${statusSoft(data.status)}`}>
                                         <div className="flex items-center gap-1.5 xs:gap-2">
                                             <ShieldCheck className="h-3.5 xs:h-4 w-3.5 xs:w-4 shrink-0" />
@@ -539,16 +520,16 @@ export default function SerialNumberSearch() {
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-2.5 xs:gap-3">
-                                        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 xs:p-3">
-                                            <div className="flex items-center gap-1.5 xs:gap-2 text-slate-600 dark:text-slate-400">
+                                        <div className="rounded-lg border border-border bg-card p-2.5 xs:p-3">
+                                            <div className="flex items-center gap-1.5 xs:gap-2 text-muted-foreground">
                                                 <Calendar className="h-3.5 xs:h-4 w-3.5 xs:w-4 shrink-0" />
                                                 <p className="text-[10px] xs:text-[11px] font-semibold uppercase">Invoice</p>
                                             </div>
                                             <p className="text-xs xs:text-sm font-semibold mt-1">{fmtDate(data.invoice.invoiceDate)}</p>
                                         </div>
 
-                                        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 xs:p-3">
-                                            <div className="flex items-center gap-1.5 xs:gap-2 text-slate-600 dark:text-slate-400">
+                                        <div className="rounded-lg border border-border bg-card p-2.5 xs:p-3">
+                                            <div className="flex items-center gap-1.5 xs:gap-2 text-muted-foreground">
                                                 <Package className="h-3.5 xs:h-4 w-3.5 xs:w-4 shrink-0" />
                                                 <p className="text-[10px] xs:text-[11px] font-semibold uppercase">Qty</p>
                                             </div>
@@ -557,8 +538,8 @@ export default function SerialNumberSearch() {
                                     </div>
 
                                     {data.location && (
-                                        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 xs:p-3">
-                                            <div className="flex items-center gap-1.5 xs:gap-2 text-slate-600 dark:text-slate-400">
+                                        <div className="rounded-lg border border-border bg-card p-2.5 xs:p-3">
+                                            <div className="flex items-center gap-1.5 xs:gap-2 text-muted-foreground">
                                                 <MapPin className="h-3.5 xs:h-4 w-3.5 xs:w-4 shrink-0" />
                                                 <p className="text-[10px] xs:text-[11px] font-semibold uppercase">Location</p>
                                             </div>
@@ -569,12 +550,12 @@ export default function SerialNumberSearch() {
                             </Card>
 
                             {/* Entities */}
-                            <Card className="border-slate-200 dark:border-slate-800">
-                                <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3 xs:p-4">
+                            <Card className="border bg-card shadow-sm">
+                                <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                     <CardTitle className="text-sm xs:text-base">Linked Entities</CardTitle>
                                 </CardHeader>
 
-                                <CardContent className="p-3 xs:p-4">
+                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5">
                                     {/* Mobile: horizontal chips */}
                                     <div className="lg:hidden flex gap-1.5 xs:gap-2 overflow-x-auto pb-2">
                                         {entityItems.map((it) => {
@@ -583,7 +564,7 @@ export default function SerialNumberSearch() {
                                                 <button
                                                     key={it.key}
                                                     onClick={it.onClick}
-                                                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 xs:px-3 py-1.5 xs:py-2 text-[10px] xs:text-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                                                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 xs:px-3 py-1.5 xs:py-2 text-[10px] xs:text-xs hover:bg-accent transition-colors"
                                                 >
                                                     <Icon className="h-3.5 xs:h-4 w-3.5 xs:w-4 shrink-0" />
                                                     <span className="font-semibold">{it.label}</span>
@@ -600,21 +581,21 @@ export default function SerialNumberSearch() {
                                                 <button
                                                     key={it.key}
                                                     onClick={it.onClick}
-                                                    className="group w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 xs:p-3 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                                                    className="group w-full text-left rounded-lg border border-border bg-card p-2.5 xs:p-3 hover:bg-accent transition-colors"
                                                 >
                                                     <div className="flex items-start gap-2 xs:gap-2.5">
-                                                        <div className="h-8 xs:h-9 w-8 xs:w-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                                                            <Icon className="h-3.5 xs:h-4 w-3.5 xs:w-4 text-slate-700 dark:text-slate-200" />
+                                                        <div className="h-8 xs:h-9 w-8 xs:w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                                                            <Icon className="h-3.5 xs:h-4 w-3.5 xs:w-4 text-foreground" />
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                            <p className="text-xs xs:text-sm font-semibold text-slate-900 dark:text-white">
+                                                            <p className="text-xs xs:text-sm font-semibold text-foreground">
                                                                 {it.label}
                                                             </p>
-                                                            <p className="text-[10px] xs:text-xs text-slate-600 dark:text-slate-400 truncate">
+                                                            <p className="text-[10px] xs:text-xs text-muted-foreground truncate">
                                                                 {it.sub || "—"}
                                                             </p>
                                                         </div>
-                                                        <ExternalLink className="h-3.5 xs:h-4 w-3.5 xs:w-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 shrink-0" />
+                                                        <ExternalLink className="h-3.5 xs:h-4 w-3.5 xs:w-4 text-muted-foreground group-hover:text-foreground shrink-0" />
                                                     </div>
                                                 </button>
                                             );
@@ -625,30 +606,30 @@ export default function SerialNumberSearch() {
                         </div>
 
                         {/* Right: Investigation Tabs */}
-                        <div className="space-y-6">
-                            {/* Big “trace path” header */}
-                            <Card className="border-slate-200 dark:border-slate-800 overflow-hidden">
-                                <CardHeader className="bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-200 text-white dark:text-slate-900">
+                        <div className="space-y-3">
+                            {/* Trace path header */}
+                            <Card className="border bg-card shadow-sm overflow-hidden">
+                                <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4 bg-muted/50">
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
                                             <CardTitle className="text-lg sm:text-xl">
                                                 Trace Path
                                             </CardTitle>
-                                            <p className="text-xs sm:text-sm opacity-90 mt-1">
+                                            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                                                 Customer → Quote → {data.vendorPo ? "Vendor PO → " : ""}
                                                 Invoice → Serial
                                             </p>
                                         </div>
                                         {data.invoice.isMaster && (
-                                            <Badge className="bg-white/15 text-white border border-white/20 dark:bg-slate-900 dark:text-white dark:border-slate-800">
+                                            <Badge variant="secondary">
                                                 MASTER INVOICE
                                             </Badge>
                                         )}
                                     </div>
                                 </CardHeader>
 
-                                <CardContent className="p-4 sm:p-6">
-                                    {/* “nodes” */}
+                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5">
+                                    {/* "nodes" */}
                                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                         <Node label="Customer" value={data.customer.name} icon={User} />
                                         <ArrowBridge />
@@ -667,8 +648,8 @@ export default function SerialNumberSearch() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="border-slate-200 dark:border-slate-800">
-                                <CardContent className="p-4 sm:p-6">
+                            <Card className="border bg-card shadow-sm">
+                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5">
                                     <Tabs defaultValue="overview">
                                         <TabsList className="w-full flex flex-wrap justify-start">
                                             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -706,24 +687,24 @@ export default function SerialNumberSearch() {
 
                                             {/* Description / Product */}
                                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                                <Card className="border-slate-200 dark:border-slate-800">
-                                                    <CardHeader>
+                                                <Card className="border bg-card shadow-sm">
+                                                    <CardHeader className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                                         <CardTitle className="text-base">Line Item</CardTitle>
                                                     </CardHeader>
-                                                    <CardContent className="pt-0">
-                                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                                                    <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 pt-0">
+                                                        <p className="text-sm text-foreground/80 leading-relaxed">
                                                             {data.invoiceItem.description || "—"}
                                                         </p>
                                                     </CardContent>
                                                 </Card>
 
-                                                <Card className="border-slate-200 dark:border-slate-800">
-                                                    <CardHeader>
+                                                <Card className="border bg-card shadow-sm">
+                                                    <CardHeader className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                                         <CardTitle className="text-base">Product</CardTitle>
                                                     </CardHeader>
-                                                    <CardContent className="pt-0 space-y-2">
+                                                    <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 pt-0 space-y-2">
                                                         <div className="flex items-center justify-between gap-2">
-                                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                            <p className="text-sm font-semibold text-foreground">
                                                                 {data.product?.name || "Not linked"}
                                                             </p>
                                                             {data.product?.sku ? (
@@ -732,7 +713,7 @@ export default function SerialNumberSearch() {
                                                                 </Badge>
                                                             ) : null}
                                                         </div>
-                                                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                                                        <p className="text-xs text-muted-foreground">
                                                             Tip: link products to enable deeper SKU-level tracking.
                                                         </p>
                                                     </CardContent>
@@ -746,7 +727,7 @@ export default function SerialNumberSearch() {
 
                                         <TabsContent value="warranty" className="mt-5 space-y-4">
                                             {!data.warranty ? (
-                                                <Alert className="border-slate-200 dark:border-slate-800">
+                                                <Alert className="border-border">
                                                     <AlertDescription className="text-sm">
                                                         No warranty information is attached to this serial.
                                                     </AlertDescription>
@@ -755,15 +736,15 @@ export default function SerialNumberSearch() {
                                                 <Card
                                                     className={`border-2 ${
                                                         warrantyActive(data.warranty)
-                                                            ? "border-emerald-200 dark:border-emerald-900"
-                                                            : "border-red-200 dark:border-red-900"
+                                                            ? "border-success"
+                                                            : "border-destructive"
                                                     }`}
                                                 >
                                                     <CardHeader
                                                         className={`border-b ${
                                                             warrantyActive(data.warranty)
-                                                                ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900"
-                                                                : "bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900"
+                                                                ? "bg-success/10 border-success"
+                                                                : "bg-destructive/10 border-destructive"
                                                         }`}
                                                     >
                                                         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -771,8 +752,8 @@ export default function SerialNumberSearch() {
                                                                 <CheckCircle2
                                                                     className={`h-5 w-5 ${
                                                                         warrantyActive(data.warranty)
-                                                                            ? "text-emerald-600 dark:text-emerald-400"
-                                                                            : "text-red-600 dark:text-red-400"
+                                                                            ? "text-success"
+                                                                            : "text-destructive"
                                                                     }`}
                                                                 />
                                                                 <CardTitle className="text-base">Warranty</CardTitle>
@@ -780,8 +761,8 @@ export default function SerialNumberSearch() {
                                                             <Badge
                                                                 className={`${
                                                                     warrantyActive(data.warranty)
-                                                                        ? "bg-emerald-600 text-white dark:bg-emerald-500"
-                                                                        : "bg-red-600 text-white dark:bg-red-500"
+                                                                        ? "bg-success text-white"
+                                                                        : "bg-destructive text-white"
                                                                 }`}
                                                             >
                                                                 {warrantyActive(data.warranty) ? "ACTIVE" : "EXPIRED"}
@@ -798,8 +779,8 @@ export default function SerialNumberSearch() {
                                                             <Alert
                                                                 className={`${
                                                                     warrantyActive(data.warranty)
-                                                                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
-                                                                        : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
+                                                                        ? "bg-success/10 border-success"
+                                                                        : "bg-destructive/10 border-destructive"
                                                                 }`}
                                                             >
                                                                 <AlertDescription className="text-sm font-medium">
@@ -815,25 +796,25 @@ export default function SerialNumberSearch() {
                                         </TabsContent>
 
                                         <TabsContent value="notes" className="mt-5 space-y-4">
-                                            <Card className="border-slate-200 dark:border-slate-800">
-                                                <CardHeader>
+                                            <Card className="border bg-card shadow-sm">
+                                                <CardHeader className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                                     <div className="flex items-center gap-2">
-                                                        <StickyNote className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                                                        <StickyNote className="h-5 w-5 text-muted-foreground" />
                                                         <CardTitle className="text-base">Notes</CardTitle>
                                                     </div>
                                                 </CardHeader>
-                                                <CardContent className="pt-0">
-                                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 pt-0">
+                                                    <p className="text-sm text-foreground/80 leading-relaxed">
                                                         {data.notes || "No notes recorded for this serial."}
                                                     </p>
                                                 </CardContent>
                                             </Card>
 
-                                            <Card className="border-slate-200 dark:border-slate-800">
-                                                <CardHeader>
+                                            <Card className="border bg-card shadow-sm">
+                                                <CardHeader className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                                     <CardTitle className="text-base">Quick Actions</CardTitle>
                                                 </CardHeader>
-                                                <CardContent className="pt-0 flex flex-col sm:flex-row gap-2">
+                                                <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 pt-0 flex flex-col sm:flex-row gap-2">
                                                     <Button
                                                         variant="outline"
                                                         className="w-full"
@@ -878,16 +859,16 @@ function Node({
     mono?: boolean;
 }) {
     return (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 min-w-0">
+        <div className="rounded-xl border border-border bg-card p-3 min-w-0">
             <div className="flex items-start gap-2">
-                <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                    <Icon className="h-4 w-4 text-slate-700 dark:text-slate-200" />
+                <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Icon className="h-4 w-4 text-foreground" />
                 </div>
                 <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                         {label}
                     </p>
-                    <p className={`text-sm font-semibold text-slate-900 dark:text-white truncate ${mono ? "font-mono" : ""}`}>
+                    <p className={`text-sm font-semibold text-foreground truncate ${mono ? "font-mono" : ""}`}>
                         {value}
                     </p>
                 </div>
@@ -899,7 +880,7 @@ function Node({
 function ArrowBridge() {
     return (
         <div className="hidden sm:flex items-center justify-center px-1">
-            <div className="h-0.5 w-6 bg-slate-300 dark:bg-slate-700" />
+            <div className="h-0.5 w-6 bg-border" />
         </div>
     );
 }
@@ -914,12 +895,12 @@ function Stat({
     value: string;
 }) {
     return (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+        <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
                 <Icon className="h-4 w-4" />
                 <p className="text-xs font-semibold uppercase tracking-wider">{label}</p>
             </div>
-            <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mt-2 break-words">
+            <p className="text-sm sm:text-base font-bold text-foreground mt-2 break-words">
                 {value}
             </p>
         </div>
@@ -933,7 +914,7 @@ function Timeline({
 }) {
     if (!history || history.length === 0) {
         return (
-            <Alert className="border-slate-200 dark:border-slate-800">
+            <Alert className="border-border">
                 <AlertDescription className="text-sm">
                     No activity history recorded for this serial.
                 </AlertDescription>
@@ -948,25 +929,25 @@ function Timeline({
                 return (
                     <div key={`${h.timestamp}-${idx}`} className="relative pl-8">
                         {!last && (
-                            <div className="absolute left-[14px] top-7 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-800" />
+                            <div className="absolute left-[14px] top-7 bottom-0 w-0.5 bg-border" />
                         )}
-                        <div className="absolute left-0 top-0 h-7 w-7 rounded-full bg-slate-900 dark:bg-slate-100 flex items-center justify-center">
-                            <div className="h-2.5 w-2.5 rounded-full bg-white dark:bg-slate-900" />
+                        <div className="absolute left-0 top-0 h-7 w-7 rounded-full bg-primary flex items-center justify-center">
+                            <div className="h-2.5 w-2.5 rounded-full bg-primary-foreground" />
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                        <div className="rounded-xl border border-border bg-card p-4">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                <p className="text-sm font-bold text-foreground">
                                     {h.action.replace(/_/g, " ").toUpperCase()}
                                 </p>
-                                <div className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                                     <Clock className="h-4 w-4" />
                                     <span className="font-medium">{fmtTimelineDate(h.timestamp)}</span>
                                 </div>
                             </div>
 
-                            <div className="mt-3 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-                                <User className="h-4 w-4 text-slate-500" />
+                            <div className="mt-3 flex items-center gap-2 text-xs text-foreground/80">
+                                <User className="h-4 w-4 text-muted-foreground" />
                                 <span className="font-semibold">{h.user}</span>
                             </div>
                         </div>
@@ -999,35 +980,32 @@ function Breadcrumbs({ data }: { data: SerialTraceabilityInfo | null }) {
     }>;
 
     return (
-        <div className="w-full max-w-full mx-auto px-2 xs:px-3 sm:px-4 lg:px-6 py-2 xs:py-2.5 bg-white/50 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800">
-            <nav className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
-                {items.map((item, idx) => {
-                    const Icon = item.icon;
+        <nav className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
+            {items.map((item, idx) => {
+                const Icon = item.icon;
 
-                    return (
-                        <React.Fragment key={idx}>
-                            {idx > 0 && (
-                                <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-                            )}
-                            {item.current ? (
-                                <span className={`flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-white ${item.mono ? "font-mono" : ""}`}>
-                                    {Icon && <Icon className="h-3.5 w-3.5" />}
-                                    {item.label}
-                                </span>
-                            ) : (
-                                <button
-                                    onClick={item.onClick}
-                                    className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
-                                >
-                                    {Icon && <Icon className="h-3.5 w-3.5" />}
-                                    <span>{item.label}</span>
-                                </button>
-                            )}
-                        </React.Fragment>
-                    );
-                })}
-            </nav>
-        </div>
+                return (
+                    <React.Fragment key={idx}>
+                        {idx > 0 && (
+                            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                        )}
+                        {item.current ? (
+                            <span className={`flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-white ${item.mono ? "font-mono" : ""}`}>
+                                {Icon && <Icon className="h-3.5 w-3.5" />}
+                                {item.label}
+                            </span>
+                        ) : (
+                            <button
+                                onClick={item.onClick}
+                                className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
+                            >
+                                {Icon && <Icon className="h-3.5 w-3.5" />}
+                                <span>{item.label}</span>
+                            </button>
+                        )}
+                    </React.Fragment>
+                );
+            })}
+        </nav>
     );
 }
-

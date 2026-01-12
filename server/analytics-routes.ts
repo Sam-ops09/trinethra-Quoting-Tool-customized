@@ -41,7 +41,7 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
       const status = quote.status as keyof typeof quotesByStatus;
       if (quotesByStatus.hasOwnProperty(status)) {
         quotesByStatus[status]++;
-        valueByStatus[status] += parseFloat(quote.total.toString());
+        valueByStatus[status] += parseFloat((quote.total || 0).toString());
       }
     });
 
@@ -50,14 +50,14 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
     const conversionRate = sentQuotes > 0 ? (quotesByStatus.approved / sentQuotes) * 100 : 0;
 
     // Average quote value
-    const totalValue = allQuotes.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
+    const totalValue = allQuotes.reduce((sum, q) => sum + parseFloat((q.total || 0).toString()), 0);
     const averageQuoteValue = allQuotes.length > 0 ? totalValue / allQuotes.length : 0;
 
     // Top customers
     const customerQuotes = new Map<string, { name: string; count: number; value: number }>();
     allQuotes.forEach((quote) => {
       const existing = customerQuotes.get(quote.clientId);
-      const value = parseFloat(quote.total.toString());
+      const value = parseFloat((quote.total || 0).toString());
       if (existing) {
         existing.count++;
         existing.value += value;
@@ -92,12 +92,12 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
       const existing = monthlyData.get(monthKey);
       if (existing) {
         existing.quotes++;
-        existing.value += parseFloat(quote.total.toString());
+        existing.value += parseFloat((quote.total || 0).toString());
         if (quote.status === "approved") existing.approved++;
       } else {
         monthlyData.set(monthKey, {
           quotes: 1,
-          value: parseFloat(quote.total.toString()),
+          value: parseFloat((quote.total || 0).toString()),
           approved: quote.status === "approved" ? 1 : 0,
         });
       }
@@ -250,8 +250,8 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
     const now = new Date();
 
     allInvoices.forEach((invoice) => {
-      const paidAmt = parseFloat(invoice.paidAmount.toString());
-      const totalAmt = parseFloat(invoice.total.toString());
+      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
+      const totalAmt = parseFloat((invoice.total || 0).toString());
       const remaining = totalAmt - paidAmt;
 
       if (invoice.paymentStatus === "paid") {
@@ -304,7 +304,7 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       if (invoice.paymentStatus !== "paid") {
         const invoiceDate = new Date(invoice.createdAt);
         const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
-        const remaining = parseFloat(invoice.total.toString()) - parseFloat(invoice.paidAmount.toString());
+        const remaining = parseFloat((invoice.total || 0).toString()) - parseFloat((invoice.paidAmount || 0).toString());
 
         if (days <= 30) {
           ageingBuckets[0].count++;
@@ -333,8 +333,8 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
       const existing = monthlyMap.get(monthKey);
-      const totalAmt = parseFloat(invoice.total.toString());
-      const paidAmt = parseFloat(invoice.paidAmount.toString());
+      const totalAmt = parseFloat((invoice.total || 0).toString());
+      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
 
       if (existing) {
         existing.invoiced += totalAmt;

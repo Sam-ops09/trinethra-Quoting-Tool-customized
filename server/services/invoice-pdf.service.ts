@@ -116,7 +116,7 @@ export class InvoicePDFService {
   // ---------------------------
   // Public API
   // ---------------------------
-  static generateInvoicePDF(data: InvoicePdfData): PDFKit.PDFDocument {
+  static async generateInvoicePDF(data: InvoicePdfData, res: NodeJS.WritableStream): Promise<void> {
     const doc = new PDFDocument({
       size: "A4",
       margins: {
@@ -130,6 +130,11 @@ export class InvoicePDFService {
         Author: data.companyName || "AICERA",
       },
     });
+
+    doc.pipe(res);
+
+    // Async preparation
+    await this.prepareAssets(doc, data);
 
     doc.lineGap(1);
 
@@ -154,7 +159,33 @@ export class InvoicePDFService {
     }
 
     doc.end();
-    return doc;
+  }
+
+  // Preload assets async
+  private static async prepareAssets(doc: PDFKit.PDFDocument, data: InvoicePdfData) {
+      // Fonts
+      // Since font paths might be standard, we just register them if they exist or default to Helvetica
+      // But we want to do it safely.
+      // (Optional: Reuse the logic from pdf.service.ts if desired, or simplified here)
+      
+      // Logo
+      let logoToUse = "";
+      if (data.companyLogo) {
+          logoToUse = data.companyLogo;
+      } else {
+          const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+          const p2 = path.join(process.cwd(), "client", "public", "logo.png");
+          try {
+             await fs.promises.access(p1, fs.constants.F_OK);
+             logoToUse = p1;
+          } catch {
+             try {
+                await fs.promises.access(p2, fs.constants.F_OK);
+                logoToUse = p2;
+             } catch {}
+          }
+      }
+      (data as any).resolvedLogo = logoToUse;
   }
 
   // ---------------------------
@@ -337,6 +368,10 @@ export class InvoicePDFService {
   ): string[] {
     const t = String(text ?? "").replace(/\s+/g, " ").trim();
     if (!t) return [];
+    
+    // Quick check
+    if (doc.widthOfString(t) <= width) return [t];
+
     const words = t.split(" ");
     const lines: string[] = [];
     let line = "";
@@ -374,20 +409,15 @@ export class InvoicePDFService {
     const logoSize = 26;
     let logoPrinted = false;
 
-    try {
-      if (data.companyLogo) {
-        doc.image(data.companyLogo, x, topY + 12, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } else {
-        let logoPath = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-        if (!fs.existsSync(logoPath)) logoPath = path.join(process.cwd(), "client", "public", "logo.png");
-        if (fs.existsSync(logoPath)) {
-          doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-          logoPrinted = true;
-        }
-      }
-    } catch {
-      logoPrinted = false;
+    // Use resolved logo
+    const logoPath = (data as any).resolvedLogo;
+    if (logoPath) {
+        try {
+            doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
+            logoPrinted = true;
+        } catch {}
+    } else {
+        logoPrinted = false;
     }
 
     const leftX = logoPrinted ? x + logoSize + 8 : x;

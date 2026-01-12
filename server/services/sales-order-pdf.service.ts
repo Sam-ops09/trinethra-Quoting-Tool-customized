@@ -100,7 +100,7 @@ export class SalesOrderPDFService {
   // ---------------------------
   // Public API
   // ---------------------------
-  static generateSalesOrderPDF(data: SalesOrderPdfData): PDFKit.PDFDocument {
+  static async generateSalesOrderPDF(data: SalesOrderPdfData, res: NodeJS.WritableStream): Promise<void> {
     if (!isFeatureEnabled('sales_orders_module')) {
       throw new Error("Sales Orders module is disabled");
     }
@@ -111,13 +111,10 @@ export class SalesOrderPDFService {
       bufferPages: true,
     });
 
-    // Built-in fonts exist in PDFKit; registerFont with bare names can fail in some envs.
-    try {
-      doc.registerFont("Helvetica", "Helvetica");
-      doc.registerFont("Helvetica-Bold", "Helvetica-Bold");
-    } catch {
-      // ignore; PDFKit built-ins will still work via doc.font("Helvetica")
-    }
+    doc.pipe(res);
+
+    // Async preparation
+    await this.prepareAssets(doc, data);
 
     // Header + top blocks (IMPORTANT: this was missing on page 1 before)
     this.drawHeader(doc, data);
@@ -144,7 +141,34 @@ export class SalesOrderPDFService {
     }
 
     doc.end();
-    return doc;
+  }
+
+  // Preload assets async
+  private static async prepareAssets(doc: PDFKit.PDFDocument, data: SalesOrderPdfData) {
+      // Fonts registration (async check if strict, or just register)
+      try {
+       doc.registerFont("Helvetica", "Helvetica");
+       doc.registerFont("Helvetica-Bold", "Helvetica-Bold");
+      } catch {}
+
+      // Logo
+      let logoToUse = "";
+      if (data.companyLogo) {
+          logoToUse = data.companyLogo;
+      } else {
+          const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+          const p2 = path.join(process.cwd(), "client", "public", "logo.png");
+          try {
+             await fs.promises.access(p1, fs.constants.F_OK);
+             logoToUse = p1;
+          } catch {
+             try {
+                await fs.promises.access(p2, fs.constants.F_OK);
+                logoToUse = p2;
+             } catch {}
+          }
+      }
+      (data as any).resolvedLogo = logoToUse;
   }
 
   // ---------------------------
@@ -314,6 +338,10 @@ export class SalesOrderPDFService {
   ): string[] {
     const t = String(text ?? "").replace(/\s+/g, " ").trim();
     if (!t) return [];
+
+    // Quick check
+    if (doc.widthOfString(t) <= width) return [t];
+
     const words = t.split(" ");
     const lines: string[] = [];
     let line = "";
@@ -386,26 +414,20 @@ export class SalesOrderPDFService {
 
     // Logo
     let logoBottomY = topY;
-    try {
-      const logoSize = 50;
-      let logoPrinted = false;
-
-      if (data.companyLogo) {
-        doc.image(data.companyLogo, x, topY, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } else {
-        let logoPath = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-        if (!fs.existsSync(logoPath))
-          logoPath = path.join(process.cwd(), "client", "public", "logo.png");
-        if (fs.existsSync(logoPath)) {
+    
+    // Use resolved logo
+    const logoPath = (data as any).resolvedLogo;
+    let logoPrinted = false;
+    const logoSize = 50;
+    
+    if (logoPath) {
+        try {
           doc.image(logoPath, x, topY, { fit: [logoSize, logoSize] });
           logoPrinted = true;
-        }
-      }
-      if (logoPrinted) logoBottomY = topY + logoSize + 10;
-    } catch {
-      // ignore
+        } catch {}
     }
+    
+    if (logoPrinted) logoBottomY = topY + logoSize + 10;
 
     let currentLeftY = Math.max(logoBottomY, topY + 10);
 

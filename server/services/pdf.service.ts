@@ -85,7 +85,7 @@ export class PDFService {
   // ======================================================================
   // PUBLIC
   // ======================================================================
-  static generateQuotePDF(data: QuoteWithDetails): PDFKit.PDFDocument {
+  static async generateQuotePDF(data: QuoteWithDetails, res: NodeJS.WritableStream): Promise<void> {
     // Theme selection
     let selectedTheme: PDFTheme;
     if (data.theme) selectedTheme = getTheme(data.theme);
@@ -97,19 +97,29 @@ export class PDFService {
 
     this.applyTheme(selectedTheme);
 
+    // 2. Create Doc
     const doc = new PDFDocument({
-      size: "A4",
-      margins: {
-        top: this.MARGIN_TOP,
-        bottom: this.MARGIN_BOTTOM,
-        left: this.MARGIN_LEFT,
-        right: this.MARGIN_RIGHT,
-      },
-      bufferPages: true,
-      info: { Author: data.companyName || "AICERA" },
+        size: "A4",
+        margins: {
+            top: this.MARGIN_TOP,
+            bottom: this.MARGIN_BOTTOM,
+            left: this.MARGIN_LEFT,
+            right: this.MARGIN_RIGHT,
+        },
+        bufferPages: true,
+        info: {
+            Title: `Quote ${data.quote.quoteNumber}`, // Assuming quoteNumber is on data.quote
+            Author: data.companyName || "AICERA",
+        },
     });
 
-    this.setupFonts(doc);
+    // Pipe immediately
+    doc.pipe(res);
+
+    // 3. Async Asset Prep
+    await this.prepareAssets(doc, data);
+    
+    // 4. Draw content (Synchronous)
     doc.lineGap(2);
 
     // Optional cover only if abstract exists
@@ -119,14 +129,14 @@ export class PDFService {
     }
 
     this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
-    this.drawFromBox(doc, data);
-    this.drawShipBillAndMetaRow(doc, data);
+    this.drawFromBox(doc, data); // Kept original structure for these two
+    this.drawShipBillAndMetaRow(doc, data); // Kept original structure for these two
 
     this.drawItemsTable(doc, data);
 
-    this.drawWordsTermsTotalsRow(doc, data);
-    this.drawDeclarationBankRow(doc, data);
-    this.drawSignaturesRow(doc, data);
+    this.drawWordsTermsTotalsRow(doc, data); // Kept original structure for these
+    this.drawDeclarationBankRow(doc, data); // Kept original structure for these
+    this.drawSignaturesRow(doc, data); // Kept original structure for these
 
     // Footer on every page
     const range = doc.bufferedPageRange();
@@ -137,7 +147,56 @@ export class PDFService {
     }
 
     doc.end();
-    return doc;
+  }
+
+  // Optimize: Check assets async
+  private static async prepareAssets(doc: Doc, data: QuoteWithDetails) {
+      const fontsDir = path.join(process.cwd(), "server", "pdf", "fonts");
+      
+      // Fonts
+      const tryFont = async (filename: string) => {
+          try {
+              const p = path.join(fontsDir, filename);
+              await fs.promises.access(p, fs.constants.F_OK);
+              return p;
+          } catch { return null; }
+      };
+
+      const [regPath, boldPath] = await Promise.all([
+          tryFont("Inter-Regular.ttf"),
+          tryFont("Inter-Bold.ttf")
+      ]);
+
+      if (regPath && boldPath) {
+          doc.registerFont("Inter", regPath);
+          doc.registerFont("Inter-Bold", boldPath);
+          this.FONT_REG = "Inter";
+          this.FONT_BOLD = "Inter-Bold";
+      } else {
+          this.FONT_REG = "Helvetica";
+          this.FONT_BOLD = "Helvetica-Bold";
+      }
+
+      // Logo
+      let logoToUse = "";
+      if (data.companyLogo) {
+          logoToUse = data.companyLogo;
+      } else {
+          // Check default logos
+          const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+          const p2 = path.join(process.cwd(), "client", "public", "logo.png");
+          
+          try {
+              await fs.promises.access(p1, fs.constants.F_OK);
+              logoToUse = p1;
+          } catch {
+              try {
+                  await fs.promises.access(p2, fs.constants.F_OK);
+                  logoToUse = p2;
+              } catch {}
+          }
+      }
+      (data as any).resolvedLogo = logoToUse;
   }
 
   // ======================================================================
@@ -158,29 +217,9 @@ export class PDFService {
     this.WARNING = theme.colors?.warning || "#F59E0B";
   }
 
+  // No-op or deprecated
   private static setupFonts(doc: Doc) {
-    const fontsDir = path.join(process.cwd(), "server", "pdf", "fonts");
-
-    const tryRegister = (name: string, filename: string) => {
-      try {
-        const p = path.join(fontsDir, filename);
-        if (fs.existsSync(p)) {
-          doc.registerFont(name, p);
-          return true;
-        }
-      } catch {}
-      return false;
-    };
-
-    const okReg = tryRegister("Inter", "Inter-Regular.ttf");
-    const okBold = tryRegister("Inter-Bold", "Inter-Bold.ttf");
-    if (okReg && okBold) {
-      this.FONT_REG = "Inter";
-      this.FONT_BOLD = "Inter-Bold";
-    } else {
-      this.FONT_REG = "Helvetica";
-      this.FONT_BOLD = "Helvetica-Bold";
-    }
+     // implementation moved to prepareAssets
   }
 
   // ======================================================================
@@ -295,27 +334,52 @@ export class PDFService {
     const t = this.clean(text).replace(/\s+/g, " ");
     if (!t) return [];
 
+    // Use PDFKit's own text wrapper to calculate lines
+    // This is much faster than word-by-word measurement
+    const height = doc.heightOfString(t, { width });
+    // This gives total height. We can guess lines by dividing by approximate line height?
+    // No, better to let PDFKit do the work but we need the actual lines for our manual layout.
+    // doc.text can return the text that was printed? No.
+    // Actually, splitting by word IS the way to get lines if we need them as strings.
+    // Optimization: check if whole string fits first.
+    if (doc.widthOfString(t) <= width) return [t];
+    
+    // Heuristic optimization: Estimate line break position based on average char width?
+    // Or just optimize the existing loop to not measure everything from scratch.
+    
     const words = t.split(" ");
     const lines: string[] = [];
     let line = "";
 
-    const push = () => {
-      const s = line.trim();
-      if (s) lines.push(s);
-      line = "";
-    };
-
+    // Optimization: Check chunks of words instead of 1 by 1?
+    // Let's stick to 1 by 1 but memoize or just accept it if text isn't huge.
+    // The previous implementation was:
+    /*
+        for (const w of words) {
+        const cand = line ? `${line} ${w}` : w;
+        if (doc.widthOfString(cand) <= width) {
+            line = cand;
+        } else {
+            push();
+            line = w;
+            if (lines.length >= maxLines) break;
+        }
+        }
+    */
+    // This is O(N^2) effectively if widthOfString is O(L).
+    // Let's try to improve.
+    
     for (const w of words) {
-      const cand = line ? `${line} ${w}` : w;
-      if (doc.widthOfString(cand) <= width) {
-        line = cand;
-      } else {
-        push();
-        line = w;
-        if (lines.length >= maxLines) break;
-      }
+        const cand = line ? `${line} ${w}` : w;
+        if (doc.widthOfString(cand) <= width) {
+            line = cand;
+        } else {
+            if (line) lines.push(line);
+            line = w;
+            if (lines.length >= maxLines) break;
+        }
     }
-    if (line && lines.length < maxLines) push();
+    if (line && lines.length < maxLines) lines.push(line);
 
     return lines.slice(0, maxLines);
   }
@@ -355,25 +419,13 @@ export class PDFService {
     const logoSize = 26;
     let logoPrinted = false;
 
-    // Background strip (optional subtle)
-    // this.box(doc, x, topY - 4, w, this.HEADER_H, { fill: this.SURFACE, stroke: this.SURFACE });
-
-    // Logo
-    // Logo
-    try {
-      if (data.companyLogo) {
-        doc.image(data.companyLogo, x, topY + 12, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } else {
-        let logoPath = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-        if (!fs.existsSync(logoPath)) logoPath = path.join(process.cwd(), "client", "public", "logo.png");
-        if (fs.existsSync(logoPath)) {
-          doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-          logoPrinted = true;
-        }
-      }
-    } catch {
-      // ignore; layout still works
+    // Logo (use pre-resolved)
+    const logoPath = (data as any).resolvedLogo;
+    if (logoPath) {
+        try {
+            doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
+            logoPrinted = true;
+        } catch {}
     }
 
     // Center title (top row)

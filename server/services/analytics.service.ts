@@ -34,7 +34,7 @@ export class AnalyticsService {
         const date = new Date(invoice.createdAt);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         if (monthlyRevenue.hasOwnProperty(monthKey)) {
-          monthlyRevenue[monthKey] += parseFloat(invoice.paidAmount.toString());
+          monthlyRevenue[monthKey] += parseFloat((invoice.paidAmount || 0).toString());
         }
       });
 
@@ -269,7 +269,7 @@ export class AnalyticsService {
         return !!quote;
       });
 
-      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat(i.paidAmount.toString()), 0);
+      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
       const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
       const conversionRate =
         clientQuotes.length > 0 ? (clientInvoices.length / clientQuotes.length) * 100 : 0;

@@ -76,6 +76,7 @@ export class PaymentReminderScheduler {
         // Skip if not master invoice or child invoice (only send for actual invoices)
         if (!invoice.isMaster && !invoice.parentInvoiceId) continue;
 
+        if (!invoice.dueDate) continue;
         const dueDate = new Date(invoice.dueDate);
         dueDate.setHours(0, 0, 0, 0);
 
@@ -136,12 +137,14 @@ export class PaymentReminderScheduler {
             remindersSent++;
 
             // Log the activity
-            await storage.createActivityLog({
-              userId: invoice.createdBy,
-              action: "auto_payment_reminder",
-              entityType: "invoice",
-              entityId: invoice.id,
-            });
+            if (invoice.createdBy) {
+              await storage.createActivityLog({
+                userId: invoice.createdBy,
+                action: "auto_payment_reminder",
+                entityType: "invoice",
+                entityId: invoice.id,
+              });
+            }
 
           } catch (error) {
             console.error(`[Payment Reminders] Failed to send reminder for invoice ${invoice.invoiceNumber}:`, error);

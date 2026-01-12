@@ -531,7 +531,6 @@ export const serialNumbers = pgTable("serial_numbers", {
   grnId: varchar("grn_id").references(() => goodsReceivedNotes.id),
   invoiceId: varchar("invoice_id").references(() => invoices.id),
   invoiceItemId: varchar("invoice_item_id").references(() => invoiceItems.id),
-  invoiceAttachmentId: varchar("invoice_attachment_id").references(() => invoiceAttachments.id), // Added this line based on the instruction's likely intent
   status: text("status").notNull().default("in_stock"), // in_stock, reserved, delivered, returned, defective
   warrantyStartDate: timestamp("warranty_start_date"),
   warrantyEndDate: timestamp("warranty_end_date"),

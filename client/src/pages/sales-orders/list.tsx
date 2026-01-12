@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
@@ -22,10 +21,11 @@ import {
     TrendingUp,
     Filter,
     Package,
-    ArrowUpRight,
-    MoreHorizontal,
     Download,
-    Pencil
+    Pencil,
+    MoreVertical,
+    Grid3x3,
+    Mail,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,24 +39,15 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 
+type ViewMode = "grid" | "list";
 type StatusFilter = "all" | "draft" | "confirmed" | "fulfilled" | "cancelled";
 type SortOption = "newest" | "oldest" | "amount-high" | "amount-low" | "client";
 
@@ -64,6 +55,9 @@ export default function SalesOrdersList() {
     const [, setLocation] = useLocation();
     const isEnabled = useFeatureFlag("sales_orders_module");
     const [searchQuery, setSearchQuery] = useState("");
+    const [viewMode, setViewMode] = useState<ViewMode>("list");
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+    const [sortBy, setSortBy] = useState<SortOption>("newest");
 
     if (isEnabled === false) {
         return (
@@ -74,8 +68,6 @@ export default function SalesOrdersList() {
             </div>
         );
     }
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-    const [sortBy, setSortBy] = useState<SortOption>("newest");
 
     const { data: salesOrders, isLoading } = useQuery<
         Array<SalesOrder & { clientName: string; quoteNumber: string }>
@@ -141,42 +133,50 @@ export default function SalesOrdersList() {
     const getStatusColor = (status: string) => {
         switch (status) {
             case "draft":
-                return "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
+                return "bg-muted text-muted-foreground";
             case "confirmed":
-                return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800";
+                return "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary";
             case "fulfilled":
-                return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800";
+                return "bg-success/10 text-success dark:bg-success/20 dark:text-success";
             case "cancelled":
-                return "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800";
+                return "bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive";
             default:
-                return "bg-slate-100 text-slate-700 border-slate-200";
+                return "bg-muted text-muted-foreground";
         }
     };
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950/50 p-6 space-y-6">
-                 <div className="w-full max-w-[1600px] mx-auto space-y-6">
-                    <Skeleton className="h-24 w-full rounded-2xl" />
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {[1, 2, 3, 4].map((i) => (
-                            <Skeleton key={i} className="h-32 w-full rounded-2xl" />
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+                <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+                    <div className="space-y-3">
+                        <Skeleton className="h-5 w-48" />
+                        <Skeleton className="h-10 w-64" />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {[...Array(4)].map((_, i) => (
+                            <Skeleton key={i} className="h-32 rounded-2xl" />
                         ))}
                     </div>
-                    <Skeleton className="h-[500px] w-full rounded-2xl" />
-                 </div>
+                    <Skeleton className="h-24 rounded-2xl" />
+                    <div className="space-y-4">
+                        {[...Array(3)].map((_, i) => (
+                            <Skeleton key={i} className="h-40 rounded-2xl" />
+                        ))}
+                    </div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950/50 animate-in fade-in duration-500">
-            <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
-                {/* Breadcrumbs */}
-                <nav className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+            <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+                {/* Premium Breadcrumbs */}
+                <nav className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
                     <button
                         onClick={() => setLocation("/")}
-                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
                     >
                         <Home className="h-3.5 w-3.5" />
                         <span>Home</span>
@@ -188,267 +188,506 @@ export default function SalesOrdersList() {
                     </span>
                 </nav>
 
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-                            Sales Orders
-                        </h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Manage and track your customer orders and fulfillment status.
-                        </p>
+                {/* Premium Header */}
+                <div className="relative overflow-hidden rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-lg">
+                    <div className="relative px-6 sm:px-8 py-6 sm:py-8">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 shadow-lg">
+                                        <Package className="h-6 w-6 text-white dark:text-slate-900" />
+                                    </div>
+                                    <div>
+                                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+                                            Sales Orders
+                                        </h1>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                                            Track and manage customer orders
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Stats */}
+                {/* Premium Stats Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card className="group relative overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
-                        <CardContent className="p-5 flex flex-col justify-between h-full">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Orders</p>
-                                    <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-2">{stats.total}</h3>
+                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                        <CardContent className="relative p-5">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="space-y-1.5 min-w-0 flex-1">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Orders</p>
+                                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
                                 </div>
-                                <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg group-hover:scale-110 transition-transform">
-                                    <Package className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                                <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0 shadow-md">
+                                    <Package className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                <TrendingUp className="h-3.5 w-3.5" />
+                                <span>All time</span>
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="group relative overflow-hidden rounded-xl border border-blue-100/60 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
-                        <CardContent className="p-5 flex flex-col justify-between h-full">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider">Confirmed</p>
-                                    <h3 className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-blue-300 mt-2">{stats.confirmed}</h3>
+
+                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                        <CardContent className="relative p-5">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="space-y-1.5 min-w-0 flex-1">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Confirmed</p>
+                                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.confirmed}</p>
                                 </div>
-                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                                    <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0 shadow-md">
+                                    <Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                <span>In progress</span>
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="group relative overflow-hidden rounded-xl border border-emerald-100/60 dark:border-emerald-900/30 bg-emerald-50/30 dark:bg-emerald-900/10 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
-                        <CardContent className="p-5 flex flex-col justify-between h-full">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Fulfilled</p>
-                                    <h3 className="text-2xl sm:text-3xl font-bold text-emerald-700 dark:text-emerald-300 mt-2">{stats.fulfilled}</h3>
+
+                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                        <CardContent className="relative p-5">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="space-y-1.5 min-w-0 flex-1">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Fulfilled</p>
+                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.fulfilled}</p>
                                 </div>
-                                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
+                                    <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                <span>Completed</span>
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="group relative overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
-                        <CardContent className="p-5 flex flex-col justify-between h-full">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Value</p>
-                                    <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-2">₹{(stats.totalValue / 1000).toFixed(1)}k</h3>
+
+                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                        <CardContent className="relative p-5">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="space-y-1.5 min-w-0 flex-1">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Value</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">₹{(stats.totalValue / 1000).toFixed(0)}K</p>
                                 </div>
-                                <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg group-hover:scale-110 transition-transform">
-                                    <DollarSign className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                                <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
+                                    <DollarSign className="h-6 w-6 text-slate-600 dark:text-slate-400" />
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                <span>Revenue total</span>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Filters and Search - Pinned Sticky Header on Mobile could be added here if needed */}
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                    <div className="relative w-full md:w-96">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                            placeholder="Search orders..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 h-10 bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                        />
-                    </div>
-                    
-                    <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 px-1 no-scrollbar">
-                         <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                            {(["all", "draft", "confirmed", "fulfilled", "cancelled"] as const).map((status) => (
-                                <button
-                                    key={status}
-                                    onClick={() => setStatusFilter(status)}
+                {/* Premium Filters */}
+                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg">
+                    <CardContent className="p-5 space-y-4">
+                        {/* Search Bar with Enhanced Design */}
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Input
+                                    type="text"
+                                    placeholder="Search by order number, client, or quote..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-11 pr-10 h-11 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                />
+                                {searchQuery && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSearchQuery("")}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="flex gap-3">
+                                <Select
+                                    value={sortBy}
+                                    onValueChange={(value) => setSortBy(value as SortOption)}
+                                >
+                                    <SelectTrigger className="w-full sm:w-[180px] h-11 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
+                                        <SlidersHorizontal className="h-4 w-4 mr-2" />
+                                        <SelectValue placeholder="Sort" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                        <SelectItem value="newest">Newest First</SelectItem>
+                                        <SelectItem value="oldest">Oldest First</SelectItem>
+                                        <SelectItem value="amount-high">Highest Amount</SelectItem>
+                                        <SelectItem value="amount-low">Lowest Amount</SelectItem>
+                                        <SelectItem value="client">Client Name</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <div className="hidden sm:flex items-center gap-1 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+                                    <Button
+                                        variant={viewMode === "list" ? "secondary" : "ghost"}
+                                        size="sm"
+                                        onClick={() => setViewMode("list")}
+                                        className="h-9 w-9 p-0 rounded-lg"
+                                    >
+                                        <List className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant={viewMode === "grid" ? "secondary" : "ghost"}
+                                        size="sm"
+                                        onClick={() => setViewMode("grid")}
+                                        className="h-9 w-9 p-0 rounded-lg"
+                                    >
+                                        <Grid3x3 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Premium Status Pills */}
+                        <div className="flex items-center gap-2">
+                            <Filter className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant={statusFilter === "all" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setStatusFilter("all")}
                                     className={cn(
-                                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all capitalize whitespace-nowrap",
-                                        statusFilter === status
-                                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
-                                            : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                                        "h-9 px-4 rounded-full text-sm font-medium transition-all duration-200",
+                                        statusFilter === "all" && "shadow-lg"
                                     )}
                                 >
-                                    {status}
-                                </button>
-                            ))}
-                        </div>
-                        <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
-                            <SelectTrigger className="w-[140px] h-9 text-xs border-0 bg-slate-100 dark:bg-slate-800 ml-1">
-                                <SelectValue placeholder="Sort by" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="newest">Newest First</SelectItem>
-                                <SelectItem value="oldest">Oldest First</SelectItem>
-                                <SelectItem value="amount-high">Amount High</SelectItem>
-                                <SelectItem value="amount-low">Amount Low</SelectItem>
-                                <SelectItem value="client">Client Name</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
-                {/* Content - Responsive List/Table */}
-                <div className="space-y-4">
-                    {filteredOrders && filteredOrders.length > 0 ? (
-                        <>
-                            {/* Desktop Table View */}
-                            <div className="hidden md:block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                                <Table>
-                                    <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
-                                        <TableRow className="hover:bg-transparent border-slate-200 dark:border-slate-800">
-                                            <TableHead className="w-[180px] font-semibold text-xs uppercase tracking-wider text-slate-500">Order #</TableHead>
-                                            <TableHead className="font-semibold text-xs uppercase tracking-wider text-slate-500">Client</TableHead>
-                                            <TableHead className="font-semibold text-xs uppercase tracking-wider text-slate-500">Date</TableHead>
-                                            <TableHead className="font-semibold text-xs uppercase tracking-wider text-slate-500">Status</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-slate-500">Amount</TableHead>
-                                            <TableHead className="w-[50px]"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {filteredOrders.map((order) => (
-                                            <TableRow 
-                                                key={order.id} 
-                                                className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors border-slate-100 dark:border-slate-800"
-                                                onClick={() => setLocation(`/sales-orders/${order.id}`)}
-                                            >
-                                                <TableCell className="font-medium text-slate-900 dark:text-slate-200">
-                                                    <div className="flex flex-col">
-                                                        <span>{order.orderNumber}</span>
-                                                        <span className="text-xs text-slate-400 font-normal">Ref: {order.quoteNumber}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="h-6 w-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500">
-                                                            {order.clientName.charAt(0)}
-                                                        </div>
-                                                        <span className="text-slate-700 dark:text-slate-300 font-medium text-sm">{order.clientName}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <span className="text-slate-500 dark:text-slate-400 text-sm">
-                                                        {format(new Date(order.orderDate), "MMM d, yyyy")}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline" className={cn("rounded-full font-medium text-[10px] px-2.5 py-0.5 uppercase tracking-wide", getStatusColor(order.status))}>
-                                                        {order.status}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right font-bold text-slate-900 dark:text-white">
-                                                    ₹{Number(order.total).toLocaleString()}
-                                                </TableCell>
-                                                <TableCell onClick={(e) => e.stopPropagation()}>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <span className="sr-only">Open menu</span>
-                                                                <MoreHorizontal className="h-4 w-4 text-slate-500" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="w-40">
-                                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                            <DropdownMenuItem onClick={() => setLocation(`/sales-orders/${order.id}`)}>
-                                                                <Eye className="mr-2 h-4 w-4" /> View Details
-                                                            </DropdownMenuItem>
-                                                            {order.status === 'draft' && (
-                                                                <DropdownMenuItem onClick={() => setLocation(`/sales-orders/${order.id}/edit`)}>
-                                                                    <Pencil className="mr-2 h-4 w-4" /> Edit
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            <DropdownMenuItem onClick={() => window.open(`/api/sales-orders/${order.id}/pdf`, '_blank')}>
-                                                                <Download className="mr-2 h-4 w-4" /> Download PDF
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                    All <Badge className="ml-2 h-5 px-2 text-xs bg-white/20 dark:bg-slate-900/20">{stats.total}</Badge>
+                                </Button>
+                                <Button
+                                    variant={statusFilter === "draft" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setStatusFilter("draft")}
+                                    className={cn(
+                                        "h-9 px-4 rounded-full text-sm font-medium transition-all duration-200",
+                                        statusFilter === "draft" && "shadow-lg"
+                                    )}
+                                >
+                                    Draft <Badge className="ml-2 h-5 px-2 text-xs bg-white/20 dark:bg-slate-900/20">{stats.draft}</Badge>
+                                </Button>
+                                <Button
+                                    variant={statusFilter === "confirmed" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setStatusFilter("confirmed")}
+                                    className={cn(
+                                        "h-9 px-4 rounded-full text-sm font-medium transition-all duration-200",
+                                        statusFilter === "confirmed" && "shadow-lg"
+                                    )}
+                                >
+                                    Confirmed <Badge className="ml-2 h-5 px-2 text-xs bg-white/20 dark:bg-slate-900/20">{stats.confirmed}</Badge>
+                                </Button>
+                                <Button
+                                    variant={statusFilter === "fulfilled" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setStatusFilter("fulfilled")}
+                                    className={cn(
+                                        "h-9 px-4 rounded-full text-sm font-medium transition-all duration-200",
+                                        statusFilter === "fulfilled" && "shadow-lg"
+                                    )}
+                                >
+                                    Fulfilled <Badge className="ml-2 h-5 px-2 text-xs bg-white/20 dark:bg-slate-900/20">{stats.fulfilled}</Badge>
+                                </Button>
+                                <Button
+                                    variant={statusFilter === "cancelled" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setStatusFilter("cancelled")}
+                                    className={cn(
+                                        "h-9 px-4 rounded-full text-sm font-medium transition-all duration-200",
+                                        statusFilter === "cancelled" && "shadow-lg"
+                                    )}
+                                >
+                                    Cancelled <Badge className="ml-2 h-5 px-2 text-xs bg-white/20 dark:bg-slate-900/20">{stats.cancelled}</Badge>
+                                </Button>
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
 
-                            {/* Mobile Card View */}
-                            <div className="md:hidden grid grid-cols-1 gap-4">
-                                {filteredOrders.map((order) => (
+                {/* Orders Content */}
+                {filteredOrders && filteredOrders.length > 0 ? (
+                    viewMode === "list" ? (
+                        <div className="space-y-3">
+                            {filteredOrders.map((order) => (
+                                <Card
+                                    key={order.id}
+                                    onClick={() => setLocation(`/sales-orders/${order.id}`)}
+                                    className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                                >
+                                    {/* Status Accent Bar */}
                                     <div
-                                        key={order.id}
-                                        onClick={() => setLocation(`/sales-orders/${order.id}`)}
-                                        className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden"
-                                    >
-                                        <div className={cn("absolute top-0 left-0 bottom-0 w-1", 
-                                            order.status === 'confirmed' ? 'bg-blue-500' :
-                                            order.status === 'fulfilled' ? 'bg-emerald-500' :
-                                            order.status === 'cancelled' ? 'bg-red-500' : 'bg-slate-300'
-                                        )} />
-                                        
-                                        <div className="pl-3 space-y-3">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className="font-bold text-slate-900 dark:text-white">
-                                                            {order.orderNumber}
-                                                        </h3>
-                                                        <Badge variant="outline" className={cn("rounded-md text-[10px] px-1.5 py-0 h-5", getStatusColor(order.status))}>
-                                                            {order.status}
-                                                        </Badge>
-                                                    </div>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                                        Ref: {order.quoteNumber}
-                                                    </p>
+                                        className="absolute left-0 top-0 bottom-0 w-1.5"
+                                        style={{
+                                            background:
+                                                order.status === "fulfilled" ? "rgb(34 197 94)" :
+                                                order.status === "confirmed" ? "rgb(59 130 246)" :
+                                                order.status === "cancelled" ? "rgb(239 68 68)" :
+                                                "rgb(156 163 175)",
+                                        }}
+                                    />
+
+                                    <CardContent className="relative p-5 sm:p-6">
+                                        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                                            {/* Order Info */}
+                                            <div className="flex-1 min-w-0 space-y-4">
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                                        {order.orderNumber}
+                                                    </h3>
+                                                    <Badge
+                                                        className={cn(
+                                                            "px-3 py-1 text-xs font-semibold rounded-full",
+                                                            getStatusColor(order.status)
+                                                        )}
+                                                    >
+                                                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                                    </Badge>
                                                 </div>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 -mr-2 -mt-2 text-slate-400">
-                                                    <ChevronRight className="h-5 w-5" />
-                                                </Button>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                        <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0">
+                                                            <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Client</p>
+                                                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.clientName}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                        <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-950 flex items-center justify-center shrink-0">
+                                                            <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Date</p>
+                                                            <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                                                {new Date(order.orderDate).toLocaleDateString("en-US", {
+                                                                    month: "short",
+                                                                    day: "numeric",
+                                                                    year: "numeric",
+                                                                })}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800">
+                                                        <div className="h-10 w-10 rounded-lg bg-emerald-500 flex items-center justify-center shrink-0 shadow-md">
+                                                            <DollarSign className="h-5 w-5 text-white" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Amount</p>
+                                                            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                                                                ₹{Number(order.total).toLocaleString()}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                        <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-950 flex items-center justify-center shrink-0">
+                                                            <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Quote</p>
+                                                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.quoteNumber}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-y-2 text-sm">
-                                                <div className="col-span-2 flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                                                    <Users className="h-4 w-4 text-slate-400" />
-                                                    <span className="font-medium truncate">{order.clientName}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-slate-500">
-                                                    <Calendar className="h-4 w-4 text-slate-400" />
-                                                    <span>{format(new Date(order.orderDate), "MMM d")}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white justify-end">
-                                                    <span className="text-xs font-normal text-slate-500">Total:</span>
-                                                    ₹{Number(order.total).toLocaleString()}
-                                                </div>
+                                            {/* Actions */}
+                                            <div className="flex lg:flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                                                <Button
+                                                    onClick={() => setLocation(`/sales-orders/${order.id}`)}
+                                                    className="flex-1 lg:flex-initial lg:w-28 h-10 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 rounded-xl font-semibold"
+                                                >
+                                                    <Eye className="h-4 w-4 mr-2" />
+                                                    View
+                                                </Button>
+
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="outline" className="flex-1 lg:flex-initial lg:w-28 h-10 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 font-semibold">
+                                                            <MoreVertical className="h-4 w-4 mr-2" />
+                                                            More
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                                                        {order.status === "draft" && (
+                                                            <>
+                                                                <DropdownMenuItem onClick={() => setLocation(`/sales-orders/${order.id}/edit`)}>
+                                                                    <Pencil className="h-4 w-4 mr-2" />
+                                                                    Edit
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                            </>
+                                                        )}
+                                                        <DropdownMenuItem onClick={() => window.open(`/api/sales-orders/${order.id}/pdf`, '_blank')}>
+                                                            <Download className="h-4 w-4 mr-2" />
+                                                            PDF
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-20 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
-                            <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-                                <Package className="h-10 w-10 text-slate-400" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">No sales orders found</h3>
-                            <p className="text-slate-500 dark:text-slate-400 max-w-sm mt-2 mb-6">
-                                Try adjusting your search or filters, or create a new order from a quote.
-                            </p>
-                            <Button onClick={() => setSearchQuery("")} variant="outline">
-                                Clear Filters
-                            </Button>
+                                    </CardContent>
+                                </Card>
+                            ))}
                         </div>
-                    )}
-                </div>
+                    ) : (
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {filteredOrders.map((order) => (
+                                <Card
+                                    key={order.id}
+                                    onClick={() => setLocation(`/sales-orders/${order.id}`)}
+                                    className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
+                                >
+                                    {/* Status Indicator */}
+                                    <div className="absolute top-0 right-0 left-0 h-2 rounded-t-2xl"
+                                        style={{
+                                            background:
+                                                order.status === "fulfilled" ? "rgb(34 197 94)" :
+                                                order.status === "confirmed" ? "rgb(59 130 246)" :
+                                                order.status === "cancelled" ? "rgb(239 68 68)" :
+                                                "rgb(156 163 175)",
+                                        }}
+                                    />
+
+                                    <CardHeader className="p-5 pb-3">
+                                        <div className="flex items-start justify-between gap-3 mb-3">
+                                            <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-950 shadow-md">
+                                                <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                            </div>
+                                            <Badge
+                                                className={cn(
+                                                    "px-3 py-1 text-xs font-semibold rounded-full",
+                                                    getStatusColor(order.status)
+                                                )}
+                                            >
+                                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                            </Badge>
+                                        </div>
+                                        <CardTitle className="text-base font-bold text-slate-900 dark:text-white line-clamp-1">
+                                            {order.orderNumber}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-5 pt-0 space-y-3">
+                                        {/* Client Info */}
+                                        <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950">
+                                                    <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                                </div>
+                                                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Client</span>
+                                            </div>
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.clientName}</p>
+                                        </div>
+
+                                        {/* Details Grid */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <Calendar className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                                                    <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Date</span>
+                                                </div>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                                    {new Date(order.orderDate).toLocaleDateString("en-US", {
+                                                        month: "short",
+                                                        day: "numeric",
+                                                    })}
+                                                </p>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                                                    <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Quote</span>
+                                                </div>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.quoteNumber}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Amount */}
+                                        <div className="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold uppercase">Amount</span>
+                                                <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                            </div>
+                                            <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                                                ₹{Number(order.total).toLocaleString()}
+                                            </p>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="space-y-2 pt-2 border-t border-slate-200/50 dark:border-slate-700/50" onClick={(e) => e.stopPropagation()}>
+                                            <Button
+                                                onClick={() => setLocation(`/sales-orders/${order.id}`)}
+                                                className="w-full h-10 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 shadow-lg transition-all duration-200 hover:scale-105 rounded-xl font-semibold"
+                                            >
+                                                <Eye className="h-4 w-4 mr-2" />
+                                                View
+                                            </Button>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {order.status === "draft" && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setLocation(`/sales-orders/${order.id}/edit`);
+                                                        }}
+                                                        className="h-9 px-2 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800"
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        window.open(`/api/sales-orders/${order.id}/pdf`, '_blank');
+                                                    }}
+                                                    className="h-9 px-2 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 col-span-2"
+                                                >
+                                                    <Download className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    )
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="p-6 rounded-full bg-slate-100 dark:bg-slate-800 mb-6">
+                            <Package className="h-16 w-16 text-slate-400" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                            No sales orders found
+                        </h3>
+                        <p className="text-slate-500 dark:text-slate-400 max-w-md mb-6">
+                            {searchQuery
+                                ? "Try adjusting your search or filters to find what you're looking for."
+                                : "Orders will appear here once they're created from quotes."}
+                        </p>
+                        {searchQuery && (
+                            <Button
+                                onClick={() => setSearchQuery("")}
+                                className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 shadow-lg rounded-xl"
+                            >
+                                Clear Search
+                            </Button>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

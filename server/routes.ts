@@ -888,7 +888,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const bankSwiftCode = bankDetail?.swiftCode || "";
 
             // Generate PDF
-            const pdfStream = PDFService.generateQuotePDF({
+            // Generate PDF
+            const { PassThrough } = await import("stream");
+            const pdfStream = new PassThrough();
+            
+            const pdfPromise = PDFService.generateQuotePDF({
               quote,
               client,
               items,
@@ -898,6 +902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               companyEmail,
               companyWebsite,
               companyGSTIN,
+              companyLogo: settingsMap['company_logo'] || undefined,
               preparedBy: creator?.name,
               preparedByEmail: creator?.email,
               bankDetails: {
@@ -908,7 +913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 branch: bankBranch,
                 swift: bankSwiftCode,
               },
-            });
+            }, pdfStream);
 
             const chunks: Buffer[] = [];
             pdfStream.on("data", (chunk: any) => chunks.push(chunk));
@@ -916,6 +921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               pdfStream.on("end", resolve);
               pdfStream.on("error", reject);
             });
+            await pdfPromise;
 
             const pdfBuffer = Buffer.concat(chunks);
             
@@ -1460,6 +1466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
 
       // Fetch email templates
       const emailSubjectTemplate = settings.find((s) => s.key === "email_quote_subject")?.value || "Quote {QUOTE_NUMBER} from {COMPANY_NAME}";
@@ -1504,7 +1511,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bankSwiftCode = bankDetail?.swiftCode || "";
 
       // Generate PDF for attachment
-      const pdfStream = PDFService.generateQuotePDF({
+      const { PassThrough } = await import("stream");
+      const pdfStream = new PassThrough();
+
+      const pdfPromise = PDFService.generateQuotePDF({
         quote,
         client,
         items,
@@ -1514,6 +1524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companyEmail,
         companyWebsite,
         companyGSTIN,
+        companyLogo,
         preparedBy: creator?.name,
         preparedByEmail: creator?.email,
         bankDetails: {
@@ -1524,15 +1535,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           branch: bankBranch,
           swift: bankSwiftCode,
         },
-      });
+      }, pdfStream);
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
-      await new Promise((resolve, reject) => {
-        pdfStream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      pdfStream.on("data", (chunk: any) => chunks.push(chunk));
+      await new Promise<void>((resolve, reject) => {
         pdfStream.on("end", resolve);
         pdfStream.on("error", reject);
       });
+      await pdfPromise;
       const pdfBuffer = Buffer.concat(chunks);
 
       // Send email with PDF attachment using template
@@ -2165,7 +2177,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bankIfscCode
       });
 
-      const pdfStream = PDFService.generateQuotePDF({
+      // Create filename - ensure it's clean and doesn't have problematic characters
+      const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, '_');
+
+      // Set headers BEFORE piping to ensure they're sent first
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Length", "");  // Let Node calculate length
+      // Use RFC 5987 format for filename with UTF-8 encoding
+      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
+      // DEBUG: Log what we're sending
+      console.log(`[PDF Export] Quote #${quote.quoteNumber}`);
+      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
+      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+
+      // Generate PDF
+      console.log(`[PDF Export] About to generate PDF`);
+      await PDFService.generateQuotePDF({
         quote,
         client,
         items,
@@ -2186,28 +2217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           branch: bankBranch,
           swift: bankSwiftCode,
         },
-      });
-
-      // Create filename - ensure it's clean and doesn't have problematic characters
-      const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, '_');
-
-      // Set headers BEFORE piping to ensure they're sent first
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Length", "");  // Let Node calculate length
-      // Use RFC 5987 format for filename with UTF-8 encoding
-      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-
-      // DEBUG: Log what we're sending
-      console.log(`[PDF Export] Quote #${quote.quoteNumber}`);
-      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
-      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-
-      // Pipe the PDF stream
-      console.log(`[PDF Export] About to pipe PDF stream`);
-      pdfStream.pipe(res);
+      }, res);
       console.log(`[PDF Export] PDF stream piped successfully`);
 
       // Log after headers are sent
@@ -2300,7 +2310,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
       const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
 
-      const pdfStream = InvoicePDFService.generateInvoicePDF({
+      // Create filename - ensure it's clean and doesn't have problematic characters
+      const cleanFilename = `Invoice-${invoice.invoiceNumber}.pdf`.replace(/[^\w\-. ]/g, '_');
+
+      // Set headers BEFORE piping to ensure they're sent first
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Length", "");  // Let Node calculate length
+      // Use RFC 5987 format for filename with UTF-8 encoding
+      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
+      // DEBUG: Log what we're sending
+      console.log(`[PDF Export] Invoice #${invoice.invoiceNumber}`);
+      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
+      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+
+      // Generate PDF
+      await InvoicePDFService.generateInvoicePDF({
         quote,
         client,
         items: items as any, // Type cast to handle both invoice items and quote items
@@ -2349,27 +2377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bankIfscCode,
         bankBranch,
         bankSwiftCode,
-      });
-
-      // Create filename - ensure it's clean and doesn't have problematic characters
-      const cleanFilename = `Invoice-${invoice.invoiceNumber}.pdf`.replace(/[^\w\-. ]/g, '_');
-
-      // Set headers BEFORE piping to ensure they're sent first
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Length", "");  // Let Node calculate length
-      // Use RFC 5987 format for filename with UTF-8 encoding
-      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-
-      // DEBUG: Log what we're sending
-      console.log(`[PDF Export] Invoice #${invoice.invoiceNumber}`);
-      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
-      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-
-      // Pipe the PDF stream
-      pdfStream.pipe(res);
+      }, res);
 
       await storage.createActivityLog({
         userId: req.user!.id,
@@ -2469,7 +2477,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate PDF for attachment
-      const pdfStream = InvoicePDFService.generateInvoicePDF({
+      // Generate PDF for attachment
+      const { PassThrough } = await import("stream");
+      const pdfStream = new PassThrough();
+
+      const pdfPromise = InvoicePDFService.generateInvoicePDF({
         quote,
         client,
         items,
@@ -2517,15 +2529,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bankIfscCode: bankIfscCode || undefined,
         bankBranch: settings.find((s) => s.key === "bank_branch")?.value || undefined,
         bankSwiftCode: settings.find((s) => s.key === "bank_swiftCode")?.value || undefined,
-      });
+      }, pdfStream);
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
-      await new Promise((resolve, reject) => {
-        pdfStream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      pdfStream.on("data", (chunk: any) => chunks.push(chunk));
+      await new Promise<void>((resolve, reject) => {
         pdfStream.on("end", resolve);
         pdfStream.on("error", reject);
       });
+      await pdfPromise;
       const pdfBuffer = Buffer.concat(chunks);
 
       // Send email with PDF attachment using template
