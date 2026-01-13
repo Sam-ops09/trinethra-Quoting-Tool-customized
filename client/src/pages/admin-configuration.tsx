@@ -19,6 +19,7 @@ import {
   Mail,
   CreditCard,
   Settings as SettingsIcon,
+  Settings,
   Loader2,
   Save,
   Upload,
@@ -31,6 +32,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { CounterManagement } from "@/components/counter-management";
 
 /* ────────────────────────────────────────────────────────────────────────────
    SCHEMAS
@@ -75,6 +77,8 @@ const numberingSchemeSchema = z.object({
   childInvoiceFormat: z.string().min(1, "Child invoice format is required"),
   grnPrefix: z.string().min(1, "GRN prefix is required"),
   grnFormat: z.string().min(1, "GRN format is required"),
+  salesOrderPrefix: z.string().min(1, "Sales order prefix is required"),
+  salesOrderFormat: z.string().min(1, "Sales order format is required"),
 });
 
 // Tax Rates Schema
@@ -118,6 +122,13 @@ export default function AdminConfiguration() {
   const showBankDetails = useFeatureFlag('admin_bankDetails');
   const showNumberingSchemes = useFeatureFlag('admin_numberingSchemes');
   const showEmailTemplates = useFeatureFlag('email_integration');
+
+  // Module-specific flags for numbering schemes
+  const showQuotes = useFeatureFlag('quotes_module');
+  const showVendorPOs = useFeatureFlag('vendorPO_module');
+  const showInvoices = useFeatureFlag('invoices_module');
+  const showGRN = useFeatureFlag('grn_module');
+  const showSalesOrders = useFeatureFlag('sales_orders_module');
 
   // Calculate number of visible tabs for responsive grid
   const visibleTabsCount = 1 + // Company tab (always visible)
@@ -297,6 +308,8 @@ export default function AdminConfiguration() {
       childInvoiceFormat: "{PREFIX}-{YEAR}-{COUNTER}",
       grnPrefix: "GRN",
       grnFormat: "{PREFIX}-{YEAR}-{COUNTER}",
+      salesOrderPrefix: "SO",
+      salesOrderFormat: "{PREFIX}-{YEAR}-{COUNTER}",
     },
   });
 
@@ -314,38 +327,16 @@ export default function AdminConfiguration() {
         childInvoiceFormat: settings?.childInvoiceFormat || "{PREFIX}-{YEAR}-{COUNTER}",
         grnPrefix: settings?.grnPrefix || "GRN",
         grnFormat: settings?.grnFormat || "{PREFIX}-{YEAR}-{COUNTER}",
+        salesOrderPrefix: settings?.salesOrderPrefix || "SO",
+        salesOrderFormat: settings?.salesOrderFormat || "{PREFIX}-{YEAR}-{COUNTER}",
       });
     }
   }, [settings, numberingForm]);
 
   const saveNumberingMutation = useMutation({
     mutationFn: async (data: z.infer<typeof numberingSchemeSchema>) => {
-      // Map form fields to the exact keys that the numbering service expects
-      const settingsToSave = [
-        // Quote numbering
-        { key: "quotePrefix", value: data.quotePrefix },
-        { key: "quoteFormat", value: data.quoteFormat },
-
-        // Vendor PO numbering
-        { key: "vendorPoPrefix", value: data.vendorPoPrefix },
-        { key: "vendorPoFormat", value: data.vendorPoFormat },
-
-        // Master Invoice numbering
-        { key: "masterInvoicePrefix", value: data.masterInvoicePrefix },
-        { key: "masterInvoiceFormat", value: data.masterInvoiceFormat },
-
-        // Child Invoice numbering
-        { key: "childInvoicePrefix", value: data.childInvoicePrefix },
-        { key: "childInvoiceFormat", value: data.childInvoiceFormat },
-
-        // GRN numbering
-        { key: "grnPrefix", value: data.grnPrefix },
-        { key: "grnFormat", value: data.grnFormat },
-      ];
-
-      for (const setting of settingsToSave) {
-        await apiRequest("POST", "/api/settings", setting);
-      }
+      // Send all settings in one bulk update
+      await apiRequest("POST", "/api/settings", data);
 
       // Trigger document number migration after settings are saved
       const migrationResult = await apiRequest("POST", "/api/settings/migrate-document-numbers", {
@@ -1007,225 +998,287 @@ export default function AdminConfiguration() {
                     </div>
                   </div>
 
-                  <Separator />
-
                   {/* Quote Numbering */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                        <FileText className="h-4 w-4 text-blue-600" />
+                  {showQuotes && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Quotes</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="quotePrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="QT" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={numberingForm.control}
+                            name="quoteFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("quotePrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
-                      <h3 className="text-base sm:text-lg font-semibold">Quotes</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={numberingForm.control}
-                        name="quotePrefix"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Prefix</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="QT" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    </>
+                  )}
 
-                      <FormField
-                        control={numberingForm.control}
-                        name="quoteFormat"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Format</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
-                            </FormControl>
-                            <FormDescription>
-                              Preview: {numberingForm.watch("quotePrefix")}-2025-001
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
+                  {/* Sales Order Numbering */}
+                  {showSalesOrders && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-orange-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Sales Orders</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="salesOrderPrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="SO" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                  <Separator />
+                          <FormField
+                            control={numberingForm.control}
+                            name="salesOrderFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("salesOrderPrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   {/* Vendor PO Numbering */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
-                        <FileText className="h-4 w-4 text-green-600" />
+                  {showVendorPOs && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-green-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Vendor Purchase Orders</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="vendorPoPrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="PO" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={numberingForm.control}
+                            name="vendorPoFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("vendorPoPrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
-                      <h3 className="text-base sm:text-lg font-semibold">Vendor Purchase Orders</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={numberingForm.control}
-                        name="vendorPoPrefix"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Prefix</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="PO" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={numberingForm.control}
-                        name="vendorPoFormat"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Format</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
-                            </FormControl>
-                            <FormDescription>
-                              Preview: {numberingForm.watch("vendorPoPrefix")}-2025-001
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
+                    </>
+                  )}
 
                   {/* Master Invoice Numbering */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
-                        <FileText className="h-4 w-4 text-purple-600" />
+                  {showInvoices && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Master Invoices</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="masterInvoicePrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="MINV" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={numberingForm.control}
+                            name="masterInvoiceFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("masterInvoicePrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
-                      <h3 className="text-base sm:text-lg font-semibold">Master Invoices</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={numberingForm.control}
-                        name="masterInvoicePrefix"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Prefix</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="MINV" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={numberingForm.control}
-                        name="masterInvoiceFormat"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Format</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
-                            </FormControl>
-                            <FormDescription>
-                              Preview: {numberingForm.watch("masterInvoicePrefix")}-2025-001
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
+                    </>
+                  )}
 
                   {/* Child Invoice Numbering */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                        <FileText className="h-4 w-4 text-orange-600" />
+                  {showInvoices && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-orange-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Customer Invoices (Child)</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="childInvoicePrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="INV" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={numberingForm.control}
+                            name="childInvoiceFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("childInvoicePrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
-                      <h3 className="text-base sm:text-lg font-semibold">Customer Invoices (Child)</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={numberingForm.control}
-                        name="childInvoicePrefix"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Prefix</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="INV" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={numberingForm.control}
-                        name="childInvoiceFormat"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Format</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
-                            </FormControl>
-                            <FormDescription>
-                              Preview: {numberingForm.watch("childInvoicePrefix")}-2025-001
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
+                    </>
+                  )}
 
                   {/* GRN Numbering */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                        <FileText className="h-4 w-4 text-indigo-600" />
-                      </div>
-                      <h3 className="text-base sm:text-lg font-semibold">Goods Receipt Notes (GRN)</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={numberingForm.control}
-                        name="grnPrefix"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Prefix</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="GRN" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  {showGRN && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-indigo-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Goods Receipt Notes (GRN)</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="grnPrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="GRN" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                      <FormField
-                        control={numberingForm.control}
-                        name="grnFormat"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Format</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
-                            </FormControl>
-                            <FormDescription>
-                              Preview: {numberingForm.watch("grnPrefix")}-2025-001
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
+                          <FormField
+                            control={numberingForm.control}
+                            name="grnFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("grnPrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div className="flex justify-end">
                     <Button type="submit" disabled={saveNumberingMutation.isPending} className="w-full sm:w-auto">
@@ -1238,6 +1291,25 @@ export default function AdminConfiguration() {
                   </div>
                 </form>
               </Form>
+
+              {/* Counter Management Section */}
+              <Separator className="my-6" />
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center shrink-0">
+                    <Settings className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-semibold">Counter Management</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      Reset or customize numbering counters for each document type
+                    </p>
+                  </div>
+                </div>
+
+                <CounterManagement />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

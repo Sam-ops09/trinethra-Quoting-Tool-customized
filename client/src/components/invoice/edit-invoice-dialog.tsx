@@ -75,22 +75,69 @@ export function EditInvoiceDialog({
   const [termsAndConditions, setTermsAndConditions] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [milestoneDescription, setMilestoneDescription] = useState("");
+  
+  // Percentage values for auto-calculation
+  const [discountPercent, setDiscountPercent] = useState("0");
+  const [cgstPercent, setCgstPercent] = useState("0");
+  const [sgstPercent, setSgstPercent] = useState("0");
+  const [igstPercent, setIgstPercent] = useState("0");
 
   // Initialize form data when dialog opens
   useEffect(() => {
     if (open) {
       setItems(currentData.items || []);
       setSubtotal(currentData.subtotal || "0");
-      setDiscount(currentData.discount || "0");
-      setCgst(currentData.cgst || "0");
-      setSgst(currentData.sgst || "0");
-      setIgst(currentData.igst || "0");
       setShippingCharges(currentData.shippingCharges || "0");
       setTotal(currentData.total || "0");
       setNotes(currentData.notes || "");
       setTermsAndConditions(currentData.termsAndConditions || "");
       setDeliveryNotes(currentData.deliveryNotes || "");
       setMilestoneDescription(currentData.milestoneDescription || "");
+      
+      // Calculate percentages from existing amounts
+      const sub = Number(currentData.subtotal || 0);
+      if (sub > 0) {
+        // Calculate discount percentage from amount
+        const discAmt = Number(currentData.discount || 0);
+        const discPct = (discAmt / sub) * 100;
+        setDiscountPercent(discPct.toFixed(2));
+        setDiscount(discAmt.toFixed(2));
+        
+        // Calculate GST percentages from amounts (based on after-discount amount)
+        const afterDiscount = sub - discAmt;
+        if (afterDiscount > 0) {
+          const cgstAmt = Number(currentData.cgst || 0);
+          const sgstAmt = Number(currentData.sgst || 0);
+          const igstAmt = Number(currentData.igst || 0);
+          
+          const cgstPct = (cgstAmt / afterDiscount) * 100;
+          const sgstPct = (sgstAmt / afterDiscount) * 100;
+          const igstPct = (igstAmt / afterDiscount) * 100;
+          
+          setCgstPercent(cgstPct.toFixed(2));
+          setSgstPercent(sgstPct.toFixed(2));
+          setIgstPercent(igstPct.toFixed(2));
+          setCgst(cgstAmt.toFixed(2));
+          setSgst(sgstAmt.toFixed(2));
+          setIgst(igstAmt.toFixed(2));
+        } else {
+          setCgstPercent("0");
+          setSgstPercent("0");
+          setIgstPercent("0");
+          setCgst("0");
+          setSgst("0");
+          setIgst("0");
+        }
+      } else {
+        setDiscountPercent("0");
+        setCgstPercent("0");
+        setSgstPercent("0");
+        setIgstPercent("0");
+        setDiscount("0");
+        setCgst("0");
+        setSgst("0");
+        setIgst("0");
+      }
     }
   }, [open, currentData]);
 
@@ -121,7 +168,30 @@ export function EditInvoiceDialog({
   const calculateSubtotal = () => {
     const sum = items.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
     setSubtotal(sum.toFixed(2));
-    recalculateTotal(sum.toFixed(2), discount, cgst, sgst, igst, shippingCharges);
+    calculateAmountsFromPercentages(sum);
+  };
+
+  // Calculate discount and GST amounts from percentages
+  const calculateAmountsFromPercentages = (sub: number) => {
+    // Calculate discount amount
+    const discAmt = (sub * Number(discountPercent)) / 100;
+    setDiscount(discAmt.toFixed(2));
+    
+    // Calculate after-discount amount
+    const afterDiscount = sub - discAmt;
+    
+    // Calculate GST amounts based on after-discount amount
+    const cgstAmt = (afterDiscount * Number(cgstPercent)) / 100;
+    const sgstAmt = (afterDiscount * Number(sgstPercent)) / 100;
+    const igstAmt = (afterDiscount * Number(igstPercent)) / 100;
+    
+    setCgst(cgstAmt.toFixed(2));
+    setSgst(sgstAmt.toFixed(2));
+    setIgst(igstAmt.toFixed(2));
+    
+    // Calculate total
+    const newTotal = afterDiscount + cgstAmt + sgstAmt + igstAmt + Number(shippingCharges);
+    setTotal(newTotal.toFixed(2));
   };
 
   const recalculateTotal = (
@@ -150,10 +220,10 @@ export function EditInvoiceDialog({
 
     setItems(newItems);
 
-    // Recalculate totals
+    // Recalculate totals using percentages
     const sum = newItems.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
     setSubtotal(sum.toFixed(2));
-    recalculateTotal(sum.toFixed(2), discount, cgst, sgst, igst, shippingCharges);
+    calculateAmountsFromPercentages(sum);
   };
 
   const handleAddItem = () => {
@@ -314,55 +384,83 @@ export function EditInvoiceDialog({
               </div>
 
               <div className="space-y-2">
-                <Label>Discount</Label>
+                <Label>Discount (%)</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={discount}
+                  min="0"
+                  max="100"
+                  value={discountPercent}
                   onChange={(e) => {
-                    setDiscount(e.target.value);
-                    recalculateTotal(subtotal, e.target.value, cgst, sgst, igst, shippingCharges);
+                    setDiscountPercent(e.target.value);
+                    const sub = Number(subtotal);
+                    calculateAmountsFromPercentages(sub);
                   }}
+                  placeholder="Enter discount percentage"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Amount: ₹{Number(discount).toLocaleString()}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label>CGST</Label>
+                <Label>CGST (%)</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={cgst}
+                  min="0"
+                  max="100"
+                  value={cgstPercent}
                   onChange={(e) => {
-                    setCgst(e.target.value);
-                    recalculateTotal(subtotal, discount, e.target.value, sgst, igst, shippingCharges);
+                    setCgstPercent(e.target.value);
+                    const sub = Number(subtotal);
+                    calculateAmountsFromPercentages(sub);
                   }}
+                  placeholder="e.g., 9"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Amount: ₹{Number(cgst).toLocaleString()}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label>SGST</Label>
+                <Label>SGST (%)</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={sgst}
+                  min="0"
+                  max="100"
+                  value={sgstPercent}
                   onChange={(e) => {
-                    setSgst(e.target.value);
-                    recalculateTotal(subtotal, discount, cgst, e.target.value, igst, shippingCharges);
+                    setSgstPercent(e.target.value);
+                    const sub = Number(subtotal);
+                    calculateAmountsFromPercentages(sub);
                   }}
+                  placeholder="e.g., 9"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Amount: ₹{Number(sgst).toLocaleString()}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label>IGST</Label>
+                <Label>IGST (%)</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={igst}
+                  min="0"
+                  max="100"
+                  value={igstPercent}
                   onChange={(e) => {
-                    setIgst(e.target.value);
-                    recalculateTotal(subtotal, discount, cgst, sgst, e.target.value, shippingCharges);
+                    setIgstPercent(e.target.value);
+                    const sub = Number(subtotal);
+                    calculateAmountsFromPercentages(sub);
                   }}
+                  placeholder="e.g., 18"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Amount: ₹{Number(igst).toLocaleString()}
+                </p>
               </div>
 
               <div className="space-y-2">

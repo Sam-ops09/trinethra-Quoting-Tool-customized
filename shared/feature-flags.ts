@@ -74,6 +74,7 @@ export interface FeatureFlags {
   // Quote Actions
   quotes_convertToInvoice: boolean;
   quotes_convertToVendorPO: boolean;
+  quotes_sendQuote: boolean;
   quotes_emailSending: boolean;
   quotes_pdfGeneration: boolean;
   quotes_templates: boolean;
@@ -372,6 +373,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_timelineSection: true,
   quotes_convertToInvoice: true,
   quotes_convertToVendorPO: true,
+  quotes_sendQuote: true,
   quotes_emailSending: false,
   quotes_pdfGeneration: true,
   quotes_templates: true,
@@ -391,8 +393,8 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   invoices_finalize: true,
   invoices_lock: true,
   invoices_cancel: true,
-  invoices_childInvoices: true,
-  invoices_masterInvoices: true,
+  invoices_childInvoices: false,
+  invoices_masterInvoices: false,
   invoices_milestoneInvoices: true,
   invoices_emailSending: false,
   invoices_pdfGeneration: true,

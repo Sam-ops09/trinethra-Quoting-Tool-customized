@@ -254,6 +254,13 @@ export const invoices = pgTable("invoices", {
   paymentNotes: text("payment_notes"),
   termsAndConditions: text("terms_and_conditions"),
   isMaster: boolean("is_master").notNull().default(false),
+  // Invoice management fields
+  cancelledAt: timestamp("cancelled_at"),
+  cancelledBy: varchar("cancelled_by").references(() => users.id),
+  cancellationReason: text("cancellation_reason"),
+  finalizedAt: timestamp("finalized_at"),
+  finalizedBy: varchar("finalized_by").references(() => users.id),
+  isLocked: boolean("is_locked").notNull().default(false),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

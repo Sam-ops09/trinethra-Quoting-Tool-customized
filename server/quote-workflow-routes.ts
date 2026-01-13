@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { requirePermission } from "./permissions-middleware";
 import { hasPermission } from "./permissions-service";
 import { requireFeature } from "./feature-flags-middleware";
-import * as ExcelJS from "exceljs";
+import ExcelJS from "exceljs";
 import { z } from "zod";
 import { NumberingService } from "./services/numbering.service";
 import { InvoicePDFService } from "./services/invoice-pdf.service";
@@ -221,7 +221,7 @@ router.post("/sales-orders",
       }
 
       // Generate SO number
-      const orderNumber = `SO-${quote.quoteNumber}`; 
+      const orderNumber = await NumberingService.generateSalesOrderNumber(); 
 
       // Create Sales Order
       const orderData = {
@@ -487,10 +487,10 @@ router.post(
         });
       }
 
-      // Generate Invoice Number
-      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+      // Generate Invoice Number using admin invoice numbering settings
+      const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
 
-      // Create Invoice
+      // Create Invoice as regular invoice (not master) to allow child invoice creation
       const invoice = await storage.createInvoice({
         invoiceNumber,
         quoteId: order.quoteId,
@@ -499,7 +499,9 @@ router.post(
         issueDate: new Date(),
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
         status: "draft",
-        isMaster: true,
+        isMaster: false,
+        paymentStatus: "pending",
+        paidAmount: "0",
         createdBy: req.user!.id,
         
         // Financials (copy from order)
@@ -931,15 +933,8 @@ router.post("/quotes/:id/sales-orders",
       }
 
       // Generate Order Number
-      const lastOrderNumber = await storage.getLastSalesOrderNumber();
-      let nextNumber = 1;
-      if (lastOrderNumber) {
-        const match = lastOrderNumber.match(/SO-(\d+)/);
-        if (match) {
-          nextNumber = parseInt(match[1]) + 1;
-        }
-      }
-      const orderNumber = `SO-${String(nextNumber).padStart(4, "0")}`;
+      // Generate Order Number through Service
+      const orderNumber = await NumberingService.generateSalesOrderNumber();
 
       // Create Sales Order
       const newOrder = await storage.createSalesOrder({

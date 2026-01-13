@@ -80,11 +80,20 @@ export default function QuoteDetail() {
   const canSendEmail = useFeatureFlag('quotes_emailSending');
   const canGeneratePDF = useFeatureFlag('quotes_pdfGeneration');
   const canConvertToInvoice = useFeatureFlag('quotes_convertToInvoice');
+  const canSendQuote = useFeatureFlag('quotes_sendQuote');
 
   const { data: quote, isLoading } = useQuery<QuoteDetail>({
     queryKey: ["/api/quotes", params?.id],
     enabled: !!params?.id,
   });
+
+  // Check if sales order exists for this quote
+  const { data: salesOrders } = useQuery<any[]>({
+    queryKey: ["/api/sales-orders", { quoteId: params?.id }],
+    enabled: !!params?.id && quote?.status === "approved",
+  });
+  const hasSalesOrder = salesOrders && salesOrders.length > 0;
+  const salesOrder = hasSalesOrder ? salesOrders[0] : null;
 
   const { data: versions } = useQuery<any[]>({
     queryKey: [`/api/quotes/${params?.id}/versions`],
@@ -461,7 +470,7 @@ export default function QuoteDetail() {
                     </Button>
                   </PermissionGuard>
                 )}
-                {quote.status === "draft" && (
+                {canSendQuote && quote.status === "draft" && (
                   <PermissionGuard resource="quotes" action="create" tooltipText="Only authorized users can send quotes">
                     <Button
                       size="sm"
@@ -503,7 +512,8 @@ export default function QuoteDetail() {
                 )}
                 {quote.status === "approved" && (
                   <>
-                    {canConvertToInvoice && (
+                    {/* Only show Invoice button if NO sales order exists */}
+                    {canConvertToInvoice && !hasSalesOrder && (
                       <Button
                         size="sm"
                         onClick={() => convertToInvoiceMutation.mutate()}
@@ -514,17 +524,34 @@ export default function QuoteDetail() {
                         Invoice
                       </Button>
                     )}
-                    <PermissionGuard resource="sales-orders" action="create" tooltipText="Only authorized users can create Sales Orders">
+                    
+                    {/* Show Create Sales Order button if NO sales order exists */}
+                    {!hasSalesOrder && (
+                      <PermissionGuard resource="sales-orders" action="create" tooltipText="Only authorized users can create Sales Orders">
+                        <Button
+                          size="sm"
+                          onClick={() => createSalesOrderMutation.mutate()}
+                          disabled={createSalesOrderMutation.isPending}
+                          className="flex-1 sm:flex-initial h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                           {createSalesOrderMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Package className="h-3 w-3 mr-1" />}
+                           Create Order
+                        </Button>
+                      </PermissionGuard>
+                    )}
+                    
+                    {/* Show View Sales Order button if sales order exists */}
+                    {hasSalesOrder && salesOrder && (
                       <Button
                         size="sm"
-                        onClick={() => createSalesOrderMutation.mutate()}
-                        disabled={createSalesOrderMutation.isPending}
+                        onClick={() => setLocation(`/sales-orders/${salesOrder.id}`)}
                         className="flex-1 sm:flex-initial h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                       >
-                         {createSalesOrderMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Package className="h-3 w-3 mr-1" />}
-                         Create Order
+                        <Package className="h-3 w-3 mr-1" />
+                        View Sales Order
                       </Button>
-                    </PermissionGuard>
+                    )}
+                    
                     {canCreateVendorPO && user && hasPermission(user.role, "vendor-pos", "create") && (
                       <Button
                         size="sm"

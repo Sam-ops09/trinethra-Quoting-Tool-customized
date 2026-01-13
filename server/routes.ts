@@ -827,115 +827,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
 
-      if (updateData.status === "sent" && existingQuote.status !== "sent") {
+      // DISABLED: Automatic email sending when quote status changes to "sent"
+      // if (updateData.status === "sent" && existingQuote.status !== "sent") {
+      /*
         try {
           const client = await storage.getClient(quote.clientId);
           if (client?.email) {
-            // Get quote items
-            const items = await storage.getQuoteItems(quote.id);
-            const creator = await storage.getUser(quote.createdBy);
-
-            // Get all settings for email template and company info
-            const allSettings = await storage.getAllSettings();
-            const settingsMap = allSettings.reduce((acc: any, s: any) => {
-              acc[s.key] = s.value;
-              return acc;
-            }, {});
-
-            // Get email template settings
-            const subjectTemplate = settingsMap['email_quote_subject'] || 'Quote {QUOTE_NUMBER} from {COMPANY_NAME}';
-            const bodyTemplate = settingsMap['email_quote_body'] ||
-              'Dear {CLIENT_NAME},\n\nPlease find attached quote {QUOTE_NUMBER} for your review.\n\nTotal Amount: {TOTAL}\nValid Until: {VALIDITY_DATE}\n\nBest regards,\n{COMPANY_NAME}';
-
-            // Prepare variables for template replacement
-            const companyName = settingsMap['company_name'] || settingsMap['companyName'] || 'Company';
-            const companyAddress = settingsMap['company_address'] || '';
-            const companyPhone = settingsMap['company_phone'] || '';
-            const companyEmail = settingsMap['company_email'] || '';
-            const companyWebsite = settingsMap['company_website'] || '';
-            const companyGSTIN = settingsMap['company_gstin'] || '';
-            const currencySymbol = settingsMap['currencySymbol'] || '₹';
-
-            const quoteDate = new Date(quote.quoteDate);
-            const validityDate = new Date(quoteDate);
-            validityDate.setDate(validityDate.getDate() + (quote.validityDays || 30));
-
-            // Replace template variables
-            const replacements: Record<string, string> = {
-              '{COMPANY_NAME}': companyName,
-              '{CLIENT_NAME}': client.name,
-              '{QUOTE_NUMBER}': quote.quoteNumber,
-              '{TOTAL}': `${currencySymbol}${Number(quote.total).toLocaleString()}`,
-              '{VALIDITY_DATE}': validityDate.toLocaleDateString(),
-            };
-
-            let emailSubject = subjectTemplate;
-            let emailBody = bodyTemplate;
-
-            Object.entries(replacements).forEach(([key, value]) => {
-              const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              emailSubject = emailSubject.replace(new RegExp(escapedKey, 'g'), value);
-              emailBody = emailBody.replace(new RegExp(escapedKey, 'g'), value);
-            });
-
-            // Fetch bank details
-            const bankDetail = await storage.getActiveBankDetails();
-            const bankName = bankDetail?.bankName || "";
-            const bankAccountNumber = bankDetail?.accountNumber || "";
-            const bankAccountName = bankDetail?.accountName || "";
-            const bankIfscCode = bankDetail?.ifscCode || "";
-            const bankBranch = bankDetail?.branch || "";
-            const bankSwiftCode = bankDetail?.swiftCode || "";
-
-            // Generate PDF
-            // Generate PDF
-            const { PassThrough } = await import("stream");
-            const pdfStream = new PassThrough();
-            
-            const pdfPromise = PDFService.generateQuotePDF({
-              quote,
-              client,
-              items,
-              companyName,
-              companyAddress,
-              companyPhone,
-              companyEmail,
-              companyWebsite,
-              companyGSTIN,
-              companyLogo: settingsMap['company_logo'] || undefined,
-              preparedBy: creator?.name,
-              preparedByEmail: creator?.email,
-              bankDetails: {
-                bankName,
-                accountNumber: bankAccountNumber,
-                accountName: bankAccountName,
-                ifsc: bankIfscCode,
-                branch: bankBranch,
-                swift: bankSwiftCode,
-              },
-            }, pdfStream);
-
-            const chunks: Buffer[] = [];
-            pdfStream.on("data", (chunk: any) => chunks.push(chunk));
-            await new Promise((resolve, reject) => {
-              pdfStream.on("end", resolve);
-              pdfStream.on("error", reject);
-            });
-            await pdfPromise;
-
-            const pdfBuffer = Buffer.concat(chunks);
-            
-            await EmailService.sendQuoteEmail(
-              client.email,
-              emailSubject,
-              emailBody,
-              pdfBuffer
-            );
+            // ... email sending code disabled ...
           }
         } catch (emailError) {
           console.error("Auto-send email error:", emailError);
         }
-      }
+      */
 
       return res.json(quote);
     } catch (error) {
@@ -953,8 +856,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Quote is already invoiced" });
       }
 
-      // Generate a new master invoice number
-      const invoiceNumber = await NumberingService.generateInvoiceNumber();
+      // CRITICAL: Check if sales order exists for this quote
+      // If SO exists, invoice should be created FROM the SO, not from the quote
+      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+      if (existingSalesOrder) {
+        return res.status(400).json({ 
+          error: "Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.",
+          salesOrderId: existingSalesOrder.id,
+          salesOrderNumber: existingSalesOrder.orderNumber
+        });
+      }
+
+      // Generate a new master invoice number using admin master invoice numbering settings
+      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
 
       // Create the invoice
       const invoice = await storage.createInvoice({
@@ -1059,10 +973,201 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: invoice.id,
       });
 
-      return res.json(updatedInvoice);
+      res.json({ success: true, invoice: updatedInvoice });
     } catch (error: any) {
       console.error("Update master invoice status error:", error);
       return res.status(500).json({ error: error.message || "Failed to update master invoice status" });
+    }
+  });
+
+  // Delete Invoice (Soft Delete)
+  app.delete("/api/invoices/:id", authMiddleware, requirePermission("invoices", "delete"), async (req: AuthRequest, res: Response) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+
+      // Validation: Cannot delete paid or partially paid invoices
+      if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "partial") {
+        return res.status(400).json({ error: "Cannot delete invoices with payments. Please cancel instead." });
+      }
+
+      // Validation: Cannot delete master invoices with child invoices
+      if (invoice.isMaster) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+        if (childInvoices.length > 0) {
+          return res.status(400).json({ error: "Cannot delete master invoice with child invoices" });
+        }
+      }
+
+      // Soft delete by marking as cancelled
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        status: "cancelled" as any,
+        cancelledAt: new Date(),
+        cancelledBy: req.user!.id,
+        cancellationReason: "Deleted by user",
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "invoice_deleted",
+        entityType: "invoice",
+        entityId: invoice.id,
+      });
+
+      res.json({ success: true, message: "Invoice deleted successfully" });
+    } catch (error: any) {
+      console.error("Delete invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to delete invoice" });
+    }
+  });
+
+  // Finalize Invoice
+  app.put("/api/invoices/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req: AuthRequest, res: Response) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+
+      // Validation: Cannot finalize if already paid
+      if (invoice.paymentStatus === "paid") {
+        return res.status(400).json({ error: "Cannot finalize paid invoices" });
+      }
+
+      // Validation: Cannot finalize if cancelled
+      if (invoice.status === "cancelled") {
+        return res.status(400).json({ error: "Cannot finalize cancelled invoices" });
+      }
+
+      // For master invoices, must be confirmed first
+      if (invoice.isMaster && invoice.masterInvoiceStatus !== "confirmed" && invoice.masterInvoiceStatus !== "locked") {
+        return res.status(400).json({ error: "Master invoice must be confirmed before finalizing" });
+      }
+
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        finalizedAt: new Date(),
+        finalizedBy: req.user!.id,
+        status: invoice.status === "draft" ? ("sent" as any) : invoice.status as any,
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "invoice_finalized",
+        entityType: "invoice",
+        entityId: invoice.id,
+      });
+
+      res.json({ success: true, invoice: updatedInvoice });
+    } catch (error: any) {
+      console.error("Finalize invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to finalize invoice" });
+    }
+  });
+
+  // Lock/Unlock Invoice
+  app.put("/api/invoices/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { isLocked } = req.body;
+
+      if (typeof isLocked !== "boolean") {
+        return res.status(400).json({ error: "isLocked must be a boolean" });
+      }
+
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+
+      // Validation: Can only lock finalized or paid invoices
+      if (isLocked && !invoice.finalizedAt && invoice.paymentStatus !== "paid") {
+        return res.status(400).json({ error: "Can only lock finalized or paid invoices" });
+      }
+
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        isLocked,
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: isLocked ? "invoice_locked" : "invoice_unlocked",
+        entityType: "invoice",
+        entityId: invoice.id,
+      });
+
+      res.json({ success: true, invoice: updatedInvoice });
+    } catch (error: any) {
+      console.error("Lock invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to lock/unlock invoice" });
+    }
+  });
+
+  // Cancel Invoice
+  app.put("/api/invoices/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { cancellationReason } = req.body;
+
+      if (!cancellationReason || cancellationReason.trim().length === 0) {
+        return res.status(400).json({ error: "Cancellation reason is required" });
+      }
+
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+
+      // Validation: Cannot cancel paid invoices
+      if (invoice.paymentStatus === "paid") {
+        return res.status(400).json({ error: "Cannot cancel fully paid invoices" });
+      }
+
+      // Validation: Cannot cancel if already cancelled
+      if (invoice.status === "cancelled") {
+        return res.status(400).json({ error: "Invoice is already cancelled" });
+      }
+
+      // If master invoice with child invoices, check if any are paid
+      if (invoice.isMaster) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+        const paidChildren = childInvoices.filter((c: any) => c.paymentStatus === "paid");
+        if (paidChildren.length > 0) {
+          return res.status(400).json({ error: "Cannot cancel master invoice with paid child invoices" });
+        }
+
+        // Cancel all unpaid child invoices as well
+        for (const child of childInvoices) {
+          if (child.paymentStatus !== "paid") {
+            await storage.updateInvoice(child.id, {
+              status: "cancelled" as any,
+              cancelledAt: new Date(),
+              cancelledBy: req.user!.id,
+              cancellationReason: `Parent invoice cancelled: ${cancellationReason}`,
+            });
+          }
+        }
+      }
+
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        status: "cancelled" as any,
+        cancelledAt: new Date(),
+        cancelledBy: req.user!.id,
+        cancellationReason,
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "invoice_cancelled",
+        entityType: "invoice",
+        entityId: invoice.id,
+      });
+
+      res.json({ success: true, invoice: updatedInvoice });
+    } catch (error: any) {
+      console.error("Cancel invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
     }
   });
 
@@ -1287,11 +1392,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
 
-      // Generate child invoice number based on parent invoice number
-      // Format: [Parent-Invoice-Number]-[Child-Number]
-      // Example: INV-0001-1, INV-0001-2, etc.
-      const childNumber = siblingInvoices.length + 1;
-      const invoiceNumber = `${masterInvoice.invoiceNumber}-${childNumber}`;
+      // Generate child invoice number using admin child invoice numbering settings
+      const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
 
       // Create child invoice
       const childInvoice = await storage.createInvoice({
@@ -2875,6 +2977,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== NUMBERING COUNTER MANAGEMENT ROUTES ====================
+
+  // Get current counter values for all document types
+  app.get("/api/numbering/counters", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can access counter values" });
+      }
+
+      const { NumberingService } = await import("./services/numbering.service");
+      const { featureFlags } = await import("../shared/feature-flags");
+      const year = new Date().getFullYear();
+
+      const counters: any = { year };
+
+      // Only include counters for enabled features
+      if (featureFlags.quotes_module) {
+        counters.quote = await NumberingService.getCounter("quote", year);
+      }
+      if (featureFlags.vendorPO_module) {
+        counters.vendor_po = await NumberingService.getCounter("vendor_po", year);
+      }
+      if (featureFlags.invoices_module) {
+        counters.invoice = await NumberingService.getCounter("invoice", year);
+      }
+      if (featureFlags.grn_module) {
+        counters.grn = await NumberingService.getCounter("grn", year);
+      }
+      if (featureFlags.sales_orders_module) {
+        counters.sales_order = await NumberingService.getCounter("sales_order", year);
+      }
+
+      return res.json(counters);
+    } catch (error: any) {
+      console.error("Get counters error:", error);
+      return res.status(500).json({ error: error.message || "Failed to get counters" });
+    }
+  });
+
+  // Reset a counter to 0
+  app.post("/api/numbering/reset-counter", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can reset counters" });
+      }
+
+      const { type, year } = req.body;
+
+      if (!type) {
+        return res.status(400).json({ error: "Counter type is required" });
+      }
+
+      const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: "Invalid counter type" });
+      }
+
+      // Check if feature is enabled
+      const { featureFlags } = await import("../shared/feature-flags");
+      const featureMap: Record<string, boolean> = {
+        quote: featureFlags.quotes_module,
+        vendor_po: featureFlags.vendorPO_module,
+        invoice: featureFlags.invoices_module,
+        grn: featureFlags.grn_module,
+        sales_order: featureFlags.sales_orders_module,
+      };
+
+      if (!featureMap[type]) {
+        return res.status(403).json({ error: `Feature for ${type} is not enabled` });
+      }
+
+      const { NumberingService } = await import("./services/numbering.service");
+      const targetYear = year || new Date().getFullYear();
+
+      await NumberingService.resetCounter(type, targetYear);
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "reset_counter",
+        entityType: "numbering",
+        entityId: `${type}_${targetYear}`,
+      });
+
+      return res.json({
+        success: true,
+        message: `Counter for ${type} (${targetYear}) reset to 0`,
+        currentValue: 0,
+      });
+    } catch (error: any) {
+      console.error("Reset counter error:", error);
+      return res.status(500).json({ error: error.message || "Failed to reset counter" });
+    }
+  });
+
+  // Set a counter to a custom value
+  app.post("/api/numbering/set-counter", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      if (req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can set counters" });
+      }
+
+      const { type, year, value } = req.body;
+
+      if (!type || value === undefined) {
+        return res.status(400).json({ error: "Counter type and value are required" });
+      }
+
+      const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: "Invalid counter type" });
+      }
+
+      const numericValue = parseInt(value, 10);
+      if (isNaN(numericValue) || numericValue < 0) {
+        return res.status(400).json({ error: "Value must be a non-negative number" });
+      }
+
+      // Check if feature is enabled
+      const { featureFlags } = await import("../shared/feature-flags");
+      const featureMap: Record<string, boolean> = {
+        quote: featureFlags.quotes_module,
+        vendor_po: featureFlags.vendorPO_module,
+        invoice: featureFlags.invoices_module,
+        grn: featureFlags.grn_module,
+        sales_order: featureFlags.sales_orders_module,
+      };
+
+      if (!featureMap[type]) {
+        return res.status(403).json({ error: `Feature for ${type} is not enabled` });
+      }
+
+      const { NumberingService } = await import("./services/numbering.service");
+      const targetYear = year || new Date().getFullYear();
+
+      await NumberingService.setCounter(type, targetYear, numericValue);
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "set_counter",
+        entityType: "numbering",
+        entityId: `${type}_${targetYear}`,
+      });
+
+      return res.json({
+        success: true,
+        message: `Counter for ${type} (${targetYear}) set to ${numericValue}`,
+        currentValue: numericValue,
+      });
+    } catch (error: any) {
+      console.error("Set counter error:", error);
+      return res.status(500).json({ error: error.message || "Failed to set counter" });
+    }
+  });
+
   // ==================== BANK DETAILS ROUTES ====================
 
   app.get("/api/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
@@ -3965,8 +4221,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 4. Generate child invoice number (INV-001-1, INV-001-2, etc.)
       const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
       const siblings = allInvoices.filter(inv => inv.parentInvoiceId === masterId);
-      const childNumber = siblings.length + 1;
-      const childInvoiceNumber = `${masterInvoice.invoiceNumber}-${childNumber}`;
+      // Generate child invoice number using admin child invoice numbering settings
+      const childInvoiceNumber = await NumberingService.generateChildInvoiceNumber();
 
       // 5. Calculate totals based on selected items
       let subtotal = 0;

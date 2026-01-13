@@ -40,21 +40,28 @@ export class NumberingService {
   }
 
   /**
-   * Generate a formatted master invoice number
-   * Example: MINV-2025-001
+   * Generate a formatted invoice number (unified for all invoices)
+   * Example: INV-2025-001
+   * Both master and child invoices use the same numbering sequence
    */
   static async generateMasterInvoiceNumber(): Promise<string> {
     try {
+      // Try master specific settings first
       let formatSetting = await storage.getSetting("masterInvoiceFormat");
-      if (!formatSetting) formatSetting = await storage.getSetting("master_invoice_number_format");
-
       let prefixSetting = await storage.getSetting("masterInvoicePrefix");
-      if (!prefixSetting) prefixSetting = await storage.getSetting("master_invoice_prefix");
+      
+      // Fallback to generic invoice settings
+      if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
+      if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
+
+      if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
+      if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
 
       const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
       const prefix = prefixSetting?.value || "MINV";
 
-      const counter = await this.getAndIncrementCounter("master_invoice");
+      // Use unified counter for all invoices
+      const counter = await this.getAndIncrementCounter("invoice");
       return this.applyFormat(format, prefix, counter);
     } catch (error) {
       console.error("Error generating master invoice number:", error);
@@ -64,21 +71,28 @@ export class NumberingService {
   }
 
   /**
-   * Generate a formatted child invoice number
+   * Generate a formatted invoice number (unified for all invoices)
    * Example: INV-2025-001
+   * Both master and child invoices use the same numbering sequence
    */
   static async generateChildInvoiceNumber(): Promise<string> {
     try {
+      // Try child specific settings first
       let formatSetting = await storage.getSetting("childInvoiceFormat");
+      let prefixSetting = await storage.getSetting("childInvoicePrefix");
+      
+      // Fallback to generic invoice settings
+      if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
       if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
 
-      let prefixSetting = await storage.getSetting("childInvoicePrefix");
+      if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
       if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
 
       const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
       const prefix = prefixSetting?.value || "INV";
 
-      const counter = await this.getAndIncrementCounter("child_invoice");
+      // Use unified counter for all invoices
+      const counter = await this.getAndIncrementCounter("invoice");
       return this.applyFormat(format, prefix, counter);
     } catch (error) {
       console.error("Error generating child invoice number:", error);
@@ -141,6 +155,30 @@ export class NumberingService {
       console.error("Error generating GRN number:", error);
       const counter = Math.floor(Math.random() * 10000);
       return `GRN-${String(counter).padStart(4, "0")}`;
+    }
+  }
+
+  /**
+   * Generate a formatted sales order number
+   * Example: SO-2025-001
+   */
+  static async generateSalesOrderNumber(): Promise<string> {
+    try {
+      let formatSetting = await storage.getSetting("salesOrderFormat");
+      if (!formatSetting) formatSetting = await storage.getSetting("sales_order_number_format");
+
+      let prefixSetting = await storage.getSetting("salesOrderPrefix");
+      if (!prefixSetting) prefixSetting = await storage.getSetting("sales_order_prefix");
+
+      const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+      const prefix = prefixSetting?.value || "SO";
+
+      const counter = await this.getAndIncrementCounter("sales_order");
+      return this.applyFormat(format, prefix, counter);
+    } catch (error) {
+      console.error("Error generating sales order number:", error);
+      const counter = Math.floor(Math.random() * 10000);
+      return `SO-${String(counter).padStart(4, "0")}`;
     }
   }
 

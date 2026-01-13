@@ -25,6 +25,11 @@ import {
     Home,
     ChevronRight,
     Bell,
+    Trash,
+    Lock,
+    Unlock,
+    CheckCircle,
+    XCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +111,13 @@ interface InvoiceDetail {
     milestoneDescription?: string;
     createdAt: string;
     createdByName?: string;
+    // Invoice management fields
+    cancelledAt?: string;
+    cancelledBy?: string;
+    cancellationReason?: string;
+    finalizedAt?: string;
+    finalizedBy?: string;
+    isLocked?: boolean;
 }
 
 export default function InvoiceDetail() {
@@ -119,6 +131,9 @@ export default function InvoiceDetail() {
     const canSendReminder = useFeatureFlag('invoices_paymentReminders');
     const canCreatePayment = useFeatureFlag('payments_create');
     const canCreateChildInvoice = useFeatureFlag('invoices_childInvoices');
+    const canFinalizeInvoice = useFeatureFlag('invoices_finalize');
+    const canLockInvoice = useFeatureFlag('invoices_lock');
+    const canCancelInvoice = useFeatureFlag('invoices_cancel');
 
     const [showEmailDialog, setShowEmailDialog] = useState(false);
     const [emailData, setEmailData] = useState({ email: "", message: "" });
@@ -132,6 +147,11 @@ export default function InvoiceDetail() {
     const [showReminderDialog, setShowReminderDialog] = useState(false);
     const [reminderEmail, setReminderEmail] = useState("");
     const [reminderMessage, setReminderMessage] = useState("");
+    
+    // Invoice management states
+    const [showCancelDialog, setShowCancelDialog] = useState(false);
+    const [cancellationReason, setCancellationReason] = useState("");
+    const [showFinalizeDialog, setShowFinalizeDialog] = useState(false);
 
     const { data: invoice, isLoading } = useQuery<InvoiceDetail>({
         queryKey: ["/api/invoices", params?.id],
@@ -327,6 +347,73 @@ export default function InvoiceDetail() {
         updateSerialsMutation.mutate({ itemId: selectedItem.id, serials });
     };
 
+    // Invoice management mutations
+    const finalizeMutation = useMutation({
+        mutationFn: async () => {
+            return await apiRequest("PUT", `/api/invoices/${params?.id}/finalize`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices", params?.id] });
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+            toast({
+                title: "Success",
+                description: "Invoice finalized successfully.",
+            });
+            setShowFinalizeDialog(false);
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Error",
+                description: error?.message || "Failed to finalize invoice.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const lockMutation = useMutation({
+        mutationFn: async (isLocked: boolean) => {
+            return await apiRequest("PUT", `/api/invoices/${params?.id}/lock`, { isLocked });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices", params?.id] });
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+            toast({
+                title: "Success",
+                description: invoice?.isLocked ? "Invoice unlocked successfully." : "Invoice locked successfully.",
+            });
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Error",
+                description: error?.message || "Failed to lock/unlock invoice.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const cancelMutation = useMutation({
+        mutationFn: async (reason: string) => {
+            return await apiRequest("PUT", `/api/invoices/${params?.id}/cancel`, { cancellationReason: reason });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices", params?.id] });
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+            toast({
+                title: "Success",
+                description: "Invoice cancelled successfully.",
+            });
+            setShowCancelDialog(false);
+            setCancellationReason("");
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Error",
+                description: error?.message || "Failed to cancel invoice.",
+                variant: "destructive",
+            });
+        },
+    });
+
     const getPaymentStatusColor = (status: string) => {
         switch (status) {
             case "paid":
@@ -506,10 +593,10 @@ export default function InvoiceDetail() {
                                 {/* Edit button visibility logic:
                                     - Master invoices: Show if not locked
                                     - Child invoices: Show if not paid
-                                    - Regular invoices: Show if not paid
+                                    - Regular invoices: Show if not paid and not locked
                                 */}
-                                {((invoice.isMaster && invoice.masterInvoiceStatus !== "locked") ||
-                                  (!invoice.isMaster && invoice.paymentStatus !== "paid")) && (
+                                {((invoice.isMaster && invoice.masterInvoiceStatus !== "locked" && !invoice.isLocked) ||
+                                  (!invoice.isMaster && invoice.paymentStatus !== "paid" && !invoice.isLocked)) && (
                                     <PermissionGuard resource="invoices" action="edit" tooltipText="Only Finance/Accounts can edit invoices">
                                       <Button
                                         variant="default"
@@ -629,6 +716,67 @@ export default function InvoiceDetail() {
                                     <span className="sm:hidden">Payment</span>
                                   </Button>
                                 </PermissionGuard>
+
+                                {/* Finalize Button - Show for draft/sent unpaid invoices */}
+                                {canFinalizeInvoice && !invoice.finalizedAt && invoice.paymentStatus !== "paid" && invoice.status !== "cancelled" && (
+                                    <PermissionGuard resource="invoices" action="finalize" tooltipText="Only authorized users can finalize invoices">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-green-50 hover:border-green-600 hover:text-green-600"
+                                            onClick={() => setShowFinalizeDialog(true)}
+                                            data-testid="button-finalize-invoice"
+                                        >
+                                            <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                            <span className="hidden sm:inline">Finalize</span>
+                                            <span className="sm:hidden">Finalize</span>
+                                        </Button>
+                                    </PermissionGuard>
+                                )}
+
+                                {/* Lock/Unlock Button - Show for finalized or paid invoices */}
+                                {canLockInvoice && (invoice.finalizedAt || invoice.paymentStatus === "paid") && invoice.status !== "cancelled" && (
+                                    <PermissionGuard resource="invoices" action="lock" tooltipText="Only Finance/Admin can lock invoices">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-amber-50 hover:border-amber-600 hover:text-amber-600"
+                                            onClick={() => lockMutation.mutate(!invoice.isLocked)}
+                                            data-testid="button-lock-invoice"
+                                        >
+                                            {invoice.isLocked ? (
+                                                <>
+                                                    <Unlock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                                    <span className="hidden sm:inline">Unlock</span>
+                                                    <span className="sm:hidden">Unlock</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Lock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                                    <span className="hidden sm:inline">Lock</span>
+                                                    <span className="sm:hidden">Lock</span>
+                                                </>
+                                            )}
+                                        </Button>
+                                    </PermissionGuard>
+                                )}
+
+                                {/* Cancel Button - Show for unpaid invoices that aren't cancelled */}
+                                {canCancelInvoice && invoice.paymentStatus !== "paid" && invoice.status !== "cancelled" && (
+                                    <PermissionGuard resource="invoices" action="cancel" tooltipText="Only authorized users can cancel invoices">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-orange-50 hover:border-orange-600 hover:text-orange-600"
+                                            onClick={() => setShowCancelDialog(true)}
+                                            data-testid="button-cancel-invoice"
+                                        >
+                                            <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                            <span className="hidden sm:inline">Cancel Invoice</span>
+                                            <span className="sm:hidden">Cancel</span>
+                                        </Button>
+                                    </PermissionGuard>
+                                )}
                             </div>
                         </div>
                     </CardContent>
@@ -1686,6 +1834,99 @@ export default function InvoiceDetail() {
                         : (invoice.paymentStatus !== "paid") // Child invoices editable until paid
                 }
             />
+
+            {/* Finalize Confirmation Dialog */}
+            <Dialog open={showFinalizeDialog} onOpenChange={setShowFinalizeDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-green-600">
+                            <CheckCircle className="h-5 w-5" />
+                            Finalize Invoice
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            Are you sure you want to finalize invoice <strong>{invoice.invoiceNumber}</strong>?
+                        </p>
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            <p className="text-sm text-blue-800">
+                                ℹ️ Finalizing marks the invoice as ready to send. This action helps track invoice workflow.
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowFinalizeDialog(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => finalizeMutation.mutate()}
+                        >
+                            Finalize Invoice
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Cancel Invoice Dialog */}
+            <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-orange-600">
+                            <XCircle className="h-5 w-5" />
+                            Cancel Invoice
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            Please provide a reason for cancelling invoice <strong>{invoice.invoiceNumber}</strong>:
+                        </p>
+                        <div>
+                            <Label htmlFor="cancellation-reason">Cancellation Reason *</Label>
+                            <Textarea
+                                id="cancellation-reason"
+                                placeholder="Enter reason for cancellation..."
+                                value={cancellationReason}
+                                onChange={(e) => setCancellationReason(e.target.value)}
+                                rows={3}
+                                className="mt-1"
+                            />
+                        </div>
+                        {invoice.isMaster && (
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                <p className="text-sm text-amber-800">
+                                    ⚠️ All unpaid child invoices will also be cancelled.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowCancelDialog(false);
+                                setCancellationReason("");
+                            }}
+                        >
+                            Close
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                if (cancellationReason.trim()) {
+                                    cancelMutation.mutate(cancellationReason);
+                                }
+                            }}
+                            disabled={!cancellationReason.trim()}
+                        >
+                            Cancel Invoice
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

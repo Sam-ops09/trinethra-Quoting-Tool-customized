@@ -30,6 +30,7 @@ __export(schema_exports, {
   insertClientTagSchema: () => insertClientTagSchema,
   insertCurrencySettingSchema: () => insertCurrencySettingSchema,
   insertGrnSchema: () => insertGrnSchema,
+  insertInvoiceAttachmentSchema: () => insertInvoiceAttachmentSchema,
   insertInvoiceItemSchema: () => insertInvoiceItemSchema,
   insertInvoiceSchema: () => insertInvoiceSchema,
   insertPaymentHistorySchema: () => insertPaymentHistorySchema,
@@ -37,6 +38,9 @@ __export(schema_exports, {
   insertProductSchema: () => insertProductSchema,
   insertQuoteItemSchema: () => insertQuoteItemSchema,
   insertQuoteSchema: () => insertQuoteSchema,
+  insertQuoteVersionSchema: () => insertQuoteVersionSchema,
+  insertSalesOrderItemSchema: () => insertSalesOrderItemSchema,
+  insertSalesOrderSchema: () => insertSalesOrderSchema,
   insertSerialNumberSchema: () => insertSerialNumberSchema,
   insertSettingSchema: () => insertSettingSchema,
   insertTaxRateSchema: () => insertTaxRateSchema,
@@ -45,6 +49,7 @@ __export(schema_exports, {
   insertVendorPoItemSchema: () => insertVendorPoItemSchema,
   insertVendorPurchaseOrderSchema: () => insertVendorPurchaseOrderSchema,
   insertVendorSchema: () => insertVendorSchema,
+  invoiceAttachments: () => invoiceAttachments,
   invoiceItemStatusEnum: () => invoiceItemStatusEnum,
   invoiceItems: () => invoiceItems,
   invoiceItemsRelations: () => invoiceItemsRelations,
@@ -59,10 +64,17 @@ __export(schema_exports, {
   products: () => products,
   productsRelations: () => productsRelations,
   quoteItems: () => quoteItems,
-  quoteItemsRelations: () => quoteItemsRelations,
   quoteStatusEnum: () => quoteStatusEnum,
+  quoteVersions: () => quoteVersions,
+  quoteVersionsRelations: () => quoteVersionsRelations,
   quotes: () => quotes,
   quotesRelations: () => quotesRelations,
+  salesOrderItemStatusEnum: () => salesOrderItemStatusEnum,
+  salesOrderItems: () => salesOrderItems,
+  salesOrderItemsRelations: () => salesOrderItemsRelations,
+  salesOrderStatusEnum: () => salesOrderStatusEnum,
+  salesOrders: () => salesOrders,
+  salesOrdersRelations: () => salesOrdersRelations,
   serialNumbers: () => serialNumbers,
   serialNumbersRelations: () => serialNumbersRelations,
   settings: () => settings,
@@ -82,11 +94,11 @@ __export(schema_exports, {
   vendorsRelations: () => vendorsRelations
 });
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, users, usersRelations, clients, clientsRelations, quotes, quotesRelations, quoteItems, quoteItemsRelations, invoices, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, insertUserSchema, insertClientSchema, insertQuoteSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, users, usersRelations, clients, clientsRelations, quotes, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, insertUserSchema, insertClientSchema, insertQuoteSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, insertInvoiceAttachmentSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -97,6 +109,8 @@ var init_schema = __esm({
     vendorPoStatusEnum = pgEnum("vendor_po_status", ["draft", "sent", "acknowledged", "fulfilled", "cancelled"]);
     invoiceItemStatusEnum = pgEnum("invoice_item_status", ["pending", "fulfilled", "partial"]);
     masterInvoiceStatusEnum = pgEnum("master_invoice_status", ["draft", "confirmed", "locked"]);
+    salesOrderStatusEnum = pgEnum("sales_order_status", ["draft", "confirmed", "fulfilled", "cancelled"]);
+    salesOrderItemStatusEnum = pgEnum("sales_order_item_status", ["pending", "partial", "fulfilled"]);
     users = pgTable("users", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       email: text("email").notNull().unique(),
@@ -185,6 +199,164 @@ var init_schema = __esm({
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
     });
+    quoteVersions = pgTable("quote_versions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+      version: integer("version").notNull(),
+      // Snapshot data
+      clientId: varchar("client_id").notNull(),
+      status: text("status").notNull(),
+      validityDays: integer("validity_days"),
+      quoteDate: timestamp("quote_date"),
+      validUntil: timestamp("valid_until"),
+      referenceNumber: text("reference_number"),
+      attentionTo: text("attention_to"),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0"),
+      discount: decimal("discount", { precision: 12, scale: 2 }).default("0"),
+      cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+      sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+      igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+      shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).default("0"),
+      total: decimal("total", { precision: 12, scale: 2 }).default("0"),
+      notes: text("notes"),
+      termsAndConditions: text("terms_and_conditions"),
+      bomSection: text("bom_section"),
+      slaSection: text("sla_section"),
+      timelineSection: text("timeline_section"),
+      itemsSnapshot: text("items_snapshot").notNull(),
+      // JSON
+      revisionNotes: text("revision_notes"),
+      revisedBy: varchar("revised_by").notNull().references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    quoteVersionsRelations = relations(quoteVersions, ({ one }) => ({
+      quote: one(quotes, {
+        fields: [quoteVersions.quoteId],
+        references: [quotes.id]
+      }),
+      reviser: one(users, {
+        fields: [quoteVersions.revisedBy],
+        references: [users.id]
+      })
+    }));
+    salesOrders = pgTable("sales_orders", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      orderNumber: text("order_number").notNull().unique(),
+      quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+      clientId: varchar("client_id").notNull().references(() => clients.id),
+      status: salesOrderStatusEnum("status").notNull().default("draft"),
+      orderDate: timestamp("order_date").notNull().defaultNow(),
+      expectedDeliveryDate: timestamp("expected_delivery_date"),
+      actualDeliveryDate: timestamp("actual_delivery_date"),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+      discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
+      cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
+      sgst: decimal("sgst", { precision: 12, scale: 2 }).notNull().default("0"),
+      igst: decimal("igst", { precision: 12, scale: 2 }).notNull().default("0"),
+      shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).notNull().default("0"),
+      total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+      notes: text("notes"),
+      termsAndConditions: text("terms_and_conditions"),
+      confirmedAt: timestamp("confirmed_at"),
+      confirmedBy: varchar("confirmed_by").references(() => users.id),
+      createdBy: varchar("created_by").notNull().references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    });
+    salesOrdersRelations = relations(salesOrders, ({ one, many }) => ({
+      quote: one(quotes, {
+        fields: [salesOrders.quoteId],
+        references: [quotes.id]
+      }),
+      client: one(clients, {
+        fields: [salesOrders.clientId],
+        references: [clients.id]
+      }),
+      creator: one(users, {
+        fields: [salesOrders.createdBy],
+        references: [users.id]
+      }),
+      confirmer: one(users, {
+        fields: [salesOrders.confirmedBy],
+        references: [users.id]
+      }),
+      items: many(salesOrderItems),
+      // One sales order can have multiple invoices (e.g. partial)
+      invoices: many(invoices)
+    }));
+    salesOrderItems = pgTable("sales_order_items", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      salesOrderId: varchar("sales_order_id").notNull().references(() => salesOrders.id, { onDelete: "cascade" }),
+      description: text("description").notNull(),
+      quantity: integer("quantity").notNull().default(1),
+      fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
+      unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+      hsnSac: varchar("hsn_sac", { length: 10 }),
+      status: salesOrderItemStatusEnum("status").notNull().default("pending"),
+      sortOrder: integer("sort_order").notNull().default(0),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    });
+    salesOrderItemsRelations = relations(salesOrderItems, ({ one }) => ({
+      salesOrder: one(salesOrders, {
+        fields: [salesOrderItems.salesOrderId],
+        references: [salesOrders.id]
+      })
+    }));
+    quoteItems = pgTable("quote_items", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+      description: text("description").notNull(),
+      quantity: integer("quantity").notNull().default(1),
+      unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+      hsnSac: varchar("hsn_sac", { length: 10 }),
+      sortOrder: integer("sort_order").notNull().default(0)
+    });
+    invoices = pgTable("invoices", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      invoiceNumber: text("invoice_number").notNull().unique(),
+      quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+      salesOrderId: varchar("sales_order_id").references(() => salesOrders.id),
+      clientId: varchar("client_id").references(() => clients.id),
+      parentInvoiceId: varchar("parent_invoice_id"),
+      status: text("status").notNull().default("draft"),
+      masterInvoiceStatus: text("master_invoice_status").default("draft"),
+      paymentStatus: text("payment_status").default("pending"),
+      issueDate: timestamp("issue_date").notNull().defaultNow(),
+      dueDate: timestamp("due_date"),
+      paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
+      remainingAmount: decimal("remaining_amount", { precision: 12, scale: 2 }).default("0"),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0"),
+      discount: decimal("discount", { precision: 12, scale: 2 }).default("0"),
+      cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+      sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+      igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+      shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).default("0"),
+      total: decimal("total", { precision: 12, scale: 2 }).default("0"),
+      notes: text("notes"),
+      deliveryNotes: text("delivery_notes"),
+      milestoneDescription: text("milestone_description"),
+      lastPaymentDate: timestamp("last_payment_date"),
+      paymentNotes: text("payment_notes"),
+      termsAndConditions: text("terms_and_conditions"),
+      isMaster: boolean("is_master").notNull().default(false),
+      // Invoice management fields
+      cancelledAt: timestamp("cancelled_at"),
+      cancelledBy: varchar("cancelled_by").references(() => users.id),
+      cancellationReason: text("cancellation_reason"),
+      finalizedAt: timestamp("finalized_at"),
+      finalizedBy: varchar("finalized_by").references(() => users.id),
+      isLocked: boolean("is_locked").notNull().default(false),
+      createdBy: varchar("created_by").references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    }, (table) => {
+      return {
+        parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId)
+      };
+    });
     quotesRelations = relations(quotes, ({ one, many }) => ({
       client: one(clients, {
         fields: [quotes.clientId],
@@ -204,59 +376,10 @@ var init_schema = __esm({
       }),
       items: many(quoteItems),
       invoices: many(invoices),
-      vendorPos: many(vendorPurchaseOrders)
+      vendorPos: many(vendorPurchaseOrders),
+      versions: many(quoteVersions),
+      salesOrders: many(salesOrders)
     }));
-    quoteItems = pgTable("quote_items", {
-      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-      quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
-      description: text("description").notNull(),
-      quantity: integer("quantity").notNull().default(1),
-      unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
-      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
-      sortOrder: integer("sort_order").notNull().default(0),
-      hsnSac: varchar("hsn_sac", { length: 10 })
-      // HSN/SAC code for GST compliance
-    });
-    quoteItemsRelations = relations(quoteItems, ({ one }) => ({
-      quote: one(quotes, {
-        fields: [quoteItems.quoteId],
-        references: [quotes.id]
-      })
-    }));
-    invoices = pgTable("invoices", {
-      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-      invoiceNumber: text("invoice_number").notNull().unique(),
-      parentInvoiceId: varchar("parent_invoice_id"),
-      // For child invoices - self-reference added after table creation
-      quoteId: varchar("quote_id").notNull().references(() => quotes.id),
-      paymentStatus: paymentStatusEnum("payment_status").notNull().default("pending"),
-      dueDate: timestamp("due_date").notNull(),
-      paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).notNull().default("0"),
-      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
-      discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
-      cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
-      sgst: decimal("sgst", { precision: 12, scale: 2 }).notNull().default("0"),
-      igst: decimal("igst", { precision: 12, scale: 2 }).notNull().default("0"),
-      shippingCharges: decimal("shipping_charges", { precision: 12, scale: 2 }).notNull().default("0"),
-      total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
-      notes: text("notes"),
-      termsAndConditions: text("terms_and_conditions"),
-      isMaster: boolean("is_master").notNull().default(false),
-      masterInvoiceStatus: masterInvoiceStatusEnum("master_invoice_status"),
-      // Only for master invoices
-      deliveryNotes: text("delivery_notes"),
-      milestoneDescription: text("milestone_description"),
-      // For milestone billing
-      // Payment Tracking
-      lastPaymentDate: timestamp("last_payment_date"),
-      paymentMethod: text("payment_method"),
-      paymentNotes: text("payment_notes"),
-      paymentReminderSentAt: timestamp("payment_reminder_sent_at"),
-      overdueReminderSentAt: timestamp("overdue_reminder_sent_at"),
-      createdBy: varchar("created_by").notNull().references(() => users.id),
-      createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow()
-    });
     invoicesRelations = relations(invoices, ({ one, many }) => ({
       quote: one(quotes, {
         fields: [invoices.quoteId],
@@ -284,7 +407,6 @@ var init_schema = __esm({
       paymentMethod: text("payment_method").notNull(),
       // bank_transfer, credit_card, check, cash, upi, etc.
       transactionId: text("transaction_id"),
-      // Reference number from payment gateway or bank
       notes: text("notes"),
       paymentDate: timestamp("payment_date").notNull().defaultNow(),
       recordedBy: varchar("recorded_by").notNull().references(() => users.id),
@@ -317,6 +439,16 @@ var init_schema = __esm({
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
     });
+    invoiceAttachments = pgTable("invoice_attachments", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      invoiceId: varchar("invoice_id").notNull().references(() => invoices.id),
+      fileName: text("file_name").notNull(),
+      fileType: text("file_type").notNull(),
+      fileSize: integer("file_size").notNull(),
+      content: text("content").notNull(),
+      // Base64
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
     invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
       invoice: one(invoices, {
         fields: [invoiceItems.invoiceId],
@@ -328,8 +460,6 @@ var init_schema = __esm({
       name: text("name").notNull(),
       email: text("email").notNull(),
       phone: text("phone"),
-      address: text("address"),
-      gstin: text("gstin"),
       contactPerson: text("contact_person"),
       paymentTerms: text("payment_terms"),
       notes: text("notes"),
@@ -792,6 +922,24 @@ var init_schema = __esm({
       updatedAt: true,
       createdBy: true
     });
+    insertQuoteVersionSchema = createInsertSchema(quoteVersions).omit({
+      id: true,
+      createdAt: true
+    });
+    insertSalesOrderSchema = createInsertSchema(salesOrders).omit({
+      id: true,
+      createdAt: true,
+      updatedAt: true
+    });
+    insertSalesOrderItemSchema = createInsertSchema(salesOrderItems).omit({
+      id: true,
+      createdAt: true,
+      updatedAt: true
+    });
+    insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments).omit({
+      id: true,
+      createdAt: true
+    });
   }
 });
 
@@ -833,7 +981,6 @@ var init_storage = __esm({
     init_db();
     init_schema();
     DatabaseStorage = class {
-      // Users
       async getUser(id) {
         const [user] = await db.select().from(users).where(eq(users.id, id));
         return user || void 0;
@@ -1100,7 +1247,6 @@ var init_storage = __esm({
         return await db.select().from(pricingTiers);
       }
       async getPricingTierByAmount(amount) {
-        const [tier] = await db.select().from(pricingTiers).where(eq(pricingTiers.isActive, true));
         const tiers = await db.select().from(pricingTiers).where(eq(pricingTiers.isActive, true));
         return tiers.find((t) => {
           const min = parseFloat(t.minAmount.toString());
@@ -1216,6 +1362,10 @@ var init_storage = __esm({
       async deleteInvoiceItems(invoiceId) {
         await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
       }
+      async createInvoiceAttachment(attachment) {
+        const [newAttachment] = await db.insert(invoiceAttachments).values(attachment).returning();
+        return newAttachment;
+      }
       async getInvoicesByQuote(quoteId) {
         return await db.select().from(invoices).where(eq(invoices.quoteId, quoteId)).orderBy(desc(invoices.createdAt));
       }
@@ -1265,6 +1415,56 @@ var init_storage = __esm({
       }
       async deleteGrn(id) {
         await db.delete(goodsReceivedNotes).where(eq(goodsReceivedNotes.id, id));
+      }
+      // Quote Versions
+      async createQuoteVersion(version) {
+        const [newVersion] = await db.insert(quoteVersions).values(version).returning();
+        return newVersion;
+      }
+      async getQuoteVersions(quoteId) {
+        return await db.select().from(quoteVersions).where(eq(quoteVersions.quoteId, quoteId)).orderBy(desc(quoteVersions.version));
+      }
+      async getQuoteVersion(quoteId, version) {
+        const [ver] = await db.select().from(quoteVersions).where(and(eq(quoteVersions.quoteId, quoteId), eq(quoteVersions.version, version)));
+        return ver || void 0;
+      }
+      // Sales Orders
+      async createSalesOrder(order) {
+        const [newOrder] = await db.insert(salesOrders).values(order).returning();
+        return newOrder;
+      }
+      async getSalesOrder(id) {
+        const [order] = await db.select().from(salesOrders).where(eq(salesOrders.id, id));
+        return order || void 0;
+      }
+      async getSalesOrderByQuote(quoteId) {
+        const [order] = await db.select().from(salesOrders).where(eq(salesOrders.quoteId, quoteId));
+        return order || void 0;
+      }
+      async getAllSalesOrders() {
+        return await db.select().from(salesOrders).orderBy(desc(salesOrders.createdAt));
+      }
+      async updateSalesOrder(id, data) {
+        const [updatedOrder] = await db.update(salesOrders).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(salesOrders.id, id)).returning();
+        return updatedOrder || void 0;
+      }
+      async deleteSalesOrder(id) {
+        await db.delete(salesOrders).where(eq(salesOrders.id, id));
+      }
+      async getLastSalesOrderNumber() {
+        const [lastOrder] = await db.select().from(salesOrders).orderBy(desc(salesOrders.orderNumber)).limit(1);
+        return lastOrder?.orderNumber;
+      }
+      // Sales Order Items
+      async createSalesOrderItem(item) {
+        const [newItem] = await db.insert(salesOrderItems).values(item).returning();
+        return newItem;
+      }
+      async getSalesOrderItems(salesOrderId) {
+        return await db.select().from(salesOrderItems).where(eq(salesOrderItems.salesOrderId, salesOrderId)).orderBy(salesOrderItems.sortOrder);
+      }
+      async deleteSalesOrderItems(salesOrderId) {
+        await db.delete(salesOrderItems).where(eq(salesOrderItems.salesOrderId, salesOrderId));
       }
     };
     storage = new DatabaseStorage();
@@ -1538,6 +1738,10 @@ var init_pdf_themes = __esm({
 });
 
 // server/services/numbering.service.ts
+var numbering_service_exports = {};
+__export(numbering_service_exports, {
+  NumberingService: () => NumberingService
+});
 var NumberingService;
 var init_numbering_service = __esm({
   "server/services/numbering.service.ts"() {
@@ -1565,18 +1769,21 @@ var init_numbering_service = __esm({
         }
       }
       /**
-       * Generate a formatted master invoice number
-       * Example: MINV-2025-001
+       * Generate a formatted invoice number (unified for all invoices)
+       * Example: INV-2025-001
+       * Both master and child invoices use the same numbering sequence
        */
       static async generateMasterInvoiceNumber() {
         try {
           let formatSetting = await storage.getSetting("masterInvoiceFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("master_invoice_number_format");
           let prefixSetting = await storage.getSetting("masterInvoicePrefix");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("master_invoice_prefix");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
           const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
           const prefix = prefixSetting?.value || "MINV";
-          const counter = await this.getAndIncrementCounter("master_invoice");
+          const counter = await this.getAndIncrementCounter("invoice");
           return this.applyFormat(format, prefix, counter);
         } catch (error) {
           console.error("Error generating master invoice number:", error);
@@ -1585,18 +1792,21 @@ var init_numbering_service = __esm({
         }
       }
       /**
-       * Generate a formatted child invoice number
+       * Generate a formatted invoice number (unified for all invoices)
        * Example: INV-2025-001
+       * Both master and child invoices use the same numbering sequence
        */
       static async generateChildInvoiceNumber() {
         try {
           let formatSetting = await storage.getSetting("childInvoiceFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
           let prefixSetting = await storage.getSetting("childInvoicePrefix");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
           if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
           const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
           const prefix = prefixSetting?.value || "INV";
-          const counter = await this.getAndIncrementCounter("child_invoice");
+          const counter = await this.getAndIncrementCounter("invoice");
           return this.applyFormat(format, prefix, counter);
         } catch (error) {
           console.error("Error generating child invoice number:", error);
@@ -1649,6 +1859,26 @@ var init_numbering_service = __esm({
           console.error("Error generating GRN number:", error);
           const counter = Math.floor(Math.random() * 1e4);
           return `GRN-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted sales order number
+       * Example: SO-2025-001
+       */
+      static async generateSalesOrderNumber() {
+        try {
+          let formatSetting = await storage.getSetting("salesOrderFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("sales_order_number_format");
+          let prefixSetting = await storage.getSetting("salesOrderPrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("sales_order_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "SO";
+          const counter = await this.getAndIncrementCounter("sales_order");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating sales order number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `SO-${String(counter).padStart(4, "0")}`;
         }
       }
       /**
@@ -1781,6 +2011,12 @@ var init_permissions_service = __esm({
           { resource: "invoices", action: "finalize" },
           { resource: "invoices", action: "lock" },
           { resource: "invoices", action: "cancel" },
+          { resource: "sales_orders", action: "view" },
+          { resource: "sales_orders", action: "create" },
+          { resource: "sales_orders", action: "edit" },
+          { resource: "sales_orders", action: "delete" },
+          { resource: "sales_orders", action: "approve" },
+          { resource: "sales_orders", action: "cancel" },
           { resource: "vendor_pos", action: "view" },
           { resource: "vendor_pos", action: "create" },
           { resource: "vendor_pos", action: "edit" },
@@ -1832,6 +2068,9 @@ var init_permissions_service = __esm({
           { resource: "invoices", action: "create" },
           { resource: "invoices", action: "edit" },
           { resource: "invoices", action: "finalize" },
+          { resource: "sales_orders", action: "view" },
+          { resource: "sales_orders", action: "create" },
+          { resource: "sales_orders", action: "edit" },
           { resource: "vendor_pos", action: "view" },
           { resource: "clients", action: "view" },
           { resource: "clients", action: "create" },
@@ -1852,6 +2091,11 @@ var init_permissions_service = __esm({
           { resource: "invoices", action: "view" },
           { resource: "invoices", action: "create" },
           { resource: "invoices", action: "edit" },
+          { resource: "sales_orders", action: "view" },
+          { resource: "sales_orders", action: "create" },
+          { resource: "sales_orders", action: "edit" },
+          { resource: "sales_orders", action: "approve" },
+          { resource: "sales_orders", action: "cancel" },
           { resource: "vendor_pos", action: "view" },
           { resource: "grns", action: "view" },
           { resource: "clients", action: "view" },
@@ -1875,6 +2119,7 @@ var init_permissions_service = __esm({
           { resource: "grns", action: "create" },
           { resource: "grns", action: "edit" },
           { resource: "grns", action: "delete" },
+          { resource: "sales_orders", action: "view" },
           { resource: "quotes", action: "view" },
           { resource: "invoices", action: "view" },
           { resource: "vendors", action: "view" },
@@ -1901,6 +2146,7 @@ var init_permissions_service = __esm({
           { resource: "payments", action: "create" },
           { resource: "payments", action: "edit" },
           { resource: "payments", action: "delete" },
+          { resource: "sales_orders", action: "view" },
           { resource: "quotes", action: "view" },
           { resource: "clients", action: "view" },
           { resource: "serial_numbers", action: "view" }
@@ -1912,6 +2158,7 @@ var init_permissions_service = __esm({
         permissions: [
           { resource: "quotes", action: "view" },
           { resource: "invoices", action: "view" },
+          { resource: "sales_orders", action: "view" },
           { resource: "vendor_pos", action: "view" },
           { resource: "grns", action: "view" },
           { resource: "clients", action: "view" },
@@ -1922,6 +2169,296 @@ var init_permissions_service = __esm({
         ]
       }
     };
+  }
+});
+
+// shared/feature-flags.ts
+var feature_flags_exports = {};
+__export(feature_flags_exports, {
+  DEFAULT_FEATURE_FLAGS: () => DEFAULT_FEATURE_FLAGS,
+  allFeaturesEnabled: () => allFeaturesEnabled,
+  anyFeatureEnabled: () => anyFeatureEnabled,
+  featureFlags: () => featureFlags,
+  getFeatureFlags: () => getFeatureFlags,
+  isFeatureEnabled: () => isFeatureEnabled
+});
+function getFeatureFlags() {
+  const isBrowser = typeof window !== "undefined";
+  const flags = { ...DEFAULT_FEATURE_FLAGS };
+  if (isBrowser && typeof import.meta !== "undefined" && import.meta.env) {
+    Object.keys(flags).forEach((key) => {
+      const envKey = `VITE_FEATURE_${key.toUpperCase()}`;
+      const envValue = import.meta.env[envKey];
+      if (envValue !== void 0) {
+        flags[key] = envValue === "true";
+      }
+    });
+  }
+  if (!isBrowser && typeof process !== "undefined" && process.env) {
+    Object.keys(flags).forEach((key) => {
+      const envKey = `FEATURE_${key.toUpperCase()}`;
+      const envValue = process.env[envKey];
+      if (envValue !== void 0) {
+        flags[key] = envValue === "true";
+      }
+    });
+  }
+  return flags;
+}
+function isFeatureEnabled(feature) {
+  return featureFlags[feature];
+}
+function anyFeatureEnabled(...features) {
+  return features.some((f) => isFeatureEnabled(f));
+}
+function allFeaturesEnabled(...features) {
+  return features.every((f) => isFeatureEnabled(f));
+}
+var DEFAULT_FEATURE_FLAGS, featureFlags;
+var init_feature_flags = __esm({
+  "shared/feature-flags.ts"() {
+    "use strict";
+    DEFAULT_FEATURE_FLAGS = {
+      // ==================== PAGES & ROUTES ====================
+      pages_dashboard: true,
+      pages_clients: true,
+      pages_clientDetail: true,
+      pages_quotes: true,
+      pages_quoteCreate: true,
+      pages_quoteDetail: true,
+      pages_invoices: true,
+      pages_invoiceDetail: true,
+      pages_vendors: false,
+      pages_vendorPOs: false,
+      pages_vendorPODetail: false,
+      pages_products: false,
+      pages_grn: false,
+      pages_grnDetail: false,
+      pages_serialSearch: true,
+      pages_dashboardsOverview: true,
+      pages_salesQuoteDashboard: true,
+      pages_vendorPODashboard: false,
+      pages_invoiceCollectionsDashboard: true,
+      pages_serialTrackingDashboard: false,
+      pages_adminUsers: true,
+      pages_adminSettings: true,
+      pages_adminConfiguration: true,
+      pages_governanceDashboard: false,
+      pages_numberingSchemes: true,
+      pages_resetPassword: true,
+      pages_signup: true,
+      // ==================== NAVIGATION ====================
+      nav_salesDropdown: true,
+      nav_purchaseDropdown: true,
+      nav_adminDropdown: true,
+      nav_dashboardsLink: true,
+      nav_serialSearchLink: true,
+      // ==================== QUOTE FEATURES ====================
+      quotes_module: true,
+      quotes_create: true,
+      quotes_edit: true,
+      quotes_delete: true,
+      quotes_approve: true,
+      quotes_cancel: true,
+      quotes_close: true,
+      quotes_version: true,
+      sales_orders_module: true,
+      sales_orders_pdfGeneration: true,
+      sales_orders_emailSending: false,
+      quotes_bomSection: true,
+      quotes_slaSection: true,
+      quotes_timelineSection: true,
+      quotes_convertToInvoice: true,
+      quotes_convertToVendorPO: true,
+      quotes_sendQuote: true,
+      quotes_emailSending: false,
+      quotes_pdfGeneration: true,
+      quotes_templates: true,
+      quotes_referenceNumber: true,
+      quotes_attentionTo: true,
+      quotes_validityDays: true,
+      quotes_discount: true,
+      quotes_shippingCharges: true,
+      quotes_notes: true,
+      quotes_termsConditions: true,
+      // ==================== INVOICE FEATURES ====================
+      invoices_module: true,
+      invoices_create: true,
+      invoices_edit: true,
+      invoices_delete: true,
+      invoices_finalize: true,
+      invoices_lock: true,
+      invoices_cancel: true,
+      invoices_childInvoices: false,
+      invoices_masterInvoices: false,
+      invoices_milestoneInvoices: true,
+      invoices_emailSending: false,
+      invoices_pdfGeneration: true,
+      invoices_paymentTracking: true,
+      invoices_paymentHistory: true,
+      invoices_partialPayments: true,
+      invoices_paymentReminders: false,
+      invoices_overdueNotifications: true,
+      invoices_autoReminders: false,
+      // ==================== CLIENT/CRM FEATURES ====================
+      clients_module: true,
+      clients_create: true,
+      clients_edit: true,
+      clients_delete: true,
+      clients_segmentation: true,
+      clients_tags: true,
+      clients_preferredTheme: true,
+      clients_gstin: true,
+      clients_billingAddress: true,
+      clients_shippingAddress: true,
+      clients_communicationHistory: true,
+      clients_timeline: true,
+      clients_notes: true,
+      clients_advancedSearch: true,
+      // ==================== VENDOR & SUPPLY CHAIN ====================
+      vendors_module: false,
+      vendors_create: false,
+      vendors_edit: false,
+      vendors_delete: false,
+      vendorPO_module: false,
+      vendorPO_create: false,
+      vendorPO_edit: false,
+      vendorPO_delete: false,
+      vendorPO_emailSending: false,
+      vendorPO_pdfGeneration: false,
+      vendorPO_statusTracking: false,
+      grn_module: false,
+      grn_create: false,
+      grn_edit: false,
+      grn_delete: false,
+      grn_serialNumberTracking: false,
+      grn_qualityNotes: false,
+      serialNumber_tracking: false,
+      serialNumber_search: false,
+      serialNumber_export: false,
+      serialNumber_history: false,
+      // ==================== PRODUCTS & INVENTORY ====================
+      products_module: false,
+      products_create: false,
+      products_edit: false,
+      products_delete: false,
+      products_sku: false,
+      products_categories: false,
+      products_pricing: false,
+      products_reorderLevel: false,
+      // ==================== ANALYTICS & DASHBOARDS ====================
+      analytics_module: false,
+      analytics_revenueMetrics: false,
+      analytics_quoteMetrics: false,
+      analytics_invoiceMetrics: false,
+      analytics_vendorMetrics: false,
+      analytics_forecasting: false,
+      analytics_trends: false,
+      analytics_charts: false,
+      dashboard_salesQuotes: false,
+      dashboard_vendorPO: false,
+      dashboard_invoiceCollections: false,
+      dashboard_serialTracking: false,
+      dashboard_governance: false,
+      // ==================== PAYMENT FEATURES ====================
+      payments_module: true,
+      payments_create: true,
+      payments_edit: true,
+      payments_delete: true,
+      payments_history: true,
+      payments_methods: true,
+      payments_transactionIds: true,
+      payments_notes: true,
+      payments_analytics: true,
+      // ==================== TAX & PRICING ====================
+      tax_gst: true,
+      tax_cgst: true,
+      tax_sgst: true,
+      tax_igst: true,
+      tax_hsnSac: true,
+      tax_multiRate: true,
+      tax_rateManagement: true,
+      pricing_tiers: true,
+      pricing_discount: true,
+      pricing_shipping: true,
+      pricing_automatic: true,
+      // ==================== PDF & THEMES ====================
+      pdf_generation: true,
+      // Re-enabled for testing
+      pdf_themes: false,
+      pdf_customThemes: false,
+      pdf_clientSpecificThemes: false,
+      pdf_logo: true,
+      pdf_headerFooter: true,
+      pdf_watermark: true,
+      theme_professional: true,
+      theme_modern: true,
+      theme_minimal: true,
+      theme_creative: true,
+      theme_premium: true,
+      theme_government: true,
+      theme_education: true,
+      // ==================== EMAIL INTEGRATION ====================
+      email_integration: false,
+      email_resend: true,
+      email_smtp: true,
+      email_welcome: true,
+      email_quoteSending: false,
+      email_invoiceSending: false,
+      email_paymentReminders: false,
+      email_overdueNotifications: false,
+      email_vendorPO: false,
+      // ==================== ADMIN & CONFIGURATION ====================
+      admin_userManagement: true,
+      admin_settings: true,
+      admin_configuration: true,
+      admin_governance: true,
+      admin_bankDetails: true,
+      admin_taxRates: true,
+      admin_numberingSchemes: true,
+      admin_templates: true,
+      admin_activityLogs: true,
+      // ==================== SECURITY & ACCESS CONTROL ====================
+      security_rbac: true,
+      security_permissions: true,
+      security_delegation: true,
+      security_passwordReset: true,
+      security_backupEmail: true,
+      security_twoFactor: false,
+      // Not yet implemented
+      security_sessionManagement: true,
+      security_rateLimiting: true,
+      security_auditLogs: true,
+      // ==================== USER MANAGEMENT ====================
+      users_create: true,
+      users_edit: true,
+      users_delete: true,
+      users_statusControl: true,
+      users_roleAssignment: true,
+      users_delegation: true,
+      // ==================== ADVANCED FEATURES ====================
+      advanced_apiRateLimiting: true,
+      advanced_websockets: true,
+      advanced_excelExport: true,
+      advanced_bulkOperations: true,
+      advanced_customReports: true,
+      advanced_scheduledReports: false,
+      // Not yet implemented
+      // ==================== UI/UX FEATURES ====================
+      ui_darkMode: true,
+      ui_themeToggle: true,
+      ui_animations: true,
+      ui_tooltips: true,
+      ui_breadcrumbs: true,
+      ui_searchFilters: true,
+      ui_sorting: true,
+      ui_pagination: true,
+      ui_responsiveDesign: true,
+      // ==================== INTEGRATIONS ====================
+      integration_vercelAnalytics: true,
+      integration_externalApi: true
+    };
+    featureFlags = getFeatureFlags();
   }
 });
 
@@ -2142,7 +2679,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
     });
   }
   const duplicatesInList = validSerials.filter(
-    (serial, index) => validSerials.indexOf(serial) !== index
+    (serial, index2) => validSerials.indexOf(serial) !== index2
   );
   const uniqueDuplicatesInList = Array.from(new Set(duplicatesInList));
   if (uniqueDuplicatesInList.length > 0) {
@@ -2428,12 +2965,11 @@ var init_serial_number_service = __esm({
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import cookieParser2 from "cookie-parser";
+import cookieParser from "cookie-parser";
 
 // server/routes.ts
 init_storage();
 import { createServer } from "http";
-import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
@@ -2447,16 +2983,23 @@ var PDFService = class _PDFService {
   // ===== A4 =====
   static PAGE_WIDTH = 595.28;
   static PAGE_HEIGHT = 841.89;
-  // ===== Compact margins (closer to invoice design) =====
+  // ===== Compact margins =====
   static MARGIN_LEFT = 28;
   static MARGIN_RIGHT = 28;
   static MARGIN_TOP = 22;
   static MARGIN_BOTTOM = 32;
   static CONTENT_WIDTH = _PDFService.PAGE_WIDTH - _PDFService.MARGIN_LEFT - _PDFService.MARGIN_RIGHT;
-  // ===== Clean invoice-style palette =====
+  // ===== Footer safety (prevents content overlapping footer line/text) =====
+  static FOOTER_TOP = _PDFService.PAGE_HEIGHT - 34;
+  // matches drawFooter()
+  static FOOTER_SAFE_GAP = 10;
+  // extra breathing room
+  static HEADER_H = 70;
+  // fixed header block height
+  // ===== Palette =====
   static INK = "#111827";
   static SUBTLE = "#4B5563";
-  static FAINT = "#6B7280";
+  static FAINT = "#9CA3AF";
   static LINE = "#D1D5DB";
   static SOFT = "#F3F4F6";
   static SURFACE = "#FFFFFF";
@@ -2465,20 +3008,22 @@ var PDFService = class _PDFService {
   static WARNING = "#F59E0B";
   static DANGER = "#B91C1C";
   static activeTheme = null;
-  // ===== Fonts (optional Inter) =====
+  // ===== Fonts =====
   static FONT_REG = "Helvetica";
   static FONT_BOLD = "Helvetica-Bold";
-  // ===== Stroke & padding (invoice-style) =====
+  // ===== Stroke & padding =====
   static STROKE_W = 0.9;
   static PAD_X = 8;
   // ======================================================================
   // PUBLIC
   // ======================================================================
-  static generateQuotePDF(data) {
+  static async generateQuotePDF(data, res) {
     let selectedTheme;
     if (data.theme) selectedTheme = getTheme(data.theme);
-    else if (data.client.preferredTheme) selectedTheme = getTheme(data.client.preferredTheme);
-    else if (data.client.segment) selectedTheme = getSuggestedTheme(data.client.segment);
+    else if (data.client.preferredTheme)
+      selectedTheme = getTheme(data.client.preferredTheme);
+    else if (data.client.segment)
+      selectedTheme = getSuggestedTheme(data.client.segment);
     else selectedTheme = getTheme("professional");
     this.applyTheme(selectedTheme);
     const doc = new PDFDocument({
@@ -2490,9 +3035,14 @@ var PDFService = class _PDFService {
         right: this.MARGIN_RIGHT
       },
       bufferPages: true,
-      info: { Author: data.companyName || "AICERA" }
+      info: {
+        Title: `Quote ${data.quote.quoteNumber}`,
+        // Assuming quoteNumber is on data.quote
+        Author: data.companyName || "AICERA"
+      }
     });
-    this.setupFonts(doc);
+    doc.pipe(res);
+    await this.prepareAssets(doc, data);
     doc.lineGap(2);
     if (this.clean(data.abstract)) {
       this.drawCover(doc, data);
@@ -2512,7 +3062,50 @@ var PDFService = class _PDFService {
       this.drawFooter(doc, i + 1, total);
     }
     doc.end();
-    return doc;
+  }
+  // Optimize: Check assets async
+  static async prepareAssets(doc, data) {
+    const fontsDir = path.join(process.cwd(), "server", "pdf", "fonts");
+    const tryFont = async (filename) => {
+      try {
+        const p = path.join(fontsDir, filename);
+        await fs.promises.access(p, fs.constants.F_OK);
+        return p;
+      } catch {
+        return null;
+      }
+    };
+    const [regPath, boldPath] = await Promise.all([
+      tryFont("Inter-Regular.ttf"),
+      tryFont("Inter-Bold.ttf")
+    ]);
+    if (regPath && boldPath) {
+      doc.registerFont("Inter", regPath);
+      doc.registerFont("Inter-Bold", boldPath);
+      this.FONT_REG = "Inter";
+      this.FONT_BOLD = "Inter-Bold";
+    } else {
+      this.FONT_REG = "Helvetica";
+      this.FONT_BOLD = "Helvetica-Bold";
+    }
+    let logoToUse = "";
+    if (data.companyLogo) {
+      logoToUse = data.companyLogo;
+    } else {
+      const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+      const p2 = path.join(process.cwd(), "client", "public", "logo.png");
+      try {
+        await fs.promises.access(p1, fs.constants.F_OK);
+        logoToUse = p1;
+      } catch {
+        try {
+          await fs.promises.access(p2, fs.constants.F_OK);
+          logoToUse = p2;
+        } catch {
+        }
+      }
+    }
+    data.resolvedLogo = logoToUse;
   }
   // ======================================================================
   // THEME + FONTS
@@ -2529,34 +3122,14 @@ var PDFService = class _PDFService {
     this.SUCCESS = theme.colors?.success || "#16A34A";
     this.WARNING = theme.colors?.warning || "#F59E0B";
   }
+  // No-op or deprecated
   static setupFonts(doc) {
-    const fontsDir = path.join(process.cwd(), "server", "pdf", "fonts");
-    const tryRegister = (name, filename) => {
-      try {
-        const p = path.join(fontsDir, filename);
-        if (fs.existsSync(p)) {
-          doc.registerFont(name, p);
-          return true;
-        }
-      } catch {
-      }
-      return false;
-    };
-    const okReg = tryRegister("Inter", "Inter-Regular.ttf");
-    const okBold = tryRegister("Inter-Bold", "Inter-Bold.ttf");
-    if (okReg && okBold) {
-      this.FONT_REG = "Inter";
-      this.FONT_BOLD = "Inter-Bold";
-    } else {
-      this.FONT_REG = "Helvetica";
-      this.FONT_BOLD = "Helvetica-Bold";
-    }
   }
   // ======================================================================
   // HELPERS
   // ======================================================================
   static bottomY() {
-    return this.PAGE_HEIGHT - this.MARGIN_BOTTOM;
+    return this.FOOTER_TOP - this.FOOTER_SAFE_GAP;
   }
   static ensureSpace(doc, data, needed) {
     if (doc.y + needed <= this.bottomY()) return;
@@ -2578,7 +3151,10 @@ var PDFService = class _PDFService {
   }
   static currency(v) {
     const n = Number(v) || 0;
-    return `Rs. ${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `Rs. ${n.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   }
   static normalizeAddress(addr, maxLines = 3) {
     if (!addr) return "";
@@ -2609,7 +3185,10 @@ var PDFService = class _PDFService {
   static label(doc, txt, x, y) {
     doc.save();
     doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(String(txt).toUpperCase(), x, y, { characterSpacing: 0.6, lineBreak: false });
+    doc.text(String(txt).toUpperCase(), x, y, {
+      characterSpacing: 0.6,
+      lineBreak: false
+    });
     doc.restore();
   }
   static truncateToWidth(doc, text2, width, suffix = "\u2026") {
@@ -2630,25 +3209,22 @@ var PDFService = class _PDFService {
   static wrapLines(doc, text2, width, maxLines) {
     const t = this.clean(text2).replace(/\s+/g, " ");
     if (!t) return [];
+    const height = doc.heightOfString(t, { width });
+    if (doc.widthOfString(t) <= width) return [t];
     const words = t.split(" ");
     const lines = [];
     let line = "";
-    const push = () => {
-      const s = line.trim();
-      if (s) lines.push(s);
-      line = "";
-    };
     for (const w of words) {
       const cand = line ? `${line} ${w}` : w;
       if (doc.widthOfString(cand) <= width) {
         line = cand;
       } else {
-        push();
+        if (line) lines.push(line);
         line = w;
         if (lines.length >= maxLines) break;
       }
     }
-    if (line && lines.length < maxLines) push();
+    if (line && lines.length < maxLines) lines.push(line);
     return lines.slice(0, maxLines);
   }
   // ======================================================================
@@ -2670,7 +3246,7 @@ var PDFService = class _PDFService {
     doc.text(this.clean(data.abstract), x, doc.y, { width: w, lineGap: 3 });
   }
   // ======================================================================
-  // HEADER (invoice-style)
+  // HEADER (fixed-height, deterministic)
   // ======================================================================
   static drawHeader(doc, data, title) {
     const x = this.MARGIN_LEFT;
@@ -2678,23 +3254,38 @@ var PDFService = class _PDFService {
     const topY = doc.page.margins.top;
     const logoSize = 26;
     let logoPrinted = false;
-    try {
-      let logoPath = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      if (!fs.existsSync(logoPath)) logoPath = path.join(process.cwd(), "client", "public", "logo.png");
-      if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, x, topY - 2, { fit: [logoSize, logoSize] });
+    const logoPath = data.resolvedLogo;
+    if (logoPath) {
+      try {
+        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
         logoPrinted = true;
+      } catch {
       }
-    } catch {
     }
     doc.font(this.FONT_BOLD).fontSize(11).fillColor(this.INK);
     doc.text(title, x, topY - 2, { width: w, align: "center", lineBreak: false });
     const leftX = logoPrinted ? x + logoSize + 8 : x;
+    const leftW = 320;
+    const company = this.clean(data.companyName || "AICERA");
+    const contactBits = [];
+    if (data.companyEmail) contactBits.push(this.clean(data.companyEmail));
+    if (data.companyPhone) contactBits.push(this.clean(data.companyPhone));
+    if (data.companyGSTIN) contactBits.push(`GSTIN: ${this.clean(data.companyGSTIN).toUpperCase()}`);
+    const contactLine = contactBits.join("  |  ");
     doc.font(this.FONT_BOLD).fontSize(10).fillColor(this.INK);
-    doc.text(this.clean(data.companyName || "AICERA"), leftX, topY + 12, {
-      width: 300,
-      lineBreak: false
-    });
+    doc.text(company, leftX, topY + 12, { width: leftW, lineBreak: false });
+    if (contactLine) {
+      doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+      doc.text(this.truncateToWidth(doc, contactLine, leftW), leftX, topY + 24, {
+        width: leftW,
+        lineBreak: false
+      });
+    }
+    const addr = this.normalizeAddress(data.companyAddress, 2);
+    if (addr) {
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      doc.text(addr, leftX, topY + 34, { width: leftW });
+    }
     const rightW = 210;
     const rightX = x + w - rightW;
     const quoteNo = this.clean(data.quote.quoteNumber || "-");
@@ -2707,10 +3298,9 @@ var PDFService = class _PDFService {
     doc.text("Date", rightX, topY + 34, { width: rightW, align: "right", lineBreak: false });
     doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
     doc.text(date, rightX, topY + 44, { width: rightW, align: "right", lineBreak: false });
-    const minLineY = topY + 58;
-    doc.y = Math.max(doc.y + 6, minLineY);
-    this.hLine(doc, x, x + w, doc.y);
-    doc.y += 8;
+    const headerBottom = topY + this.HEADER_H;
+    this.hLine(doc, x, x + w, headerBottom - 10);
+    doc.y = headerBottom;
   }
   // ======================================================================
   // FROM
@@ -2718,26 +3308,36 @@ var PDFService = class _PDFService {
   static drawFromBox(doc, data) {
     const x = this.MARGIN_LEFT;
     const w = this.CONTENT_WIDTH;
-    const h = 55;
-    this.ensureSpace(doc, data, h + 10);
-    const y0 = doc.y;
-    this.box(doc, x, y0, w, h, { fill: "#FFFFFF" });
-    this.label(doc, "From", x + this.PAD_X, y0 + 6);
     const name = this.clean(data.companyName || "AICERA");
-    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
-    doc.text(name, x + this.PAD_X, y0 + 18, { width: w - this.PAD_X * 2, lineBreak: false });
-    const addr = this.normalizeAddress(data.companyAddress, 4) || "-";
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(addr, x + this.PAD_X, y0 + 28, { width: w - this.PAD_X * 2, lineBreak: true });
+    const addr = this.normalizeAddress(data.companyAddress, 10) || "-";
+    doc.font(this.FONT_BOLD).fontSize(8.6);
+    const nameH = doc.heightOfString(name, { width: w - this.PAD_X * 2 });
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const addrH = doc.heightOfString(addr, { width: w - this.PAD_X * 2 });
     const contactBits = [];
     if (data.companyPhone) contactBits.push(`Ph: ${this.clean(data.companyPhone)}`);
     if (data.companyGSTIN) contactBits.push(`GSTIN: ${this.clean(data.companyGSTIN).toUpperCase()}`);
     if (data.preparedByEmail) contactBits.push(`Email: ${this.clean(data.preparedByEmail)}`);
-    doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+    doc.font(this.FONT_REG).fontSize(7);
+    const contactText = contactBits.join("  |  ");
+    const contactH = contactBits.length ? doc.heightOfString(contactText, { width: w - this.PAD_X * 2 }) : 0;
+    const contentH = 6 + 10 + nameH + 2 + addrH + (contactH ? 8 + contactH : 0) + 6;
+    const h = Math.max(contentH, 58);
+    this.ensureSpace(doc, data, h + 10);
+    const y0 = doc.y;
+    this.box(doc, x, y0, w, h, { fill: this.SURFACE });
+    this.label(doc, "From", x + this.PAD_X, y0 + 6);
+    let cy = y0 + 18;
+    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
+    doc.text(name, x + this.PAD_X, cy, { width: w - this.PAD_X * 2 });
+    cy += nameH + 2;
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(addr, x + this.PAD_X, cy, { width: w - this.PAD_X * 2 });
     if (contactBits.length) {
-      doc.text(this.truncateToWidth(doc, contactBits.join("  |  "), w - this.PAD_X * 2), x + this.PAD_X, y0 + h - 14, {
-        width: w - this.PAD_X * 2,
-        lineBreak: false
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      const contactY = y0 + h - contactH - 6;
+      doc.text(contactText, x + this.PAD_X, contactY, {
+        width: w - this.PAD_X * 2
       });
     }
     doc.y = y0 + h + 10;
@@ -2751,39 +3351,22 @@ var PDFService = class _PDFService {
     const gap = 10;
     const leftW = w * 0.56;
     const rightW = w - leftW - gap;
-    const h = 128;
-    this.ensureSpace(doc, data, h + 10);
-    const y0 = doc.y;
-    const leftX = x;
-    const rightX = x + leftW + gap;
-    this.box(doc, leftX, y0, leftW, h, { fill: "#FFFFFF" });
-    const half = Math.floor(h / 2);
-    this.hLine(doc, leftX, leftX + leftW, y0 + half);
     const clientName = this.clean(data.client.name || "-");
-    const shipAddr = this.normalizeAddress(data.client.shippingAddress || data.client.billingAddress, 2) || "-";
-    const billAddr = this.normalizeAddress(data.client.billingAddress, 2) || "-";
+    const shipAddr = this.normalizeAddress(data.client.shippingAddress || data.client.billingAddress, 10) || "-";
+    const billAddr = this.normalizeAddress(data.client.billingAddress, 10) || "-";
     const phone = this.clean(data.client.phone);
     const email = this.clean(data.client.email);
-    this.label(doc, "Consignee (Ship To)", leftX + this.PAD_X, y0 + 6);
-    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
-    doc.text(clientName, leftX + this.PAD_X, y0 + 18, { width: leftW - this.PAD_X * 2, lineBreak: false });
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(shipAddr, leftX + this.PAD_X, y0 + 30, { width: leftW - this.PAD_X * 2 });
-    const by = y0 + half;
-    this.label(doc, "Buyer (Bill To)", leftX + this.PAD_X, by + 6);
-    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
-    doc.text(clientName, leftX + this.PAD_X, by + 18, { width: leftW - this.PAD_X * 2, lineBreak: false });
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(billAddr, leftX + this.PAD_X, by + 30, { width: leftW - this.PAD_X * 2 });
     const contact = [phone ? `Ph: ${phone}` : "", email ? `Email: ${email}` : ""].filter(Boolean).join("  |  ");
-    if (contact) {
-      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-      doc.text(this.truncateToWidth(doc, contact, leftW - this.PAD_X * 2), leftX + this.PAD_X, y0 + h - 14, {
-        width: leftW - this.PAD_X * 2,
-        lineBreak: false
-      });
-    }
-    this.box(doc, rightX, y0, rightW, h, { fill: "#FFFFFF" });
+    doc.font(this.FONT_BOLD).fontSize(8.6);
+    const cNameH = doc.heightOfString(clientName, { width: leftW - this.PAD_X * 2 });
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const shipAddrH = doc.heightOfString(shipAddr, { width: leftW - this.PAD_X * 2 });
+    const shipH = 6 + 10 + cNameH + 2 + shipAddrH + 6;
+    const billAddrH = doc.heightOfString(billAddr, { width: leftW - this.PAD_X * 2 });
+    doc.font(this.FONT_REG).fontSize(7);
+    const contactH = contact ? doc.heightOfString(contact, { width: leftW - this.PAD_X * 2 }) : 0;
+    const billH = 6 + 10 + cNameH + 2 + billAddrH + (contactH ? 8 + contactH : 0) + 6;
+    const leftTotalH = shipH + 8 + billH;
     const q = data.quote;
     const rows = [
       { k: "Quote Date", v: this.safeDate(q.quoteDate) },
@@ -2791,16 +3374,52 @@ var PDFService = class _PDFService {
       { k: "Reference", v: this.clean(q.referenceNumber || "-") },
       { k: "Prepared By", v: this.clean(data.preparedBy || "-") }
     ];
-    const rH = Math.floor(h / rows.length);
-    for (let i = 0; i < rows.length; i++) {
-      const ry = y0 + i * rH;
-      if (i > 0) this.hLine(doc, rightX, rightX + rightW, ry);
-      const labelW = rightW * 0.5;
-      const valueW = rightW - labelW - this.PAD_X * 2;
+    const h = Math.max(leftTotalH, 130);
+    this.ensureSpace(doc, data, h + 10);
+    const y0 = doc.y;
+    const leftX = x;
+    const rightX = x + leftW + gap;
+    this.box(doc, leftX, y0, leftW, h, { fill: this.SURFACE });
+    const minBillSpace = 48;
+    const idealSplitY = y0 + shipH + 8;
+    const splitY = Math.min(idealSplitY, y0 + h - minBillSpace);
+    this.hLine(doc, leftX, leftX + leftW, splitY);
+    this.label(doc, "Consignee (Ship To)", leftX + this.PAD_X, y0 + 6);
+    let cy = y0 + 18;
+    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
+    doc.text(clientName, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    cy += cNameH + 2;
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(shipAddr, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    this.label(doc, "Buyer (Bill To)", leftX + this.PAD_X, splitY + 6);
+    cy = splitY + 18;
+    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
+    doc.text(clientName, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    cy += cNameH + 2;
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(billAddr, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    if (contact) {
       doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-      doc.text(rows[i].k, rightX + this.PAD_X, ry + 5, { width: labelW - this.PAD_X, lineBreak: false });
+      const contactY = y0 + h - contactH - 6;
+      doc.text(contact, leftX + this.PAD_X, contactY, {
+        width: leftW - this.PAD_X * 2
+      });
+    }
+    this.box(doc, rightX, y0, rightW, h, { fill: this.SURFACE });
+    const rowHeight = h / rows.length;
+    const labelW = rightW * 0.5;
+    const valueW = rightW - labelW - this.PAD_X * 2;
+    for (let i = 0; i < rows.length; i++) {
+      const ry = y0 + i * rowHeight;
+      if (i > 0) this.hLine(doc, rightX, rightX + rightW, ry);
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      doc.text(rows[i].k, rightX + this.PAD_X, ry + rowHeight / 2 - 4, {
+        width: labelW - this.PAD_X,
+        lineBreak: false
+      });
       doc.font(this.FONT_BOLD).fontSize(7.6).fillColor(this.INK);
-      doc.text(this.truncateToWidth(doc, rows[i].v, valueW), rightX + labelW, ry + 5, {
+      const v = this.truncateToWidth(doc, rows[i].v, valueW);
+      doc.text(v, rightX + labelW, ry + rowHeight / 2 - 4, {
         width: valueW,
         align: "right",
         lineBreak: false
@@ -2809,7 +3428,7 @@ var PDFService = class _PDFService {
     doc.y = y0 + h + 10;
   }
   // ======================================================================
-  // ITEMS TABLE (NO HSN/SAC)
+  // ITEMS TABLE
   // ======================================================================
   static drawItemsTable(doc, data) {
     const x = this.MARGIN_LEFT;
@@ -2864,10 +3483,10 @@ var PDFService = class _PDFService {
       const amtVal = Number(it.subtotal ?? qtyVal * rateVal) || 0;
       doc.save();
       doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      const descLines = this.wrapLines(doc, descText, desc3 - 8, 2);
+      const descLines = this.wrapLines(doc, descText, desc3 - 8, 30);
       doc.restore();
       const rowH = Math.max(minRowH, 8 + descLines.length * 11);
-      if (y + rowH > this.bottomY() - 12) {
+      if (y + rowH > this.bottomY() - 6) {
         doc.addPage();
         this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
         doc.font(this.FONT_BOLD).fontSize(9.2).fillColor(this.INK);
@@ -2878,7 +3497,7 @@ var PDFService = class _PDFService {
         drawHeader(y);
         y += headerH;
       }
-      this.box(doc, x, y, w, rowH, { fill: "#FFFFFF" });
+      this.box(doc, x, y, w, rowH, { fill: this.SURFACE });
       doc.save();
       doc.strokeColor(this.LINE).lineWidth(0.8);
       [cx.desc, cx.qty, cx.unit, cx.rate, cx.amt].forEach((vx) => {
@@ -2886,17 +3505,14 @@ var PDFService = class _PDFService {
       });
       doc.restore();
       doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      doc.text(String(i + 1), cx.sl, y + Math.floor((rowH - 9) / 2) - 1, {
-        width: sl,
-        align: "center",
-        lineBreak: false
-      });
+      doc.text(String(i + 1), cx.sl, y + 6, { width: sl, align: "center", lineBreak: false });
       let dy = y + 6;
       for (const ln of descLines) {
-        doc.text(this.truncateToWidth(doc, ln, desc3 - 8), cx.desc + 4, dy, { width: desc3 - 8, lineBreak: false });
+        doc.text(ln, cx.desc + 4, dy, { width: desc3 - 8, lineBreak: false });
         dy += 11;
       }
-      const midY = y + Math.floor((rowH - 10) / 2) - 1;
+      const midY = y + 6;
+      doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
       doc.text(String(qtyVal), cx.qty, midY, { width: qty, align: "center", lineBreak: false });
       doc.text(unitText, cx.unit, midY, { width: unit, align: "center", lineBreak: false });
       doc.font(this.FONT_BOLD).fontSize(8).fillColor(this.INK);
@@ -2915,51 +3531,55 @@ var PDFService = class _PDFService {
     const gap = 10;
     const leftW = w * 0.58;
     const rightW = w - leftW - gap;
-    const h = 122;
-    this.ensureSpace(doc, data, h + 12);
-    const y0 = doc.y;
-    this.box(doc, x, y0, leftW, h, { fill: "#FFFFFF" });
-    this.label(doc, "Amount Chargeable (in words)", x + this.PAD_X, y0 + 6);
     const q = data.quote;
     const total = Number(q.total) || 0;
-    doc.font(this.FONT_BOLD).fontSize(7.8).fillColor(this.INK);
-    doc.text(this.truncateToWidth(doc, this.amountToINRWords(total), leftW - this.PAD_X * 2), x + this.PAD_X, y0 + 20, {
-      width: leftW - this.PAD_X * 2,
-      lineBreak: false
-    });
-    this.label(doc, "Terms & Conditions", x + this.PAD_X, y0 + 50);
+    const amountWords = this.amountToINRWords(total);
     const termsInline = this.termsToInlineBullets(this.clean(q.termsAndConditions || "")) || "\u2014";
-    const termsLines = this.wrapLines(doc, termsInline, leftW - this.PAD_X * 2, 2);
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    let ty = y0 + 62;
-    for (const ln of termsLines) {
-      doc.text(this.truncateToWidth(doc, ln, leftW - this.PAD_X * 2), x + this.PAD_X, ty, {
-        width: leftW - this.PAD_X * 2,
-        lineBreak: false
-      });
-      ty += 10;
-    }
-    const xr = x + leftW + gap;
-    this.box(doc, xr, y0, rightW, h, { fill: "#FFFFFF" });
-    this.label(doc, "Totals", xr + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const termsLines = this.wrapLines(doc, termsInline, leftW - this.PAD_X * 2, 12);
+    doc.font(this.FONT_BOLD).fontSize(7.8);
+    const wordLines = this.wrapLines(doc, amountWords, leftW - this.PAD_X * 2, 3);
+    const leftH = 6 + 12 + wordLines.length * 10 + 8 + 12 + termsLines.length * 10 + 10;
     const subtotal = Number(q.subtotal) || 0;
     const shipping = Number(q.shippingCharges) || 0;
     const cgst = Number(q.cgst) || 0;
     const sgst = Number(q.sgst) || 0;
     const igst = Number(q.igst) || 0;
-    const rows = [];
-    rows.push({ k: "Subtotal", v: subtotal });
-    if (shipping > 0) rows.push({ k: "Shipping", v: shipping });
-    if (cgst > 0) rows.push({ k: "CGST", v: cgst });
-    if (sgst > 0) rows.push({ k: "SGST", v: sgst });
-    if (igst > 0 && cgst === 0 && sgst === 0) rows.push({ k: "IGST", v: igst });
-    rows.push({ k: "TOTAL", v: total, bold: true });
+    const rowList = [];
+    rowList.push({ k: "Subtotal", v: subtotal });
+    if (shipping > 0) rowList.push({ k: "Shipping", v: shipping });
+    if (cgst > 0) rowList.push({ k: "CGST", v: cgst });
+    if (sgst > 0) rowList.push({ k: "SGST", v: sgst });
+    if (igst > 0 && cgst === 0 && sgst === 0) rowList.push({ k: "IGST", v: igst });
+    rowList.push({ k: "TOTAL", v: total, bold: true });
+    const rightH = 22 + rowList.length * 14 + 12;
+    const h = Math.max(leftH, rightH, 122);
+    this.ensureSpace(doc, data, h + 12);
+    const y0 = doc.y;
+    this.box(doc, x, y0, leftW, h, { fill: this.SURFACE });
+    this.label(doc, "Amount Chargeable (in words)", x + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_BOLD).fontSize(7.8).fillColor(this.INK);
+    let wy = y0 + 20;
+    for (const wl of wordLines) {
+      doc.text(wl, x + this.PAD_X, wy, { width: leftW - this.PAD_X * 2 });
+      wy += 10;
+    }
+    const termsLabelY = wy + 6;
+    this.label(doc, "Terms & Conditions", x + this.PAD_X, termsLabelY);
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    let ty = termsLabelY + 12;
+    for (const ln of termsLines) {
+      doc.text(ln, x + this.PAD_X, ty, { width: leftW - this.PAD_X * 2, lineBreak: false });
+      ty += 10;
+    }
+    const xr = x + leftW + gap;
+    this.box(doc, xr, y0, rightW, h, { fill: this.SURFACE });
+    this.label(doc, "Totals", xr + this.PAD_X, y0 + 6);
     let ry = y0 + 22;
     const rowH = 14;
     const labelW = rightW * 0.55;
     const valueW = rightW - labelW - this.PAD_X * 2;
-    for (const r of rows) {
-      if (ry > y0 + h - 20) break;
+    for (const r of rowList) {
       doc.font(this.FONT_BOLD).fontSize(r.bold ? 8.6 : 7.6).fillColor(this.INK);
       doc.text(r.k, xr + this.PAD_X, ry, { width: labelW - this.PAD_X, lineBreak: false });
       const moneyStr = this.currency(r.v);
@@ -2981,25 +3601,10 @@ var PDFService = class _PDFService {
     const w = this.CONTENT_WIDTH;
     const gap = 10;
     const colW = Math.floor((w - gap) / 2);
-    const h = 76;
-    this.ensureSpace(doc, data, h + 12);
-    const y0 = doc.y;
-    this.box(doc, x, y0, colW, h, { fill: "#FFFFFF" });
-    this.label(doc, "Declaration", x + this.PAD_X, y0 + 6);
     const declaration = this.clean(data.declarationText) || "We declare that this proposal shows the actual price of the goods/services described and that all particulars are true and correct.";
-    const declLines = this.wrapLines(doc, declaration, colW - this.PAD_X * 2, 2);
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    let dy = y0 + 20;
-    for (const ln of declLines) {
-      doc.text(this.truncateToWidth(doc, ln, colW - this.PAD_X * 2), x + this.PAD_X, dy, {
-        width: colW - this.PAD_X * 2,
-        lineBreak: false
-      });
-      dy += 9;
-    }
-    const xr = x + colW + gap;
-    this.box(doc, xr, y0, colW, h, { fill: "#FFFFFF" });
-    this.label(doc, "Company Bank Details for Payment", xr + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const declLines = this.wrapLines(doc, declaration, colW - this.PAD_X * 2, 10);
+    const declH = 20 + declLines.length * 9 + 10;
     const bd = data.bankDetails || {};
     const bankLines = [];
     if (bd.accountName) bankLines.push(`A/c Name: ${bd.accountName}`);
@@ -3010,14 +3615,27 @@ var PDFService = class _PDFService {
     if (bd.swift) bankLines.push(`SWIFT: ${bd.swift}`);
     if (bd.upi) bankLines.push(`UPI: ${bd.upi}`);
     const bankText = bankLines.length ? bankLines.join("  |  ") : "\u2014";
-    const bankLines2 = this.wrapLines(doc, bankText, colW - this.PAD_X * 2, 2);
+    doc.font(this.FONT_BOLD).fontSize(7.2);
+    const bankLines2 = this.wrapLines(doc, bankText, colW - this.PAD_X * 2, 10);
+    const bankH = 20 + bankLines2.length * 9 + 10;
+    const h = Math.max(declH, bankH, 76);
+    this.ensureSpace(doc, data, h + 12);
+    const y0 = doc.y;
+    this.box(doc, x, y0, colW, h, { fill: this.SURFACE });
+    this.label(doc, "Declaration", x + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    let dy = y0 + 20;
+    for (const ln of declLines) {
+      doc.text(ln, x + this.PAD_X, dy, { width: colW - this.PAD_X * 2, lineBreak: false });
+      dy += 9;
+    }
+    const xr = x + colW + gap;
+    this.box(doc, xr, y0, colW, h, { fill: this.SURFACE });
+    this.label(doc, "Company Bank Details for Payment", xr + this.PAD_X, y0 + 6);
     doc.font(this.FONT_BOLD).fontSize(7.2).fillColor(this.INK);
     let by = y0 + 20;
     for (const ln of bankLines2) {
-      doc.text(this.truncateToWidth(doc, ln, colW - this.PAD_X * 2), xr + this.PAD_X, by, {
-        width: colW - this.PAD_X * 2,
-        lineBreak: false
-      });
+      doc.text(ln, xr + this.PAD_X, by, { width: colW - this.PAD_X * 2, lineBreak: false });
       by += 9;
     }
     doc.y = y0 + h + 12;
@@ -3033,7 +3651,7 @@ var PDFService = class _PDFService {
     const h = 74;
     this.ensureSpace(doc, data, h + 10);
     const y0 = doc.y;
-    this.box(doc, x, y0, colW, h, { fill: "#FFFFFF" });
+    this.box(doc, x, y0, colW, h, { fill: this.SURFACE });
     this.label(doc, "Client Acceptance", x + this.PAD_X, y0 + 6);
     doc.font(this.FONT_REG).fontSize(8.8).fillColor(this.SUBTLE);
     doc.text(this.clean(data.clientAcceptanceLabel || "Customer Seal & Signature"), x + this.PAD_X, y0 + 20, {
@@ -3043,7 +3661,7 @@ var PDFService = class _PDFService {
     doc.font(this.FONT_REG).fontSize(8.2).fillColor(this.SUBTLE);
     doc.text("Date:", x + this.PAD_X, y0 + h - 16, { width: colW - this.PAD_X * 2, lineBreak: false });
     const xr = x + colW + gap;
-    this.box(doc, xr, y0, colW, h, { fill: "#FFFFFF" });
+    this.box(doc, xr, y0, colW, h, { fill: this.SURFACE });
     this.label(doc, "For Company", xr + this.PAD_X, y0 + 6);
     const company = this.clean(data.companyName || "AICERA");
     doc.font(this.FONT_REG).fontSize(8.8).fillColor(this.SUBTLE);
@@ -3057,7 +3675,7 @@ var PDFService = class _PDFService {
   // FOOTER
   // ======================================================================
   static drawFooter(doc, page, total) {
-    const footerTop = this.PAGE_HEIGHT - 34;
+    const footerTop = this.FOOTER_TOP;
     const prevBottom = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
     doc.save();
@@ -3142,13 +3760,34 @@ var PDFService = class _PDFService {
     return parts.join(" ").replace(/\s+/g, " ").trim();
   }
   // ======================================================================
-  // TERMS INLINE
+  // TERMS INLINE (fix orphan lines + dedupe)
   // ======================================================================
   static termsToInlineBullets(raw) {
     const t = this.clean(raw);
     if (!t) return "";
-    const lines = t.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => l.replace(/^[-*•\d.)\]]\s*/, ""));
-    return lines.join(" \u2022 ").replace(/\s+/g, " ").trim();
+    const src = t.split(/\r?\n/g).map((l) => l.trim()).filter(Boolean);
+    const bullets = [];
+    for (const original of src) {
+      const stripped = original.replace(/^\s*(?:[-*•]+|\d+[.)\]])\s*/g, "").trim();
+      if (!stripped) continue;
+      const looksLikeNewItem = /^\s*(?:[-*•]+|\d+[.)\]])\s+/.test(original) || /:\s*/.test(stripped);
+      if (!bullets.length) {
+        bullets.push(stripped);
+        continue;
+      }
+      if (!looksLikeNewItem) bullets[bullets.length - 1] += " " + stripped;
+      else bullets.push(stripped);
+    }
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const b of bullets) {
+      const norm = b.replace(/\s+/g, " ").trim();
+      const key = norm.toLowerCase();
+      if (!norm || seen.has(key)) continue;
+      seen.add(key);
+      out.push(norm);
+    }
+    return out.join(" \u2022 ");
   }
 };
 
@@ -3160,13 +3799,13 @@ var InvoicePDFService = class _InvoicePDFService {
   // A4 points
   static PAGE_WIDTH = 595.28;
   static PAGE_HEIGHT = 841.89;
-  // Compact margins (closer to classic invoice templates)
+  // Compact margins
   static MARGIN_LEFT = 28;
   static MARGIN_RIGHT = 28;
   static MARGIN_TOP = 22;
   static MARGIN_BOTTOM = 32;
   static CONTENT_WIDTH = _InvoicePDFService.PAGE_WIDTH - _InvoicePDFService.MARGIN_LEFT - _InvoicePDFService.MARGIN_RIGHT;
-  // Clean “invoice” palette (subtle lines, minimal accent)
+  // Palette
   static INK = "#111827";
   static SUBTLE = "#4B5563";
   static FAINT = "#6B7280";
@@ -3176,10 +3815,13 @@ var InvoicePDFService = class _InvoicePDFService {
   // Serials
   static SERIAL_INLINE_LIMIT = 8;
   static SERIAL_APPENDIX_THRESHOLD = 12;
+  // Text/layout tuning
+  static TABLE_DESC_MAX_LINES = 6;
+  static TABLE_SERIAL_MAX_LINES = 6;
   // ---------------------------
   // Public API
   // ---------------------------
-  static generateInvoicePDF(data) {
+  static async generateInvoicePDF(data, res) {
     const doc = new PDFDocument2({
       size: "A4",
       margins: {
@@ -3193,6 +3835,8 @@ var InvoicePDFService = class _InvoicePDFService {
         Author: data.companyName || "AICERA"
       }
     });
+    doc.pipe(res);
+    await this.prepareAssets(doc, data);
     doc.lineGap(1);
     const appendix = [];
     this.drawHeader(doc, data);
@@ -3211,7 +3855,27 @@ var InvoicePDFService = class _InvoicePDFService {
       this.drawFooter(doc, i + 1, totalPages);
     }
     doc.end();
-    return doc;
+  }
+  // Preload assets async
+  static async prepareAssets(doc, data) {
+    let logoToUse = "";
+    if (data.companyLogo) {
+      logoToUse = data.companyLogo;
+    } else {
+      const p1 = path2.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+      const p2 = path2.join(process.cwd(), "client", "public", "logo.png");
+      try {
+        await fs2.promises.access(p1, fs2.constants.F_OK);
+        logoToUse = p1;
+      } catch {
+        try {
+          await fs2.promises.access(p2, fs2.constants.F_OK);
+          logoToUse = p2;
+        } catch {
+        }
+      }
+    }
+    data.resolvedLogo = logoToUse;
   }
   // ---------------------------
   // Geometry helpers
@@ -3229,6 +3893,12 @@ var InvoicePDFService = class _InvoicePDFService {
     doc.save();
     doc.strokeColor(this.LINE).lineWidth(0.8);
     doc.moveTo(this.MARGIN_LEFT, yy).lineTo(this.PAGE_WIDTH - this.MARGIN_RIGHT, yy).stroke();
+    doc.restore();
+  }
+  static hrLocal(doc, x1, x2, y, lineWidth = 0.8) {
+    doc.save();
+    doc.strokeColor(this.LINE).lineWidth(lineWidth);
+    doc.moveTo(x1, y).lineTo(x2, y).stroke();
     doc.restore();
   }
   static box(doc, x, y, w, h, opts) {
@@ -3321,6 +3991,7 @@ var InvoicePDFService = class _InvoicePDFService {
   static wrapTextLines(doc, text2, width, maxLines = Infinity) {
     const t = String(text2 ?? "").replace(/\s+/g, " ").trim();
     if (!t) return [];
+    if (doc.widthOfString(t) <= width) return [t];
     const words = t.split(" ");
     const lines = [];
     let line = "";
@@ -3342,7 +4013,7 @@ var InvoicePDFService = class _InvoicePDFService {
     return lines;
   }
   // ---------------------------
-  // Header (compact + professional)
+  // Header
   // ---------------------------
   static drawHeader(doc, data) {
     const x = this.MARGIN_LEFT;
@@ -3350,14 +4021,14 @@ var InvoicePDFService = class _InvoicePDFService {
     const topY = doc.page.margins.top;
     const logoSize = 26;
     let logoPrinted = false;
-    try {
-      let logoPath = path2.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      if (!fs2.existsSync(logoPath)) logoPath = path2.join(process.cwd(), "client", "public", "logo.png");
-      if (fs2.existsSync(logoPath)) {
-        doc.image(logoPath, x, topY - 2, { fit: [logoSize, logoSize] });
+    const logoPath = data.resolvedLogo;
+    if (logoPath) {
+      try {
+        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
         logoPrinted = true;
+      } catch {
       }
-    } catch {
+    } else {
       logoPrinted = false;
     }
     const leftX = logoPrinted ? x + logoSize + 8 : x;
@@ -3375,9 +4046,7 @@ var InvoicePDFService = class _InvoicePDFService {
     const parts = [];
     if (this.isValidEmail(data.companyEmail)) parts.push(String(data.companyEmail).trim());
     if (this.isValidPhone(data.companyPhone)) parts.push(String(data.companyPhone).trim());
-    if (this.isValidGSTIN(data.companyGSTIN)) {
-      parts.push(`GSTIN: ${String(data.companyGSTIN).trim().toUpperCase()}`);
-    }
+    if (this.isValidGSTIN(data.companyGSTIN)) parts.push(`GSTIN: ${String(data.companyGSTIN).trim().toUpperCase()}`);
     doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
     if (parts.length) {
       doc.text(parts.join("  |  "), leftX, topY + 24, {
@@ -3423,7 +4092,7 @@ var InvoicePDFService = class _InvoicePDFService {
     doc.y += 8;
   }
   // ---------------------------
-  // Top blocks: Bill/Ship + meta (grid)
+  // Top blocks
   // ---------------------------
   static drawTopBlocks(doc, data) {
     const x = this.MARGIN_LEFT;
@@ -3435,90 +4104,94 @@ var InvoicePDFService = class _InvoicePDFService {
     const companyDetails = data.companyDetails || {};
     const hasCompanyDetails = companyDetails.name || companyDetails.address || companyDetails.email;
     if (hasCompanyDetails) {
-      const companyBoxH = 60;
+      doc.font("Helvetica-Bold").fontSize(8.6);
+      const compNameH = companyDetails.name ? doc.heightOfString(companyDetails.name, { width: w - 16 }) : 0;
+      const companyInfo = [];
+      if (companyDetails.address) companyInfo.push(String(companyDetails.address).trim());
+      if (companyDetails.phone) companyInfo.push(`Ph: ${String(companyDetails.phone).trim()}`);
+      if (companyDetails.gstin) companyInfo.push(`GSTIN: ${String(companyDetails.gstin).trim().toUpperCase()}`);
+      if (data.userEmail) companyInfo.push(`Contact: ${String(data.userEmail).trim()}`);
+      doc.font("Helvetica").fontSize(7.2);
+      const compInfoText = companyInfo.join(" | ");
+      const compInfoH = companyInfo.length ? doc.heightOfString(compInfoText, { width: w - 16 }) : 0;
+      const companyBoxH = Math.max(6 + 12 + compNameH + 2 + compInfoH + 10, 56);
       this.ensureSpace(doc, data, companyBoxH + 10);
       this.box(doc, x, startY, w, companyBoxH, { fill: "#FFFFFF" });
       doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.INK);
       doc.text("From", x + 8, startY + 6, { width: w - 16 });
+      let cy2 = startY + 18;
       if (companyDetails.name) {
         doc.font("Helvetica-Bold").fontSize(8.6).fillColor(this.INK);
-        doc.text(companyDetails.name, x + 8, startY + 18, {
-          width: w - 16,
-          lineBreak: false
-        });
-      }
-      const companyInfo = [];
-      if (companyDetails.address) {
-        companyInfo.push(String(companyDetails.address).trim());
-      }
-      if (companyDetails.phone) {
-        companyInfo.push(`Ph: ${String(companyDetails.phone).trim()}`);
-      }
-      if (companyDetails.gstin) {
-        companyInfo.push(`GSTIN: ${String(companyDetails.gstin).trim().toUpperCase()}`);
-      }
-      if (data.userEmail) {
-        companyInfo.push(`Contact: ${String(data.userEmail).trim()}`);
+        doc.text(companyDetails.name, x + 8, cy2, { width: w - 16 });
+        cy2 += compNameH + 2;
       }
       if (companyInfo.length > 0) {
         doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
-        doc.text(companyInfo.join(" | "), x + 8, startY + 30, {
-          width: w - 16,
-          lineBreak: true
-        });
+        doc.text(compInfoText, x + 8, cy2, { width: w - 16 });
       }
       startY += companyBoxH + 10;
     }
     const startY2 = startY;
     const leftX = x;
     const rightX = x + leftW + gap;
-    const h = 128;
-    this.ensureSpace(doc, data, h + 10);
-    this.box(doc, leftX, startY2, leftW, h, { fill: "#FFFFFF" });
     const ship = data.client?.shippingAddress || data.client?.billingAddress;
     const bill = data.client?.billingAddress;
     const clientPhone = data.client?.phone;
     const clientEmail = data.client?.email;
     const clientGSTIN = data.client?.gstin;
-    doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.INK);
-    doc.text("Consignee (Ship To)", leftX + 8, startY2 + 6, { width: leftW - 16 });
-    doc.font("Helvetica-Bold").fontSize(8.6).fillColor(this.INK);
-    doc.text(data.client.name || "-", leftX + 8, startY2 + 20, {
-      width: leftW - 16,
-      lineBreak: false
-    });
-    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
-    const shipAddr = this.normalizeAddress(ship, 2) || "-";
-    doc.text(shipAddr, leftX + 8, startY2 + 32, { width: leftW - 16 });
-    doc.save();
-    doc.strokeColor(this.LINE).lineWidth(0.8);
-    doc.moveTo(leftX, startY2 + 64).lineTo(leftX + leftW, startY2 + 64).stroke();
-    doc.restore();
-    doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.INK);
-    doc.text("Buyer (Bill To)", leftX + 8, startY2 + 70, { width: leftW - 16 });
-    doc.font("Helvetica-Bold").fontSize(8.6).fillColor(this.INK);
-    doc.text(data.client.name || "-", leftX + 8, startY2 + 84, {
-      width: leftW - 16,
-      lineBreak: false
-    });
-    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
-    const billAddr = this.normalizeAddress(bill, 2) || "-";
-    doc.text(billAddr, leftX + 8, startY2 + 96, { width: leftW - 16 });
+    const clientName = data.client.name || "-";
+    const shipAddr = this.normalizeAddress(ship, 10) || "-";
+    const billAddr = this.normalizeAddress(bill, 10) || "-";
+    doc.font("Helvetica-Bold").fontSize(8.6);
+    const cNameH = doc.heightOfString(clientName, { width: leftW - 16 });
+    doc.font("Helvetica").fontSize(7.2);
+    const shipAddrH = doc.heightOfString(shipAddr, { width: leftW - 16 });
+    const billAddrH = doc.heightOfString(billAddr, { width: leftW - 16 });
     const billParts = [];
     if (this.isValidPhone(clientPhone)) billParts.push(`Ph: ${String(clientPhone).trim()}`);
     if (this.isValidEmail(clientEmail)) billParts.push(`Email: ${String(clientEmail).trim()}`);
     if (this.isValidGSTIN(clientGSTIN)) billParts.push(`GSTIN: ${String(clientGSTIN).trim().toUpperCase()}`);
-    if (billParts.length) {
+    doc.font("Helvetica").fontSize(7);
+    const contactText = billParts.join("  |  ");
+    const contactH = billParts.length ? doc.heightOfString(contactText, { width: leftW - 16 }) : 0;
+    const shipBlockH = 6 + 14 + cNameH + 2 + shipAddrH + 8;
+    const billBlockH = 6 + 14 + cNameH + 2 + billAddrH + (contactH ? 6 + contactH : 0) + 8;
+    const leftTotalH = shipBlockH + billBlockH;
+    const rightTotalH = 20 + 6 * 18 + 10;
+    const h = Math.max(leftTotalH, rightTotalH, 128);
+    this.ensureSpace(doc, data, h + 10);
+    this.box(doc, leftX, startY2, leftW, h, { fill: "#FFFFFF" });
+    const splitY = startY2 + shipBlockH;
+    this.hrLocal(doc, leftX, leftX + leftW, splitY, 0.8);
+    doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.INK);
+    doc.text("Consignee (Ship To)", leftX + 8, startY2 + 6, { width: leftW - 16 });
+    let cy = startY2 + 20;
+    doc.font("Helvetica-Bold").fontSize(8.6).fillColor(this.INK);
+    doc.text(clientName, leftX + 8, cy, { width: leftW - 16 });
+    cy += cNameH + 2;
+    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(shipAddr, leftX + 8, cy, { width: leftW - 16 });
+    const by = splitY;
+    doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.INK);
+    doc.text("Buyer (Bill To)", leftX + 8, by + 6, { width: leftW - 16 });
+    cy = by + 20;
+    doc.font("Helvetica-Bold").fontSize(8.6).fillColor(this.INK);
+    doc.text(clientName, leftX + 8, cy, { width: leftW - 16 });
+    cy += cNameH + 2;
+    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(billAddr, leftX + 8, cy, { width: leftW - 16 });
+    cy += billAddrH + 6;
+    if (contactH > 0) {
       doc.font("Helvetica").fontSize(7).fillColor(this.SUBTLE);
-      doc.text(billParts.join("  |  "), leftX + 8, startY2 + 116, { width: leftW - 16 });
+      doc.text(contactText, leftX + 8, cy, { width: leftW - 16 });
     }
     this.box(doc, rightX, startY2, rightW, h, { fill: "#FFFFFF" });
-    const kvRowH = 18;
+    const kvRowH = h / 6;
     const pad = 8;
     const labelW = Math.min(88, rightW * 0.45);
     const valW = rightW - pad * 2 - labelW;
     const row = (i, label, value) => {
-      const yy = startY2 + pad + i * kvRowH;
+      const yy = startY2 + i * kvRowH;
       if (i < 5) {
         doc.save();
         doc.strokeColor(this.LINE).lineWidth(0.6);
@@ -3540,17 +4213,17 @@ var InvoicePDFService = class _InvoicePDFService {
     const due = this.safeDate(data.dueDate);
     const invDate = this.safeDate(data.invoiceDate ?? data.quote?.quoteDate);
     const preparedBy = String(data.preparedBy || "-");
+    const deliveryNotesStr = String(data.deliveryNotes || "").trim();
     row(0, "Invoice Date", invDate);
     row(1, "Due Date", due);
     row(2, "PO No.", quoteNo);
     row(3, "Payment Status", status);
     row(4, "Invoice Prepared By", preparedBy);
-    const deliveryNotesStr = String(data.deliveryNotes || "").trim();
     row(5, "Delivery Note", deliveryNotesStr);
     doc.y = startY2 + h + 10;
   }
   // ---------------------------
-  // Items Table (paginates)
+  // Items Table
   // ---------------------------
   static drawItemsTable(doc, data, appendix) {
     const x0 = this.MARGIN_LEFT;
@@ -3637,18 +4310,32 @@ var InvoicePDFService = class _InvoicePDFService {
       const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
       doc.save();
       doc.font("Helvetica").fontSize(8).fillColor(this.INK);
-      const descLinesAll = this.wrapTextLines(doc, desc3, col.desc - 12, 3);
-      const descLines = descLinesAll.slice(0, 2);
-      if (descLinesAll.length > 2 && descLines[1]) {
-        descLines[1] = this.truncateToWidth(doc, descLines[1], col.desc - 12);
+      const allDescLines = this.wrapTextLines(doc, desc3, col.desc - 12, 50);
+      let descLines = allDescLines;
+      if (allDescLines.length > this.TABLE_DESC_MAX_LINES) {
+        descLines = allDescLines.slice(0, this.TABLE_DESC_MAX_LINES);
+        const last = descLines[descLines.length - 1];
+        descLines[descLines.length - 1] = this.truncateToWidth(
+          doc,
+          `${last} \u2026`,
+          col.desc - 12
+        );
       }
       const descH = descLines.length * 11;
       let serialLines = [];
       let serialH = 0;
       if (serialInline) {
         doc.font("Helvetica").fontSize(6.8).fillColor(this.SUBTLE);
-        const sAll = this.wrapTextLines(doc, serialInline, col.desc - 12, 2);
-        serialLines = sAll.slice(0, 2);
+        const sAll = this.wrapTextLines(doc, serialInline, col.desc - 12, 50);
+        serialLines = sAll.slice(0, this.TABLE_SERIAL_MAX_LINES);
+        if (sAll.length > this.TABLE_SERIAL_MAX_LINES) {
+          const last = serialLines[serialLines.length - 1];
+          serialLines[serialLines.length - 1] = this.truncateToWidth(
+            doc,
+            `${last} \u2026`,
+            col.desc - 12
+          );
+        }
         serialH = serialLines.length ? serialLines.length * 9 : 0;
       }
       doc.restore();
@@ -3680,10 +4367,9 @@ var InvoicePDFService = class _InvoicePDFService {
         lineBreak: false
       });
       let dy = y + padY;
-      doc.text(descLines[0] || "", cx.desc + 6, dy, { width: col.desc - 12, lineBreak: false });
-      dy += 11;
-      if (descLines[1]) {
-        doc.text(descLines[1], cx.desc + 6, dy, { width: col.desc - 12, lineBreak: false });
+      doc.font("Helvetica").fontSize(8).fillColor(this.INK);
+      for (const ln of descLines) {
+        doc.text(ln, cx.desc + 6, dy, { width: col.desc - 12, lineBreak: false });
         dy += 11;
       }
       if (serialLines.length) {
@@ -3711,10 +4397,6 @@ var InvoicePDFService = class _InvoicePDFService {
         align: "right",
         lineBreak: false
       });
-      doc.save();
-      doc.strokeColor(this.LINE).lineWidth(0.8);
-      doc.moveTo(x0, y + rowH).lineTo(cx.right, y + rowH).stroke();
-      doc.restore();
       if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc3, serials });
       y += rowH;
     }
@@ -3740,10 +4422,12 @@ var InvoicePDFService = class _InvoicePDFService {
     const sgst = data.sgst !== void 0 ? Number(data.sgst) : Number(data.quote.sgst) || 0;
     const igst = data.igst !== void 0 ? Number(data.igst) : Number(data.quote.igst) || 0;
     const total = data.total !== void 0 ? Number(data.total) : Number(data.quote.total) || 0;
-    const taxable = Math.max(0, subtotal - Math.max(0, discount) + Math.max(0, shipping));
+    const effectiveDiscount = Math.max(0, discount);
+    const taxable = Math.max(0, subtotal - effectiveDiscount + Math.max(0, shipping));
     const totalsRows = [
       { label: "Subtotal", value: subtotal }
     ];
+    if (effectiveDiscount > 0) totalsRows.push({ label: "Discount", value: -effectiveDiscount, signed: true });
     if (shipping > 0) totalsRows.push({ label: "Shipping/Handling", value: shipping });
     if (cgst > 0) totalsRows.push({ label: "CGST", value: cgst });
     if (sgst > 0) totalsRows.push({ label: "SGST", value: sgst });
@@ -3753,18 +4437,29 @@ var InvoicePDFService = class _InvoicePDFService {
     const notesText = String(data.notes || data.quote.notes || "").trim();
     const milestone = String(data.milestoneDescription || "").trim();
     const delivery = String(data.deliveryNotes || "").trim();
+    const notesLinesRaw = [];
+    if (milestone) notesLinesRaw.push(`Milestone: ${milestone}`);
+    if (delivery) notesLinesRaw.push(`Delivery: ${delivery}`);
+    if (notesText) notesLinesRaw.push(`Notes: ${notesText}`);
     const termsRaw = String(data.termsAndConditions || "").trim();
     const termsLines = termsRaw ? termsRaw.split("\n").map((s) => s.trim()).filter(Boolean) : [];
-    const termsText = termsLines.join("  \u2022  ");
-    const maxTermsLines = 4;
     doc.save();
     doc.font("Helvetica").fontSize(7.4);
     const wordsH = doc.heightOfString(words, { width: leftW - 16 });
-    const notesBlock = [milestone, delivery, notesText].filter(Boolean).join(" | ");
-    const notesH = notesBlock ? doc.heightOfString(notesBlock, { width: leftW - 16 }) : 0;
     doc.font("Helvetica").fontSize(7.2);
-    const wrappedTerms = termsText ? this.wrapTextLines(doc, termsText, leftW - 16, 50) : [];
-    const termsShown = wrappedTerms.slice(0, maxTermsLines);
+    const measuredNotesLines = [];
+    for (const nl of notesLinesRaw) {
+      const wrapped = this.wrapTextLines(doc, nl, leftW - 16, 3);
+      measuredNotesLines.push(...wrapped);
+    }
+    const notesH = measuredNotesLines.length ? measuredNotesLines.length * 10 : 0;
+    const measuredTermsLines = [];
+    for (const tl of termsLines) {
+      const wrapped = this.wrapTextLines(doc, `\u2022 ${tl}`, leftW - 16, 4);
+      measuredTermsLines.push(...wrapped);
+    }
+    const maxTermsLines = 6;
+    const termsShown = measuredTermsLines.slice(0, maxTermsLines);
     const termsH = termsShown.length ? termsShown.length * 10 : 0;
     doc.restore();
     const leftH = 10 + 14 + wordsH + (notesH ? 10 + notesH : 0) + (termsH ? 10 + termsH : 0) + 10;
@@ -3781,12 +4476,16 @@ var InvoicePDFService = class _InvoicePDFService {
     doc.font("Helvetica-Bold").fontSize(7.8).fillColor(this.INK);
     doc.text(words, leftX + 8, y0 + 20, { width: leftW - 16 });
     let ly = y0 + 20 + wordsH + 6;
-    if (notesBlock) {
+    if (measuredNotesLines.length) {
       this.label(doc, "Notes", leftX + 8, ly);
       ly += 12;
       doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
-      doc.text(this.truncateToWidth(doc, notesBlock, leftW - 16), leftX + 8, ly, { width: leftW - 16 });
-      ly += notesH + 6;
+      let ny = ly;
+      for (const ln of measuredNotesLines.slice(0, 8)) {
+        doc.text(this.truncateToWidth(doc, ln, leftW - 16), leftX + 8, ny, { width: leftW - 16 });
+        ny += 10;
+      }
+      ly = ny + 2;
     }
     if (termsShown.length) {
       this.label(doc, "Terms & Conditions", leftX + 8, ly);
@@ -3832,27 +4531,6 @@ var InvoicePDFService = class _InvoicePDFService {
       lineBreak: false
     });
     doc.y = y0 + blockH + 10;
-    if (wrappedTerms.length > maxTermsLines) {
-      doc.addPage();
-      this.drawHeader(doc, data);
-      doc.font("Helvetica-Bold").fontSize(9.2).fillColor(this.INK);
-      doc.text("Terms & Conditions (cont.)", this.MARGIN_LEFT, doc.y);
-      doc.y += 8;
-      const cont = wrappedTerms.slice(maxTermsLines);
-      doc.font("Helvetica").fontSize(8).fillColor(this.SUBTLE);
-      const colW = this.CONTENT_WIDTH;
-      const startY = doc.y;
-      const pad = 10;
-      const boxH = Math.min(520, this.bottomY() - startY - 40);
-      this.box(doc, this.MARGIN_LEFT, startY, colW, boxH, { fill: "#FFFFFF" });
-      let yy = startY + pad;
-      for (const ln of cont) {
-        if (yy + 11 > startY + boxH - pad) break;
-        doc.text(ln, this.MARGIN_LEFT + pad, yy, { width: colW - pad * 2 });
-        yy += 11;
-      }
-      doc.y = startY + boxH + 12;
-    }
     this.drawDeclarationBankAndSignatures(doc, data);
   }
   static drawDeclarationBankAndSignatures(doc, data) {
@@ -3884,11 +4562,9 @@ var InvoicePDFService = class _InvoicePDFService {
     if (data.bankBranch) bankLines.push(`Branch: ${data.bankBranch}`);
     if (data.bankSwiftCode) bankLines.push(`SWIFT: ${data.bankSwiftCode}`);
     doc.font("Helvetica-Bold").fontSize(7.2).fillColor(this.INK);
-    if (bankLines.length) {
-      doc.text(bankLines.join("\n"), x + leftW + gap + 8, y0 + 20, { width: rightW - 16 });
-    } else {
-      doc.text("-", x + leftW + gap + 8, y0 + 20, { width: rightW - 16 });
-    }
+    doc.text(bankLines.length ? bankLines.join("\n") : "-", x + leftW + gap + 8, y0 + 20, {
+      width: rightW - 16
+    });
     const sigY = y0 + h + 10;
     const sigH = 62;
     this.ensureSpace(doc, data, sigH + 10);
@@ -3995,7 +4671,7 @@ var InvoicePDFService = class _InvoicePDFService {
     doc.y = Math.max(doc.y, y);
   }
   // ---------------------------
-  // Footer (inside margins; does not mutate doc.y)
+  // Footer
   // ---------------------------
   static drawFooter(doc, page, total) {
     const oldY = doc.y;
@@ -4053,8 +4729,8 @@ var InvoicePDFService = class _InvoicePDFService {
     const paise = Math.round((n - rupees) * 100);
     const r = this.numberToWordsIndian(rupees);
     const p = paise > 0 ? this.numberToWordsIndian(paise) : "";
-    if (paise > 0) return `INR ${r} and ${p} Paise Only`;
-    return `INR ${r} Only`;
+    if (paise > 0) return `INR ${r} Rupees and ${p} Paise Only`;
+    return `INR ${r} Rupees Only`;
   }
   static numberToWordsIndian(num) {
     const n = Math.floor(Math.abs(num));
@@ -4288,6 +4964,75 @@ This link will expire in 1 hour.`
       throw error;
     }
   }
+  static async sendSalesOrderEmail(email, emailSubject, emailBody, pdfBuffer) {
+    const lines = emailBody.split("\n");
+    const formattedLines = [];
+    let previousWasEmpty = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        if (!previousWasEmpty) {
+          formattedLines.push("<br/>");
+          previousWasEmpty = true;
+        }
+      } else {
+        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
+        previousWasEmpty = false;
+      }
+    }
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
+        ${formattedLines.join("")}
+      </div>
+    `;
+    const orderNumberMatch = emailSubject.match(/Order\s+([A-Z0-9-]+)/i);
+    const orderNumber = orderNumberMatch ? orderNumberMatch[1] : `Order_${Date.now()}`;
+    try {
+      if (this.useResend && this.resend) {
+        const base64Pdf = pdfBuffer.toString("base64");
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+          fromEmail = "onboarding@resend.dev";
+        }
+        const response = await this.resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          attachments: [
+            {
+              filename: `${orderNumber}.pdf`,
+              content: base64Pdf
+            }
+          ]
+        });
+        if (response.error) {
+          console.error(`[Resend] Error sending sales order email:`, response.error);
+          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+        }
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          text: emailBody,
+          attachments: [
+            {
+              filename: `${orderNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf"
+            }
+          ]
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send sales order email:", error);
+      throw error;
+    }
+  }
   static async sendInvoiceEmail(email, emailSubject, emailBody, pdfBuffer) {
     const lines = emailBody.split("\n");
     const formattedLines = [];
@@ -4469,7 +5214,7 @@ var AnalyticsService = class {
         const date = new Date(invoice.createdAt);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         if (monthlyRevenue.hasOwnProperty(monthKey)) {
-          monthlyRevenue[monthKey] += parseFloat(invoice.paidAmount.toString());
+          monthlyRevenue[monthKey] += parseFloat((invoice.paidAmount || 0).toString());
         }
       });
       const revenues = Object.values(monthlyRevenue).filter((v) => v > 0);
@@ -4631,7 +5376,7 @@ var AnalyticsService = class {
         const quote = clientQuotes.find((q) => q.id === i.quoteId);
         return !!quote;
       });
-      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat(i.paidAmount.toString()), 0);
+      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
       const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
       const conversionRate = clientQuotes.length > 0 ? clientInvoices.length / clientQuotes.length * 100 : 0;
       return {
@@ -4883,273 +5628,8 @@ function requirePermission(resource, action) {
   };
 }
 
-// shared/feature-flags.ts
-var DEFAULT_FEATURE_FLAGS = {
-  // ==================== PAGES & ROUTES ====================
-  pages_dashboard: true,
-  pages_clients: true,
-  pages_clientDetail: true,
-  pages_quotes: true,
-  pages_quoteCreate: true,
-  pages_quoteDetail: true,
-  pages_invoices: true,
-  pages_invoiceDetail: true,
-  pages_vendors: false,
-  pages_vendorPOs: false,
-  pages_vendorPODetail: false,
-  pages_products: false,
-  pages_grn: false,
-  pages_grnDetail: false,
-  pages_serialSearch: true,
-  pages_dashboardsOverview: true,
-  pages_salesQuoteDashboard: true,
-  pages_vendorPODashboard: false,
-  pages_invoiceCollectionsDashboard: true,
-  pages_serialTrackingDashboard: false,
-  pages_adminUsers: true,
-  pages_adminSettings: true,
-  pages_adminConfiguration: true,
-  pages_governanceDashboard: false,
-  pages_numberingSchemes: true,
-  pages_resetPassword: true,
-  pages_signup: true,
-  // ==================== NAVIGATION ====================
-  nav_salesDropdown: true,
-  nav_purchaseDropdown: true,
-  nav_adminDropdown: true,
-  nav_dashboardsLink: true,
-  nav_serialSearchLink: true,
-  // ==================== QUOTE FEATURES ====================
-  quotes_module: true,
-  quotes_create: true,
-  quotes_edit: true,
-  quotes_delete: true,
-  quotes_approve: true,
-  quotes_cancel: true,
-  quotes_close: true,
-  quotes_version: true,
-  quotes_bomSection: true,
-  quotes_slaSection: true,
-  quotes_timelineSection: true,
-  quotes_convertToInvoice: true,
-  quotes_convertToVendorPO: true,
-  quotes_emailSending: false,
-  quotes_pdfGeneration: false,
-  quotes_templates: true,
-  quotes_referenceNumber: true,
-  quotes_attentionTo: true,
-  quotes_validityDays: true,
-  quotes_discount: true,
-  quotes_shippingCharges: true,
-  quotes_notes: true,
-  quotes_termsConditions: true,
-  // ==================== INVOICE FEATURES ====================
-  invoices_module: true,
-  invoices_create: true,
-  invoices_edit: true,
-  invoices_delete: true,
-  invoices_finalize: true,
-  invoices_lock: true,
-  invoices_cancel: true,
-  invoices_childInvoices: true,
-  invoices_masterInvoices: true,
-  invoices_milestoneInvoices: true,
-  invoices_emailSending: false,
-  invoices_pdfGeneration: false,
-  // Re-enabled for testing
-  invoices_paymentTracking: true,
-  invoices_paymentHistory: true,
-  invoices_partialPayments: true,
-  invoices_paymentReminders: true,
-  invoices_overdueNotifications: true,
-  invoices_autoReminders: true,
-  // ==================== CLIENT/CRM FEATURES ====================
-  clients_module: true,
-  clients_create: true,
-  clients_edit: true,
-  clients_delete: true,
-  clients_segmentation: true,
-  clients_tags: true,
-  clients_preferredTheme: true,
-  clients_gstin: true,
-  clients_billingAddress: true,
-  clients_shippingAddress: true,
-  clients_communicationHistory: true,
-  clients_timeline: true,
-  clients_notes: true,
-  clients_advancedSearch: true,
-  // ==================== VENDOR & SUPPLY CHAIN ====================
-  vendors_module: false,
-  vendors_create: false,
-  vendors_edit: false,
-  vendors_delete: false,
-  vendorPO_module: false,
-  vendorPO_create: false,
-  vendorPO_edit: false,
-  vendorPO_delete: false,
-  vendorPO_emailSending: false,
-  vendorPO_pdfGeneration: false,
-  vendorPO_statusTracking: false,
-  grn_module: false,
-  grn_create: false,
-  grn_edit: false,
-  grn_delete: false,
-  grn_serialNumberTracking: false,
-  grn_qualityNotes: false,
-  serialNumber_tracking: false,
-  serialNumber_search: false,
-  serialNumber_export: false,
-  serialNumber_history: false,
-  // ==================== PRODUCTS & INVENTORY ====================
-  products_module: true,
-  products_create: true,
-  products_edit: true,
-  products_delete: true,
-  products_sku: true,
-  products_categories: true,
-  products_pricing: true,
-  products_reorderLevel: true,
-  // ==================== ANALYTICS & DASHBOARDS ====================
-  analytics_module: true,
-  analytics_revenueMetrics: true,
-  analytics_quoteMetrics: true,
-  analytics_invoiceMetrics: true,
-  analytics_vendorMetrics: true,
-  analytics_forecasting: true,
-  analytics_trends: true,
-  analytics_charts: true,
-  dashboard_salesQuotes: true,
-  dashboard_vendorPO: true,
-  dashboard_invoiceCollections: true,
-  dashboard_serialTracking: true,
-  dashboard_governance: true,
-  // ==================== PAYMENT FEATURES ====================
-  payments_module: true,
-  payments_create: true,
-  payments_edit: true,
-  payments_delete: true,
-  payments_history: true,
-  payments_methods: true,
-  payments_transactionIds: true,
-  payments_notes: true,
-  payments_analytics: true,
-  // ==================== TAX & PRICING ====================
-  tax_gst: true,
-  tax_cgst: true,
-  tax_sgst: true,
-  tax_igst: true,
-  tax_hsnSac: true,
-  tax_multiRate: true,
-  tax_rateManagement: true,
-  pricing_tiers: true,
-  pricing_discount: true,
-  pricing_shipping: true,
-  pricing_automatic: true,
-  // ==================== PDF & THEMES ====================
-  pdf_generation: false,
-  // Re-enabled for testing
-  pdf_themes: true,
-  pdf_customThemes: true,
-  pdf_clientSpecificThemes: true,
-  pdf_logo: true,
-  pdf_headerFooter: true,
-  pdf_watermark: true,
-  theme_professional: true,
-  theme_modern: true,
-  theme_minimal: true,
-  theme_creative: true,
-  theme_premium: true,
-  theme_government: true,
-  theme_education: true,
-  // ==================== EMAIL INTEGRATION ====================
-  email_integration: false,
-  email_resend: true,
-  email_smtp: true,
-  email_welcome: true,
-  email_quoteSending: false,
-  email_invoiceSending: false,
-  email_paymentReminders: false,
-  email_overdueNotifications: false,
-  email_vendorPO: false,
-  // ==================== ADMIN & CONFIGURATION ====================
-  admin_userManagement: true,
-  admin_settings: true,
-  admin_configuration: true,
-  admin_governance: true,
-  admin_bankDetails: true,
-  admin_taxRates: true,
-  admin_numberingSchemes: true,
-  admin_templates: true,
-  admin_activityLogs: true,
-  // ==================== SECURITY & ACCESS CONTROL ====================
-  security_rbac: true,
-  security_permissions: true,
-  security_delegation: true,
-  security_passwordReset: true,
-  security_backupEmail: true,
-  security_twoFactor: false,
-  // Not yet implemented
-  security_sessionManagement: true,
-  security_rateLimiting: true,
-  security_auditLogs: true,
-  // ==================== USER MANAGEMENT ====================
-  users_create: true,
-  users_edit: true,
-  users_delete: true,
-  users_statusControl: true,
-  users_roleAssignment: true,
-  users_delegation: true,
-  // ==================== ADVANCED FEATURES ====================
-  advanced_apiRateLimiting: true,
-  advanced_websockets: true,
-  advanced_excelExport: true,
-  advanced_bulkOperations: true,
-  advanced_customReports: true,
-  advanced_scheduledReports: false,
-  // Not yet implemented
-  // ==================== UI/UX FEATURES ====================
-  ui_darkMode: true,
-  ui_themeToggle: true,
-  ui_animations: true,
-  ui_tooltips: true,
-  ui_breadcrumbs: true,
-  ui_searchFilters: true,
-  ui_sorting: true,
-  ui_pagination: true,
-  ui_responsiveDesign: true,
-  // ==================== INTEGRATIONS ====================
-  integration_vercelAnalytics: true,
-  integration_externalApi: true
-};
-function getFeatureFlags() {
-  const isBrowser = typeof window !== "undefined";
-  const flags = { ...DEFAULT_FEATURE_FLAGS };
-  if (isBrowser && typeof import.meta !== "undefined" && import.meta.env) {
-    Object.keys(flags).forEach((key) => {
-      const envKey = `VITE_FEATURE_${key.toUpperCase()}`;
-      const envValue = import.meta.env[envKey];
-      if (envValue !== void 0) {
-        flags[key] = envValue === "true";
-      }
-    });
-  }
-  if (!isBrowser && typeof process !== "undefined" && process.env) {
-    Object.keys(flags).forEach((key) => {
-      const envKey = `FEATURE_${key.toUpperCase()}`;
-      const envValue = process.env[envKey];
-      if (envValue !== void 0) {
-        flags[key] = envValue === "true";
-      }
-    });
-  }
-  return flags;
-}
-var featureFlags = getFeatureFlags();
-function isFeatureEnabled(feature) {
-  return featureFlags[feature];
-}
-
 // server/feature-flags-middleware.ts
+init_feature_flags();
 function requireFeature(feature) {
   return (req, res, next) => {
     if (!isFeatureEnabled(feature)) {
@@ -5160,9 +5640,6 @@ function requireFeature(feature) {
     }
     next();
   };
-}
-function getFeatureFlagsEndpoint(req, res) {
-  res.json(featureFlags);
 }
 
 // server/analytics-routes.ts
@@ -5193,17 +5670,17 @@ router.get("/analytics/sales-quotes", async (req, res) => {
       const status = quote.status;
       if (quotesByStatus.hasOwnProperty(status)) {
         quotesByStatus[status]++;
-        valueByStatus[status] += parseFloat(quote.total.toString());
+        valueByStatus[status] += parseFloat((quote.total || 0).toString());
       }
     });
     const sentQuotes = quotesByStatus.sent + quotesByStatus.approved + quotesByStatus.rejected;
     const conversionRate = sentQuotes > 0 ? quotesByStatus.approved / sentQuotes * 100 : 0;
-    const totalValue = allQuotes.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
+    const totalValue = allQuotes.reduce((sum, q) => sum + parseFloat((q.total || 0).toString()), 0);
     const averageQuoteValue = allQuotes.length > 0 ? totalValue / allQuotes.length : 0;
     const customerQuotes = /* @__PURE__ */ new Map();
     allQuotes.forEach((quote) => {
       const existing = customerQuotes.get(quote.clientId);
-      const value = parseFloat(quote.total.toString());
+      const value = parseFloat((quote.total || 0).toString());
       if (existing) {
         existing.count++;
         existing.value += value;
@@ -5231,12 +5708,12 @@ router.get("/analytics/sales-quotes", async (req, res) => {
       const existing = monthlyData.get(monthKey);
       if (existing) {
         existing.quotes++;
-        existing.value += parseFloat(quote.total.toString());
+        existing.value += parseFloat((quote.total || 0).toString());
         if (quote.status === "approved") existing.approved++;
       } else {
         monthlyData.set(monthKey, {
           quotes: 1,
-          value: parseFloat(quote.total.toString()),
+          value: parseFloat((quote.total || 0).toString()),
           approved: quote.status === "approved" ? 1 : 0
         });
       }
@@ -5350,8 +5827,8 @@ router.get("/analytics/invoice-collections", async (req, res) => {
     let paidInvoicesCount = 0;
     const now = /* @__PURE__ */ new Date();
     allInvoices.forEach((invoice) => {
-      const paidAmt = parseFloat(invoice.paidAmount.toString());
-      const totalAmt = parseFloat(invoice.total.toString());
+      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
+      const totalAmt = parseFloat((invoice.total || 0).toString());
       const remaining = totalAmt - paidAmt;
       if (invoice.paymentStatus === "paid") {
         invoicesByStatus.paid++;
@@ -5393,7 +5870,7 @@ router.get("/analytics/invoice-collections", async (req, res) => {
       if (invoice.paymentStatus !== "paid") {
         const invoiceDate = new Date(invoice.createdAt);
         const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        const remaining = parseFloat(invoice.total.toString()) - parseFloat(invoice.paidAmount.toString());
+        const remaining = parseFloat((invoice.total || 0).toString()) - parseFloat((invoice.paidAmount || 0).toString());
         if (days <= 30) {
           ageingBuckets[0].count++;
           ageingBuckets[0].amount += remaining;
@@ -5417,8 +5894,8 @@ router.get("/analytics/invoice-collections", async (req, res) => {
       const date = new Date(invoice.createdAt);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const existing = monthlyMap.get(monthKey);
-      const totalAmt = parseFloat(invoice.total.toString());
-      const paidAmt = parseFloat(invoice.paidAmount.toString());
+      const totalAmt = parseFloat((invoice.total || 0).toString());
+      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
       if (existing) {
         existing.invoiced += totalAmt;
         existing.collected += paidAmt;
@@ -5503,6 +5980,1773 @@ router.get("/analytics/serial-tracking", async (req, res) => {
 });
 var analytics_routes_default = router;
 
+// server/quote-workflow-routes.ts
+init_storage();
+import { Router as Router2 } from "express";
+init_permissions_service();
+init_numbering_service();
+import ExcelJS from "exceljs";
+
+// server/services/sales-order-pdf.service.ts
+init_feature_flags();
+import PDFDocument3 from "pdfkit";
+import path3 from "path";
+import fs3 from "fs";
+var SalesOrderPDFService = class _SalesOrderPDFService {
+  // A4 points
+  static PAGE_WIDTH = 595.28;
+  static PAGE_HEIGHT = 841.89;
+  // Compact margins
+  static MARGIN_LEFT = 40;
+  static MARGIN_RIGHT = 40;
+  static MARGIN_TOP = 40;
+  static MARGIN_BOTTOM = 40;
+  static CONTENT_WIDTH = _SalesOrderPDFService.PAGE_WIDTH - _SalesOrderPDFService.MARGIN_LEFT - _SalesOrderPDFService.MARGIN_RIGHT;
+  // Palette
+  static INK = "#111827";
+  static SUBTLE = "#4B5563";
+  static FAINT = "#6B7280";
+  static LINE = "#D1D5DB";
+  static SOFT = "#F3F4F6";
+  static CURRENCY_PREFIX = "Rs. ";
+  // Serials
+  static SERIAL_INLINE_LIMIT = 8;
+  static SERIAL_APPENDIX_THRESHOLD = 12;
+  // ---------------------------
+  // Public API
+  // ---------------------------
+  static async generateSalesOrderPDF(data, res) {
+    if (!isFeatureEnabled("sales_orders_module")) {
+      throw new Error("Sales Orders module is disabled");
+    }
+    const doc = new PDFDocument3({
+      size: "A4",
+      margin: 0,
+      bufferPages: true
+    });
+    doc.pipe(res);
+    await this.prepareAssets(doc, data);
+    this.drawHeader(doc, data);
+    this.drawTopBlocks(doc, data);
+    const appendix = this.drawItemsTable(doc, data);
+    this.drawFinalSections(doc, data);
+    if (appendix.length) {
+      doc.addPage();
+      this.drawHeader(doc, data);
+      this.drawSerialAppendix(doc, data, appendix);
+    }
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      this.drawFooter(doc, i + 1, range.count);
+    }
+    doc.end();
+  }
+  // Preload assets async
+  static async prepareAssets(doc, data) {
+    try {
+      doc.registerFont("Helvetica", "Helvetica");
+      doc.registerFont("Helvetica-Bold", "Helvetica-Bold");
+    } catch {
+    }
+    let logoToUse = "";
+    if (data.companyLogo) {
+      logoToUse = data.companyLogo;
+    } else {
+      const p1 = path3.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+      const p2 = path3.join(process.cwd(), "client", "public", "logo.png");
+      try {
+        await fs3.promises.access(p1, fs3.constants.F_OK);
+        logoToUse = p1;
+      } catch {
+        try {
+          await fs3.promises.access(p2, fs3.constants.F_OK);
+          logoToUse = p2;
+        } catch {
+        }
+      }
+    }
+    data.resolvedLogo = logoToUse;
+  }
+  // ---------------------------
+  // Geometry helpers
+  // ---------------------------
+  static bottomY() {
+    return this.PAGE_HEIGHT - this.MARGIN_BOTTOM;
+  }
+  static ensureSpace(doc, data, needed) {
+    if (doc.y + needed <= this.bottomY()) return;
+    doc.addPage();
+    this.drawHeader(doc, data);
+  }
+  static hr(doc, y) {
+    const yy = y ?? doc.y;
+    doc.save();
+    doc.strokeColor(this.LINE).lineWidth(0.8);
+    doc.moveTo(this.MARGIN_LEFT, yy).lineTo(this.PAGE_WIDTH - this.MARGIN_RIGHT, yy).stroke();
+    doc.restore();
+  }
+  static box(doc, x, y, w, h, opts) {
+    doc.save();
+    if (opts?.fill) doc.fillColor(opts.fill).rect(x, y, w, h).fill();
+    doc.strokeColor(opts?.stroke ?? this.LINE).lineWidth(opts?.lineWidth ?? 0.9).rect(x, y, w, h).stroke();
+    doc.restore();
+  }
+  static label(doc, txt, x, y) {
+    doc.save();
+    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(txt.toUpperCase(), x, y, {
+      characterSpacing: 0.6,
+      lineBreak: false
+    });
+    doc.restore();
+  }
+  static safeDate(d) {
+    try {
+      if (!d) return "-";
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return "-";
+      return dt.toLocaleDateString("en-IN");
+    } catch {
+      return "-";
+    }
+  }
+  static money(v) {
+    const n = Number(v) || 0;
+    return this.CURRENCY_PREFIX + n.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+  /** For totals rows (discount etc.) */
+  static moneySigned(v) {
+    const n = Number(v) || 0;
+    if (n < 0) {
+      const abs = Math.abs(n);
+      return "-" + this.CURRENCY_PREFIX + abs.toLocaleString("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+    return this.money(n);
+  }
+  static normalizeAddress(addr, maxLines = 3) {
+    if (!addr) return "";
+    const rawParts = String(addr).split(/\n|,/g).map((s) => s.trim()).filter(Boolean);
+    const seen = /* @__PURE__ */ new Set();
+    const parts = [];
+    for (const p of rawParts) {
+      const k = p.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      parts.push(p);
+    }
+    return parts.slice(0, Math.max(3, maxLines * 2)).join(", ");
+  }
+  static isValidEmail(email) {
+    if (!email) return false;
+    const e = email.trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  }
+  static isValidPhone(phone) {
+    if (!phone) return false;
+    const p = phone.replace(/[^\d]/g, "");
+    return p.length >= 8 && p.length <= 13;
+  }
+  static isValidGSTIN(gstin) {
+    if (!gstin) return false;
+    const g = gstin.trim().toUpperCase();
+    return /^[0-9A-Z]{15}$/.test(g);
+  }
+  static truncateToWidth(doc, text2, maxWidth, suffix = "\u2026") {
+    const s = String(text2 ?? "");
+    if (!s) return "";
+    if (doc.widthOfString(s) <= maxWidth) return s;
+    let lo = 0;
+    let hi = s.length;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const cand = s.slice(0, mid) + suffix;
+      if (doc.widthOfString(cand) <= maxWidth) lo = mid + 1;
+      else hi = mid;
+    }
+    const cut = Math.max(0, lo - 1);
+    return s.slice(0, cut) + suffix;
+  }
+  static wrapTextLines(doc, text2, width, maxLines = Infinity) {
+    const t = String(text2 ?? "").replace(/\s+/g, " ").trim();
+    if (!t) return [];
+    if (doc.widthOfString(t) <= width) return [t];
+    const words = t.split(" ");
+    const lines = [];
+    let line = "";
+    const pushLine = (s) => {
+      const trimmed = s.trim();
+      if (trimmed) lines.push(trimmed);
+    };
+    for (const w of words) {
+      if (lines.length >= maxLines) break;
+      const candidate = line ? `${line} ${w}` : w;
+      if (doc.widthOfString(candidate) <= width) {
+        line = candidate;
+      } else {
+        if (line) pushLine(line);
+        line = w;
+      }
+    }
+    if (line && lines.length < maxLines) pushLine(line);
+    return lines;
+  }
+  // ---------------------------
+  // Header (compact + professional)
+  // ---------------------------
+  static drawHeader(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const topY = this.MARGIN_TOP;
+    const rightColW = 160;
+    const rightColX = this.MARGIN_LEFT + this.CONTENT_WIDTH - rightColW;
+    const infoY = topY + 45;
+    this.box(doc, rightColX, infoY, rightColW, 60, {
+      fill: "#F8FAFC",
+      stroke: this.LINE
+    });
+    const labelX = rightColX + 10;
+    const valX = rightColX + 80;
+    let cY = infoY + 10;
+    this.label(doc, "Order #", labelX, cY);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor(this.INK);
+    doc.text(data.orderNumber, valX, cY);
+    cY += 16;
+    this.label(doc, "Date", labelX, cY);
+    doc.font("Helvetica").fontSize(9).fillColor(this.INK);
+    doc.text(new Date(data.orderDate).toLocaleDateString("en-IN"), valX, cY);
+    cY += 16;
+    if (data.expectedDeliveryDate) {
+      this.label(doc, "Due Date", labelX, cY);
+      doc.font("Helvetica").fontSize(9).fillColor(this.INK);
+      doc.text(new Date(data.expectedDeliveryDate).toLocaleDateString("en-IN"), valX, cY);
+    }
+    doc.font("Helvetica-Bold").fontSize(16).fillColor(this.INK);
+    doc.text("SALES ORDER", this.MARGIN_LEFT, topY, {
+      width: this.CONTENT_WIDTH,
+      align: "right"
+    });
+    const leftMaxW = this.CONTENT_WIDTH - rightColW - 20;
+    let logoBottomY = topY;
+    const logoPath = data.resolvedLogo;
+    let logoPrinted = false;
+    const logoSize = 50;
+    if (logoPath) {
+      try {
+        doc.image(logoPath, x, topY, { fit: [logoSize, logoSize] });
+        logoPrinted = true;
+      } catch {
+      }
+    }
+    if (logoPrinted) logoBottomY = topY + logoSize + 10;
+    let currentLeftY = Math.max(logoBottomY, topY + 10);
+    doc.font("Helvetica-Bold").fontSize(14).fillColor(this.INK);
+    doc.text(data.companyName, x, currentLeftY, { width: leftMaxW });
+    currentLeftY = doc.y + 4;
+    doc.font("Helvetica").fontSize(9).fillColor(this.SUBTLE);
+    doc.text(this.normalizeAddress(data.companyAddress, 3), x, currentLeftY, {
+      width: leftMaxW
+    });
+    currentLeftY = doc.y + 6;
+    const contactParts = [];
+    if (this.isValidPhone(data.companyPhone)) contactParts.push(`Phone: ${data.companyPhone}`);
+    if (this.isValidEmail(data.companyEmail)) contactParts.push(`Email: ${data.companyEmail}`);
+    if (data.companyWebsite) contactParts.push(`Web: ${data.companyWebsite}`);
+    if (this.isValidGSTIN(data.companyGSTIN)) contactParts.push(`GSTIN: ${data.companyGSTIN}`);
+    if (contactParts.length > 0) {
+      doc.text(contactParts.join(" | "), x, currentLeftY, { width: leftMaxW });
+      currentLeftY = doc.y;
+    }
+    const contentBottom = Math.max(currentLeftY, infoY + 60);
+    doc.y = contentBottom + 15;
+    this.hr(doc);
+    doc.y += 15;
+  }
+  // ---------------------------
+  // Top blocks: Bill/Ship + meta (grid)
+  // ---------------------------
+  static drawTopBlocks(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const gap = 10;
+    const leftW = w * 0.56;
+    const rightW = w - leftW - gap;
+    let startY = doc.y;
+    const startY2 = startY;
+    const leftX = x;
+    const rightX = x + leftW + gap;
+    const ship = data.client?.shippingAddress || data.client?.billingAddress;
+    const bill = data.client?.billingAddress;
+    const clientPhone = data.client?.phone;
+    const clientEmail = data.client?.email;
+    const clientGSTIN = data.client?.gstin;
+    const clientName = data.client.name || "-";
+    const shipAddr = this.normalizeAddress(ship, 10) || "-";
+    const billAddr = this.normalizeAddress(bill, 10) || "-";
+    doc.font("Helvetica-Bold").fontSize(8.6);
+    const cNameH = doc.heightOfString(clientName, { width: leftW - 16 });
+    doc.font("Helvetica").fontSize(7.2);
+    const shipAddrH = doc.heightOfString(shipAddr, { width: leftW - 16 });
+    const billAddrH = doc.heightOfString(billAddr, { width: leftW - 16 });
+    const billParts = [];
+    if (this.isValidPhone(clientPhone)) billParts.push(`Ph: ${String(clientPhone).trim()}`);
+    if (this.isValidEmail(clientEmail)) billParts.push(`Email: ${String(clientEmail).trim()}`);
+    if (this.isValidGSTIN(clientGSTIN))
+      billParts.push(`GSTIN: ${String(clientGSTIN).trim().toUpperCase()}`);
+    doc.font("Helvetica").fontSize(7);
+    const contactText = billParts.join("  |  ");
+    const contactH = billParts.length ? doc.heightOfString(contactText, { width: leftW - 16 }) : 0;
+    const shipBlockInnerH = 14 + cNameH + 2 + shipAddrH;
+    const shipBlockFullH = 6 + shipBlockInnerH + 6;
+    const billBlockInnerH = 14 + cNameH + 2 + billAddrH;
+    const billBlockFullH = 6 + billBlockInnerH + (contactH ? 8 + contactH : 0) + 6;
+    const leftTotalH = shipBlockFullH + billBlockFullH;
+    const rightTotalH = 20 + 5 * 18 + 10;
+    const h = Math.max(leftTotalH, rightTotalH, 140);
+    this.ensureSpace(doc, data, h + 10);
+    this.box(doc, leftX, startY2, leftW, h, { fill: "#FFFFFF" });
+    doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.INK);
+    doc.text("Consignee (Ship To)", leftX + 8, startY2 + 6, { width: leftW - 16 });
+    let cy = startY2 + 20;
+    doc.font("Helvetica-Bold").fontSize(8.6).fillColor(this.INK);
+    doc.text(data.client.name || "-", leftX + 8, cy, { width: leftW - 16, lineBreak: true });
+    cy += cNameH + 2;
+    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(shipAddr, leftX + 8, cy, { width: leftW - 16 });
+    const minBillHeight = 60;
+    const idealSplitY = startY2 + shipBlockFullH;
+    const maxSplitY = startY2 + h - minBillHeight;
+    const splitY = Math.min(idealSplitY, maxSplitY);
+    doc.save();
+    doc.strokeColor(this.LINE).lineWidth(0.8);
+    doc.moveTo(leftX, splitY).lineTo(leftX + leftW, splitY).stroke();
+    doc.restore();
+    const by = splitY;
+    doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.INK);
+    doc.text("Buyer (Bill To)", leftX + 8, by + 6, { width: leftW - 16 });
+    cy = by + 20;
+    doc.font("Helvetica-Bold").fontSize(8.6).fillColor(this.INK);
+    doc.text(data.client.name || "-", leftX + 8, cy, { width: leftW - 16, lineBreak: true });
+    cy += cNameH + 2;
+    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(billAddr, leftX + 8, cy, { width: leftW - 16 });
+    if (contactH > 0) {
+      const contactY = startY2 + h - contactH - 6;
+      if (contactY > cy + 10) {
+        doc.font("Helvetica").fontSize(7).fillColor(this.SUBTLE);
+        doc.text(contactText, leftX + 8, contactY, { width: leftW - 16 });
+      }
+    }
+    this.box(doc, rightX, startY2, rightW, h, { fill: "#FFFFFF" });
+    const kvRowH = h / 5;
+    const pad = 8;
+    const labelW = Math.min(88, rightW * 0.45);
+    const valW = rightW - pad * 2 - labelW;
+    const row = (i, label, value) => {
+      const yy = startY2 + i * kvRowH;
+      if (i < 4) {
+        doc.save();
+        doc.strokeColor(this.LINE).lineWidth(0.6);
+        doc.moveTo(rightX, yy + kvRowH).lineTo(rightX + rightW, yy + kvRowH).stroke();
+        doc.restore();
+      }
+      doc.font("Helvetica").fontSize(7).fillColor(this.SUBTLE);
+      doc.text(label, rightX + pad, yy + kvRowH / 2 - 4, { width: labelW, lineBreak: false });
+      doc.font("Helvetica-Bold").fontSize(7.6).fillColor(this.INK);
+      const v = value || "-";
+      doc.text(this.truncateToWidth(doc, v, valW), rightX + pad + labelW, yy + kvRowH / 2 - 4, {
+        width: valW,
+        align: "right",
+        lineBreak: false
+      });
+    };
+    const orderDate = this.safeDate(data.orderDate);
+    const expectedDelivery = data.expectedDeliveryDate ? this.safeDate(data.expectedDeliveryDate) : "-";
+    const quoteNo = String(data.quote?.quoteNumber || "-");
+    const preparedBy = String(data.companyDetails?.name || "-");
+    const deliveryNotesStr = String(data.deliveryNotes || "").trim();
+    row(0, "Order Date", orderDate);
+    row(1, "Expected Delivery", expectedDelivery);
+    row(2, "Quote No.", quoteNo);
+    row(3, "Prepared By", preparedBy);
+    row(4, "Delivery Note", deliveryNotesStr);
+    doc.y = startY2 + h + 10;
+  }
+  // ---------------------------
+  // Items Table (paginates) - RETURNS appendix
+  // ---------------------------
+  static drawItemsTable(doc, data) {
+    doc.y += 20;
+    let y = doc.y;
+    const x0 = this.MARGIN_LEFT;
+    const appendix = [];
+    const tableW = this.CONTENT_WIDTH;
+    const col = {
+      sn: 26,
+      desc: 215,
+      // will be recalc'd but this is a target
+      hsn: 54,
+      qty: 36,
+      unit: 36,
+      rate: 64,
+      amount: 84
+      // ensures space for typical totals
+    };
+    const fixed = col.sn + col.hsn + col.qty + col.unit + col.rate;
+    const available = tableW - fixed;
+    col.amount = 84;
+    col.desc = available - col.amount;
+    const cx = {
+      sn: x0,
+      desc: x0 + col.sn,
+      hsn: x0 + col.sn + col.desc,
+      qty: x0 + col.sn + col.desc + col.hsn,
+      unit: x0 + col.sn + col.desc + col.hsn + col.qty,
+      rate: x0 + col.sn + col.desc + col.hsn + col.qty + col.unit,
+      amount: x0 + col.sn + col.desc + col.hsn + col.qty + col.unit + col.rate,
+      right: x0 + tableW
+    };
+    doc.font("Helvetica-Bold").fontSize(9.2).fillColor(this.INK);
+    doc.text("Description of Goods / Services", x0, doc.y);
+    doc.y += 6;
+    const headerH = 22;
+    const minRowH = 20;
+    const drawHeader = (yy) => {
+      this.box(doc, x0, yy, tableW, headerH, {
+        fill: this.SOFT,
+        stroke: this.LINE,
+        lineWidth: 0.9
+      });
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.hsn, cx.qty, cx.unit, cx.rate, cx.amount].forEach((vx) => {
+        doc.moveTo(vx, yy).lineTo(vx, yy + headerH).stroke();
+      });
+      doc.restore();
+      doc.font("Helvetica").fontSize(7).fillColor(this.SUBTLE);
+      const put = (t, xx, ww, align) => {
+        doc.text(t.toUpperCase(), xx, yy + 7, {
+          width: ww,
+          align,
+          characterSpacing: 0.6,
+          lineBreak: false
+        });
+      };
+      put("Sl", cx.sn, col.sn, "center");
+      put("Description", cx.desc + 6, col.desc - 12, "left");
+      put("HSN/SAC", cx.hsn, col.hsn, "center");
+      put("Qty", cx.qty, col.qty, "center");
+      put("Unit", cx.unit, col.unit, "center");
+      put("Rate", cx.rate, col.rate - 8, "right");
+      put("Amount", cx.amount, col.amount - 8, "right");
+    };
+    this.ensureSpace(doc, data, headerH + minRowH + 10);
+    y = doc.y;
+    drawHeader(y);
+    y += headerH;
+    const items = data.items || [];
+    if (items.length === 0) {
+      this.box(doc, x0, y, tableW, 40, { fill: "#FFFFFF" });
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(this.SUBTLE);
+      doc.text("No items.", x0, y + 14, { width: tableW, align: "center" });
+      doc.y = y + 50;
+      return appendix;
+    }
+    for (let idx = 0; idx < items.length; idx++) {
+      const it = items[idx];
+      const descRaw = String(it.description ?? "").trim();
+      const desc3 = descRaw || "-";
+      const qty = Number(it.quantity ?? 0);
+      const unit = String(it.unit ?? "pcs");
+      const rate = Number(it.unitPrice ?? 0);
+      const amount = Number(it.subtotal ?? qty * rate);
+      const hsnSac = String(it.hsnSac ?? it.hsn_sac ?? "").trim() || "-";
+      const serials = this.parseSerialNumbers(it.serialNumbers);
+      const needsAppendix = serials.length > this.SERIAL_APPENDIX_THRESHOLD;
+      const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
+      doc.save();
+      doc.font("Helvetica").fontSize(8).fillColor(this.INK);
+      const descLinesAll = this.wrapTextLines(doc, desc3, col.desc - 12, 30);
+      const descLines = descLinesAll;
+      const descH = descLines.length * 11;
+      let serialLines = [];
+      let serialH = 0;
+      if (serialInline) {
+        doc.font("Helvetica").fontSize(6.8).fillColor(this.SUBTLE);
+        const sAll = this.wrapTextLines(doc, serialInline, col.desc - 12, 10);
+        serialLines = sAll;
+        serialH = serialLines.length ? serialLines.length * 9 : 0;
+      }
+      doc.restore();
+      const rowH = Math.max(minRowH, 8 + descH + (serialH ? serialH + 2 : 0));
+      if (y + rowH > this.bottomY() - 10) {
+        doc.addPage();
+        this.drawHeader(doc, data);
+        this.drawTopBlocks(doc, data);
+        doc.font("Helvetica-Bold").fontSize(9.2).fillColor(this.INK);
+        doc.text("Description of Goods / Services (cont.)", x0, doc.y);
+        doc.y += 6;
+        this.ensureSpace(doc, data, headerH + minRowH + 10);
+        y = doc.y;
+        drawHeader(y);
+        y += headerH;
+      }
+      this.box(doc, x0, y, tableW, rowH, { fill: "#FFFFFF" });
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.hsn, cx.qty, cx.unit, cx.rate, cx.amount].forEach((vx) => {
+        doc.moveTo(vx, y).lineTo(vx, y + rowH).stroke();
+      });
+      doc.restore();
+      const padY = 6;
+      doc.font("Helvetica").fontSize(8).fillColor(this.INK);
+      doc.text(String(idx + 1), cx.sn, y + padY, {
+        width: col.sn,
+        align: "center",
+        lineBreak: false
+      });
+      let dy = y + padY;
+      doc.text(descLines[0] || "", cx.desc + 6, dy, { width: col.desc - 12, lineBreak: false });
+      dy += 11;
+      if (descLines[1]) {
+        doc.text(descLines[1], cx.desc + 6, dy, { width: col.desc - 12, lineBreak: false });
+        dy += 11;
+      }
+      if (serialLines.length) {
+        dy += 2;
+        doc.font("Helvetica").fontSize(6.8).fillColor(this.SUBTLE);
+        for (const ln of serialLines) {
+          doc.text(this.truncateToWidth(doc, ln, col.desc - 12), cx.desc + 6, dy, {
+            width: col.desc - 12,
+            lineBreak: false
+          });
+          dy += 9;
+        }
+      }
+      doc.font("Helvetica").fontSize(8).fillColor(this.INK);
+      doc.text(hsnSac, cx.hsn, y + padY, { width: col.hsn, align: "center", lineBreak: false });
+      doc.text(String(qty), cx.qty, y + padY, { width: col.qty, align: "center", lineBreak: false });
+      doc.text(unit, cx.unit, y + padY, { width: col.unit, align: "center", lineBreak: false });
+      doc.text(this.money(rate), cx.rate, y + padY, {
+        width: col.rate - 8,
+        align: "right",
+        lineBreak: false
+      });
+      doc.text(this.money(amount), cx.amount, y + padY, {
+        width: col.amount - 8,
+        align: "right",
+        lineBreak: false
+      });
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      doc.moveTo(x0, y + rowH).lineTo(cx.right, y + rowH).stroke();
+      doc.restore();
+      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc3, serials });
+      y += rowH;
+    }
+    doc.y = y + 8;
+    return appendix;
+  }
+  // ---------------------------
+  // Final sections
+  // ---------------------------
+  static drawFinalSections(doc, data) {
+    const sectionMin = 190;
+    this.ensureSpace(doc, data, sectionMin);
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const gap = 10;
+    const leftW = w * 0.58;
+    const rightW = w - leftW - gap;
+    const leftX = x;
+    const rightX = x + leftW + gap;
+    const subtotal = data.subtotal !== void 0 ? Number(data.subtotal) : Number(data.quote.subtotal) || 0;
+    const discount = data.discount !== void 0 ? Number(data.discount) : Number(data.quote.discount) || 0;
+    const shipping = data.shippingCharges !== void 0 ? Number(data.shippingCharges) : Number(data.quote.shippingCharges) || 0;
+    const cgst = data.cgst !== void 0 ? Number(data.cgst) : Number(data.quote.cgst) || 0;
+    const sgst = data.sgst !== void 0 ? Number(data.sgst) : Number(data.quote.sgst) || 0;
+    const igst = data.igst !== void 0 ? Number(data.igst) : Number(data.quote.igst) || 0;
+    const total = data.total !== void 0 ? Number(data.total) : Number(data.quote.total) || 0;
+    const taxable = Math.max(0, subtotal - Math.max(0, discount) + Math.max(0, shipping));
+    const totalsRows = [
+      { label: "Subtotal", value: subtotal }
+    ];
+    if (shipping > 0) totalsRows.push({ label: "Shipping/Handling", value: shipping });
+    if (cgst > 0) totalsRows.push({ label: "CGST", value: cgst });
+    if (sgst > 0) totalsRows.push({ label: "SGST", value: sgst });
+    if (igst > 0) totalsRows.push({ label: "IGST", value: igst });
+    totalsRows.push({ label: "TOTAL", value: total, bold: true });
+    const words = this.amountInWordsINR(total);
+    const notesText = String(data.notes || data.quote.notes || "").trim();
+    const delivery = String(data.deliveryNotes || "").trim();
+    const termsRaw = String(data.termsAndConditions || "").trim();
+    const termsLines = termsRaw ? termsRaw.split("\n").map((s) => s.trim()).filter(Boolean) : [];
+    const termsText = termsLines.join("  \u2022  ");
+    const maxTermsLines = 4;
+    doc.save();
+    doc.font("Helvetica").fontSize(7.4);
+    const wordsH = doc.heightOfString(words, { width: leftW - 16 });
+    const notesBlock = [delivery, notesText].filter(Boolean).join(" | ");
+    const notesH = notesBlock ? doc.heightOfString(notesBlock, { width: leftW - 16 }) : 0;
+    doc.font("Helvetica").fontSize(7.2);
+    const wrappedTerms = termsText ? this.wrapTextLines(doc, termsText, leftW - 16, 50) : [];
+    const termsShown = wrappedTerms.slice(0, maxTermsLines);
+    const termsH = termsShown.length ? termsShown.length * 10 : 0;
+    doc.restore();
+    const leftH = 10 + 14 + wordsH + (notesH ? 10 + notesH : 0) + (termsH ? 10 + termsH : 0) + 10;
+    const rowH = 16;
+    const totalsTopPad = 22;
+    const totalsBottomPad = 10;
+    const taxLineH = 12;
+    const totalsH = totalsTopPad + totalsRows.length * rowH + taxLineH + totalsBottomPad;
+    const blockH = Math.max(leftH, totalsH);
+    this.ensureSpace(doc, data, blockH + 10);
+    const y0 = doc.y;
+    this.box(doc, leftX, y0, leftW, blockH, { fill: "#FFFFFF" });
+    this.label(doc, "Amount Chargeable (in words)", leftX + 8, y0 + 6);
+    doc.font("Helvetica-Bold").fontSize(7.8).fillColor(this.INK);
+    doc.text(words, leftX + 8, y0 + 20, { width: leftW - 16 });
+    let ly = y0 + 20 + wordsH + 6;
+    if (notesBlock) {
+      this.label(doc, "Notes", leftX + 8, ly);
+      ly += 12;
+      doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+      doc.text(this.truncateToWidth(doc, notesBlock, leftW - 16), leftX + 8, ly, {
+        width: leftW - 16
+      });
+      ly += notesH + 6;
+    }
+    if (termsShown.length) {
+      this.label(doc, "Terms & Conditions", leftX + 8, ly);
+      ly += 12;
+      doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+      let ty = ly;
+      for (const ln of termsShown) {
+        doc.text(this.truncateToWidth(doc, ln, leftW - 16), leftX + 8, ty, {
+          width: leftW - 16,
+          lineBreak: false
+        });
+        ty += 10;
+      }
+    }
+    this.box(doc, rightX, y0, rightW, blockH, { fill: "#FFFFFF" });
+    this.label(doc, "Totals", rightX + 8, y0 + 6);
+    const labelW = rightW * 0.55;
+    const valW = rightW - 16 - labelW;
+    let ry = y0 + 22;
+    totalsRows.forEach((r) => {
+      doc.font("Helvetica-Bold").fontSize(7.6).fillColor(this.INK);
+      doc.text(r.label, rightX + 8, ry, { width: labelW, lineBreak: false });
+      doc.font("Helvetica-Bold").fontSize(r.bold ? 9 : 8).fillColor(this.INK);
+      const moneyStr = r.signed ? this.moneySigned(r.value) : this.money(r.value);
+      doc.text(moneyStr, rightX + 8 + labelW, ry - (r.bold ? 1 : 0), {
+        width: valW,
+        align: "right",
+        lineBreak: false
+      });
+      ry += rowH;
+    });
+    const taxBits = [];
+    const nbsp = "\xA0";
+    taxBits.push(`Taxable: ${this.money(taxable).replace("Rs. ", "Rs." + nbsp)}`);
+    if (cgst > 0) taxBits.push(`CGST: ${this.money(cgst).replace("Rs. ", "Rs." + nbsp)}`);
+    if (sgst > 0) taxBits.push(`SGST: ${this.money(sgst).replace("Rs. ", "Rs." + nbsp)}`);
+    if (igst > 0) taxBits.push(`IGST: ${this.money(igst).replace("Rs. ", "Rs." + nbsp)}`);
+    doc.font("Helvetica").fontSize(6).fillColor(this.FAINT);
+    const taxLine = this.truncateToWidth(doc, taxBits.join("  |  "), rightW - 16);
+    doc.text(taxLine, rightX + 8, ry + 2, { width: rightW - 16, align: "right", lineBreak: false });
+    doc.y = y0 + blockH + 10;
+    if (wrappedTerms.length > maxTermsLines) {
+      doc.addPage();
+      this.drawHeader(doc, data);
+      doc.font("Helvetica-Bold").fontSize(9.2).fillColor(this.INK);
+      doc.text("Terms & Conditions (cont.)", this.MARGIN_LEFT, doc.y);
+      doc.y += 8;
+      const cont = wrappedTerms.slice(maxTermsLines);
+      doc.font("Helvetica").fontSize(8).fillColor(this.SUBTLE);
+      const colW = this.CONTENT_WIDTH;
+      const startY = doc.y;
+      const pad = 10;
+      const boxH = Math.min(520, this.bottomY() - startY - 40);
+      this.box(doc, this.MARGIN_LEFT, startY, colW, boxH, { fill: "#FFFFFF" });
+      let yy = startY + pad;
+      for (const ln of cont) {
+        if (yy + 11 > startY + boxH - pad) break;
+        doc.text(ln, this.MARGIN_LEFT + pad, yy, { width: colW - pad * 2 });
+        yy += 11;
+      }
+      doc.y = startY + boxH + 12;
+    }
+    this.drawDeclarationBankAndSignatures(doc, data);
+  }
+  static drawDeclarationBankAndSignatures(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const needed = 150;
+    this.ensureSpace(doc, data, needed);
+    const y0 = doc.y;
+    const gap = 10;
+    const leftW = w * 0.56;
+    const rightW = w - leftW - gap;
+    const h = 86;
+    this.box(doc, x, y0, leftW, h, { fill: "#FFFFFF" });
+    this.box(doc, x + leftW + gap, y0, rightW, h, { fill: "#FFFFFF" });
+    this.label(doc, "Declaration", x + 8, y0 + 6);
+    doc.font("Helvetica").fontSize(7.4).fillColor(this.SUBTLE);
+    doc.text(
+      "We declare that this sales order shows the actual price of the goods described and that all particulars are true and correct.",
+      x + 8,
+      y0 + 20,
+      { width: leftW - 16 }
+    );
+    this.label(doc, "Company's Bank Details for Payment", x + leftW + gap + 8, y0 + 6);
+    const bankLines = [];
+    if (data.bankAccountName) bankLines.push(`A/c Name: ${data.bankAccountName}`);
+    if (data.bankName) bankLines.push(`Bank: ${data.bankName}`);
+    if (data.bankAccountNumber) bankLines.push(`A/c No: ${data.bankAccountNumber}`);
+    if (data.bankIfscCode) bankLines.push(`IFSC: ${data.bankIfscCode}`);
+    if (data.bankBranch) bankLines.push(`Branch: ${data.bankBranch}`);
+    if (data.bankSwiftCode) bankLines.push(`SWIFT: ${data.bankSwiftCode}`);
+    doc.font("Helvetica-Bold").fontSize(7.2).fillColor(this.INK);
+    const bankLinesText = bankLines.length ? bankLines.join("\n") : "-";
+    const bankH = doc.heightOfString(bankLinesText, { width: rightW - 16 }) + 30;
+    const finalH = Math.max(h, bankH, 86);
+    this.box(doc, x, y0, leftW, finalH, { fill: "#FFFFFF" });
+    this.box(doc, x + leftW + gap, y0, rightW, finalH, { fill: "#FFFFFF" });
+    this.label(doc, "Declaration", x + 8, y0 + 6);
+    doc.font("Helvetica").fontSize(7.4).fillColor(this.SUBTLE);
+    doc.text(
+      "We declare that this sales order shows the actual price of the goods described and that all particulars are true and correct.",
+      x + 8,
+      y0 + 20,
+      { width: leftW - 16 }
+    );
+    this.label(doc, "Company's Bank Details for Payment", x + leftW + gap + 8, y0 + 6);
+    doc.font("Helvetica-Bold").fontSize(7.2).fillColor(this.INK);
+    doc.text(bankLinesText, x + leftW + gap + 8, y0 + 20, { width: rightW - 16 });
+    const sigY = y0 + finalH + 10;
+    const sigH = 62;
+    this.ensureSpace(doc, data, sigH + 10);
+    const colW = (w - gap) / 2;
+    const leftSigX = x;
+    const rightSigX = x + colW + gap;
+    this.box(doc, leftSigX, sigY, colW, sigH, { fill: "#FFFFFF" });
+    this.box(doc, rightSigX, sigY, colW, sigH, { fill: "#FFFFFF" });
+    this.label(doc, "Client Acceptance", leftSigX + 8, sigY + 6);
+    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text("Customer Seal & Signature", leftSigX + 8, sigY + 18, { width: colW - 16 });
+    doc.save();
+    doc.strokeColor(this.LINE).lineWidth(0.9);
+    doc.moveTo(leftSigX + 8, sigY + sigH - 18).lineTo(leftSigX + colW - 8, sigY + sigH - 18).stroke();
+    doc.restore();
+    doc.font("Helvetica").fontSize(6.8).fillColor(this.FAINT);
+    doc.text("Date:", leftSigX + 8, sigY + sigH - 14, { width: colW - 16 });
+    this.label(doc, "For Company", rightSigX + 8, sigY + 6);
+    const company = data.companyName || "AICERA";
+    doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(`For ${company}`, rightSigX + 8, sigY + 18, { width: colW - 16 });
+    doc.save();
+    doc.strokeColor(this.LINE).lineWidth(0.9);
+    doc.moveTo(rightSigX + 8, sigY + sigH - 18).lineTo(rightSigX + colW - 8, sigY + sigH - 18).stroke();
+    doc.restore();
+    doc.font("Helvetica").fontSize(6.8).fillColor(this.FAINT);
+    doc.text("Authorised Signatory", rightSigX + 8, sigY + sigH - 14, { width: colW - 16 });
+    doc.y = sigY + sigH + 10;
+    const oldY = doc.y;
+    const noteY = this.bottomY() - 24;
+    doc.save();
+    doc.font("Helvetica").fontSize(7).fillColor(this.FAINT);
+    doc.text("This is a Computer Generated Sales Order", this.MARGIN_LEFT, noteY, {
+      width: this.CONTENT_WIDTH,
+      align: "center",
+      lineBreak: false
+    });
+    doc.restore();
+    doc.y = oldY;
+  }
+  // ---------------------------
+  // Serial Appendix
+  // ---------------------------
+  static drawSerialAppendix(doc, data, appendix) {
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(this.INK);
+    doc.text("Serial Numbers Appendix", this.MARGIN_LEFT, doc.y);
+    doc.font("Helvetica").fontSize(8).fillColor(this.SUBTLE);
+    doc.text("Full serial lists are provided here to keep sales order pages clean.", this.MARGIN_LEFT, doc.y + 14, {
+      width: this.CONTENT_WIDTH
+    });
+    doc.y += 34;
+    this.hr(doc);
+    doc.y += 10;
+    const colGap = 18;
+    const colW = (this.CONTENT_WIDTH - colGap) / 2;
+    const leftX = this.MARGIN_LEFT;
+    const rightX = this.MARGIN_LEFT + colW + colGap;
+    let col = 0;
+    let x = leftX;
+    let y = doc.y;
+    let colTop = doc.y;
+    const nextColumnOrPage = (need) => {
+      if (y + need <= this.bottomY()) return;
+      if (col === 0) {
+        col = 1;
+        x = rightX;
+        y = colTop;
+      } else {
+        doc.addPage();
+        this.drawHeader(doc, data);
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(this.INK);
+        doc.text("Serial Numbers Appendix (cont.)", this.MARGIN_LEFT, doc.y);
+        doc.y += 18;
+        this.hr(doc);
+        doc.y += 10;
+        col = 0;
+        x = leftX;
+        colTop = doc.y;
+        y = colTop;
+      }
+    };
+    appendix.forEach((a) => {
+      const heading = `Item ${a.itemIndex}: ${a.description}`;
+      const serialText = a.serials.join(", ");
+      doc.save();
+      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(this.INK);
+      const h1 = doc.heightOfString(heading, { width: colW });
+      doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+      const h2 = doc.heightOfString(serialText, { width: colW });
+      doc.restore();
+      nextColumnOrPage(h1 + h2 + 16);
+      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(this.INK);
+      doc.text(heading, x, y, { width: colW });
+      y += h1 + 3;
+      doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
+      doc.text(serialText, x, y, { width: colW });
+      y += h2 + 8;
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.7);
+      doc.moveTo(x, y).lineTo(x + colW, y).stroke();
+      doc.restore();
+      y += 8;
+    });
+    doc.y = Math.max(doc.y, y);
+  }
+  // ---------------------------
+  // Footer (inside margins; does not mutate doc.y)
+  // ---------------------------
+  static drawFooter(doc, page, total) {
+    const oldY = doc.y;
+    const y = this.bottomY() - 10;
+    doc.save();
+    doc.font("Helvetica").fontSize(7).fillColor(this.FAINT);
+    doc.text(`Page ${page} of ${total}`, this.MARGIN_LEFT, y, {
+      width: this.CONTENT_WIDTH,
+      align: "center",
+      lineBreak: false
+    });
+    doc.restore();
+    doc.y = oldY;
+  }
+  // ---------------------------
+  // Serials utilities
+  // ---------------------------
+  static parseSerialNumbers(raw) {
+    if (!raw) return [];
+    try {
+      if (Array.isArray(raw)) return raw.map(String).map((s) => s.trim()).filter(Boolean);
+      if (typeof raw === "string") {
+        const t = raw.trim();
+        if (!t) return [];
+        if (t.startsWith("[") && t.endsWith("]")) {
+          const arr = JSON.parse(t);
+          if (Array.isArray(arr)) return arr.map(String).map((s) => s.trim()).filter(Boolean);
+        }
+        return t.split(/,|\n|;/g).map((s) => s.trim()).filter(Boolean);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+  static serialInlineSummary(serials, hasAppendix) {
+    if (!serials.length) return "";
+    if (hasAppendix) {
+      const head2 = serials.slice(0, Math.min(4, serials.length));
+      const remaining2 = Math.max(0, serials.length - head2.length);
+      return remaining2 > 0 ? `Serial#: ${head2.join(", ")} (+${remaining2} more \u2014 see appendix)` : `Serial#: ${head2.join(", ")}`;
+    }
+    if (serials.length <= this.SERIAL_INLINE_LIMIT) return `Serial#: ${serials.join(", ")}`;
+    const head = serials.slice(0, 4);
+    const tail = serials.slice(-2);
+    const remaining = serials.length - (head.length + tail.length);
+    return `Serial#: ${head.join(", ")}, \u2026, ${tail.join(", ")} (+${remaining} more)`;
+  }
+  // ---------------------------
+  // Amount in words (INR)
+  // ---------------------------
+  static amountInWordsINR(amount) {
+    const n = Number(amount) || 0;
+    const rupees = Math.floor(n);
+    const paise = Math.round((n - rupees) * 100);
+    const r = this.numberToWordsIndian(rupees);
+    const p = paise > 0 ? this.numberToWordsIndian(paise) : "";
+    if (paise > 0) return `INR ${r} and ${p} Paise Only`;
+    return `INR ${r} Only`;
+  }
+  static numberToWordsIndian(num) {
+    const n = Math.floor(Math.abs(num));
+    if (n === 0) return "Zero";
+    const ones = [
+      "",
+      "One",
+      "Two",
+      "Three",
+      "Four",
+      "Five",
+      "Six",
+      "Seven",
+      "Eight",
+      "Nine",
+      "Ten",
+      "Eleven",
+      "Twelve",
+      "Thirteen",
+      "Fourteen",
+      "Fifteen",
+      "Sixteen",
+      "Seventeen",
+      "Eighteen",
+      "Nineteen"
+    ];
+    const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    const twoDigits = (x) => {
+      if (x < 20) return ones[x];
+      const t = Math.floor(x / 10);
+      const o = x % 10;
+      return `${tens[t]}${o ? " " + ones[o] : ""}`.trim();
+    };
+    const threeDigits = (x) => {
+      const h = Math.floor(x / 100);
+      const r = x % 100;
+      let s = "";
+      if (h) s += `${ones[h]} Hundred`;
+      if (r) s += `${h ? " " : ""}${twoDigits(r)}`;
+      return s.trim();
+    };
+    const parts = [];
+    const crore = Math.floor(n / 1e7);
+    const lakh = Math.floor(n / 1e5 % 100);
+    const thousand = Math.floor(n / 1e3 % 100);
+    const hundredPart = n % 1e3;
+    if (crore) parts.push(`${twoDigits(crore)} Crore`);
+    if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
+    if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+    if (hundredPart) parts.push(threeDigits(hundredPart));
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+};
+
+// server/quote-workflow-routes.ts
+async function streamToBuffer(stream) {
+  const chunks = [];
+  return new Promise((resolve, reject) => {
+    stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    stream.on("error", (err) => reject(err));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+var router2 = Router2();
+router2.post(
+  "/quotes/:id/revise",
+  requireFeature("quotes_module"),
+  requirePermission("quotes", "edit"),
+  async (req, res) => {
+    try {
+      const quoteId = req.params.id;
+      const quote = await storage.getQuote(quoteId);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      const items = await storage.getQuoteItems(quoteId);
+      await storage.createQuoteVersion({
+        quoteId,
+        version: quote.version,
+        clientId: quote.clientId,
+        status: quote.status,
+        validityDays: quote.validityDays,
+        quoteDate: quote.quoteDate,
+        validUntil: quote.validUntil,
+        referenceNumber: quote.referenceNumber,
+        attentionTo: quote.attentionTo,
+        subtotal: quote.subtotal.toString(),
+        discount: quote.discount.toString(),
+        cgst: quote.cgst.toString(),
+        sgst: quote.sgst.toString(),
+        igst: quote.igst.toString(),
+        shippingCharges: quote.shippingCharges.toString(),
+        total: quote.total.toString(),
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        bomSection: quote.bomSection,
+        slaSection: quote.slaSection,
+        timelineSection: quote.timelineSection,
+        itemsSnapshot: JSON.stringify(items),
+        revisionNotes: req.body.revisionNotes || `Revision from status: ${quote.status}`,
+        revisedBy: req.user.id
+      });
+      const updatedQuote = await storage.updateQuote(quoteId, {
+        status: "draft",
+        version: quote.version + 1
+        // Reset approval/sent fields if any? (Not explicitly in schema besides status)
+      });
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "revise_quote",
+        entityType: "quote",
+        entityId: quote.id
+      });
+      return res.json(updatedQuote);
+    } catch (error) {
+      console.error("Revise quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to revise quote" });
+    }
+  }
+);
+router2.post(
+  "/quotes/:id/versions",
+  requireFeature("quotes_module"),
+  // authMiddleware is applied at mount level
+  requirePermission("quotes", "edit"),
+  async (req, res) => {
+    try {
+      const quoteId = req.params.id;
+      const quote = await storage.getQuote(quoteId);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      const existingVersions = await storage.getQuoteVersions(quoteId);
+      const nextVersion = existingVersions.length > 0 ? Math.max(...existingVersions.map((v) => v.version)) + 1 : 1;
+      const items = await storage.getQuoteItems(quoteId);
+      const version = await storage.createQuoteVersion({
+        quoteId,
+        version: nextVersion,
+        clientId: quote.clientId,
+        status: quote.status,
+        validityDays: quote.validityDays,
+        quoteDate: quote.quoteDate,
+        validUntil: quote.validUntil,
+        referenceNumber: quote.referenceNumber,
+        attentionTo: quote.attentionTo,
+        subtotal: quote.subtotal.toString(),
+        discount: quote.discount.toString(),
+        cgst: quote.cgst.toString(),
+        sgst: quote.sgst.toString(),
+        igst: quote.igst.toString(),
+        shippingCharges: quote.shippingCharges.toString(),
+        total: quote.total.toString(),
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        bomSection: quote.bomSection,
+        slaSection: quote.slaSection,
+        timelineSection: quote.timelineSection,
+        itemsSnapshot: JSON.stringify(items),
+        revisionNotes: req.body.revisionNotes,
+        revisedBy: req.user.id
+      });
+      return res.json(version);
+    } catch (error) {
+      console.error("Create quote version error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create quote version" });
+    }
+  }
+);
+router2.get(
+  "/quotes/:id/versions",
+  requireFeature("quotes_module"),
+  requirePermission("quotes", "view"),
+  async (req, res) => {
+    try {
+      const versions = await storage.getQuoteVersions(req.params.id);
+      return res.json(versions);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch quote versions" });
+    }
+  }
+);
+router2.get(
+  "/quotes/:id/versions/:version",
+  requireFeature("quotes_module"),
+  requirePermission("quotes", "view"),
+  async (req, res) => {
+    try {
+      const version = await storage.getQuoteVersion(req.params.id, parseInt(req.params.version));
+      if (!version) {
+        return res.status(404).json({ error: "Version not found" });
+      }
+      return res.json(version);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch version" });
+    }
+  }
+);
+router2.post(
+  "/sales-orders",
+  requireFeature("quotes_module"),
+  requirePermission("sales_orders", "create"),
+  async (req, res) => {
+    try {
+      const { quoteId } = req.body;
+      if (!quoteId) {
+        return res.status(400).json({ error: "Quote ID is required" });
+      }
+      const quote = await storage.getQuote(quoteId);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      if (quote.status !== "approved") {
+        return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
+      }
+      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+      if (existingOrder) {
+        return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
+      }
+      const orderNumber = await NumberingService.generateSalesOrderNumber();
+      const orderData = {
+        orderNumber,
+        quoteId: quote.id,
+        clientId: quote.clientId,
+        status: "draft",
+        orderDate: /* @__PURE__ */ new Date(),
+        subtotal: quote.subtotal.toString(),
+        discount: quote.discount.toString(),
+        cgst: quote.cgst.toString(),
+        sgst: quote.sgst.toString(),
+        igst: quote.igst.toString(),
+        shippingCharges: quote.shippingCharges.toString(),
+        total: quote.total.toString(),
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        createdBy: req.user.id
+      };
+      console.log(`[CREATE SO] Financials Check: Discount=${orderData.discount}, Tax=${orderData.cgst}/${orderData.sgst}/${orderData.igst}, Total=${orderData.total}`);
+      const salesOrder = await storage.createSalesOrder(orderData);
+      const quoteItems2 = await storage.getQuoteItems(quoteId);
+      for (const item of quoteItems2) {
+        await storage.createSalesOrderItem({
+          salesOrderId: salesOrder.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice.toString(),
+          subtotal: item.subtotal.toString(),
+          hsnSac: item.hsnSac,
+          sortOrder: item.sortOrder,
+          status: "pending",
+          fulfilledQuantity: 0
+        });
+      }
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "create",
+        entityType: "sales_orders",
+        entityId: salesOrder.id
+      });
+      return res.json(salesOrder);
+    } catch (error) {
+      console.error("Create sales order error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create sales order" });
+    }
+  }
+);
+router2.get(
+  "/sales-orders",
+  requirePermission("sales_orders", "view"),
+  async (req, res) => {
+    try {
+      const orders = await storage.getAllSalesOrders();
+      const ordersWithData = await Promise.all(orders.map(async (order) => {
+        const client = await storage.getClient(order.clientId);
+        const quote = await storage.getQuote(order.quoteId);
+        return {
+          ...order,
+          clientName: client?.name || "Unknown",
+          quoteNumber: quote?.quoteNumber || "Unknown"
+        };
+      }));
+      return res.json(ordersWithData);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch sales orders" });
+    }
+  }
+);
+router2.get(
+  "/sales-orders/:id",
+  requirePermission("sales_orders", "view"),
+  async (req, res) => {
+    try {
+      const order = await storage.getSalesOrder(req.params.id);
+      if (order) {
+        console.log(`[GET SO] ID: ${order.id}, Subtotal: ${order.subtotal}, Discount: ${order.discount}, Tax: ${order.cgst}/${order.sgst}/${order.igst}, Total: ${order.total}`);
+      }
+      if (!order) {
+        return res.status(404).json({ error: "Sales Order not found" });
+      }
+      const items = await storage.getSalesOrderItems(order.id);
+      const client = await storage.getClient(order.clientId);
+      const quote = await storage.getQuote(order.quoteId);
+      const quoteItems2 = await storage.getQuoteItems(order.quoteId);
+      const creator = await storage.getUser(order.createdBy);
+      return res.json({
+        ...order,
+        client,
+        items,
+        quote: {
+          ...quote,
+          items: quoteItems2
+        },
+        createdByName: creator?.name || "Unknown"
+      });
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch sales order" });
+    }
+  }
+);
+router2.patch(
+  "/sales-orders/:id",
+  requirePermission("sales_orders", "edit"),
+  async (req, res) => {
+    try {
+      const currentOrder = await storage.getSalesOrder(req.params.id);
+      if (!currentOrder) return res.status(404).json({ error: "Order not found" });
+      if (req.body.status && req.body.status !== currentOrder.status) {
+        const newStatus = req.body.status;
+        if (newStatus === "confirmed" && currentOrder.status === "draft") {
+          if (!req.user || !hasPermission(req.user.role, "sales_orders", "approve")) {
+            return res.status(403).json({ error: "Insufficient permissions to confirm orders" });
+          }
+          req.body.confirmedAt = /* @__PURE__ */ new Date();
+          req.body.confirmedBy = req.user.id;
+        } else if (newStatus === "cancelled") {
+          if (!req.user || !hasPermission(req.user.role, "sales_orders", "cancel")) {
+            return res.status(403).json({ error: "Insufficient permissions to cancel orders" });
+          }
+        } else if (newStatus === "fulfilled" && currentOrder.status !== "confirmed") {
+          return res.status(400).json({ error: "Only confirmed orders can be fulfilled" });
+        }
+      }
+      const items = req.body.items;
+      console.log(`[PATCH SO] Body updates:`, {
+        subtotal: req.body.subtotal,
+        discount: req.body.discount,
+        shipping: req.body.shippingCharges,
+        tax: `${req.body.cgst}/${req.body.sgst}/${req.body.igst}`,
+        total: req.body.total
+      });
+      console.log(`[PATCH SO] Items length: ${items?.length}`);
+      delete req.body.items;
+      if (req.body.expectedDeliveryDate && typeof req.body.expectedDeliveryDate === "string") {
+        req.body.expectedDeliveryDate = new Date(req.body.expectedDeliveryDate);
+      }
+      if (req.body.actualDeliveryDate && typeof req.body.actualDeliveryDate === "string") {
+        req.body.actualDeliveryDate = new Date(req.body.actualDeliveryDate);
+      }
+      const updateData = {
+        ...req.body,
+        // Ensure decimal fields are strings
+        subtotal: req.body.subtotal?.toString(),
+        discount: req.body.discount?.toString(),
+        cgst: req.body.cgst?.toString(),
+        sgst: req.body.sgst?.toString(),
+        igst: req.body.igst?.toString(),
+        shippingCharges: req.body.shippingCharges?.toString(),
+        total: req.body.total?.toString()
+      };
+      const order = await storage.updateSalesOrder(req.params.id, updateData);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      if (items && Array.isArray(items)) {
+        await storage.deleteSalesOrderItems(req.params.id);
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          await storage.createSalesOrderItem({
+            salesOrderId: req.params.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+            hsnSac: item.hsnSac || null,
+            sortOrder: i
+          });
+        }
+      }
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "edit",
+        entityType: "sales_orders",
+        entityId: order.id
+      });
+      return res.json(order);
+    } catch (error) {
+      console.error("Error updating sales order:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+);
+router2.post(
+  "/sales-orders/:id/convert-to-invoice",
+  requireFeature("invoices_module"),
+  requirePermission("invoices", "create"),
+  async (req, res) => {
+    try {
+      const orderId = req.params.id;
+      const order = await storage.getSalesOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Sales order not found" });
+      }
+      if (order.status !== "fulfilled") {
+        return res.status(400).json({
+          error: "Only fulfilled sales orders can be converted to an invoice"
+        });
+      }
+      const quote = await storage.getQuote(order.quoteId);
+      if (!quote || quote.status !== "approved") {
+        return res.status(400).json({
+          error: "Linked quote must be approved"
+        });
+      }
+      const existingInvoices = await storage.getInvoicesByQuote(order.quoteId);
+      const invoiceExists = existingInvoices.some((inv) => inv.salesOrderId === orderId);
+      if (invoiceExists) {
+        return res.status(409).json({
+          error: "An invoice has already been generated for this sales order"
+        });
+      }
+      let items = await storage.getSalesOrderItems(orderId);
+      if (!items || items.length === 0) {
+        items = await storage.getQuoteItems(order.quoteId);
+      }
+      if (!items || items.length === 0) {
+        return res.status(400).json({
+          error: "No items found to invoice"
+        });
+      }
+      const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
+      const invoice = await storage.createInvoice({
+        invoiceNumber,
+        quoteId: order.quoteId,
+        salesOrderId: orderId,
+        clientId: order.clientId,
+        issueDate: /* @__PURE__ */ new Date(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
+        // Default 30 days
+        status: "draft",
+        isMaster: false,
+        paymentStatus: "pending",
+        paidAmount: "0",
+        createdBy: req.user.id,
+        // Financials (copy from order)
+        subtotal: order.subtotal,
+        discount: order.discount,
+        cgst: order.cgst,
+        sgst: order.sgst,
+        igst: order.igst,
+        shippingCharges: order.shippingCharges,
+        total: order.total,
+        // Notes
+        notes: order.notes,
+        termsAndConditions: order.termsAndConditions,
+        deliveryNotes: `Delivery Date: ${order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : "N/A"}`
+      });
+      for (const item of items) {
+        await storage.createInvoiceItem({
+          invoiceId: invoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          hsnSac: item.hsnSac || null,
+          sortOrder: item.sortOrder,
+          status: "pending",
+          fulfilledQuantity: item.quantity
+          // Fully fulfilled since order is fulfilled
+        });
+      }
+      const settings2 = await storage.getAllSettings();
+      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
+      const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
+      const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
+      const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
+      const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
+      const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+      const bankDetail = await storage.getActiveBankDetails();
+      const client = await storage.getClient(invoice.clientId);
+      const { PassThrough } = await import("stream");
+      const pt = new PassThrough();
+      const pdfPromise = InvoicePDFService.generateInvoicePDF({
+        quote,
+        client,
+        items,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyDetails: {
+          name: companyName,
+          address: companyAddress,
+          phone: companyPhone,
+          email: companyEmail,
+          website: companyWebsite,
+          gstin: companyGSTIN
+        },
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.createdAt || /* @__PURE__ */ new Date(),
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
+        paidAmount: invoice.paidAmount || "0",
+        paymentStatus: invoice.paymentStatus || "pending",
+        isMaster: invoice.isMaster,
+        childInvoices: [],
+        deliveryNotes: invoice.deliveryNotes || void 0,
+        subtotal: invoice.subtotal || "0",
+        discount: invoice.discount || "0",
+        cgst: invoice.cgst || "0",
+        sgst: invoice.sgst || "0",
+        igst: invoice.igst || "0",
+        shippingCharges: invoice.shippingCharges || "0",
+        total: invoice.total || "0",
+        notes: invoice.notes || void 0,
+        termsAndConditions: invoice.termsAndConditions,
+        bankName: bankDetail?.bankName || "",
+        bankAccountNumber: bankDetail?.accountNumber || "",
+        bankAccountName: bankDetail?.accountName || "",
+        bankIfscCode: bankDetail?.ifscCode || ""
+      }, pt);
+      const buffer = await streamToBuffer(pt);
+      await pdfPromise;
+      await storage.createInvoiceAttachment({
+        invoiceId: invoice.id,
+        fileName: `Invoice-${invoice.invoiceNumber}.pdf`,
+        fileType: "application/pdf",
+        fileSize: buffer.length,
+        content: buffer.toString("base64")
+      });
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "create_invoice",
+        entityType: "invoice",
+        entityId: invoice.id,
+        metadata: { fromSalesOrder: orderId }
+      });
+      return res.status(201).json(invoice);
+    } catch (error) {
+      console.error("Error creating invoice from sales order:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+);
+router2.post(
+  "/quotes/parse-excel",
+  requirePermission("quotes", "create"),
+  async (req, res) => {
+    try {
+      const { fileContent } = req.body;
+      if (!fileContent) {
+        return res.status(400).json({ message: "No file content provided" });
+      }
+      const buffer = Buffer.from(fileContent, "base64");
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.worksheets[0];
+      const items = [];
+      const headerRow = worksheet.getRow(1);
+      const headers = {};
+      headerRow.eachCell((cell, colNumber) => {
+        const value = cell.value?.toString().toLowerCase().trim() || "";
+        if (value.includes("description") || value.includes("item")) headers.description = colNumber;
+        if (value.includes("quantity") || value.includes("qty")) headers.quantity = colNumber;
+        if (value.includes("price") || value.includes("rate")) headers.unitPrice = colNumber;
+        if (value.includes("hsn") || value.includes("sac")) headers.hsnSac = colNumber;
+      });
+      if (!headers.description || !headers.quantity || !headers.unitPrice) {
+        return res.status(400).json({
+          message: "Invalid Excel format. Required columns: Description, Quantity, Unit Price"
+        });
+      }
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const description = row.getCell(headers.description).value?.toString() || "";
+        const quantity = Number(row.getCell(headers.quantity).value) || 0;
+        const unitPrice = Number(row.getCell(headers.unitPrice).value) || 0;
+        const hsnSac = headers.hsnSac ? row.getCell(headers.hsnSac).value?.toString() || "" : "";
+        if (description && quantity > 0) {
+          items.push({
+            description,
+            quantity,
+            unitPrice,
+            hsnSac,
+            subtotal: quantity * unitPrice
+          });
+        }
+      });
+      res.json(items);
+    } catch (error) {
+      console.error("Error parsing Excel:", error);
+      res.status(500).json({ message: "Failed to parse Excel file" });
+    }
+  }
+);
+router2.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), async (req, res) => {
+  try {
+    const order = await storage.getSalesOrder(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+    const client = await storage.getClient(order.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    const settings2 = await storage.getAllSettings();
+    const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "";
+    const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+    const city = settings2.find((s) => s.key === "company_city")?.value || "";
+    const state = settings2.find((s) => s.key === "company_state")?.value || "";
+    const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+    const country = settings2.find((s) => s.key === "company_country")?.value || "";
+    const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+    const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+    const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+    const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+    const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+    const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+    const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
+    const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
+    const quote = await storage.getQuote(order.quoteId);
+    if (!quote) {
+      console.warn(`Quote not found for order ${order.id}`);
+    }
+    const items = await storage.getSalesOrderItems(order.id);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=SalesOrder-${order.orderNumber}.pdf`);
+    await SalesOrderPDFService.generateSalesOrderPDF({
+      quote: quote || { quoteNumber: "-" },
+      client,
+      items: items || [],
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyLogo,
+      companyDetails: {
+        name: companyName,
+        address: companyAddress,
+        phone: companyPhone,
+        email: companyEmail,
+        website: companyWebsite,
+        gstin: companyGSTIN
+      },
+      orderNumber: order.orderNumber,
+      orderDate: order.createdAt,
+      expectedDeliveryDate: order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : void 0,
+      subtotal: order.subtotal || "0",
+      discount: order.discount || "0",
+      cgst: order.cgst || "0",
+      sgst: order.sgst || "0",
+      igst: order.igst || "0",
+      shippingCharges: order.shippingCharges || "0",
+      total: order.total || "0",
+      notes: order.notes || void 0,
+      termsAndConditions: order.termsAndConditions || void 0,
+      // Bank details (nested and top-level for backward compatibility)
+      bankDetails: {
+        bankName,
+        accountNumber: bankAccountNumber,
+        accountName: bankAccountName,
+        ifsc: bankIfscCode,
+        branch: bankBranch,
+        swift: bankSwiftCode
+      },
+      // Pass top-level for existing PDF logic
+      bankName,
+      bankAccountNumber,
+      bankAccountName,
+      bankIfscCode,
+      bankBranch,
+      bankSwiftCode,
+      deliveryNotes: void 0
+      // Schema update needed if this field is required
+    }, res);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    res.status(500).json({ error: "Failed to generate PDF" });
+  }
+});
+router2.post("/sales-orders/:id/email", requirePermission("sales_orders", "view"), async (req, res) => {
+  try {
+    const { email, subject, body } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+    const order = await storage.getSalesOrder(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Sales order not found" });
+    }
+    const client = await storage.getClient(order.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    const settings2 = await storage.getAllSettings();
+    const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+    const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+    const city = settings2.find((s) => s.key === "company_city")?.value || "";
+    const state = settings2.find((s) => s.key === "company_state")?.value || "";
+    const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+    const country = settings2.find((s) => s.key === "company_country")?.value || "";
+    const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+    const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+    const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+    const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+    const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+    const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+    const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
+    const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
+    const items = await storage.getSalesOrderItems(order.id);
+    const { PassThrough } = await import("stream");
+    const pdfStream = new PassThrough();
+    const pdfPromise = SalesOrderPDFService.generateSalesOrderPDF({
+      quote: { quoteNumber: "-" },
+      client,
+      items: items || [],
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyLogo,
+      companyDetails: {
+        name: companyName,
+        address: companyAddress,
+        phone: companyPhone,
+        email: companyEmail,
+        website: companyWebsite,
+        gstin: companyGSTIN
+      },
+      orderNumber: order.orderNumber,
+      orderDate: order.createdAt,
+      expectedDeliveryDate: order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : void 0,
+      subtotal: order.subtotal || "0",
+      discount: order.discount || "0",
+      cgst: order.cgst || "0",
+      sgst: order.sgst || "0",
+      igst: order.igst || "0",
+      shippingCharges: order.shippingCharges || "0",
+      total: order.total || "0",
+      notes: order.notes || void 0,
+      termsAndConditions: order.termsAndConditions || void 0,
+      // Bank details (nested and top-level for backward compatibility)
+      bankDetails: {
+        bankName,
+        accountNumber: bankAccountNumber,
+        accountName: bankAccountName,
+        ifsc: bankIfscCode,
+        branch: bankBranch,
+        swift: bankSwiftCode
+      },
+      // Pass top-level for existing PDF logic
+      bankName,
+      bankAccountNumber,
+      bankAccountName,
+      bankIfscCode,
+      bankBranch,
+      bankSwiftCode,
+      deliveryNotes: void 0
+      // Schema update needed if this field is required
+    }, pdfStream);
+    const buffer = await streamToBuffer(pdfStream);
+    await pdfPromise;
+    await EmailService.sendSalesOrderEmail(
+      email,
+      subject || `Sales Order ${order.orderNumber} from ${companyName}`,
+      body || `Please find attached Sales Order ${order.orderNumber}.`,
+      buffer
+    );
+    res.json({ success: true, message: "Email sent successfully" });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).json({ error: "Failed to send email" });
+  }
+});
+router2.post(
+  "/quotes/:id/sales-orders",
+  requireFeature("sales_orders_module"),
+  requirePermission("sales_orders", "create"),
+  async (req, res) => {
+    try {
+      const quoteId = req.params.id;
+      const quote = await storage.getQuote(quoteId);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      if (quote.status !== "approved") {
+        return res.status(400).json({ message: "Only approved quotes can be converted to sales orders" });
+      }
+      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+      if (existingOrder) {
+        return res.status(400).json({ message: "A Sales Order already exists for this quote", orderId: existingOrder.id });
+      }
+      const orderNumber = await NumberingService.generateSalesOrderNumber();
+      const newOrder = await storage.createSalesOrder({
+        quoteId,
+        orderNumber,
+        clientId: quote.clientId,
+        status: "draft",
+        subtotal: quote.subtotal,
+        discount: quote.discount || "0",
+        cgst: quote.cgst || "0",
+        sgst: quote.sgst || "0",
+        igst: quote.igst || "0",
+        shippingCharges: quote.shippingCharges || "0",
+        total: quote.total,
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        createdBy: req.user.id
+      });
+      const quoteItems2 = await storage.getQuoteItems(quoteId);
+      if (quoteItems2 && quoteItems2.length > 0) {
+        let sortOrder = 0;
+        for (const item of quoteItems2) {
+          await storage.createSalesOrderItem({
+            salesOrderId: newOrder.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+            hsnSac: item.hsnSac,
+            sortOrder: sortOrder++
+          });
+        }
+      }
+      res.status(201).json(newOrder);
+    } catch (error) {
+      console.error("Failed to create sales order:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  }
+);
+var quote_workflow_routes_default = router2;
+
 // server/routes.ts
 init_db();
 init_schema();
@@ -5532,46 +7776,22 @@ async function authMiddleware(req, res, next) {
   }
 }
 async function registerRoutes(app2) {
-  app2.use(cookieParser());
-  app2.get("/api/feature-flags", getFeatureFlagsEndpoint);
-  app2.post("/api/auth/signup", requireFeature("pages_signup"), async (req, res) => {
+  app2.post("/api/auth/signup", async (req, res) => {
     try {
-      const { email, backupEmail, password, name } = req.body;
-      const existing = await storage.getUserByEmail(email);
-      if (existing) {
-        return res.status(400).json({ error: "Email already registered" });
+      const { email, password, name } = req.body;
+      if (!email || !password || !name) {
+        return res.status(400).json({ error: "Email, password and name are required" });
       }
-      const passwordHash = await bcrypt.hash(password, 10);
-      const refreshToken = nanoid(32);
-      const refreshTokenExpiry = new Date(Date.now() + 1 * 24 * 60 * 60 * 1e3);
+      if (await storage.getUserByEmail(email)) {
+        return res.status(400).json({ error: "User already exists" });
+      }
+      const hashedPassword = await bcrypt.hash(password, 10);
       const user = await storage.createUser({
         email,
-        backupEmail,
-        passwordHash,
+        passwordHash: hashedPassword,
         name,
         role: "viewer",
-        status: "active",
-        refreshToken,
-        refreshTokenExpiry
-      });
-      const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        getJWTSecret(),
-        { expiresIn: JWT_EXPIRES_IN }
-      );
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 15 * 60 * 1e3
-        // 15 minutes
-      });
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1e3
-        // 7 days
+        status: "active"
       });
       await storage.createActivityLog({
         userId: user.id,
@@ -5827,6 +8047,8 @@ async function registerRoutes(app2) {
       return res.status(500).json({ error: "Failed to refresh token" });
     }
   });
+  app2.use("/api", authMiddleware, analytics_routes_default);
+  app2.use("/api", authMiddleware, quote_workflow_routes_default);
   app2.get("/api/users", authMiddleware, async (req, res) => {
     try {
       if (req.user.role !== "admin") {
@@ -5934,9 +8156,9 @@ async function registerRoutes(app2) {
   app2.get("/api/clients", requireFeature("clients_module"), authMiddleware, async (req, res) => {
     try {
       const clients2 = await storage.getAllClients();
-      return res.json(clients2);
+      res.json(clients2);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch clients" });
+      res.status(500).json({ error: "Failed to fetch clients" });
     }
   });
   app2.get("/api/clients/:id", requireFeature("clients_module"), authMiddleware, async (req, res) => {
@@ -6027,9 +8249,9 @@ async function registerRoutes(app2) {
           };
         })
       );
-      return res.json(quotesWithClients);
+      res.json(quotesWithClients);
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch quotes" });
+      res.status(500).json({ error: "Failed to fetch quotes" });
     }
   });
   app2.get("/api/quotes/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
@@ -6041,14 +8263,14 @@ async function registerRoutes(app2) {
       const client = await storage.getClient(quote.clientId);
       const items = await storage.getQuoteItems(quote.id);
       const creator = await storage.getUser(quote.createdBy);
-      return res.json({
+      res.json({
         ...quote,
         client,
         items,
         createdByName: creator?.name || "Unknown"
       });
     } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch quote" });
+      res.status(500).json({ error: "Failed to fetch quote" });
     }
   });
   app2.post("/api/quotes", requireFeature("quotes_create"), authMiddleware, requirePermission("quotes", "create"), async (req, res) => {
@@ -6105,6 +8327,16 @@ async function registerRoutes(app2) {
       if (existingQuote.status === "invoiced") {
         return res.status(400).json({ error: "Cannot edit an invoiced quote" });
       }
+      if (["sent", "approved", "rejected", "closed_paid", "closed_cancelled"].includes(existingQuote.status)) {
+        const keys = Object.keys(req.body);
+        const allowedKeys = ["status", "closureNotes", "closedBy", "closedAt"];
+        const hasContentUpdates = keys.some((key) => !allowedKeys.includes(key));
+        if (hasContentUpdates) {
+          return res.status(400).json({
+            error: `Quote is in '${existingQuote.status}' state and cannot be edited. Please use the 'Revise' option to create a new version.`
+          });
+        }
+      }
       const toDate = (v) => {
         if (!v) return void 0;
         if (v instanceof Date) return v;
@@ -6114,131 +8346,16 @@ async function registerRoutes(app2) {
         }
         return void 0;
       };
-      const updateData = { ...req.body };
+      const { items, ...updateFields } = req.body;
+      const updateData = { ...updateFields };
       if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
       if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
       const quote = await storage.updateQuote(req.params.id, updateData);
       if (!quote) {
         return res.status(404).json({ error: "Quote not found" });
       }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_quote",
-        entityType: "quote",
-        entityId: quote.id
-      });
-      if (updateData.status === "sent" && existingQuote.status !== "sent") {
-        try {
-          const client = await storage.getClient(quote.clientId);
-          if (client?.email) {
-            const items = await storage.getQuoteItems(quote.id);
-            const creator = await storage.getUser(quote.createdBy);
-            const allSettings = await storage.getAllSettings();
-            const settingsMap = allSettings.reduce((acc, s) => {
-              acc[s.key] = s.value;
-              return acc;
-            }, {});
-            const subjectTemplate = settingsMap["email_quote_subject"] || "Quote {QUOTE_NUMBER} from {COMPANY_NAME}";
-            const bodyTemplate = settingsMap["email_quote_body"] || "Dear {CLIENT_NAME},\n\nPlease find attached quote {QUOTE_NUMBER} for your review.\n\nTotal Amount: {TOTAL}\nValid Until: {VALIDITY_DATE}\n\nBest regards,\n{COMPANY_NAME}";
-            const companyName = settingsMap["company_name"] || settingsMap["companyName"] || "Company";
-            const companyAddress = settingsMap["company_address"] || "";
-            const companyPhone = settingsMap["company_phone"] || "";
-            const companyEmail = settingsMap["company_email"] || "";
-            const companyWebsite = settingsMap["company_website"] || "";
-            const companyGSTIN = settingsMap["company_gstin"] || "";
-            const currencySymbol = settingsMap["currencySymbol"] || "\u20B9";
-            const quoteDate = new Date(quote.quoteDate);
-            const validityDate = new Date(quoteDate);
-            validityDate.setDate(validityDate.getDate() + (quote.validityDays || 30));
-            const replacements = {
-              "{COMPANY_NAME}": companyName,
-              "{CLIENT_NAME}": client.name,
-              "{QUOTE_NUMBER}": quote.quoteNumber,
-              "{TOTAL}": `${currencySymbol}${Number(quote.total).toLocaleString()}`,
-              "{VALIDITY_DATE}": validityDate.toLocaleDateString()
-            };
-            let emailSubject = subjectTemplate;
-            let emailBody = bodyTemplate;
-            Object.entries(replacements).forEach(([key, value]) => {
-              const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-              emailSubject = emailSubject.replace(new RegExp(escapedKey, "g"), value);
-              emailBody = emailBody.replace(new RegExp(escapedKey, "g"), value);
-            });
-            const bankDetail = await storage.getActiveBankDetails();
-            const bankName = bankDetail?.bankName || "";
-            const bankAccountNumber = bankDetail?.accountNumber || "";
-            const bankAccountName = bankDetail?.accountName || "";
-            const bankIfscCode = bankDetail?.ifscCode || "";
-            const bankBranch = bankDetail?.branch || "";
-            const bankSwiftCode = bankDetail?.swiftCode || "";
-            const pdfStream = PDFService.generateQuotePDF({
-              quote,
-              client,
-              items,
-              companyName,
-              companyAddress,
-              companyPhone,
-              companyEmail,
-              companyWebsite,
-              companyGSTIN,
-              preparedBy: creator?.name,
-              preparedByEmail: creator?.email,
-              bankDetails: {
-                bankName,
-                accountNumber: bankAccountNumber,
-                accountName: bankAccountName,
-                ifsc: bankIfscCode,
-                branch: bankBranch,
-                swift: bankSwiftCode
-              }
-            });
-            const chunks = [];
-            await new Promise((resolve, reject) => {
-              pdfStream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-              pdfStream.on("end", resolve);
-              pdfStream.on("error", reject);
-            });
-            const pdfBuffer = Buffer.concat(chunks);
-            await EmailService.sendQuoteEmail(
-              client.email,
-              emailSubject,
-              emailBody,
-              pdfBuffer
-            );
-            console.log(`[Auto-Email] Quote ${quote.quoteNumber} sent to ${client.email}`);
-          }
-        } catch (emailError) {
-          console.error("[Auto-Email] Failed to send email:", emailError);
-        }
-      }
-      return res.json(quote);
-    } catch (error) {
-      console.error("Update quote error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update quote" });
-    }
-  });
-  app2.put("/api/quotes/:id", requireFeature("quotes_edit"), authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
-    try {
-      const existingQuote = await storage.getQuote(req.params.id);
-      if (!existingQuote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      if (existingQuote.status === "invoiced") {
-        return res.status(400).json({ error: "Cannot edit an invoiced quote" });
-      }
-      const { items, ...quoteData } = req.body;
-      if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
-        quoteData.quoteDate = new Date(quoteData.quoteDate);
-      }
-      if (quoteData.validUntil && typeof quoteData.validUntil === "string") {
-        quoteData.validUntil = new Date(quoteData.validUntil);
-      }
-      const quote = await storage.updateQuote(req.params.id, quoteData);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
       if (items && Array.isArray(items)) {
-        await storage.deleteQuoteItems(req.params.id);
+        await storage.deleteQuoteItems(quote.id);
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           await storage.createQuoteItem({
@@ -6261,26 +8378,33 @@ async function registerRoutes(app2) {
       return res.json(quote);
     } catch (error) {
       console.error("Update quote error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update quote" });
+      res.status(500).json({ error: "Failed to update quote" });
     }
   });
   app2.post("/api/quotes/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
     try {
       const quote = await storage.getQuote(req.params.id);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
+      if (!quote) return res.status(404).json({ error: "Quote not found" });
+      if (quote.status === "invoiced") {
+        return res.status(400).json({ error: "Quote is already invoiced" });
       }
-      const existingInvoices = await storage.getInvoicesByQuote(quote.id);
-      const masterInvoice = existingInvoices.find((inv) => inv.isMaster);
-      if (masterInvoice) {
-        return res.status(400).json({ error: "Quote already has a master invoice" });
+      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+      if (existingSalesOrder) {
+        return res.status(400).json({
+          error: "Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.",
+          salesOrderId: existingSalesOrder.id,
+          salesOrderNumber: existingSalesOrder.orderNumber
+        });
       }
       const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
       const invoice = await storage.createInvoice({
         invoiceNumber,
         quoteId: quote.id,
+        isMaster: true,
+        masterInvoiceStatus: "draft",
         paymentStatus: "pending",
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
+        dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1e3),
+        // Default due date based on validity
         paidAmount: "0",
         subtotal: quote.subtotal,
         discount: quote.discount,
@@ -6291,8 +8415,6 @@ async function registerRoutes(app2) {
         total: quote.total,
         notes: quote.notes,
         termsAndConditions: quote.termsAndConditions,
-        isMaster: true,
-        masterInvoiceStatus: "draft",
         createdBy: req.user.id
       });
       const quoteItems2 = await storage.getQuoteItems(quote.id);
@@ -6306,20 +8428,20 @@ async function registerRoutes(app2) {
           subtotal: item.subtotal,
           status: "pending",
           sortOrder: item.sortOrder,
-          hsnSac: item.hsnSac || null
+          hsnSac: item.hsnSac
         });
       }
       await storage.updateQuote(quote.id, { status: "invoiced" });
       await storage.createActivityLog({
         userId: req.user.id,
-        action: "convert_to_invoice",
-        entityType: "quote",
-        entityId: quote.id
+        action: "convert_quote_to_invoice",
+        entityType: "invoice",
+        entityId: invoice.id
       });
       return res.json(invoice);
     } catch (error) {
-      console.error("Convert to invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to convert to invoice" });
+      console.error("Convert quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to convert quote" });
     }
   });
   app2.put("/api/invoices/:id/master-status", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
@@ -6356,10 +8478,156 @@ async function registerRoutes(app2) {
         entityType: "invoice",
         entityId: invoice.id
       });
-      return res.json(updatedInvoice);
+      res.json({ success: true, invoice: updatedInvoice });
     } catch (error) {
       console.error("Update master invoice status error:", error);
       return res.status(500).json({ error: error.message || "Failed to update master invoice status" });
+    }
+  });
+  app2.delete("/api/invoices/:id", authMiddleware, requirePermission("invoices", "delete"), async (req, res) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "partial") {
+        return res.status(400).json({ error: "Cannot delete invoices with payments. Please cancel instead." });
+      }
+      if (invoice.isMaster) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+        if (childInvoices.length > 0) {
+          return res.status(400).json({ error: "Cannot delete master invoice with child invoices" });
+        }
+      }
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        status: "cancelled",
+        cancelledAt: /* @__PURE__ */ new Date(),
+        cancelledBy: req.user.id,
+        cancellationReason: "Deleted by user"
+      });
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "invoice_deleted",
+        entityType: "invoice",
+        entityId: invoice.id
+      });
+      res.json({ success: true, message: "Invoice deleted successfully" });
+    } catch (error) {
+      console.error("Delete invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to delete invoice" });
+    }
+  });
+  app2.put("/api/invoices/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      if (invoice.paymentStatus === "paid") {
+        return res.status(400).json({ error: "Cannot finalize paid invoices" });
+      }
+      if (invoice.status === "cancelled") {
+        return res.status(400).json({ error: "Cannot finalize cancelled invoices" });
+      }
+      if (invoice.isMaster && invoice.masterInvoiceStatus !== "confirmed" && invoice.masterInvoiceStatus !== "locked") {
+        return res.status(400).json({ error: "Master invoice must be confirmed before finalizing" });
+      }
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        finalizedAt: /* @__PURE__ */ new Date(),
+        finalizedBy: req.user.id,
+        status: invoice.status === "draft" ? "sent" : invoice.status
+      });
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "invoice_finalized",
+        entityType: "invoice",
+        entityId: invoice.id
+      });
+      res.json({ success: true, invoice: updatedInvoice });
+    } catch (error) {
+      console.error("Finalize invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to finalize invoice" });
+    }
+  });
+  app2.put("/api/invoices/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req, res) => {
+    try {
+      const { isLocked } = req.body;
+      if (typeof isLocked !== "boolean") {
+        return res.status(400).json({ error: "isLocked must be a boolean" });
+      }
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      if (isLocked && !invoice.finalizedAt && invoice.paymentStatus !== "paid") {
+        return res.status(400).json({ error: "Can only lock finalized or paid invoices" });
+      }
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        isLocked
+      });
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: isLocked ? "invoice_locked" : "invoice_unlocked",
+        entityType: "invoice",
+        entityId: invoice.id
+      });
+      res.json({ success: true, invoice: updatedInvoice });
+    } catch (error) {
+      console.error("Lock invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to lock/unlock invoice" });
+    }
+  });
+  app2.put("/api/invoices/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req, res) => {
+    try {
+      const { cancellationReason } = req.body;
+      if (!cancellationReason || cancellationReason.trim().length === 0) {
+        return res.status(400).json({ error: "Cancellation reason is required" });
+      }
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      if (invoice.paymentStatus === "paid") {
+        return res.status(400).json({ error: "Cannot cancel fully paid invoices" });
+      }
+      if (invoice.status === "cancelled") {
+        return res.status(400).json({ error: "Invoice is already cancelled" });
+      }
+      if (invoice.isMaster) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+        const paidChildren = childInvoices.filter((c) => c.paymentStatus === "paid");
+        if (paidChildren.length > 0) {
+          return res.status(400).json({ error: "Cannot cancel master invoice with paid child invoices" });
+        }
+        for (const child of childInvoices) {
+          if (child.paymentStatus !== "paid") {
+            await storage.updateInvoice(child.id, {
+              status: "cancelled",
+              cancelledAt: /* @__PURE__ */ new Date(),
+              cancelledBy: req.user.id,
+              cancellationReason: `Parent invoice cancelled: ${cancellationReason}`
+            });
+          }
+        }
+      }
+      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+        status: "cancelled",
+        cancelledAt: /* @__PURE__ */ new Date(),
+        cancelledBy: req.user.id,
+        cancellationReason
+      });
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "invoice_cancelled",
+        entityType: "invoice",
+        entityId: invoice.id
+      });
+      res.json({ success: true, invoice: updatedInvoice });
+    } catch (error) {
+      console.error("Cancel invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
     }
   });
   app2.put("/api/invoices/:id/master-details", authMiddleware, requirePermission("invoices", "edit"), async (req, res) => {
@@ -6538,8 +8806,7 @@ async function registerRoutes(app2) {
       const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
       const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
       const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
-      const childNumber = siblingInvoices.length + 1;
-      const invoiceNumber = `${masterInvoice.invoiceNumber}-${childNumber}`;
+      const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
       const childInvoice = await storage.createInvoice({
         invoiceNumber,
         parentInvoiceId: masterInvoice.id,
@@ -6627,6 +8894,12 @@ async function registerRoutes(app2) {
           invoiceNumber: masterInvoice.invoiceNumber,
           status: masterInvoice.masterInvoiceStatus || "draft",
           total: masterInvoice.total,
+          subtotal: masterInvoice.subtotal,
+          discount: masterInvoice.discount,
+          cgst: masterInvoice.cgst,
+          sgst: masterInvoice.sgst,
+          igst: masterInvoice.igst,
+          shippingCharges: masterInvoice.shippingCharges,
           createdAt: masterInvoice.createdAt
         },
         items: itemsSummary,
@@ -6648,73 +8921,6 @@ async function registerRoutes(app2) {
     } catch (error) {
       console.error("Get master invoice summary error:", error);
       return res.status(500).json({ error: error.message || "Failed to get master invoice summary" });
-    }
-  });
-  app2.get("/api/quotes/:id/pdf", authMiddleware, async (req, res) => {
-    try {
-      const quote = await storage.getQuote(req.params.id);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      const items = await storage.getQuoteItems(quote.id);
-      const creator = await storage.getUser(quote.createdBy);
-      const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
-      const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
-      const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
-      const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
-      const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const bankDetail = await storage.getActiveBankDetails();
-      const bankName = bankDetail?.bankName || "";
-      const bankAccountNumber = bankDetail?.accountNumber || "";
-      const bankAccountName = bankDetail?.accountName || "";
-      const bankIfscCode = bankDetail?.ifscCode || "";
-      const bankBranch = bankDetail?.branch || "";
-      const bankSwiftCode = bankDetail?.swiftCode || "";
-      const pdfStream = PDFService.generateQuotePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        preparedBy: creator?.name,
-        preparedByEmail: creator?.email,
-        bankDetails: {
-          bankName,
-          accountNumber: bankAccountNumber,
-          accountName: bankAccountName,
-          ifsc: bankIfscCode,
-          branch: bankBranch,
-          swift: bankSwiftCode
-        }
-      });
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="Quote-${quote.quoteNumber}.pdf"`);
-      pdfStream.on("error", (err) => {
-        console.error("PDF stream error:", err);
-        if (!res.headersSent) {
-          res.status(500).end("Failed to generate PDF");
-        }
-      });
-      pdfStream.pipe(res);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "export_pdf",
-        entityType: "quote",
-        entityId: quote.id
-      });
-    } catch (error) {
-      console.error("PDF export error:", error);
-      return res.status(500).json({ error: error.message || "Failed to generate PDF" });
     }
   });
   app2.post("/api/quotes/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req, res) => {
@@ -6740,6 +8946,7 @@ async function registerRoutes(app2) {
       const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
       const emailSubjectTemplate = settings2.find((s) => s.key === "email_quote_subject")?.value || "Quote {QUOTE_NUMBER} from {COMPANY_NAME}";
       const emailBodyTemplate = settings2.find((s) => s.key === "email_quote_body")?.value || "Dear {CLIENT_NAME},\n\nPlease find attached quote {QUOTE_NUMBER} for your review.\n\nTotal Amount: {TOTAL}\nValid Until: {VALIDITY_DATE}\n\nBest regards,\n{COMPANY_NAME}";
       const quoteDate = new Date(quote.quoteDate);
@@ -6773,7 +8980,9 @@ ${message}`;
       const bankIfscCode = bankDetail?.ifscCode || "";
       const bankBranch = bankDetail?.branch || "";
       const bankSwiftCode = bankDetail?.swiftCode || "";
-      const pdfStream = PDFService.generateQuotePDF({
+      const { PassThrough } = await import("stream");
+      const pdfStream = new PassThrough();
+      const pdfPromise = PDFService.generateQuotePDF({
         quote,
         client,
         items,
@@ -6783,6 +8992,7 @@ ${message}`;
         companyEmail,
         companyWebsite,
         companyGSTIN,
+        companyLogo,
         preparedBy: creator?.name,
         preparedByEmail: creator?.email,
         bankDetails: {
@@ -6793,13 +9003,14 @@ ${message}`;
           branch: bankBranch,
           swift: bankSwiftCode
         }
-      });
+      }, pdfStream);
       const chunks = [];
+      pdfStream.on("data", (chunk) => chunks.push(chunk));
       await new Promise((resolve, reject) => {
-        pdfStream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
         pdfStream.on("end", resolve);
         pdfStream.on("error", reject);
       });
+      await pdfPromise;
       const pdfBuffer = Buffer.concat(chunks);
       await EmailService.sendQuoteEmail(
         recipientEmail,
@@ -6947,12 +9158,6 @@ ${message}`;
             updateData.paymentStatus = "pending";
           }
         }
-        updateData.lastPaymentDate = /* @__PURE__ */ new Date();
-      }
-      if (paymentStatus === "paid" && paidAmount === void 0) {
-        const totalAmount = invoice.total ? Number(invoice.total) : Number(quote.total);
-        updateData.paidAmount = String(totalAmount);
-        updateData.lastPaymentDate = /* @__PURE__ */ new Date();
       }
       const updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
       if (invoice.parentInvoiceId) {
@@ -6973,8 +9178,7 @@ ${message}`;
           }
           await storage.updateInvoice(masterInvoice.id, {
             paidAmount: String(totalChildPaidAmount),
-            paymentStatus: masterPaymentStatus,
-            lastPaymentDate: /* @__PURE__ */ new Date()
+            paymentStatus: masterPaymentStatus
           });
           if (masterPaymentStatus === "paid") {
             const quote2 = await storage.getQuote(masterInvoice.quoteId);
@@ -7064,8 +9268,7 @@ ${message}`;
       const updatedInvoice = await storage.updateInvoice(req.params.id, {
         paidAmount: String(newPaidAmount),
         paymentStatus: newPaymentStatus,
-        lastPaymentDate: /* @__PURE__ */ new Date(),
-        paymentMethod
+        lastPaymentDate: /* @__PURE__ */ new Date()
       });
       if (invoice.parentInvoiceId) {
         const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
@@ -7184,7 +9387,6 @@ ${message}`;
         invoiceId: invoice.id,
         paidAmount: invoice.paidAmount,
         lastPaymentDate: invoice.lastPaymentDate,
-        paymentMethod: invoice.paymentMethod,
         history
       });
     } catch (error) {
@@ -7219,8 +9421,7 @@ ${message}`;
       await storage.updateInvoice(payment.invoiceId, {
         paidAmount: String(newPaidAmount),
         paymentStatus: newPaymentStatus,
-        lastPaymentDate: lastPayment?.paymentDate || null,
-        paymentMethod: lastPayment?.paymentMethod || null
+        lastPaymentDate: lastPayment?.paymentDate || null
       });
       if (invoice.parentInvoiceId) {
         const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
@@ -7272,39 +9473,31 @@ ${message}`;
       const items = await storage.getQuoteItems(quote.id);
       const creator = await storage.getUser(quote.createdBy);
       const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
+      console.log("Available settings keys:", settings2.map((s) => s.key));
+      const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+      const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+      const city = settings2.find((s) => s.key === "company_city")?.value || "";
+      const state = settings2.find((s) => s.key === "company_state")?.value || "";
+      const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+      const country = settings2.find((s) => s.key === "company_country")?.value || "";
+      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
       const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
       const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const bankDetail = await storage.getActiveBankDetails();
-      const bankName = bankDetail?.bankName || "";
-      const bankAccountNumber = bankDetail?.accountNumber || "";
-      const bankAccountName = bankDetail?.accountName || "";
-      const bankIfscCode = bankDetail?.ifscCode || "";
-      const bankBranch = bankDetail?.branch || "";
-      const bankSwiftCode = bankDetail?.swiftCode || "";
-      const pdfStream = PDFService.generateQuotePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        preparedBy: creator?.name,
-        preparedByEmail: creator?.email,
-        bankDetails: {
-          bankName,
-          accountNumber: bankAccountNumber,
-          accountName: bankAccountName,
-          ifsc: bankIfscCode,
-          branch: bankBranch,
-          swift: bankSwiftCode
-        }
+      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+      console.log("Company Logo found:", !!companyLogo, "Length:", companyLogo?.length);
+      const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+      const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+      const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+      const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+      const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
+      const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
+      console.error("!!! DEBUG BANK DETAILS !!!", {
+        bankName,
+        bankAccountNumber,
+        bankAccountName,
+        bankIfscCode
       });
       const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
       res.setHeader("Content-Type", "application/pdf");
@@ -7316,8 +9509,29 @@ ${message}`;
       console.log(`[PDF Export] Quote #${quote.quoteNumber}`);
       console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
       console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      console.log(`[PDF Export] About to pipe PDF stream`);
-      pdfStream.pipe(res);
+      console.log(`[PDF Export] About to generate PDF`);
+      await PDFService.generateQuotePDF({
+        quote,
+        client,
+        items,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyLogo,
+        preparedBy: creator?.name,
+        preparedByEmail: creator?.email,
+        bankDetails: {
+          bankName,
+          accountNumber: bankAccountNumber,
+          accountName: bankAccountName,
+          ifsc: bankIfscCode,
+          branch: bankBranch,
+          swift: bankSwiftCode
+        }
+      }, res);
       console.log(`[PDF Export] PDF stream piped successfully`);
       await storage.createActivityLog({
         userId: req.user.id,
@@ -7366,20 +9580,35 @@ ${message}`;
         }));
       }
       const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
+      const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+      const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+      const city = settings2.find((s) => s.key === "company_city")?.value || "";
+      const state = settings2.find((s) => s.key === "company_state")?.value || "";
+      const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+      const country = settings2.find((s) => s.key === "company_country")?.value || "";
+      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
       const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
       const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const bankDetail = await storage.getActiveBankDetails();
-      const bankName = bankDetail?.bankName || "";
-      const bankAccountNumber = bankDetail?.accountNumber || "";
-      const bankAccountName = bankDetail?.accountName || "";
-      const bankIfscCode = bankDetail?.ifscCode || "";
-      const bankBranch = bankDetail?.branch || "";
-      const bankSwiftCode = bankDetail?.swiftCode || "";
-      const pdfStream = InvoicePDFService.generateInvoicePDF({
+      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+      const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+      const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+      const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+      const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+      const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
+      const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
+      const cleanFilename = `Invoice-${invoice.invoiceNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Length", "");
+      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      console.log(`[PDF Export] Invoice #${invoice.invoiceNumber}`);
+      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
+      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+      await InvoicePDFService.generateInvoicePDF({
         quote,
         client,
         items,
@@ -7391,6 +9620,7 @@ ${message}`;
         companyWebsite,
         companyGSTIN,
         preparedBy: creator?.name,
+        companyLogo,
         userEmail: req.user?.email,
         companyDetails: {
           name: companyName,
@@ -7401,25 +9631,25 @@ ${message}`;
           gstin: companyGSTIN
         },
         invoiceNumber: invoice.invoiceNumber,
-        dueDate: new Date(invoice.dueDate),
-        paidAmount: invoice.paidAmount,
-        paymentStatus: invoice.paymentStatus,
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
+        paidAmount: invoice.paidAmount || "0",
+        paymentStatus: invoice.paymentStatus || "pending",
         // Master/Child invoice specific fields
         isMaster: invoice.isMaster,
         masterInvoiceStatus: invoice.masterInvoiceStatus || void 0,
         parentInvoiceNumber: parentInvoice?.invoiceNumber,
         childInvoices,
-        deliveryNotes: invoice.deliveryNotes,
-        milestoneDescription: invoice.milestoneDescription,
+        deliveryNotes: invoice.deliveryNotes || void 0,
+        milestoneDescription: invoice.milestoneDescription || void 0,
         // Use invoice totals (not quote totals)
-        subtotal: invoice.subtotal,
-        discount: invoice.discount,
-        cgst: invoice.cgst,
-        sgst: invoice.sgst,
-        igst: invoice.igst,
-        shippingCharges: invoice.shippingCharges,
-        total: invoice.total,
-        notes: invoice.notes,
+        subtotal: invoice.subtotal || "0",
+        discount: invoice.discount || "0",
+        cgst: invoice.cgst || "0",
+        sgst: invoice.sgst || "0",
+        igst: invoice.igst || "0",
+        shippingCharges: invoice.shippingCharges || "0",
+        total: invoice.total || "0",
+        notes: invoice.notes || void 0,
         termsAndConditions: invoice.termsAndConditions,
         // Bank details
         bankName,
@@ -7428,18 +9658,7 @@ ${message}`;
         bankIfscCode,
         bankBranch,
         bankSwiftCode
-      });
-      const cleanFilename = `Invoice-${invoice.invoiceNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Length", "");
-      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      console.log(`[PDF Export] Invoice #${invoice.invoiceNumber}`);
-      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
-      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      pdfStream.pipe(res);
+      }, res);
       await storage.createActivityLog({
         userId: req.user.id,
         action: "export_pdf",
@@ -7472,26 +9691,35 @@ ${message}`;
       const items = await storage.getQuoteItems(quote.id);
       const creator = await storage.getUser(quote.createdBy);
       const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
+      const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+      const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+      const city = settings2.find((s) => s.key === "company_city")?.value || "";
+      const state = settings2.find((s) => s.key === "company_state")?.value || "";
+      const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+      const country = settings2.find((s) => s.key === "company_country")?.value || "";
+      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
       const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
       const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
       const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
       const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
       const emailSubjectTemplate = settings2.find((s) => s.key === "email_invoice_subject")?.value || "Invoice {INVOICE_NUMBER} from {COMPANY_NAME}";
       const emailBodyTemplate = settings2.find((s) => s.key === "email_invoice_body")?.value || "Dear {CLIENT_NAME},\n\nPlease find attached invoice {INVOICE_NUMBER}.\n\nAmount Due: {TOTAL}\nDue Date: {DUE_DATE}\n\nPayment Details:\n{BANK_DETAILS}\n\nBest regards,\n{COMPANY_NAME}";
-      const bankDetailRecord = await storage.getActiveBankDetails();
-      const bankDetailsForEmail = bankDetailRecord ? `Bank: ${bankDetailRecord.bankName}
-Account: ${bankDetailRecord.accountName}
-Account Number: ${bankDetailRecord.accountNumber}
-IFSC: ${bankDetailRecord.ifscCode}` : "Contact us for payment details";
+      const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+      const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+      const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+      const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+      const bankDetailsForEmail = bankName ? `Bank: ${bankName}
+Account: ${bankAccountName}
+Account Number: ${bankAccountNumber}
+IFSC: ${bankIfscCode}` : "Contact us for payment details";
       const variables = {
         "{COMPANY_NAME}": companyName,
         "{CLIENT_NAME}": client.name,
         "{INVOICE_NUMBER}": invoice.invoiceNumber,
         "{TOTAL}": `\u20B9${Number(invoice.total).toLocaleString()}`,
         "{OUTSTANDING}": `\u20B9${(Number(invoice.total) - Number(invoice.paidAmount)).toLocaleString()}`,
-        "{DUE_DATE}": new Date(invoice.dueDate).toLocaleDateString(),
+        "{DUE_DATE}": invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : (/* @__PURE__ */ new Date()).toLocaleDateString(),
         "{BANK_DETAILS}": bankDetailsForEmail
       };
       let emailSubject = emailSubjectTemplate;
@@ -7508,7 +9736,9 @@ IFSC: ${bankDetailRecord.ifscCode}` : "Contact us for payment details";
 Additional Note:
 ${message}`;
       }
-      const pdfStream = InvoicePDFService.generateInvoicePDF({
+      const { PassThrough } = await import("stream");
+      const pdfStream = new PassThrough();
+      const pdfPromise = InvoicePDFService.generateInvoicePDF({
         quote,
         client,
         items,
@@ -7519,6 +9749,7 @@ ${message}`;
         companyWebsite,
         companyGSTIN,
         preparedBy: creator?.name,
+        companyLogo,
         userEmail: req.user?.email,
         companyDetails: {
           name: companyName,
@@ -7529,38 +9760,40 @@ ${message}`;
           gstin: companyGSTIN
         },
         invoiceNumber: invoice.invoiceNumber,
-        dueDate: new Date(invoice.dueDate),
-        paidAmount: invoice.paidAmount,
-        paymentStatus: invoice.paymentStatus,
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
+        paidAmount: invoice.paidAmount || "0",
+        paymentStatus: invoice.paymentStatus || "pending",
         // Add missing invoice fields
         isMaster: invoice.isMaster,
         masterInvoiceStatus: invoice.masterInvoiceStatus || void 0,
-        deliveryNotes: invoice.deliveryNotes,
-        milestoneDescription: invoice.milestoneDescription,
+        deliveryNotes: invoice.deliveryNotes || void 0,
+        milestoneDescription: invoice.milestoneDescription || void 0,
         // Use invoice totals (not quote totals)
-        subtotal: invoice.subtotal,
-        discount: invoice.discount,
-        cgst: invoice.cgst,
-        sgst: invoice.sgst,
-        igst: invoice.igst,
-        shippingCharges: invoice.shippingCharges,
-        total: invoice.total,
-        notes: invoice.notes,
+        subtotal: invoice.subtotal || "0",
+        discount: invoice.discount || "0",
+        cgst: invoice.cgst || "0",
+        sgst: invoice.sgst || "0",
+        igst: invoice.igst || "0",
+        shippingCharges: invoice.shippingCharges || "0",
+        total: invoice.total || "0",
+        notes: invoice.notes || void 0,
         termsAndConditions: invoice.termsAndConditions,
         // Bank details from dedicated table
-        bankName: bankDetailRecord?.bankName || void 0,
-        bankAccountNumber: bankDetailRecord?.accountNumber || void 0,
-        bankAccountName: bankDetailRecord?.accountName || void 0,
-        bankIfscCode: bankDetailRecord?.ifscCode || void 0,
-        bankBranch: bankDetailRecord?.branch || void 0,
-        bankSwiftCode: bankDetailRecord?.swiftCode || void 0
-      });
+        // Bank details from settings
+        bankName: bankName || void 0,
+        bankAccountNumber: bankAccountNumber || void 0,
+        bankAccountName: bankAccountName || void 0,
+        bankIfscCode: bankIfscCode || void 0,
+        bankBranch: settings2.find((s) => s.key === "bank_branch")?.value || void 0,
+        bankSwiftCode: settings2.find((s) => s.key === "bank_swiftCode")?.value || void 0
+      }, pdfStream);
       const chunks = [];
+      pdfStream.on("data", (chunk) => chunks.push(chunk));
       await new Promise((resolve, reject) => {
-        pdfStream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
         pdfStream.on("end", resolve);
         pdfStream.on("error", reject);
       });
+      await pdfPromise;
       const pdfBuffer = Buffer.concat(chunks);
       await EmailService.sendInvoiceEmail(
         recipientEmail,
@@ -7602,7 +9835,7 @@ ${message}`;
       const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
       const emailSubjectTemplate = settings2.find((s) => s.key === "email_payment_reminder_subject")?.value || "Payment Reminder: Invoice {INVOICE_NUMBER}";
       const emailBodyTemplate = settings2.find((s) => s.key === "email_payment_reminder_body")?.value || "Dear {CLIENT_NAME},\n\nThis is a friendly reminder that invoice {INVOICE_NUMBER} is due for payment.\n\nAmount Due: {OUTSTANDING}\nDue Date: {DUE_DATE}\nDays Overdue: {DAYS_OVERDUE}\n\nPlease arrange payment at your earliest convenience.\n\nBest regards,\n{COMPANY_NAME}";
-      const dueDate = new Date(invoice.dueDate);
+      const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date();
       const today = /* @__PURE__ */ new Date();
       const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1e3 * 60 * 60 * 24));
       const daysOverdueText = daysOverdue > 0 ? `${daysOverdue} days` : "Not overdue";
@@ -7836,6 +10069,126 @@ ${message}`;
       });
     }
   });
+  app2.get("/api/numbering/counters", authMiddleware, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can access counter values" });
+      }
+      const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
+      const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
+      const year = (/* @__PURE__ */ new Date()).getFullYear();
+      const counters = { year };
+      if (featureFlags2.quotes_module) {
+        counters.quote = await NumberingService2.getCounter("quote", year);
+      }
+      if (featureFlags2.vendorPO_module) {
+        counters.vendor_po = await NumberingService2.getCounter("vendor_po", year);
+      }
+      if (featureFlags2.invoices_module) {
+        counters.invoice = await NumberingService2.getCounter("invoice", year);
+      }
+      if (featureFlags2.grn_module) {
+        counters.grn = await NumberingService2.getCounter("grn", year);
+      }
+      if (featureFlags2.sales_orders_module) {
+        counters.sales_order = await NumberingService2.getCounter("sales_order", year);
+      }
+      return res.json(counters);
+    } catch (error) {
+      console.error("Get counters error:", error);
+      return res.status(500).json({ error: error.message || "Failed to get counters" });
+    }
+  });
+  app2.post("/api/numbering/reset-counter", authMiddleware, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can reset counters" });
+      }
+      const { type, year } = req.body;
+      if (!type) {
+        return res.status(400).json({ error: "Counter type is required" });
+      }
+      const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: "Invalid counter type" });
+      }
+      const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
+      const featureMap = {
+        quote: featureFlags2.quotes_module,
+        vendor_po: featureFlags2.vendorPO_module,
+        invoice: featureFlags2.invoices_module,
+        grn: featureFlags2.grn_module,
+        sales_order: featureFlags2.sales_orders_module
+      };
+      if (!featureMap[type]) {
+        return res.status(403).json({ error: `Feature for ${type} is not enabled` });
+      }
+      const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
+      const targetYear = year || (/* @__PURE__ */ new Date()).getFullYear();
+      await NumberingService2.resetCounter(type, targetYear);
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "reset_counter",
+        entityType: "numbering",
+        entityId: `${type}_${targetYear}`
+      });
+      return res.json({
+        success: true,
+        message: `Counter for ${type} (${targetYear}) reset to 0`,
+        currentValue: 0
+      });
+    } catch (error) {
+      console.error("Reset counter error:", error);
+      return res.status(500).json({ error: error.message || "Failed to reset counter" });
+    }
+  });
+  app2.post("/api/numbering/set-counter", authMiddleware, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can set counters" });
+      }
+      const { type, year, value } = req.body;
+      if (!type || value === void 0) {
+        return res.status(400).json({ error: "Counter type and value are required" });
+      }
+      const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: "Invalid counter type" });
+      }
+      const numericValue = parseInt(value, 10);
+      if (isNaN(numericValue) || numericValue < 0) {
+        return res.status(400).json({ error: "Value must be a non-negative number" });
+      }
+      const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
+      const featureMap = {
+        quote: featureFlags2.quotes_module,
+        vendor_po: featureFlags2.vendorPO_module,
+        invoice: featureFlags2.invoices_module,
+        grn: featureFlags2.grn_module,
+        sales_order: featureFlags2.sales_orders_module
+      };
+      if (!featureMap[type]) {
+        return res.status(403).json({ error: `Feature for ${type} is not enabled` });
+      }
+      const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
+      const targetYear = year || (/* @__PURE__ */ new Date()).getFullYear();
+      await NumberingService2.setCounter(type, targetYear, numericValue);
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "set_counter",
+        entityType: "numbering",
+        entityId: `${type}_${targetYear}`
+      });
+      return res.json({
+        success: true,
+        message: `Counter for ${type} (${targetYear}) set to ${numericValue}`,
+        currentValue: numericValue
+      });
+    } catch (error) {
+      console.error("Set counter error:", error);
+      return res.status(500).json({ error: error.message || "Failed to set counter" });
+    }
+  });
   app2.get("/api/bank-details", authMiddleware, async (req, res) => {
     try {
       if (req.user.role !== "admin") {
@@ -7900,9 +10253,9 @@ ${message}`;
           ...ifscCode && { ifscCode },
           ...branch !== void 0 && { branch },
           ...swiftCode !== void 0 && { swiftCode },
-          ...isActive !== void 0 && { isActive }
-        },
-        req.user.id
+          ...isActive !== void 0 && { isActive },
+          updatedBy: req.user.id
+        }
       );
       if (!detail) {
         return res.status(404).json({ error: "Bank details not found" });
@@ -8147,53 +10500,368 @@ ${message}`;
         paymentStatus: "pending",
         dueDate,
         paidAmount: "0",
-        subtotal: req.body.subtotal || quote.subtotal,
-        discount: req.body.discount || quote.discount,
-        cgst: req.body.cgst || quote.cgst,
-        sgst: req.body.sgst || quote.sgst,
-        igst: req.body.igst || quote.igst,
-        shippingCharges: req.body.shippingCharges || quote.shippingCharges,
-        total: req.body.total || quote.total,
-        notes: req.body.notes || quote.notes,
-        termsAndConditions: req.body.termsAndConditions || quote.termsAndConditions,
-        deliveryNotes: req.body.deliveryNotes || null,
-        milestoneDescription: req.body.milestoneDescription || null,
+        clientId: quote.clientId,
+        subtotal: String(quote.subtotal || 0),
+        discount: String(quote.discount || 0),
+        cgst: String(quote.cgst || 0),
+        sgst: String(quote.sgst || 0),
+        igst: String(quote.igst || 0),
+        total: String(quote.total || 0),
+        remainingAmount: String(quote.total || 0),
+        status: "draft",
         createdBy: req.user.id
       });
-      if (req.body.items && Array.isArray(req.body.items) && req.body.items.length > 0) {
-        for (const item of req.body.items) {
-          await storage.createInvoiceItem({
-            invoiceId: invoice.id,
-            description: item.description,
-            quantity: item.quantity,
-            fulfilledQuantity: 0,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            status: "pending",
-            sortOrder: item.sortOrder || 0,
-            hsnSac: item.hsnSac || null
-          });
-        }
-      } else {
-        const quoteItems2 = await storage.getQuoteItems(quote.id);
-        for (const item of quoteItems2) {
-          await storage.createInvoiceItem({
-            invoiceId: invoice.id,
-            description: item.description,
-            quantity: item.quantity,
-            fulfilledQuantity: 0,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            status: "pending",
-            sortOrder: item.sortOrder,
-            hsnSac: item.hsnSac || null
-          });
-        }
+      const quoteItems2 = await storage.getQuoteItems(quote.id);
+      for (const item of quoteItems2) {
+        await storage.createInvoiceItem({
+          invoiceId: invoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          hsnSac: item.hsnSac
+        });
       }
-      res.json(invoice);
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "create_invoice",
+        entityType: "invoice",
+        entityId: invoice.id
+      });
+      return res.json(invoice);
     } catch (error) {
-      console.error("Error creating invoice:", error);
-      res.status(500).json({ error: "Failed to create invoice" });
+      console.error("Create invoice error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create invoice" });
+    }
+  });
+  app2.get("/api/settings", authMiddleware, async (req, res) => {
+    try {
+      const settings2 = await storage.getAllSettings();
+      const settingsMap = {};
+      settings2.forEach((s) => {
+        settingsMap[s.key] = s.value;
+      });
+      return res.json(settingsMap);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+  app2.post("/api/settings", authMiddleware, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const settingsData = req.body;
+      for (const [key, value] of Object.entries(settingsData)) {
+        await storage.upsertSetting({
+          key,
+          value: String(value),
+          updatedBy: req.user.id
+        });
+      }
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "update_settings",
+        entityType: "settings"
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ error: error.message || "Failed to update settings" });
+    }
+  });
+  app2.get("/api/themes", authMiddleware, async (req, res) => {
+    try {
+      const { getAllThemes: getAllThemes2 } = await Promise.resolve().then(() => (init_pdf_themes(), pdf_themes_exports));
+      const themes = getAllThemes2();
+      return res.json(themes);
+    } catch (error) {
+      return res.status(500).json({ error: error.message || "Failed to get themes" });
+    }
+  });
+  app2.get("/api/themes/segment/:segment", authMiddleware, async (req, res) => {
+    try {
+      const { getSuggestedTheme: getSuggestedTheme2 } = await Promise.resolve().then(() => (init_pdf_themes(), pdf_themes_exports));
+      const theme = getSuggestedTheme2(req.params.segment);
+      return res.json(theme);
+    } catch (error) {
+      return res.status(500).json({ error: error.message || "Failed to get suggested theme" });
+    }
+  });
+  app2.patch("/api/clients/:id/theme", authMiddleware, async (req, res) => {
+    try {
+      const { preferredTheme, segment } = req.body;
+      const updateData = {};
+      if (preferredTheme !== void 0) updateData.preferredTheme = preferredTheme;
+      if (segment !== void 0) updateData.segment = segment;
+      const client = await storage.updateClient(req.params.id, updateData);
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "update_client_theme",
+        entityType: "client",
+        entityId: req.params.id
+      });
+      return res.json(client);
+    } catch (error) {
+      return res.status(500).json({ error: error.message || "Failed to update client theme" });
+    }
+  });
+  app2.get("/api/governance/stats", authMiddleware, async (req, res) => {
+    try {
+      if (req.user?.role !== "admin") {
+        return res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
+      const allUsers = await storage.getAllUsers();
+      const totalUsers = allUsers.length;
+      const activeUsers = allUsers.filter((u) => u.status === "active").length;
+      const activityLogs2 = await db.select().from(activityLogs);
+      const totalActivities = activityLogs2.length;
+      const criticalActivities = activityLogs2.filter(
+        (log) => log.action.includes("delete") || log.action.includes("approve") || log.action.includes("lock") || log.action.includes("finalize")
+      ).length;
+      const unauthorizedAttempts = activityLogs2.filter(
+        (log) => log.action.includes("unauthorized")
+      ).length;
+      const thirtyDaysAgo = /* @__PURE__ */ new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentApprovals = activityLogs2.filter(
+        (log) => log.action.includes("approve") && log.timestamp && new Date(log.timestamp) > thirtyDaysAgo
+      ).length;
+      return res.json({
+        totalUsers,
+        activeUsers,
+        totalActivities,
+        criticalActivities,
+        unauthorizedAttempts,
+        recentApprovals
+      });
+    } catch (error) {
+      console.error("Error fetching governance stats:", error);
+      return res.status(500).json({ error: error.message || "Failed to fetch governance stats" });
+    }
+  });
+  app2.get("/api/activity-logs/recent", authMiddleware, async (req, res) => {
+    try {
+      if (req.user?.role !== "admin") {
+        return res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
+      const logs = await db.select().from(activityLogs).orderBy(desc2(activityLogs.timestamp)).limit(100);
+      const enrichedLogs = await Promise.all(
+        logs.map(async (log) => {
+          const user = log.userId ? await storage.getUser(log.userId) : null;
+          return {
+            ...log,
+            userName: user?.name || "Unknown User",
+            userEmail: user?.email || "unknown@example.com"
+          };
+        })
+      );
+      return res.json(enrichedLogs);
+    } catch (error) {
+      console.error("Error fetching activity logs:", error);
+      return res.status(500).json({ error: error.message || "Failed to fetch activity logs" });
+    }
+  });
+  app2.get("/api/tax-rates", authMiddleware, async (req, res) => {
+    try {
+      const rates = await db.select().from(taxRates).where(eq3(taxRates.isActive, true));
+      const simplifiedRates = rates.map((rate) => ({
+        id: rate.id,
+        name: `${rate.taxType} ${rate.region}`,
+        percentage: parseFloat(rate.igstRate),
+        // Use IGST as the main rate
+        sgstRate: parseFloat(rate.sgstRate),
+        cgstRate: parseFloat(rate.cgstRate),
+        igstRate: parseFloat(rate.igstRate),
+        region: rate.region,
+        taxType: rate.taxType,
+        isActive: rate.isActive,
+        effectiveFrom: rate.effectiveFrom,
+        effectiveTo: rate.effectiveTo
+      }));
+      return res.json(simplifiedRates);
+    } catch (error) {
+      console.error("Error fetching tax rates:", error);
+      return res.status(500).json({ error: "Failed to fetch tax rates" });
+    }
+  });
+  app2.post("/api/tax-rates", authMiddleware, async (req, res) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
+      }
+      const { region, taxType, sgstRate, cgstRate, igstRate, description } = req.body;
+      if (!region || !taxType) {
+        return res.status(400).json({ error: "Region and taxType are required" });
+      }
+      const sgst = sgstRate !== void 0 && sgstRate !== null ? String(sgstRate) : "0";
+      const cgst = cgstRate !== void 0 && cgstRate !== null ? String(cgstRate) : "0";
+      const igst = igstRate !== void 0 && igstRate !== null ? String(igstRate) : "0";
+      const newRate = await db.insert(taxRates).values({
+        region,
+        taxType,
+        sgstRate: sgst,
+        cgstRate: cgst,
+        igstRate: igst
+      }).returning();
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "create_tax_rate",
+        entityType: "tax_rate",
+        entityId: newRate[0].id
+      });
+      return res.json({
+        id: newRate[0].id,
+        region,
+        taxType,
+        sgstRate: parseFloat(sgst),
+        cgstRate: parseFloat(cgst),
+        igstRate: parseFloat(igst)
+      });
+    } catch (error) {
+      console.error("Error creating tax rate:", error);
+      return res.status(500).json({ error: error.message || "Failed to create tax rate" });
+    }
+  });
+  app2.delete("/api/tax-rates/:id", authMiddleware, async (req, res) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
+      }
+      await db.delete(taxRates).where(eq3(taxRates.id, req.params.id));
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "delete_tax_rate",
+        entityType: "tax_rate",
+        entityId: req.params.id
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting tax rate:", error);
+      return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
+    }
+  });
+  app2.get("/api/payment-terms", authMiddleware, async (req, res) => {
+    try {
+      const terms = await db.select().from(paymentTerms).where(eq3(paymentTerms.isActive, true));
+      return res.json(terms);
+    } catch (error) {
+      console.error("Error fetching payment terms:", error);
+      return res.status(500).json({ error: "Failed to fetch payment terms" });
+    }
+  });
+  app2.post("/api/payment-terms", authMiddleware, async (req, res) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
+      }
+      const { name, days, description, isDefault } = req.body;
+      if (!name || days === void 0) {
+        return res.status(400).json({ error: "Name and days are required" });
+      }
+      if (isDefault) {
+        await db.update(paymentTerms).set({ isDefault: false }).where(eq3(paymentTerms.isDefault, true));
+      }
+      const newTerm = await db.insert(paymentTerms).values({
+        name,
+        days,
+        description: description || null,
+        isDefault: isDefault || false,
+        createdBy: req.user.id
+      }).returning();
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "create_payment_term",
+        entityType: "payment_term",
+        entityId: newTerm[0].id
+      });
+      return res.json(newTerm[0]);
+    } catch (error) {
+      console.error("Error creating payment term:", error);
+      return res.status(500).json({ error: error.message || "Failed to create payment term" });
+    }
+  });
+  app2.delete("/api/payment-terms/:id", authMiddleware, async (req, res) => {
+    try {
+      if (!["admin", "finance_accounts"].includes(req.user.role)) {
+        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
+      }
+      await db.delete(paymentTerms).where(eq3(paymentTerms.id, req.params.id));
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "delete_payment_term",
+        entityType: "payment_term",
+        entityId: req.params.id
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting payment term:", error);
+      return res.status(500).json({ error: error.message || "Failed to delete payment term" });
+    }
+  });
+  app2.get("/api/debug/counters", async (req, res) => {
+    try {
+      const year = (/* @__PURE__ */ new Date()).getFullYear();
+      const types = ["quote", "master_invoice", "child_invoice", "vendor_po", "grn"];
+      const counters = {};
+      for (const type of types) {
+        const counterKey = `${type}_counter_${year}`;
+        const setting = await storage.getSetting(counterKey);
+        const currentValue = setting?.value || "0";
+        const nextValue = parseInt(String(currentValue), 10) + 1;
+        counters[counterKey] = {
+          current: currentValue,
+          next: String(nextValue).padStart(4, "0"),
+          exists: !!setting
+        };
+      }
+      return res.json({
+        year,
+        counters,
+        message: "Next value shows what will be generated next"
+      });
+    } catch (error) {
+      console.error("Error fetching counters:", error);
+      return res.status(500).json({ error: error.message || "Failed to fetch counters" });
+    }
+  });
+  app2.post("/api/debug/reset-counter/:type", async (req, res) => {
+    try {
+      const { type } = req.params;
+      const year = (/* @__PURE__ */ new Date()).getFullYear();
+      console.log(`[DEBUG] Resetting counter for ${type} in year ${year}`);
+      await NumberingService.resetCounter(type, year);
+      return res.json({
+        success: true,
+        message: `Counter ${type}_counter_${year} has been reset to 0`,
+        nextNumber: "0001"
+      });
+    } catch (error) {
+      console.error("Error resetting counter:", error);
+      return res.status(500).json({ error: error.message || "Failed to reset counter" });
+    }
+  });
+  app2.post("/api/debug/set-counter/:type/:value", async (req, res) => {
+    try {
+      const { type, value } = req.params;
+      const year = (/* @__PURE__ */ new Date()).getFullYear();
+      const numValue = parseInt(value, 10);
+      if (isNaN(numValue) || numValue < 0) {
+        return res.status(400).json({ error: "Value must be a non-negative integer" });
+      }
+      console.log(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
+      await NumberingService.setCounter(type, year, numValue);
+      const nextValue = numValue + 1;
+      return res.json({
+        success: true,
+        message: `Counter ${type}_counter_${year} set to ${numValue}`,
+        nextNumber: String(nextValue).padStart(4, "0")
+      });
+    } catch (error) {
+      console.error("Error setting counter:", error);
+      return res.status(500).json({ error: error.message || "Failed to set counter" });
     }
   });
   app2.patch("/api/invoices/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req, res) => {
@@ -8223,8 +10891,8 @@ ${message}`;
         console.log(`  Unit Price: ${invoiceItem.unitPrice}`);
         console.log(`
 Available master items:`);
-        masterItems.forEach((mi, index) => {
-          console.log(`  [${index}] Description: "${mi.description}", Unit Price: ${mi.unitPrice}`);
+        masterItems.forEach((mi, index2) => {
+          console.log(`  [${index2}] Description: "${mi.description}", Unit Price: ${mi.unitPrice}`);
         });
         const masterItem = masterItems.find(
           (mi) => mi.description === invoiceItem.description && Number(mi.unitPrice) === Number(invoiceItem.unitPrice)
@@ -8389,8 +11057,7 @@ Available master items:`);
       }
       const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
       const siblings = allInvoices.filter((inv) => inv.parentInvoiceId === masterId);
-      const childNumber = siblings.length + 1;
-      const childInvoiceNumber = `${masterInvoice.invoiceNumber}-${childNumber}`;
+      const childInvoiceNumber = await NumberingService.generateChildInvoiceNumber();
       let subtotal = 0;
       console.log("Calculating subtotal for child invoice...");
       for (const item of items) {
@@ -9891,6 +12558,7 @@ Available master items:`);
     }
   });
   app2.use("/api", authMiddleware, analytics_routes_default);
+  app2.use("/api", authMiddleware, quote_workflow_routes_default);
   const httpServer = createServer(app2);
   return httpServer;
 }
@@ -9961,7 +12629,7 @@ async function initializeApp() {
     }
   }));
   newApp.use(express.urlencoded({ extended: false, limit: "10mb" }));
-  newApp.use(cookieParser2());
+  newApp.use(cookieParser());
   await registerRoutes(newApp);
   app = newApp;
   return newApp;

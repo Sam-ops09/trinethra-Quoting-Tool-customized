@@ -13,7 +13,7 @@ const app = express();
 
 // Trust proxy - required when running behind a reverse proxy/load balancer
 // This allows express-rate-limit to properly identify users via X-Forwarded-For header
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 declare module 'http' {
   interface IncomingMessage {
