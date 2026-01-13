@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -81,6 +81,7 @@ export default function QuoteDetail() {
   const canGeneratePDF = useFeatureFlag('quotes_pdfGeneration');
   const canConvertToInvoice = useFeatureFlag('quotes_convertToInvoice');
   const canSendQuote = useFeatureFlag('quotes_sendQuote');
+  const canClone = useFeatureFlag('quotes_clone');
 
   const { data: quote, isLoading } = useQuery<QuoteDetail>({
     queryKey: ["/api/quotes", params?.id],
@@ -141,6 +142,38 @@ export default function QuoteDetail() {
         description: error.message || "Failed to revise quote",
         variant: "destructive",
       });
+    }
+  });
+
+  const cloneQuoteMutation = useMutation({
+    mutationFn: async () => {
+       const response = await fetch(`/api/quotes/${params?.id}/clone`, {
+           method: "POST",
+           headers: {
+               "Content-Type": "application/json",
+           },
+       });
+       
+       if (!response.ok) {
+           const error = await response.json();
+           throw new Error(error.error || "Failed to clone quote");
+       }
+       
+       return response.json();
+    },
+    onSuccess: (data) => {
+        toast({
+            title: "Success",
+            description: "Quote cloned successfully",
+        });
+        setLocation(`/quotes/${data.id}`);
+    },
+    onError: (error: Error) => {
+        toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+        });
     }
   });
 
@@ -435,6 +468,23 @@ export default function QuoteDetail() {
                          Revise
                       </Button>
                    </PermissionGuard>
+                )}
+                {canClone && (
+                  <PermissionGuard resource="quotes" action="create">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("Are you sure you want to clone this quote?")) {
+                          cloneQuoteMutation.mutate();
+                        }
+                      }}
+                      className="flex-1 sm:flex-initial h-7 text-xs"
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      <span className="hidden xs:inline">Clone</span>
+                    </Button>
+                  </PermissionGuard>
                 )}
                 {canGeneratePDF && (
                   <Button

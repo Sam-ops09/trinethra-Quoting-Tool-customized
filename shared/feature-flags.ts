@@ -61,6 +61,7 @@ export interface FeatureFlags {
   quotes_approve: boolean;
   quotes_cancel: boolean;
   quotes_close: boolean;
+  quotes_clone: boolean;
   quotes_version: boolean;
   sales_orders_module: boolean;
   sales_orders_pdfGeneration: boolean;
@@ -364,6 +365,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_approve: true,
   quotes_cancel: true,
   quotes_close: true,
+  quotes_clone: true,
   quotes_version: true,
   sales_orders_module: true,
   sales_orders_pdfGeneration: true,

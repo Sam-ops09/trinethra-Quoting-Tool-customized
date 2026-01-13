@@ -27,6 +27,7 @@ import {
     ChevronRight,
     TrendingUp,
     Filter,
+    Copy,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,11 +87,12 @@ export default function Quotes() {
     // Feature flags
     const canGeneratePDF = useFeatureFlag('quotes_pdfGeneration');
     const canSendEmail = useFeatureFlag('quotes_emailSending');
+    const canClone = useFeatureFlag('quotes_clone');
 
     // Calculate if any actions are available for dropdown
     const hasDropdownActions = (quote: any) => {
         const canEdit = quote.status !== "invoiced" && user && hasPermission(user.role, "quotes", "edit");
-        return canEdit || canGeneratePDF || canSendEmail;
+        return canEdit || canGeneratePDF || canSendEmail || canClone;
     };
 
     const { data: quotes, isLoading } = useQuery<
@@ -128,6 +130,39 @@ export default function Quotes() {
                 variant: "destructive",
             });
         },
+    });
+
+    const cloneQuoteMutation = useMutation({
+        mutationFn: async (quoteId: string) => {
+           const response = await fetch(`/api/quotes/${quoteId}/clone`, {
+               method: "POST",
+               headers: {
+                   "Content-Type": "application/json",
+               },
+           });
+           
+           if (!response.ok) {
+               const error = await response.json();
+               throw new Error(error.error || "Failed to clone quote");
+           }
+           
+           return response.json();
+        },
+        onSuccess: (data) => {
+            toast({
+                title: "Success",
+                description: "Quote cloned successfully",
+            });
+            // Navigate to the new quote
+            setLocation(`/quotes/${data.id}`);
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Error",
+                description: error.message,
+                variant: "destructive",
+            });
+        }
     });
 
 
@@ -645,6 +680,21 @@ export default function Quotes() {
                                                                 </>
                                                             )}
                                                         </PermissionGuard>
+                                                        {canClone && (
+                                                            <PermissionGuard resource="quotes" action="create">
+                                                                <DropdownMenuItem
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (confirm("Are you sure you want to clone this quote?")) {
+                                                                            cloneQuoteMutation.mutate(quote.id);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <Copy className="h-4 w-4 mr-2" />
+                                                                    Clone
+                                                                </DropdownMenuItem>
+                                                            </PermissionGuard>
+                                                        )}
                                                         {canGeneratePDF && (
                                                           <DropdownMenuItem
                                                             onClick={() => {
@@ -798,6 +848,24 @@ export default function Quotes() {
                                                         </Button>
                                                     )}
                                                 </PermissionGuard>
+                                                {canClone && (
+                                                    <PermissionGuard resource="quotes" action="create">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm("Are you sure you want to clone this quote?")) {
+                                                                    cloneQuoteMutation.mutate(quote.id);
+                                                                }
+                                                            }}
+                                                            className="h-9 px-2 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800"
+                                                            title="Clone Quote"
+                                                        >
+                                                            <Copy className="h-4 w-4" />
+                                                        </Button>
+                                                    </PermissionGuard>
+                                                )}
                                                 <Button
                                                     variant="outline"
                                                     size="sm"

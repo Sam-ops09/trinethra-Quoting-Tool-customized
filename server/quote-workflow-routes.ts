@@ -187,6 +187,78 @@ router.get("/quotes/:id/versions/:version",
   }
 );
 
+// Clone a quote
+router.post("/quotes/:id/clone",
+  requireFeature('quotes_clone'),
+  requirePermission("quotes", "create"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const quoteId = req.params.id;
+      const originalQuote = await storage.getQuote(quoteId);
+
+      if (!originalQuote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      const items = await storage.getQuoteItems(quoteId);
+
+      // Generate new quote number
+      const quoteNumber = await NumberingService.generateQuoteNumber();
+
+      // Create new quote
+      // Note: We don't copy versions, activities, or invoices. This is a fresh start.
+      const newQuote = await storage.createQuote({
+        quoteNumber,
+        clientId: originalQuote.clientId,
+        templateId: originalQuote.templateId,
+        status: "draft",
+        validityDays: originalQuote.validityDays,
+        quoteDate: new Date(),
+        referenceNumber: originalQuote.referenceNumber ? `Clone of ${originalQuote.quoteNumber}` : undefined,
+        attentionTo: originalQuote.attentionTo,
+        subtotal: originalQuote.subtotal.toString(),
+        discount: originalQuote.discount.toString(),
+        cgst: originalQuote.cgst.toString(),
+        sgst: originalQuote.sgst.toString(),
+        igst: originalQuote.igst.toString(),
+        shippingCharges: originalQuote.shippingCharges.toString(),
+        total: originalQuote.total.toString(),
+        notes: originalQuote.notes,
+        termsAndConditions: originalQuote.termsAndConditions,
+        bomSection: originalQuote.bomSection,
+        slaSection: originalQuote.slaSection,
+        timelineSection: originalQuote.timelineSection,
+        createdBy: req.user!.id,
+      });
+
+      // Clone items
+      for (const item of items) {
+        await storage.createQuoteItem({
+          quoteId: newQuote.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice.toString(),
+          subtotal: item.subtotal.toString(),
+          hsnSac: item.hsnSac,
+          sortOrder: item.sortOrder,
+        });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "clone_quote",
+        entityType: "quote",
+        entityId: newQuote.id,
+      });
+
+      return res.json(newQuote);
+    } catch (error: any) {
+      console.error("Clone quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to clone quote" });
+    }
+  }
+);
+
 
 /**
  * SALES ORDERS
