@@ -90,7 +90,7 @@ export default function QuoteDetail() {
 
   // Check if sales order exists for this quote
   const { data: salesOrders } = useQuery<any[]>({
-    queryKey: ["/api/sales-orders", { quoteId: params?.id }],
+    queryKey: [`/api/sales-orders?quoteId=${params?.id}`],
     enabled: !!params?.id && quote?.status === "approved",
   });
   const hasSalesOrder = salesOrders && salesOrders.length > 0;

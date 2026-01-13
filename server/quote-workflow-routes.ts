@@ -353,7 +353,18 @@ router.get("/sales-orders",
   requirePermission("sales_orders", "view"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const orders = await storage.getAllSalesOrders();
+      const { quoteId } = req.query;
+      
+      let orders: any[] = [];
+      if (quoteId) {
+        const order = await storage.getSalesOrderByQuote(quoteId as string);
+        if (order) {
+          orders = [order];
+        }
+      } else {
+        orders = await storage.getAllSalesOrders();
+      }
+
       // Enrich with client name
       const ordersWithData = await Promise.all(orders.map(async (order) => {
         const client = await storage.getClient(order.clientId);
@@ -682,6 +693,23 @@ router.post(
         entityId: invoice.id,
         metadata: { fromSalesOrder: orderId }
       } as any); // Cast to any to allow metadata if schema type is partial
+
+      // Update Quote Status to Invoiced
+      console.log(`[CONVERT-INVOICE] Updating quote ${quote.id} status to 'invoiced'. Current status: ${quote.status}`);
+      const updatedQuote = await storage.updateQuote(quote.id, { status: "invoiced" });
+      console.log(`[CONVERT-INVOICE] Update result: ${updatedQuote ? 'Success' : 'Failed'}. New status: ${updatedQuote?.status}`);
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "update_status", 
+        entityType: "quote",
+        entityId: quote.id,
+        metadata: { 
+          newStatus: "invoiced", 
+          trigger: "invoice_creation",
+          salesOrderId: orderId
+        }
+      } as any);
 
       return res.status(201).json(invoice);
     } catch (error: any) {

@@ -767,6 +767,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Cannot edit an invoiced quote" });
       }
 
+      // Prevent editing quotes converted to sales orders
+      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+      if (existingSalesOrder) {
+        return res.status(400).json({ 
+          error: "Cannot edit a quote that has been converted to a Sales Order." 
+        });
+      }
+
       // Prevent editing finalized quotes (Sent/Approved/Rejected) unless only updating status
       // We allow updating status (e.g. marking as Approved), but not content changes.
       if (["sent", "approved", "rejected", "closed_paid", "closed_cancelled"].includes(existingQuote.status)) {
