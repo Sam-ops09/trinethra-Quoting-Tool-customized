@@ -100,6 +100,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "invoices", action: "delete" },
     { resource: "invoices", action: "finalize" },
     { resource: "invoices", action: "lock" },
+    { resource: "invoices", action: "cancel" },
     { resource: "sales-orders", action: "view" },
     { resource: "sales-orders", action: "create" },
     { resource: "sales-orders", action: "edit" },

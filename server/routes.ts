@@ -1131,10 +1131,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Cannot cancel fully paid invoices" });
       }
 
-      // Validation: Cannot cancel if already cancelled
-      if (invoice.status === "cancelled") {
+      // Validation: Cannot cancel if already cancelled (check both status and cancelledAt)
+      if (invoice.status === "cancelled" || invoice.cancelledAt) {
         return res.status(400).json({ error: "Invoice is already cancelled" });
       }
+
+      // Helper function to reverse stock for an invoice
+      const reverseStockForInvoice = async (invoiceId: string) => {
+        try {
+          // Get serial numbers linked to this invoice
+          const serialsResult = await db
+            .select()
+            .from(schema.serialNumbers)
+            .where(eq(schema.serialNumbers.invoiceId, invoiceId));
+
+          // Group serials by productId for stock updates
+          const productStockUpdates: Record<string, number> = {};
+
+          for (const serial of serialsResult) {
+            // Track stock to restore per product
+            if (serial.productId) {
+              productStockUpdates[serial.productId] = (productStockUpdates[serial.productId] || 0) + 1;
+            }
+
+            // Reset serial number: status back to in_stock, unlink from invoice
+            await db
+              .update(schema.serialNumbers)
+              .set({
+                status: "in_stock",
+                invoiceId: null,
+                invoiceItemId: null,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.serialNumbers.id, serial.id));
+          }
+
+          // Update product stock quantities
+          for (const [productId, quantityToRestore] of Object.entries(productStockUpdates)) {
+            const [product] = await db.select().from(schema.products).where(eq(schema.products.id, productId));
+            if (product) {
+              const currentStock = product.stockQuantity || 0;
+              const currentAvailable = product.availableQuantity || 0;
+
+              await db
+                .update(schema.products)
+                .set({
+                  stockQuantity: currentStock + quantityToRestore,
+                  availableQuantity: currentAvailable + quantityToRestore,
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.products.id, productId));
+            }
+          }
+
+          console.log(`[Stock Reversal] Restored ${serialsResult.length} serial numbers and updated ${Object.keys(productStockUpdates).length} product stock levels for invoice ${invoiceId}`);
+        } catch (error) {
+          console.error(`[Stock Reversal] Error reversing stock for invoice ${invoiceId}:`, error);
+          // Don't throw - we still want to cancel the invoice even if stock reversal fails
+        }
+      };
 
       // If master invoice with child invoices, check if any are paid
       if (invoice.isMaster) {
@@ -1145,11 +1200,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Cannot cancel master invoice with paid child invoices" });
         }
 
-        // Cancel all unpaid child invoices as well
+        // Cancel all unpaid child invoices and reverse their stock
         for (const child of childInvoices) {
           if (child.paymentStatus !== "paid") {
+            // Reverse stock for child invoice
+            await reverseStockForInvoice(child.id);
+
             await storage.updateInvoice(child.id, {
               status: "cancelled" as any,
+              paymentStatus: "cancelled" as any,
               cancelledAt: new Date(),
               cancelledBy: req.user!.id,
               cancellationReason: `Parent invoice cancelled: ${cancellationReason}`,
@@ -1158,8 +1217,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Reverse stock for the main invoice
+      await reverseStockForInvoice(req.params.id);
+
       const updatedInvoice = await storage.updateInvoice(req.params.id, {
         status: "cancelled" as any,
+        paymentStatus: "cancelled" as any,
         cancelledAt: new Date(),
         cancelledBy: req.user!.id,
         cancellationReason,
