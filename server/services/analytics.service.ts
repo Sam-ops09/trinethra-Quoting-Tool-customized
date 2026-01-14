@@ -131,7 +131,41 @@ export class AnalyticsService {
 
       for (const quote of allQuotes) {
         const client = allClients.find((c) => c.id === quote.clientId);
-        const region = client?.billingAddress?.split(",").pop()?.trim() || "Unknown";
+        const rawAddress = client?.billingAddress || client?.shippingAddress || "";
+        
+        // Split by comma or newline to handle various formats
+        const addressParts = rawAddress.split(/[\n,]/).map(s => s.trim()).filter(s => s.length > 0);
+        
+        let region = "Unknown";
+        
+        // 1. Try to extract from address
+        if (addressParts.length > 0) {
+           const last = addressParts[addressParts.length - 1];
+           // Simple check if it looks like a zip code (digits/dashes), take previous if available
+           if (/^[\d-]+$/.test(last) && addressParts.length > 1) {
+             region = addressParts[addressParts.length - 2];
+           } else {
+             region = last;
+           }
+        }
+        
+        // 2. Fallback: Try to extract from GSTIN if region is still Unknown or short/invalid
+        if ((region === "Unknown" || region.length < 3) && client?.gstin && client.gstin.length >= 2) {
+             const stateCode = client.gstin.substring(0, 2);
+             const stateMap: Record<string, string> = {
+                 "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+                 "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+                 "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh", "13": "Nagaland", "14": "Manipur",
+                 "15": "Mizoram", "16": "Tripura", "17": "Meghalaya", "18": "Assam", "19": "West Bengal",
+                 "20": "Jharkhand", "21": "Odisha", "22": "Chattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
+                 "27": "Maharashtra", "29": "Karnataka", "30": "Goa", "31": "Lakshadweep", "32": "Kerala",
+                 "33": "Tamil Nadu", "34": "Puducherry", "35": "Andaman & Nicobar", "36": "Telangana",
+                 "37": "Andhra Pradesh", "38": "Ladakh"
+             };
+             if (stateMap[stateCode]) {
+                 region = stateMap[stateCode];
+             }
+        }
 
         if (!regionData[region]) {
           regionData[region] = { count: 0, revenue: 0 };

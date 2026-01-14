@@ -24,6 +24,7 @@ import InvoiceDetail from "@/pages/invoice-detail";
 import AdminUsers from "@/pages/admin-users";
 import AdminSettings from "@/pages/admin-settings";
 import AdminConfiguration from "@/pages/admin-configuration";
+import Analytics from "@/pages/analytics";
 import Vendors from "@/pages/vendors";
 import VendorPOs from "@/pages/vendor-pos";
 import VendorPoCreate from "@/pages/vendor-po-create";
@@ -216,6 +217,9 @@ function AuthenticatedLayout() {
           )}
           {isFeatureEnabled('pages_adminConfiguration') && (
             <Route path="/admin/configuration" component={() => <ProtectedRoute component={AdminConfiguration} requiredPath="/admin/configuration" />} />
+          )}
+          {isFeatureEnabled('pages_adminAnalytics') && (
+            <Route path="/admin/analytics" component={() => <ProtectedRoute component={Analytics} requiredPath="/admin/analytics" />} />
           )}
           {isFeatureEnabled('pages_governanceDashboard') && (
             <Route path="/admin/governance" component={() => <ProtectedRoute component={GovernanceDashboard} requiredPath="/admin/governance" />} />

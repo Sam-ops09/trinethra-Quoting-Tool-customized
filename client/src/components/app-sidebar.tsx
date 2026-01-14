@@ -12,6 +12,7 @@ import {
     PackageCheck,
     Menu,
     ChevronDown,
+    BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLocation } from "wouter";
@@ -178,6 +179,14 @@ const adminItems = [
         roles: ["admin"],
         description: "System governance",
         featureFlag: 'pages_governanceDashboard' as const,
+    },
+    {
+        title: "Analytics",
+        url: "/admin/analytics",
+        icon: BarChart3,
+        roles: ["admin"],
+        description: "System analytics",
+        featureFlag: 'pages_adminAnalytics' as const,
     },
     {
         title: "Configuration",

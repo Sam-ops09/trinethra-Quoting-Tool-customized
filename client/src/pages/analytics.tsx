@@ -24,7 +24,10 @@ import {
   Filter,
   Sparkles,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Home,
+  ChevronRight,
+  LayoutDashboard
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -42,7 +45,8 @@ import {
   Area,
   AreaChart,
   ComposedChart,
-  Line
+  Line,
+  Sector
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,13 +55,15 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { isFeatureEnabled } from "@shared/feature-flags";
+import { useLocation } from "wouter";
 
 interface AnalyticsData {
   overview: {
     totalQuotes: number;
-    totalRevenue: string;
-    avgQuoteValue: string;
-    conversionRate: string;
+    totalRevenue: string; // Formatted string from backend
+    avgQuoteValue: string; // Formatted string
+    conversionRate: string; // Formatted string
   };
   monthlyData: Array<{
     month: string;
@@ -67,7 +73,7 @@ interface AnalyticsData {
   }>;
   topClients: Array<{
     name: string;
-    totalRevenue: string;
+    totalRevenue: string; // Formatted
     quoteCount: number;
   }>;
   statusBreakdown: Array<{
@@ -128,9 +134,9 @@ const COLORS = {
 const TrendBadge = ({ change, trend }: { change?: string; trend: "up" | "down" | "neutral" }) => {
   if (!change) return null;
   const styles = {
-    up: "text-success bg-success/10",
-    down: "text-destructive bg-destructive/10",
-    neutral: "text-muted-foreground bg-muted"
+    up: "text-emerald-600 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400",
+    down: "text-rose-600 bg-rose-100 dark:bg-rose-950 dark:text-rose-400",
+    neutral: "text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
   };
   const Icon = { up: ArrowUpRight, down: ArrowDownRight, neutral: Sparkles }[trend];
   return (
@@ -153,34 +159,153 @@ const StatCard = ({
   trend?: "up" | "down" | "neutral";
   caption?: string;
 }) => (
-  <Card className="border border-border shadow-sm transition-shadow hover:shadow-md" aria-labelledby={`stat-${title}`}> <CardContent className="p-5 lg:p-6"> <div className="flex items-start justify-between gap-4"> <div className="space-y-2"> <p id={`stat-${title}`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p> <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground" aria-live="polite">{typeof value === "number" ? value.toLocaleString() : value}</div> {caption && <p className="text-xs text-muted-foreground">{caption}</p>} </div> <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-foreground" aria-hidden="true"> <Icon className="h-6 w-6" /> </div> </div> <div className="mt-4 flex items-center gap-3 flex-wrap"> <TrendBadge change={change} trend={trend} /> {change && <span className="text-xs text-muted-foreground">vs previous period</span>} </div> </CardContent> </Card>
+  <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+    <CardContent className="relative p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="space-y-1.5 min-w-0 flex-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">{title}</p>
+          <div className="text-3xl font-bold text-slate-900 dark:text-white" aria-live="polite">{typeof value === "number" ? value.toLocaleString() : value}</div> 
+          {caption && <p className="text-xs text-slate-500 dark:text-slate-400">{caption}</p>}
+        </div>
+        <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
+            <Icon className="h-6 w-6 text-slate-600 dark:text-slate-400" />
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <TrendBadge change={change} trend={trend} />
+        {change && <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">vs last month</span>}
+      </div>
+    </CardContent>
+  </Card>
 );
 
 const InsightTile = ({ label, value, description, badge }: { label: string; value: string; description: string; badge?: string }) => (
-  <div className="rounded-xl border border-border bg-card p-4 shadow-sm" role="group" aria-label={label}> <div className="flex items-center justify-between"> <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p> {badge && <Badge variant="outline" className="rounded-full border-border bg-muted text-xs font-semibold text-foreground">{badge}</Badge>} </div> <p className="mt-2 text-lg font-semibold text-foreground break-words" aria-live="polite">{value}</p> <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed">{description}</p> </div>
+  <div className="rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm p-4 border border-slate-200/50 dark:border-slate-700/50" role="group" aria-label={label}>
+    <div className="flex items-center justify-between">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      {badge && <Badge variant="outline" className="rounded-full border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 text-xs font-semibold text-slate-900 dark:text-white">{badge}</Badge>}
+    </div>
+    <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white break-words" aria-live="polite">{value}</p>
+    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{description}</p>
+  </div>
 );
 
-// Section wrappers
+// Section wrappers - Updated to match premium card style
 const Section = ({ title, description, actions, children }: { title: string; description?: string; actions?: React.ReactNode; children: React.ReactNode }) => (
-  <Card className="border border-border shadow-sm" aria-labelledby={`section-${title}`}> <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"> <div> <CardTitle id={`section-${title}`} className="text-base sm:text-lg font-semibold text-foreground">{title}</CardTitle> {description && <CardDescription className="text-xs sm:text-sm text-muted-foreground">{description}</CardDescription>} </div> {actions} </CardHeader> <CardContent>{children}</CardContent> </Card>
+  <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg overflow-hidden" aria-labelledby={`section-${title}`}>
+    <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-5 pb-3">
+      <div>
+        <CardTitle id={`section-${title}`} className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">{title}</CardTitle>
+        {description && <CardDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">{description}</CardDescription>}
+      </div>
+      {actions}
+    </CardHeader>
+    <CardContent className="p-5">{children}</CardContent>
+  </Card>
 );
 
-// Loading skeleton
+// Loading skeleton - Updated container
 const LoadingState = () => (
-  <div className="min-h-screen bg-background"> <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-10 space-y-8"> <Skeleton className="h-40 rounded-2xl" /> <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"> {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-2xl" />)} </div> <div className="grid gap-6 lg:grid-cols-[2fr_1fr]"> <Skeleton className="h-96 rounded-2xl" /> <Skeleton className="h-96 rounded-2xl" /> </div> </div> </div>
+  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="space-y-3">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-10 w-64" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <Skeleton className="h-96 rounded-2xl" />
+        <Skeleton className="h-96 rounded-2xl" />
+      </div>
+    </div>
+  </div>
 );
+
+// Custom Active Shape for Pie Chart
+const renderActiveShape = (props: any) => {
+  const RADIAN = Math.PI / 180;
+  const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
+  const sin = Math.sin(-RADIAN * midAngle);
+  const cos = Math.cos(-RADIAN * midAngle);
+  const sx = cx + (outerRadius + 10) * cos;
+  const sy = cy + (outerRadius + 10) * sin;
+  const mx = cx + (outerRadius + 30) * cos;
+  const my = cy + (outerRadius + 30) * sin;
+  const ex = mx + (cos >= 0 ? 1 : -1) * 22;
+  const ey = my;
+  const textAnchor = cos >= 0 ? 'start' : 'end';
+
+  return (
+    <g>
+      <text x={cx} y={cy} dy={8} textAnchor="middle" fill={fill} className="text-xl font-bold fill-slate-900 dark:fill-white">
+        {payload.count}
+      </text>
+      <text x={cx} y={cy} dy={28} textAnchor="middle" className="text-xs fill-slate-500 dark:fill-slate-400">
+        Deals
+      </text>
+      <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
+      <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333" className="text-xs font-bold fill-slate-900 dark:fill-white">{`Revenue ₹${payload.totalValue.toLocaleString()}`}</text>
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={18} textAnchor={textAnchor} fill="#999" className="text-xs fill-slate-500 dark:fill-slate-400">
+        {`(Share ${(percent * 100).toFixed(1)}%)`}
+      </text>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+      />
+      <Sector
+        cx={cx}
+        cy={cy}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        innerRadius={outerRadius + 6}
+        outerRadius={outerRadius + 10}
+        fill={fill}
+      />
+    </g>
+  );
+};
 
 export default function Analytics() {
+  const [, setLocation] = useLocation();
   const [timeRange, setTimeRange] = useState("12");
   const [activeTab, setActiveTab] = useState("overview");
 
   // Data Queries
-  const { data, isLoading, isError } = useQuery<AnalyticsData>({ queryKey: ["/api/analytics", timeRange] });
-  const { data: forecast } = useQuery<RevenueForecast[]>({ queryKey: ["/api/analytics/forecast"] });
-  const { data: dealDistribution } = useQuery<DealDistribution[]>({ queryKey: ["/api/analytics/deal-distribution"] });
-  const { data: regionalData } = useQuery<RegionalData[]>({ queryKey: ["/api/analytics/regional"] });
-  const { data: pipeline } = useQuery<PipelineStage[]>({ queryKey: ["/api/analytics/pipeline"] });
-  const { data: insights } = useQuery<CompetitorInsights>({ queryKey: ["/api/analytics/competitor-insights"] });
+  const { data, isLoading, isError } = useQuery<AnalyticsData>({ 
+    queryKey: ["/api/analytics", timeRange]
+  });
+
+  const { data: forecast } = useQuery<RevenueForecast[]>({ 
+    queryKey: ["/api/analytics/forecast"],
+    enabled: isFeatureEnabled('analytics_forecasting')
+  });
+  
+  const { data: dealDistribution } = useQuery<DealDistribution[]>({ 
+    queryKey: ["/api/analytics/deal-distribution"] 
+  });
+  
+  const { data: regionalData } = useQuery<RegionalData[]>({ 
+    queryKey: ["/api/analytics/regional"] 
+  });
+  
+  const { data: pipeline } = useQuery<PipelineStage[]>({
+    queryKey: ["/api/analytics/pipeline"],
+    enabled: isFeatureEnabled('analytics_charts')
+  });
+  
+  const { data: insights } = useQuery<CompetitorInsights>({ 
+    queryKey: ["/api/analytics/competitor-insights"],
+    enabled: isFeatureEnabled('analytics_trends')
+  });
+  
   const { data: vendorAnalytics } = useQuery<VendorAnalytics>({
     queryKey: ["/api/analytics/vendor-spend", timeRange],
     queryFn: async () => {
@@ -190,7 +315,14 @@ export default function Analytics() {
       if (!response.ok) throw new Error("Failed to fetch vendor analytics");
       return response.json();
     },
+    enabled: isFeatureEnabled('analytics_vendorMetrics')
   });
+
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const handleExport = () => {
+    window.location.href = `/api/analytics/export?timeRange=${timeRange}`;
+  };
 
   // Derived Values
   const latestMonth = useMemo(() => data?.monthlyData?.[data.monthlyData.length - 1], [data?.monthlyData]);
@@ -206,61 +338,98 @@ export default function Analytics() {
   if (isLoading) return <LoadingState />;
 
   return (
-    <div className="min-h-screen bg-background pb-6 sm:pb-10">
-      <header className="border-b border-border bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/60 sticky top-0 z-40">
-        <div className="mx-auto max-w-[1440px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 flex flex-col gap-4 sm:gap-6">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 sm:gap-6">
-            <div className="space-y-3">
-              <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5" /> Executive Analytics
-              </span>
-              <div className="space-y-2">
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-foreground">Revenue Operations Intelligence</h1>
-                <p className="max-w-2xl text-xs sm:text-sm lg:text-base text-muted-foreground leading-relaxed">Unified analytics workspace to monitor growth, pipeline health, and operational efficiency.</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+        
+        {/* Premium Breadcrumbs */}
+        <nav className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
+            <button
+                onClick={() => setLocation("/")}
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
+            >
+                <Home className="h-3.5 w-3.5" />
+                <span>Home</span>
+            </button>
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            <button
+                onClick={() => setLocation("/admin/analytics")}  
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
+            >
+                <span>Admin</span>
+            </button>
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-white">
+                <BarChart3 className="h-3.5 w-3.5" />
+                Analytics
+            </span>
+        </nav>
+
+        {/* Premium Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-lg">
+            <div className="relative px-6 sm:px-8 py-6 sm:py-8">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 shadow-lg">
+                                <LayoutDashboard className="h-6 w-6 text-white dark:text-slate-900" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+                                    Analytics Dashboard
+                                </h1>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                                    Unified analytics workspace to monitor growth and performance
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center w-full sm:w-auto">
+                        <div className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 px-3 py-2 w-full sm:w-auto backdrop-blur-sm">
+                            <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                            <Select value={timeRange} onValueChange={setTimeRange}>
+                                <SelectTrigger className="h-9 sm:h-10 w-full border-none bg-transparent px-0 text-xs sm:text-sm focus:ring-0 sm:w-[140px] text-slate-900 dark:text-white font-medium">
+                                    <SelectValue placeholder="Time range" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl">
+                                    <SelectItem value="3">Last 3 months</SelectItem>
+                                    <SelectItem value="6">Last 6 months</SelectItem>
+                                    <SelectItem value="12">Last 12 months</SelectItem>
+                                    <SelectItem value="all">All time</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Button onClick={handleExport} className="h-11 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 font-semibold text-sm w-full sm:w-auto">
+                            <Download className="h-4 w-4 mr-2" /> Export Report
+                        </Button>
+                    </div>
+                </div>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2 w-full sm:w-auto">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <Select value={timeRange} onValueChange={setTimeRange}>
-                  <SelectTrigger className="h-9 sm:h-10 w-full border-none bg-transparent px-0 text-xs sm:text-sm focus:ring-0 sm:w-[160px]">
-                    <SelectValue placeholder="Time range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3">Last 3 months</SelectItem>
-                    <SelectItem value="6">Last 6 months</SelectItem>
-                    <SelectItem value="12">Last 12 months</SelectItem>
-                    <SelectItem value="all">All time</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button variant="outline" className="h-9 sm:h-10 w-full gap-2 rounded-lg border-border text-xs sm:text-sm sm:w-auto" aria-label="Open advanced filters">
-                  <Filter className="h-4 w-4" /> Filters
-                </Button>
-                <Button className="h-9 sm:h-10 w-full gap-2 rounded-lg bg-gradient-to-r from-secondary to-primary text-xs sm:text-sm font-bold text-white hover:from-primary hover:to-secondary shadow-md sm:w-auto" aria-label="Export analytics report">
-                  <Download className="h-4 w-4" /> Export
-                </Button>
-              </div>
-            </div>
-          </div>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex w-full gap-1 sm:gap-2 overflow-x-auto rounded-xl border border-border bg-card p-1 sm:p-1.5 shadow-sm scrollbar-hide" aria-label="Analytics Sections">
-              {(["overview", "performance", "pipeline", "insights"] as const).map(k => (
-                <TabsTrigger key={k} value={k} className="min-w-[90px] sm:min-w-[110px] flex-1 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-muted-foreground data-[state=active]:bg-gradient-to-r data-[state=active]:from-secondary data-[state=active]:to-primary data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-md whitespace-nowrap">
-                  {k === "overview" ? "Snapshot" : k.charAt(0).toUpperCase() + k.slice(1)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
         </div>
-      </header>
-      <main className="mx-auto max-w-[1440px] px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6 sm:space-y-10">
+
+        {/* Premium Tabs / Filter Card */}
+        <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg">
+           <CardContent className="p-2 sm:p-3">
+             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="flex w-full gap-1 p-1 bg-slate-100/50 dark:bg-slate-800/50 rounded-xl">
+                  {(["overview", "performance", "pipeline", "insights"] as const).map(k => (
+                    <TabsTrigger 
+                        key={k} 
+                        value={k} 
+                        className="flex-1 rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all capitalize"
+                    >
+                      {k === "overview" ? "Snapshot" : k.charAt(0).toUpperCase() + k.slice(1)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+           </CardContent>
+        </Card>
+
         {isError && (
-          <Card className="border border-destructive/30 bg-destructive/10">
+          <Card className="border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/20">
             <CardContent className="p-4 flex items-center gap-3">
-              <p className="text-sm font-medium text-destructive">Failed to load analytics data. Please retry.</p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => window.location.reload()}>
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">Failed to load analytics data. Please retry.</p>
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => window.location.reload()}>
                 <RefreshCw className="h-4 w-4 mr-2" />Reload
               </Button>
             </CardContent>
@@ -269,17 +438,22 @@ export default function Analytics() {
 
         {/* Overview Tab */}
         {activeTab === "overview" && data && (
-          <div className="space-y-6 sm:space-y-8">
+          <div className="space-y-6">
             <section aria-label="Key Performance Indicators">
-              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard title="Total Quotes" value={data.overview.totalQuotes} change="12.5%" icon={FileText} trend="up" caption="Active proposals YTD" />
-                <StatCard title="Total Revenue" value={`₹${data.overview.totalRevenue}`} change="23.1%" icon={DollarSign} trend="up" caption="Closed revenue" />
+              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+                {isFeatureEnabled('analytics_quoteMetrics') && (
+                  <StatCard title="Total Quotes" value={data.overview.totalQuotes} change="12.5%" icon={FileText} trend="up" caption="Active proposals YTD" />
+                )}
+                {isFeatureEnabled('analytics_revenueMetrics') && (
+                  <StatCard title="Total Revenue" value={`₹${data.overview.totalRevenue}`} change="23.1%" icon={DollarSign} trend="up" caption="Closed revenue" />
+                )}
                 <StatCard title="Average Deal Size" value={`₹${data.overview.avgQuoteValue}`} change="8.3%" icon={TrendingUp} trend="up" caption="Mean quote value" />
                 <StatCard title="Conversion Rate" value={`${data.overview.conversionRate}%`} change="-2.4%" icon={Target} trend="down" caption="Quote-to-close ratio" />
               </div>
             </section>
-            <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(240px,300px)_1fr]">
-              <aside className="space-y-4 sm:space-y-6 order-2 lg:order-1" aria-label="Executive Insights">
+            
+            <div className="grid gap-6 lg:grid-cols-[minmax(300px,360px)_1fr]">
+              <aside className="space-y-6 order-2 lg:order-1" aria-label="Executive Insights">
                 <Section title="Executive Summary" description="Latest performance highlights">
                   <div className="space-y-4">
                     <InsightTile label="Latest Month" value={latestMonth ? latestMonth.month : "—"} description={latestMonth ? `Revenue ₹${latestMonth.revenue.toLocaleString()} with ${latestMonth.quotes} quotes issued` : "No recent month data available"} badge={latestMonth ? "Most recent" : undefined} />
@@ -287,86 +461,97 @@ export default function Analytics() {
                     <InsightTile label="Pipeline Summary" value={`₹${pipelineSummary.totalValue.toLocaleString()}`} description={`${pipelineSummary.totalCount.toLocaleString()} open opportunities across all stages`} />
                   </div>
                 </Section>
-                <Section title="Engagement Signals" description="Cadence & conversion impact">
-                  <div className="space-y-5">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Weekly Quote Velocity</span>
-                        <Badge variant="outline" className="rounded-full border-border text-xs text-muted-foreground">Operational</Badge>
+                {isFeatureEnabled('analytics_trends') && (
+                  <Section title="Engagement" description="Cadence & conversion impact">
+                    <div className="space-y-5">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Weekly Velocity</span>
+                          <Badge variant="outline" className="rounded-full border-slate-200 dark:border-slate-700 text-xs font-medium bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Operational</Badge>
+                        </div>
+                        <Progress value={insights ? Math.min(insights.quoteFrequency * 8, 100) : 0} className="h-2 rounded-full bg-slate-100 dark:bg-slate-800" indicatorClassName="bg-slate-900 dark:bg-white" aria-valuenow={insights ? Math.min(insights.quoteFrequency * 8, 100) : 0} />
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{insights ? `${insights.quoteFrequency} quotes issued weekly with ${insights.conversionTrend.toFixed(1)}% conversion velocity.` : "Metrics pending activity."}</p>
                       </div>
-                      <Progress value={insights ? Math.min(insights.quoteFrequency * 8, 100) : 0} className="h-2 rounded-full bg-muted" aria-valuenow={insights ? Math.min(insights.quoteFrequency * 8, 100) : 0} aria-label="Quote velocity progress" />
-                      <p className="text-xs sm:text-sm text-muted-foreground">{insights ? `${insights.quoteFrequency} quotes issued weekly with ${insights.conversionTrend.toFixed(1)}% conversion velocity.` : "Engagement metrics will appear once activity resumes."}</p>
-                    </div>
-                    <div className="rounded-xl border border-border bg-muted px-4 py-3">
-                      <div className="flex items-center gap-2 text-foreground">
-                        <Sparkles className="h-4 w-4" />
-                        <span className="text-xs font-medium">Strategic Watchlist</span>
+                      <div className="rounded-xl border border-blue-200/50 bg-blue-50/50 dark:border-blue-900/30 dark:bg-blue-900/10 px-4 py-3">
+                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                          <Sparkles className="h-4 w-4" />
+                          <span className="text-xs font-bold uppercase tracking-wide">Strategic Watchlist</span>
+                        </div>
+                        <p className="mt-2 text-xs text-blue-600/80 dark:text-blue-400/80 leading-relaxed font-medium">Focus on high-value pursuits above ₹{data.overview.avgQuoteValue} and reinforce follow-up on stalled approvals.</p>
                       </div>
-                      <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">Focus on high-value pursuits above ₹{data.overview.avgQuoteValue} and reinforce follow-ups on stalled approvals.</p>
                     </div>
-                  </div>
-                </Section>
+                  </Section>
+                )}
               </aside>
-              <div className="space-y-6 sm:space-y-8 order-1 lg:order-2">
-                <Section title="Revenue & Volume Trend" description="Combined view of revenue and quote activity" actions={<Badge variant="outline" className="gap-1 rounded-full border-primary/30 bg-primary/10 text-xs text-primary"><CheckCircle2 className="h-3 w-3" /> YTD</Badge>}>
-                  <div className="h-[220px] xs:h-[260px] sm:h-[300px] md:h-[340px] lg:h-[380px]" role="figure" aria-label="Revenue and quotes trend chart">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={data.monthlyData}>
-                        <defs>
-                          <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.25} />
-                            <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis dataKey="month" stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                        <YAxis yAxisId="left" stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} tickFormatter={(v) => `₹${v}`} />
-                        <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                        <Tooltip contentStyle={{ borderRadius: 12, borderColor: "hsl(var(--border))", backgroundColor: "hsl(var(--background))", color: "hsl(var(--foreground))" }} />
-                        <Legend iconType="circle" wrapperStyle={{ paddingTop: 16 }} />
-                        <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="hsl(var(--foreground))" strokeWidth={3} fill="url(#revenueGradient)" name="Revenue (₹)" />
-                        <Line yAxisId="right" type="monotone" dataKey="quotes" stroke="hsl(var(--foreground))" strokeWidth={3} dot={{ fill: "hsl(var(--foreground))", r: 4 }} name="Quotes" />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Section>
+              <div className="space-y-6 order-1 lg:order-2">
+                {isFeatureEnabled('analytics_charts') && (
+                  <Section title="Revenue & Volume Trend" description="Combined view of revenue and quote activity" actions={<Badge variant="outline" className="gap-1 rounded-full border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"><CheckCircle2 className="h-3 w-3" /> YTD</Badge>}>
+                    <div className="h-[300px] sm:h-[350px] lg:h-[400px] w-full" role="figure" aria-label="Revenue and quotes trend chart">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={data.monthlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.25} />
+                              <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                          <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                          <YAxis yAxisId="left" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
+                          <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                          <Tooltip contentStyle={{ borderRadius: 12, border: "0", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }} />
+                          <Legend iconType="circle" wrapperStyle={{ paddingTop: 20 }} />
+                          <Area yAxisId="left" type="monotone" dataKey="revenue" stroke={COLORS.primary} strokeWidth={3} fill="url(#revenueGradient)" name="Revenue (₹)" />
+                          <Line yAxisId="right" type="monotone" dataKey="quotes" stroke={COLORS.secondary} strokeWidth={3} dot={{ fill: COLORS.secondary, r: 4, strokeWidth: 2, stroke: "white" }} name="Quotes" />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Section>
+                )}
+                
                 <Section title="Top Accounts" description="Key revenue contributors this period">
                   <div className="space-y-3">
                     {data.topClients.slice(0, 5).map((client, i) => {
                       const totalQuotes = data.topClients.reduce((acc, c) => acc + c.quoteCount, 0);
+                      const share = totalQuotes > 0 ? (client.quoteCount / totalQuotes * 100).toFixed(1) : "0.0";
                       return (
-                        <div key={client.name} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted px-4 py-3">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-bold text-white shadow-md" aria-label={`Rank ${i + 1}`}>{i + 1}</div>
+                        <div key={client.name} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm p-4 border border-slate-200/50 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                          <div className="flex items-center gap-4 min-w-0 flex-1">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 dark:bg-white text-sm font-bold text-white dark:text-slate-900 shadow-md transform transition-transform hover:scale-110" aria-label={`Rank ${i + 1}`}>{i + 1}</div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-foreground truncate" title={client.name}>{client.name}</p>
-                              <p className="text-xs text-muted-foreground">{client.quoteCount} {client.quoteCount === 1 ? "quote" : "quotes"}</p>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white truncate" title={client.name}>{client.name}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <Badge variant="secondary" className="text-[10px] px-1.5 h-5">{client.quoteCount} deals</Badge>
+                              </div>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-semibold text-foreground whitespace-nowrap">₹{client.totalRevenue}</p>
-                            <p className="text-xs text-muted-foreground">Share {(client.quoteCount / totalQuotes * 100).toFixed(1)}%</p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white whitespace-nowrap">₹{client.totalRevenue}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Share {share}%</p>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 </Section>
-                <Section title="Status Distribution" description="Pipeline balance across stages" actions={<Button variant="ghost" size="sm" className="h-8 gap-2 text-xs text-muted-foreground" aria-label="Refresh status distribution"><RefreshCw className="h-4 w-4" />Refresh</Button>}>
-                  <div className="h-[220px] xs:h-[260px] sm:h-[300px] md:h-[340px] lg:h-[380px]" role="figure" aria-label="Status distribution bar chart">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={data.statusBreakdown}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis dataKey="status" stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                        <YAxis stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                        <Tooltip contentStyle={{ borderRadius: 12, borderColor: "hsl(var(--border))", backgroundColor: "hsl(var(--background))", color: "hsl(var(--foreground))" }} />
-                        <Legend iconType="circle" />
-                        <Bar dataKey="count" name="Quotes" fill={COLORS.primary} radius={[8, 8, 0, 0]} barSize={36} />
-                        <Bar dataKey="value" name="Value (₹)" fill={COLORS.secondary} radius={[8, 8, 0, 0]} barSize={36} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Section>
+                
+                {isFeatureEnabled('analytics_charts') && (
+                  <Section title="Status Distribution" description="Pipeline balance across stages" actions={<Button variant="ghost" size="sm" className="h-8 gap-2 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white" aria-label="Refresh status distribution"><RefreshCw className="h-3.5 w-3.5" />Refresh</Button>}>
+                    <div className="h-[250px] sm:h-[300px] w-full" role="figure" aria-label="Status distribution bar chart">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data.statusBreakdown} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                          <XAxis dataKey="status" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                          <Tooltip contentStyle={{ borderRadius: 12, border: "0", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }} />
+                          <Legend iconType="circle" />
+                          <Bar dataKey="count" name="Quotes" fill={COLORS.primary} radius={[6, 6, 0, 0]} barSize={40} />
+                          <Bar dataKey="value" name="Value (₹)" fill={COLORS.secondary} radius={[6, 6, 0, 0]} barSize={40} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Section>
+                )}
               </div>
             </div>
           </div>
@@ -374,107 +559,119 @@ export default function Analytics() {
 
         {/* Performance Tab */}
         {activeTab === "performance" && (
-          <div className="space-y-6 sm:space-y-8">
-            <div className="grid gap-6 sm:gap-8 grid-cols-1 lg:grid-cols-2">
-              <Section title="Revenue Forecast" description="Projected trajectory for upcoming cycles">
-                <div className="h-[220px] xs:h-[260px] sm:h-[300px] md:h-[320px]" role="figure" aria-label="Revenue forecast area chart">
-                  {forecast && forecast.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={forecast}>
-                        <defs>
-                          <linearGradient id="forecastGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.25} />
-                            <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis dataKey="month" stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                        <YAxis stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} tickFormatter={(v) => `₹${v}`} />
-                        <Tooltip contentStyle={{ borderRadius: 12, borderColor: "hsl(var(--border))", backgroundColor: "hsl(var(--background))", color: "hsl(var(--foreground))" }} />
-                        <Area type="monotone" dataKey="forecastedRevenue" stroke={COLORS.success} strokeWidth={3} fill="url(#forecastGradient)" name="Forecasted Revenue (₹)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground flex-col">
-                      <Activity className="mb-2 h-10 w-10" />
-                      <p className="text-sm font-medium">Forecast data unavailable</p>
-                    </div>
-                  )}
-                </div>
-              </Section>
+          <div className="space-y-6">
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+              {isFeatureEnabled('analytics_forecasting') && (
+                <Section title="Revenue Forecast" description="Projected trajectory for upcoming cycles">
+                  <div className="h-[280px] sm:h-[320px]" role="figure" aria-label="Revenue forecast area chart">
+                    {forecast && forecast.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={forecast} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="forecastGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={COLORS.success} stopOpacity={0.25} />
+                              <stop offset="95%" stopColor={COLORS.success} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                          <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
+                          <Tooltip contentStyle={{ borderRadius: 12, border: "0", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }} />
+                          <Area type="monotone" dataKey="forecastedRevenue" stroke={COLORS.success} strokeWidth={3} fill="url(#forecastGradient)" name="Forecasted Revenue (₹)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-400 flex-col gap-2">
+                        <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                            <Activity className="h-6 w-6" />
+                        </div>
+                        <p className="text-sm font-medium">Forecast data unavailable</p>
+                      </div>
+                    )}
+                  </div>
+                </Section>
+              )}
+              
               <Section title="Regional Performance" description="Revenue & momentum by region">
                 <div className="space-y-4">
                   {regionalData && regionalData.length > 0 ? (
                     regionalData.map(region => (
-                      <div key={region.region} className="rounded-xl border border-border bg-muted p-4">
+                      <div key={region.region} className="rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm p-4 border border-slate-200/50 dark:border-slate-700/50">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                            <MapPin className="h-4 w-4 text-accent" /> {region.region}
+                          <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                            <MapPin className="h-4 w-4 text-slate-500" /> {region.region}
                           </div>
-                          <Badge variant="outline" className="rounded-full border-accent/30 bg-accent/10 text-xs text-accent">{region.percentage.toFixed(1)}%</Badge>
+                          <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-400 font-semibold">{region.percentage.toFixed(1)}%</Badge>
                         </div>
-                        <Progress value={region.percentage} className="mt-3 h-2 rounded-full bg-card" aria-valuenow={region.percentage} aria-label={`${region.region} share`} />
-                        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1"><FileText className="h-3 w-3" />{region.quoteCount.toLocaleString()} quotes</span>
-                          <span className="font-semibold text-foreground">₹{region.totalRevenue.toLocaleString()}</span>
-                        </div>
+                        <Progress value={region.percentage} className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-700" indicatorClassName="bg-slate-900 dark:bg-white" aria-valuenow={region.percentage} aria-label={`${region.region} share`} />
+                          <div className="mt-2 flex items-center justify-between text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+                            <span className="flex items-center gap-1.5"><FileText className="h-3 w-3" /> {region.quoteCount} quotes</span>
+                            <span className="font-bold text-slate-900 dark:text-white">₹{region.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                          </div>
                       </div>
                     ))
                   ) : (
-                    <div className="flex h-48 items-center justify-center text-muted-foreground flex-col">
-                      <MapPin className="mb-2 h-10 w-10" />
+                    <div className="flex h-48 items-center justify-center text-slate-400 flex-col gap-2">
+                         <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                             <MapPin className="h-6 w-6" />
+                         </div>
                       <p className="text-sm font-medium">Regional insights unavailable</p>
                     </div>
                   )}
                 </div>
               </Section>
             </div>
-            <Section title="Deal Size Distribution" description="Breakdown of quote value ranges" actions={<Badge className="rounded-full bg-gradient-to-r from-accent to-primary text-xs text-white">{dealDistribution ? `${dealDistribution.length} ranges` : "No data"}</Badge>}>
-              {dealDistribution && dealDistribution.length > 0 ? (
+            
+            <Section title="Deal Size Distribution" description="Breakdown of quote value ranges" actions={<Badge className="rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-3 py-1">{dealDistribution ? `${dealDistribution.length} ranges` : "No data"}</Badge>}>
+              {dealDistribution && dealDistribution.some(d => d.count > 0) ? (
                 <div className="grid gap-8 lg:grid-cols-2">
-                  <div className="h-[280px] sm:h-[320px]" role="figure" aria-label="Deal size distribution pie chart">
+                  <div className="h-[280px] sm:h-[320px] w-full" role="figure" aria-label="Deal size distribution pie chart">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsPieChart>
-                        <Pie data={dealDistribution} cx="50%" cy="50%" labelLine={false} outerRadius={110} dataKey="count">
-                          {dealDistribution.map((entry, i) => (
-                            <Cell key={entry.range} fill={COLORS.chart[i % COLORS.chart.length]} />
+                        <Pie 
+                          activeIndex={activeIndex}
+                          activeShape={renderActiveShape} 
+                          data={dealDistribution.filter(d => d.count > 0)} 
+                          cx="50%" 
+                          cy="50%" 
+                          innerRadius={60} 
+                          outerRadius={90} 
+                          fill="#8884d8"
+                          dataKey="count"
+                          onMouseEnter={(_, index) => setActiveIndex(index)}
+                          paddingAngle={2}
+                        >
+                          {dealDistribution.filter(d => d.count > 0).map((entry, i) => (
+                            <Cell 
+                              key={entry.range} 
+                              fill={COLORS.chart[dealDistribution.findIndex(d => d.range === entry.range) % COLORS.chart.length]} 
+                              strokeWidth={0} 
+                            />
                           ))}
                         </Pie>
-                        <Tooltip content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const datum = payload[0].payload as DealDistribution;
-                            return (
-                              <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-md">
-                                <p className="text-sm font-semibold text-foreground">{datum.range}</p>
-                                <p className="mt-2">Count: {datum.count}</p>
-                                <p>Value: ₹{datum.totalValue.toLocaleString()}</p>
-                                <p>Share: {datum.percentage.toFixed(1)}%</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }} />
                       </RechartsPieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-3 flex flex-col justify-center">
                     {dealDistribution.map((item, i) => (
-                      <div key={item.range} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted px-4 py-3">
+                      <div key={item.range} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm p-3 border border-slate-200/50 dark:border-slate-700/50">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.chart[i % COLORS.chart.length] }} aria-hidden="true" />
-                          <span className="text-sm font-medium text-foreground truncate">{item.range}</span>
+                          <span className="h-3 w-3 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: COLORS.chart[i % COLORS.chart.length] }} aria-hidden="true" />
+                          <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">{item.range}</span>
                         </div>
-                        <div className="text-right text-xs text-muted-foreground">
-                          <p className="font-semibold text-foreground whitespace-nowrap">{item.count} deals</p>
-                          <p className="whitespace-nowrap">₹{item.totalValue.toLocaleString()}</p>
+                        <div className="text-right text-xs text-slate-500 dark:text-slate-400">
+                          <p className="font-bold text-slate-900 dark:text-white whitespace-nowrap">{item.count} deals</p>
+                          <p className="whitespace-nowrap">₹{item.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div className="flex h-56 items-center justify-center text-muted-foreground flex-col">
-                  <PieChartIcon className="mb-2 h-10 w-10" />
+                <div className="flex h-56 items-center justify-center text-slate-400 flex-col gap-2">
+                     <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                        <PieChartIcon className="h-6 w-6" />
+                     </div>
                   <p className="text-sm font-medium">Distribution data unavailable</p>
                 </div>
               )}
@@ -484,38 +681,38 @@ export default function Analytics() {
 
         {/* Pipeline Tab */}
         {activeTab === "pipeline" && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {pipeline && pipeline.length > 0 ? (
-              <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-                <Section title="Pipeline Coverage" description="Volume of opportunities across stages" actions={<Badge className="rounded-full bg-gradient-to-r from-secondary to-primary text-xs text-white">{pipeline.length} stages</Badge>}>
-                  <div className="h-[260px] xs:h-[300px] sm:h-[340px] lg:h-[380px]" role="figure" aria-label="Sales pipeline horizontal bar chart">
+              <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+                <Section title="Pipeline Coverage" description="Volume of opportunities across stages" actions={<Badge className="rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-3 py-1">{pipeline.length} stages</Badge>}>
+                  <div className="h-[280px] sm:h-[340px] lg:h-[400px]" role="figure" aria-label="Sales pipeline horizontal bar chart">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={pipeline} layout="horizontal">
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                        <XAxis type="number" stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                        <YAxis dataKey="stage" type="category" stroke="hsl(var(--foreground))" fontSize={12} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} width={120} />
-                        <Tooltip contentStyle={{ borderRadius: 12, borderColor: "hsl(var(--border))", backgroundColor: "hsl(var(--background))", color: "hsl(var(--foreground))" }} />
-                        <Bar dataKey="count" fill={COLORS.primary} radius={[0, 8, 8, 0]} barSize={28} />
+                      <BarChart data={pipeline} layout="vertical" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} opacity={0.4} />
+                        <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                        <YAxis dataKey="stage" type="category" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} width={100} />
+                        <Tooltip contentStyle={{ borderRadius: 12, border: "0", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }} />
+                        <Bar dataKey="count" fill={COLORS.primary} radius={[0, 6, 6, 0]} barSize={28} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </Section>
                 <div className="space-y-4">
                   {pipeline.map(stage => (
-                    <Card key={stage.stage} className="border border-border bg-muted shadow-sm" aria-label={`Stage ${stage.stage}`}>
+                    <Card key={stage.stage} className="border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow" aria-label={`Stage ${stage.stage}`}>
                       <CardContent className="space-y-3 p-4">
                         <div className="flex items-center justify-between">
-                          <Badge className="rounded-full bg-gradient-to-r from-secondary to-primary text-xs font-bold text-white shadow-sm truncate max-w-[60%]" title={stage.stage}>{stage.stage}</Badge>
-                          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">{stage.count.toLocaleString()} quotes</span>
+                          <Badge className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold shadow-sm truncate max-w-[65%]" title={stage.stage}>{stage.stage}</Badge>
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">{stage.count.toLocaleString()} quotes</span>
                         </div>
                         <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="rounded-lg bg-card p-3">
-                            <p className="text-xs text-muted-foreground">Total Value</p>
-                            <p className="mt-1 text-sm font-semibold text-foreground break-words">₹{stage.totalValue.toLocaleString()}</p>
+                          <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Total Value</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white break-words">₹{stage.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                           </div>
-                          <div className="rounded-lg bg-card p-3">
-                            <p className="text-xs text-muted-foreground">Avg Deal</p>
-                            <p className="mt-1 text-sm font-semibold text-foreground break-words">₹{stage.avgDealValue.toLocaleString()}</p>
+                          <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Avg Deal</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white break-words">₹{stage.avgDealValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                           </div>
                         </div>
                       </CardContent>
@@ -524,8 +721,11 @@ export default function Analytics() {
                 </div>
               </div>
             ) : (
-              <Card className="border border-border shadow-sm">
-                <CardContent className="flex h-48 items-center justify-center text-muted-foreground">
+              <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg">
+                <CardContent className="flex h-48 items-center justify-center text-slate-400 flex-col gap-2">
+                     <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                         <LayoutDashboard className="h-6 w-6" />
+                     </div>
                   <p className="text-sm font-medium">Pipeline data unavailable</p>
                 </CardContent>
               </Card>
@@ -535,21 +735,21 @@ export default function Analytics() {
 
         {/* Insights Tab */}
         {activeTab === "insights" && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {insights ? (
-              <div className="space-y-8">
+              <div className="space-y-6">
                 <section aria-label="High-level insight metrics" className="grid gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-4">
                   {([
-                    { label: "Average Quote", value: `₹${insights.avgQuoteValue.toLocaleString()}`, icon: DollarSign, sub: "Industry benchmark" },
-                    { label: "Median Quote", value: `₹${insights.medianQuoteValue.toLocaleString()}`, icon: BarChart3, sub: "Stability indicator" },
+                    { label: "Average Quote", value: `₹${insights.avgQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, icon: DollarSign, sub: "Industry benchmark" },
+                    { label: "Median Quote", value: `₹${insights.medianQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, icon: BarChart3, sub: "Stability indicator" },
                     { label: "Quote Frequency", value: `${insights.quoteFrequency}/wk`, icon: Activity, sub: "Volume cadence" },
                     { label: "Conversion Rate", value: `${insights.conversionTrend.toFixed(1)}%`, icon: Target, sub: "Closing performance" }
                   ]).map(tile => (
-                    <Card key={tile.label} className="border-2 border-primary/30 bg-gradient-to-br from-primary to-secondary shadow-md">
+                    <Card key={tile.label} className="group relative overflow-hidden rounded-2xl border-0 bg-white shadow-lg bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-100 dark:to-white">
                       <CardContent className="space-y-4 p-5">
-                        <p className="text-xs font-bold uppercase tracking-wide text-white">{tile.label}</p>
-                        <p className="text-3xl font-bold break-words text-white drop-shadow-sm" aria-live="polite">{tile.value}</p>
-                        <span className="inline-flex items-center gap-2 text-sm font-medium text-white/95">
+                        <p className="text-xs font-bold uppercase tracking-wide text-white/70 dark:text-slate-900/70">{tile.label}</p>
+                        <p className="text-3xl font-bold break-words text-white dark:text-slate-900 drop-shadow-sm" aria-live="polite">{tile.value}</p>
+                        <span className="inline-flex items-center gap-2 text-sm font-medium text-white/90 dark:text-slate-900/90">
                           <tile.icon className="h-4 w-4" /> {tile.sub}
                         </span>
                       </CardContent>
@@ -557,31 +757,31 @@ export default function Analytics() {
                   ))}
                 </section>
                 <section aria-label="Narrative insights" className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  <Card className="border border-border shadow-sm">
+                  <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all">
                     <CardContent className="space-y-4 p-5">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary text-white shadow-sm"><DollarSign className="h-5 w-5" /></div>
-                        <div><h3 className="text-sm font-semibold text-foreground">Deal Size Analysis</h3><p className="text-xs text-muted-foreground">Average vs median variance</p></div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 shadow-sm"><DollarSign className="h-5 w-5" /></div>
+                        <div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Deal Size Analysis</h3><p className="text-xs text-slate-500 dark:text-slate-400">Variance check</p></div>
                       </div>
-                      <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">Average quote value of ₹{insights.avgQuoteValue.toLocaleString()} compared to median ₹{insights.medianQuoteValue.toLocaleString()} suggests {insights.avgQuoteValue > insights.medianQuoteValue ? "premium outliers pushing revenue opportunities higher." : "consistency across most engagements with balanced deal sizes."}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Average quote value of ₹{insights.avgQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} compared to median ₹{insights.medianQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} suggests {insights.avgQuoteValue > insights.medianQuoteValue ? "premium outliers pushing revenue opportunities higher." : "consistency across most engagements with balanced deal sizes."}</p>
                     </CardContent>
                   </Card>
-                  <Card className="border border-border shadow-sm">
+                  <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all">
                     <CardContent className="space-y-4 p-5">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-secondary to-primary text-white shadow-sm"><Activity className="h-5 w-5" /></div>
-                        <div><h3 className="text-sm font-semibold text-foreground">Activity Momentum</h3><p className="text-xs text-muted-foreground">Cadence health</p></div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-300 shadow-sm"><Activity className="h-5 w-5" /></div>
+                        <div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Activity Momentum</h3><p className="text-xs text-slate-500 dark:text-slate-400">Cadence health</p></div>
                       </div>
-                      <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{insights.quoteFrequency} weekly quotes indicate {insights.quoteFrequency > 10 ? "exceptional pipeline coverage across teams." : insights.quoteFrequency > 5 ? "healthy prospecting rhythm sustaining consistent inflow." : "a moderate cadence with potential to accelerate demand generation."}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{insights.quoteFrequency} weekly quotes indicate {insights.quoteFrequency > 10 ? "exceptional pipeline coverage across teams." : insights.quoteFrequency > 5 ? "healthy prospecting rhythm sustaining consistent inflow." : "a moderate cadence with potential to accelerate demand generation."}</p>
                     </CardContent>
                   </Card>
-                  <Card className="border border-border shadow-sm">
+                  <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all">
                     <CardContent className="space-y-4 p-5">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-success/90 to-success text-white shadow-sm"><Target className="h-5 w-5" /></div>
-                        <div><h3 className="text-sm font-semibold text-foreground">Conversion Signal</h3><p className="text-xs text-muted-foreground">Close rate benchmark</p></div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-300 shadow-sm"><Target className="h-5 w-5" /></div>
+                        <div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Conversion Signal</h3><p className="text-xs text-slate-500 dark:text-slate-400">Close rate benchmark</p></div>
                       </div>
-                      <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">Conversion at {insights.conversionTrend.toFixed(1)}% is {insights.conversionTrend > 30 ? "outperforming industry peers—maintain momentum with executive reviews." : insights.conversionTrend > 20 ? "competitive; optimizing follow-up touchpoints could unlock additional lift." : "trailing average; consider revisiting pricing or qualification strategy."}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Conversion at {insights.conversionTrend.toFixed(1)}% is {insights.conversionTrend > 30 ? "outperforming industry peers—maintain momentum with executive reviews." : insights.conversionTrend > 20 ? "competitive; optimizing follow-up touchpoints could unlock additional lift." : "trailing average; consider revisiting pricing or qualification strategy."}</p>
                     </CardContent>
                   </Card>
                 </section>
@@ -593,27 +793,30 @@ export default function Analytics() {
                       { icon: Target, title: "Pipeline discipline", body: "Standardize stage exit criteria and automate escalation for stalled deals beyond 14 days." },
                       { icon: BarChart3, title: "Market intelligence", body: "Benchmark pricing quarterly and align positioning with emerging competitor offerings." }
                     ]).map(item => (
-                      <div key={item.title} className="rounded-xl border border-border bg-muted p-4">
-                        <div className="flex items-center gap-2 text-foreground">
-                          <item.icon className="h-4 w-4" />
-                          <span className="text-xs font-medium">{item.title}</span>
+                      <div key={item.title} className="rounded-xl bg-white/50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50 hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                        <div className="flex items-center gap-2 text-slate-900 dark:text-white">
+                          <item.icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <span className="text-sm font-bold">{item.title}</span>
                         </div>
-                        <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">{item.body}</p>
+                        <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{item.body}</p>
                       </div>
                     ))}
                   </div>
                 </Section>
               </div>
             ) : (
-              <Card className="border border-border shadow-sm">
-                <CardContent className="flex h-48 items-center justify-center text-muted-foreground">
+              <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg">
+                 <CardContent className="flex h-48 items-center justify-center text-slate-400 flex-col gap-2">
+                     <div className="p-3 rounded-full bg-slate-100 dark:bg-slate-800">
+                         <Sparkles className="h-6 w-6" />
+                     </div>
                   <p className="text-sm font-medium">Insight data unavailable</p>
                 </CardContent>
               </Card>
             )}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

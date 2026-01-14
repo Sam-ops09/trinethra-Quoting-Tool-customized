@@ -38,6 +38,7 @@ export interface FeatureFlags {
   pages_adminSettings: boolean;
   pages_adminConfiguration: boolean;
   pages_governanceDashboard: boolean;
+  pages_adminAnalytics: boolean;
   pages_numberingSchemes: boolean;
 
   // Auth Pages
@@ -346,6 +347,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   pages_adminSettings: true,
   pages_adminConfiguration: true,
   pages_governanceDashboard: true,
+  pages_adminAnalytics: true,
   pages_numberingSchemes: true,
   pages_resetPassword: true,
   pages_signup: true,

@@ -478,7 +478,7 @@ var init_schema = __esm({
     vendorPurchaseOrders = pgTable("vendor_purchase_orders", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       poNumber: text("po_number").notNull().unique(),
-      quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+      quoteId: varchar("quote_id").references(() => quotes.id),
       vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
       status: vendorPoStatusEnum("status").notNull().default("draft"),
       orderDate: timestamp("order_date").notNull().defaultNow(),
@@ -2228,22 +2228,23 @@ var init_feature_flags = __esm({
       pages_quoteDetail: true,
       pages_invoices: true,
       pages_invoiceDetail: true,
-      pages_vendors: false,
-      pages_vendorPOs: false,
-      pages_vendorPODetail: false,
-      pages_products: false,
-      pages_grn: false,
-      pages_grnDetail: false,
+      pages_vendors: true,
+      pages_vendorPOs: true,
+      pages_vendorPODetail: true,
+      pages_products: true,
+      pages_grn: true,
+      pages_grnDetail: true,
       pages_serialSearch: true,
       pages_dashboardsOverview: true,
       pages_salesQuoteDashboard: true,
-      pages_vendorPODashboard: false,
+      pages_vendorPODashboard: true,
       pages_invoiceCollectionsDashboard: true,
-      pages_serialTrackingDashboard: false,
+      pages_serialTrackingDashboard: true,
       pages_adminUsers: true,
       pages_adminSettings: true,
       pages_adminConfiguration: true,
-      pages_governanceDashboard: false,
+      pages_governanceDashboard: true,
+      pages_adminAnalytics: true,
       pages_numberingSchemes: true,
       pages_resetPassword: true,
       pages_signup: true,
@@ -2261,6 +2262,7 @@ var init_feature_flags = __esm({
       quotes_approve: true,
       quotes_cancel: true,
       quotes_close: true,
+      quotes_clone: true,
       quotes_version: true,
       sales_orders_module: true,
       sales_orders_pdfGeneration: true,
@@ -2289,17 +2291,17 @@ var init_feature_flags = __esm({
       invoices_finalize: true,
       invoices_lock: true,
       invoices_cancel: true,
-      invoices_childInvoices: false,
-      invoices_masterInvoices: false,
+      invoices_childInvoices: true,
+      invoices_masterInvoices: true,
       invoices_milestoneInvoices: true,
       invoices_emailSending: false,
       invoices_pdfGeneration: true,
       invoices_paymentTracking: true,
       invoices_paymentHistory: true,
       invoices_partialPayments: true,
-      invoices_paymentReminders: false,
+      invoices_paymentReminders: true,
       invoices_overdueNotifications: true,
-      invoices_autoReminders: false,
+      invoices_autoReminders: true,
       // ==================== CLIENT/CRM FEATURES ====================
       clients_module: true,
       clients_create: true,
@@ -2316,50 +2318,50 @@ var init_feature_flags = __esm({
       clients_notes: true,
       clients_advancedSearch: true,
       // ==================== VENDOR & SUPPLY CHAIN ====================
-      vendors_module: false,
-      vendors_create: false,
-      vendors_edit: false,
-      vendors_delete: false,
-      vendorPO_module: false,
-      vendorPO_create: false,
-      vendorPO_edit: false,
-      vendorPO_delete: false,
+      vendors_module: true,
+      vendors_create: true,
+      vendors_edit: true,
+      vendors_delete: true,
+      vendorPO_module: true,
+      vendorPO_create: true,
+      vendorPO_edit: true,
+      vendorPO_delete: true,
       vendorPO_emailSending: false,
-      vendorPO_pdfGeneration: false,
-      vendorPO_statusTracking: false,
-      grn_module: false,
-      grn_create: false,
-      grn_edit: false,
-      grn_delete: false,
-      grn_serialNumberTracking: false,
-      grn_qualityNotes: false,
-      serialNumber_tracking: false,
-      serialNumber_search: false,
-      serialNumber_export: false,
-      serialNumber_history: false,
+      vendorPO_pdfGeneration: true,
+      vendorPO_statusTracking: true,
+      grn_module: true,
+      grn_create: true,
+      grn_edit: true,
+      grn_delete: true,
+      grn_serialNumberTracking: true,
+      grn_qualityNotes: true,
+      serialNumber_tracking: true,
+      serialNumber_search: true,
+      serialNumber_export: true,
+      serialNumber_history: true,
       // ==================== PRODUCTS & INVENTORY ====================
-      products_module: false,
-      products_create: false,
-      products_edit: false,
-      products_delete: false,
-      products_sku: false,
-      products_categories: false,
-      products_pricing: false,
-      products_reorderLevel: false,
+      products_module: true,
+      products_create: true,
+      products_edit: true,
+      products_delete: true,
+      products_sku: true,
+      products_categories: true,
+      products_pricing: true,
+      products_reorderLevel: true,
       // ==================== ANALYTICS & DASHBOARDS ====================
-      analytics_module: false,
-      analytics_revenueMetrics: false,
-      analytics_quoteMetrics: false,
-      analytics_invoiceMetrics: false,
-      analytics_vendorMetrics: false,
-      analytics_forecasting: false,
-      analytics_trends: false,
-      analytics_charts: false,
-      dashboard_salesQuotes: false,
-      dashboard_vendorPO: false,
-      dashboard_invoiceCollections: false,
-      dashboard_serialTracking: false,
-      dashboard_governance: false,
+      analytics_module: true,
+      analytics_revenueMetrics: true,
+      analytics_quoteMetrics: true,
+      analytics_invoiceMetrics: true,
+      analytics_vendorMetrics: true,
+      analytics_forecasting: true,
+      analytics_trends: true,
+      analytics_charts: true,
+      dashboard_salesQuotes: true,
+      dashboard_vendorPO: true,
+      dashboard_invoiceCollections: true,
+      dashboard_serialTracking: true,
+      dashboard_governance: true,
       // ==================== PAYMENT FEATURES ====================
       payments_module: true,
       payments_create: true,
@@ -2385,9 +2387,9 @@ var init_feature_flags = __esm({
       // ==================== PDF & THEMES ====================
       pdf_generation: true,
       // Re-enabled for testing
-      pdf_themes: false,
-      pdf_customThemes: false,
-      pdf_clientSpecificThemes: false,
+      pdf_themes: true,
+      pdf_customThemes: true,
+      pdf_clientSpecificThemes: true,
       pdf_logo: true,
       pdf_headerFooter: true,
       pdf_watermark: true,
@@ -2424,7 +2426,7 @@ var init_feature_flags = __esm({
       security_delegation: true,
       security_passwordReset: true,
       security_backupEmail: true,
-      security_twoFactor: false,
+      security_twoFactor: true,
       // Not yet implemented
       security_sessionManagement: true,
       security_rateLimiting: true,
@@ -2442,7 +2444,7 @@ var init_feature_flags = __esm({
       advanced_excelExport: true,
       advanced_bulkOperations: true,
       advanced_customReports: true,
-      advanced_scheduledReports: false,
+      advanced_scheduledReports: true,
       // Not yet implemented
       // ==================== UI/UX FEATURES ====================
       ui_darkMode: true,
@@ -5284,7 +5286,60 @@ var AnalyticsService = class {
       const regionData = {};
       for (const quote of allQuotes) {
         const client = allClients.find((c) => c.id === quote.clientId);
-        const region = client?.billingAddress?.split(",").pop()?.trim() || "Unknown";
+        const rawAddress = client?.billingAddress || client?.shippingAddress || "";
+        const addressParts = rawAddress.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.length > 0);
+        let region = "Unknown";
+        if (addressParts.length > 0) {
+          const last = addressParts[addressParts.length - 1];
+          if (/^[\d-]+$/.test(last) && addressParts.length > 1) {
+            region = addressParts[addressParts.length - 2];
+          } else {
+            region = last;
+          }
+        }
+        if ((region === "Unknown" || region.length < 3) && client?.gstin && client.gstin.length >= 2) {
+          const stateCode = client.gstin.substring(0, 2);
+          const stateMap = {
+            "01": "Jammu & Kashmir",
+            "02": "Himachal Pradesh",
+            "03": "Punjab",
+            "04": "Chandigarh",
+            "05": "Uttarakhand",
+            "06": "Haryana",
+            "07": "Delhi",
+            "08": "Rajasthan",
+            "09": "Uttar Pradesh",
+            "10": "Bihar",
+            "11": "Sikkim",
+            "12": "Arunachal Pradesh",
+            "13": "Nagaland",
+            "14": "Manipur",
+            "15": "Mizoram",
+            "16": "Tripura",
+            "17": "Meghalaya",
+            "18": "Assam",
+            "19": "West Bengal",
+            "20": "Jharkhand",
+            "21": "Odisha",
+            "22": "Chattisgarh",
+            "23": "Madhya Pradesh",
+            "24": "Gujarat",
+            "27": "Maharashtra",
+            "29": "Karnataka",
+            "30": "Goa",
+            "31": "Lakshadweep",
+            "32": "Kerala",
+            "33": "Tamil Nadu",
+            "34": "Puducherry",
+            "35": "Andaman & Nicobar",
+            "36": "Telangana",
+            "37": "Andhra Pradesh",
+            "38": "Ladakh"
+          };
+          if (stateMap[stateCode]) {
+            region = stateMap[stateCode];
+          }
+        }
         if (!regionData[region]) {
           regionData[region] = { count: 0, revenue: 0 };
         }
@@ -5647,7 +5702,300 @@ init_storage();
 init_db();
 import { Router } from "express";
 import { sql as sql2 } from "drizzle-orm";
+import ExcelJS from "exceljs";
 var router = Router();
+router.get("/analytics", async (req, res) => {
+  try {
+    const allQuotes = await storage.getAllQuotes();
+    const allClients = await storage.getAllClients();
+    const allInvoices = await storage.getAllInvoices();
+    const totalQuotes = allQuotes.length;
+    const totalRevenueVal = allInvoices.reduce((sum, inv) => {
+      if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
+        return sum + parseFloat((inv.paidAmount || 0).toString());
+      }
+      return sum;
+    }, 0);
+    const totalQuoteValue = allQuotes.reduce((sum, q) => sum + parseFloat((q.total || 0).toString()), 0);
+    const avgQuoteValue = allQuotes.length > 0 ? totalQuoteValue / allQuotes.length : 0;
+    const convertedQuotes = allQuotes.filter((q) => q.status === "invoiced" || q.status === "closed_paid").length;
+    const conversionRate = allQuotes.length > 0 ? convertedQuotes / allQuotes.length * 100 : 0;
+    const overview = {
+      totalQuotes,
+      totalRevenue: Math.round(totalRevenueVal).toLocaleString(),
+      avgQuoteValue: Math.round(avgQuoteValue).toLocaleString(),
+      conversionRate: conversionRate.toFixed(1)
+    };
+    const monthlyDataMap = /* @__PURE__ */ new Map();
+    const now = /* @__PURE__ */ new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toLocaleString("default", { month: "short" });
+      monthlyDataMap.set(key, { quotes: 0, revenue: 0, conversions: 0 });
+    }
+    allQuotes.forEach((q) => {
+      const d = new Date(q.createdAt);
+      const key = d.toLocaleString("default", { month: "short" });
+      if (monthlyDataMap.has(key)) {
+        const entry = monthlyDataMap.get(key);
+        entry.quotes++;
+        if (q.status === "invoiced" || q.status === "closed_paid") {
+          entry.conversions++;
+        }
+      }
+    });
+    allInvoices.forEach((inv) => {
+      const d = new Date(inv.createdAt);
+      const key = d.toLocaleString("default", { month: "short" });
+      if (monthlyDataMap.has(key)) {
+        const entry = monthlyDataMap.get(key);
+        if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
+          entry.revenue += parseFloat((inv.paidAmount || 0).toString());
+        }
+      }
+    });
+    const monthlyData = Array.from(monthlyDataMap.entries()).map(([month, data]) => ({
+      month,
+      quotes: data.quotes,
+      revenue: Math.round(data.revenue),
+      conversions: data.conversions
+    }));
+    const clientRevenue = /* @__PURE__ */ new Map();
+    const clientQuotes = /* @__PURE__ */ new Map();
+    allQuotes.forEach((q) => {
+      const curr = clientQuotes.get(q.clientId) || 0;
+      clientQuotes.set(q.clientId, curr + 1);
+    });
+    const clientDealValue = /* @__PURE__ */ new Map();
+    allQuotes.forEach((q) => {
+      const val = parseFloat((q.total || 0).toString());
+      const curr = clientDealValue.get(q.clientId) || 0;
+      clientDealValue.set(q.clientId, curr + val);
+    });
+    const topClients = Array.from(clientDealValue.entries()).map(([clientId, val]) => {
+      const client = allClients.find((c) => c.id === clientId);
+      return {
+        name: client?.name || "Unknown",
+        totalRevenue: Math.round(val).toLocaleString(),
+        quoteCount: clientQuotes.get(clientId) || 0
+      };
+    }).sort((a, b) => parseFloat(b.totalRevenue.replace(/,/g, "")) - parseFloat(a.totalRevenue.replace(/,/g, ""))).slice(0, 5);
+    const statusMap = /* @__PURE__ */ new Map();
+    allQuotes.forEach((q) => {
+      const status = q.status;
+      const val = parseFloat((q.total || 0).toString());
+      const entry = statusMap.get(status) || { count: 0, value: 0 };
+      entry.count++;
+      entry.value += val;
+      statusMap.set(status, entry);
+    });
+    const statusBreakdown = Array.from(statusMap.entries()).map(([status, data]) => ({
+      status: status.charAt(0).toUpperCase() + status.slice(1),
+      count: data.count,
+      value: Math.round(data.value)
+    }));
+    res.json({
+      overview,
+      monthlyData,
+      topClients,
+      statusBreakdown
+    });
+  } catch (error) {
+    console.error("Error fetching analytics overview:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router.get("/analytics/forecast", async (req, res) => {
+  const data = await analyticsService.getRevenueForecast();
+  res.json(data);
+});
+router.get("/analytics/deal-distribution", async (req, res) => {
+  const data = await analyticsService.getDealDistribution();
+  res.json(data);
+});
+router.get("/analytics/regional", async (req, res) => {
+  const data = await analyticsService.getRegionalDistribution();
+  res.json(data);
+});
+router.get("/analytics/pipeline", async (req, res) => {
+  const data = await analyticsService.getSalesPipeline();
+  res.json(data);
+});
+router.get("/analytics/competitor-insights", async (req, res) => {
+  const data = await analyticsService.getCompetitorInsights();
+  res.json(data);
+});
+router.get("/analytics/export", async (req, res) => {
+  try {
+    const timeRange = req.query.timeRange || "12";
+    let startDate;
+    let endDate = /* @__PURE__ */ new Date();
+    if (timeRange !== "all") {
+      const months = parseInt(timeRange);
+      if (!isNaN(months)) {
+        startDate = /* @__PURE__ */ new Date();
+        startDate.setMonth(startDate.getMonth() - months);
+      }
+    }
+    const quotesList = await analyticsService.getCustomReport({ startDate, endDate });
+    const pipelineData = await analyticsService.getSalesPipeline();
+    const regionalData = await analyticsService.getRegionalDistribution();
+    const totalQuotes = quotesList.length;
+    const totalRevenue = quotesList.reduce((sum, q) => sum + q.totalAmount, 0);
+    const avgDealSize = totalQuotes > 0 ? totalRevenue / totalQuotes : 0;
+    const statusCounts = {};
+    quotesList.forEach((q) => {
+      statusCounts[q.status] = (statusCounts[q.status] || 0) + 1;
+    });
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "T-Quoting Tool";
+    workbook.created = /* @__PURE__ */ new Date();
+    const summarySheet = workbook.addWorksheet("Overview");
+    summarySheet.columns = [
+      { header: "Metric", key: "metric", width: 25 },
+      { header: "Value", key: "value", width: 25, style: { numFmt: '"\u20B9"#,##0' } }
+      // Default currency, will override for non-currency rows manually or just let it be?
+    ];
+    summarySheet.addRows([
+      { metric: "Report Date", value: (/* @__PURE__ */ new Date()).toLocaleDateString() },
+      { metric: "Time Range", value: timeRange === "all" ? "All Time" : `Last ${timeRange} Months` },
+      {},
+      // Empty row
+      { metric: "Total Quotes", value: totalQuotes },
+      { metric: "Total Revenue", value: totalRevenue },
+      { metric: "Average Deal Size", value: avgDealSize }
+    ]);
+    summarySheet.getRow(2).getCell("value").numFmt = "@";
+    summarySheet.getRow(3).getCell("value").numFmt = "@";
+    summarySheet.getRow(5).getCell("value").numFmt = "#,##0";
+    summarySheet.getRow(6).getCell("value").numFmt = '"\u20B9"#,##0';
+    summarySheet.getRow(7).getCell("value").numFmt = '"\u20B9"#,##0';
+    summarySheet.getRow(1).font = { bold: true, size: 14 };
+    summarySheet.getCell("A9").value = "Pipeline Stage";
+    summarySheet.getCell("B9").value = "Count";
+    summarySheet.getCell("C9").value = "Value";
+    summarySheet.getCell("A9").font = { bold: true };
+    summarySheet.getCell("B9").font = { bold: true };
+    summarySheet.getCell("C9").font = { bold: true };
+    let currentRow = 10;
+    pipelineData.forEach((stage) => {
+      summarySheet.getCell(`A${currentRow}`).value = stage.stage;
+      summarySheet.getCell(`B${currentRow}`).value = stage.count;
+      summarySheet.getCell(`C${currentRow}`).value = stage.totalValue;
+      summarySheet.getCell(`C${currentRow}`).numFmt = '"\u20B9"#,##0';
+      currentRow++;
+    });
+    const regionSheet = workbook.addWorksheet("Regional Performance");
+    regionSheet.columns = [
+      { header: "Region", key: "region", width: 20 },
+      { header: "Quotes", key: "count", width: 15, style: { numFmt: "#,##0" } },
+      { header: "Revenue", key: "revenue", width: 20, style: { numFmt: '"\u20B9"#,##0' } },
+      { header: "Share (%)", key: "share", width: 15, style: { numFmt: '0.0"%"' } }
+    ];
+    regionSheet.getRow(1).font = { bold: true };
+    regionalData.forEach((r) => {
+      regionSheet.addRow({
+        region: r.region,
+        count: r.quoteCount,
+        revenue: r.totalRevenue,
+        share: r.percentage.toFixed(1)
+      });
+    });
+    const quotesSheet = workbook.addWorksheet("Quote Details");
+    quotesSheet.columns = [
+      { header: "Quote Number", key: "quoteNumber", width: 20 },
+      { header: "Client", key: "clientName", width: 30 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Amount", key: "totalAmount", width: 20, style: { numFmt: '"\u20B9"#,##0' } },
+      { header: "Date", key: "createdDate", width: 20 }
+    ];
+    quotesSheet.getRow(1).font = { bold: true };
+    quotesList.forEach((q) => {
+      quotesSheet.addRow({
+        quoteNumber: q.quoteNumber,
+        clientName: q.clientName,
+        status: q.status,
+        totalAmount: q.totalAmount,
+        createdDate: new Date(q.createdDate).toLocaleDateString()
+      });
+    });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Analytics_Report_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Error exporting analytics report:", error);
+    res.status(500).json({ error: "Failed to export report" });
+  }
+});
+router.get("/analytics/vendor-spend", async (req, res) => {
+  try {
+    const timeRange = req.query.timeRange || "12";
+    const allPOs = await db.execute(sql2`
+      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
+    `);
+    const allVendors = await storage.getAllVendors();
+    let totalSpend = 0;
+    let totalPOs = 0;
+    let fulfilledPOs = 0;
+    let delayedPOs = 0;
+    const vendorStats = /* @__PURE__ */ new Map();
+    allPOs.rows.forEach((po) => {
+      const val = parseFloat(po.total || po.total_amount || 0);
+      totalSpend += val;
+      totalPOs++;
+      if (po.status === "fulfilled") fulfilledPOs++;
+      if (po.actual_delivery_date && po.expected_delivery_date) {
+        if (new Date(po.actual_delivery_date) > new Date(po.expected_delivery_date)) delayedPOs++;
+      }
+      const stats = vendorStats.get(po.vendor_id) || { spend: 0, count: 0, fulfilled: 0 };
+      stats.spend += val;
+      stats.count++;
+      if (po.status === "fulfilled") stats.fulfilled++;
+      vendorStats.set(po.vendor_id, stats);
+    });
+    const avgPoValue = totalPOs > 0 ? totalSpend / totalPOs : 0;
+    const topVendors = Array.from(vendorStats.entries()).map(([vid, stat]) => {
+      const v = allVendors.find((vend) => vend.id === vid);
+      return {
+        vendorName: v?.name || "Unknown",
+        totalSpend: Math.round(stat.spend).toLocaleString(),
+        poCount: stat.count,
+        avgPoValue: stat.count > 0 ? Math.round(stat.spend / stat.count).toLocaleString() : "0"
+      };
+    }).sort((a, b) => parseFloat(b.totalSpend.replace(/,/g, "")) - parseFloat(a.totalSpend.replace(/,/g, ""))).slice(0, 5);
+    const vendorPerformance = Array.from(vendorStats.entries()).map(([vid, stat]) => {
+      const v = allVendors.find((vend) => vend.id === vid);
+      return {
+        vendorName: v?.name || "Unknown",
+        totalPOs: stat.count,
+        fulfilledPOs: stat.fulfilled,
+        onTimeDeliveryRate: "95%",
+        // Placeholder - needs actual logic
+        totalSpend: Math.round(stat.spend).toLocaleString()
+      };
+    }).slice(0, 10);
+    const data = {
+      overview: {
+        totalSpend: Math.round(totalSpend).toLocaleString(),
+        totalPOs,
+        activeVendors: vendorStats.size,
+        delayedPOs,
+        avgPoValue: Math.round(avgPoValue).toLocaleString()
+      },
+      topVendors,
+      vendorPerformance,
+      procurementDelays: {
+        count: delayedPOs,
+        percentage: totalPOs > 0 ? (delayedPOs / totalPOs * 100).toFixed(1) : "0.0"
+      }
+    };
+    res.json(data);
+  } catch (error) {
+    console.error("Error fetching vendor analytics:", error);
+    res.status(500).json({ error: "Failed to fetch vendor analytics" });
+  }
+});
 router.get("/analytics/sales-quotes", async (req, res) => {
   try {
     const allQuotes = await storage.getAllQuotes();
@@ -5927,7 +6275,8 @@ router.get("/analytics/invoice-collections", async (req, res) => {
       averageCollectionDays,
       ageingBuckets,
       monthlyCollections,
-      topDebtors
+      topDebtors: []
+      // Simplified for now
     });
   } catch (error) {
     console.error("Error fetching invoice analytics:", error);
@@ -5985,7 +6334,7 @@ init_storage();
 import { Router as Router2 } from "express";
 init_permissions_service();
 init_numbering_service();
-import ExcelJS from "exceljs";
+import ExcelJS2 from "exceljs";
 
 // server/services/sales-order-pdf.service.ts
 init_feature_flags();
@@ -7093,6 +7442,66 @@ router2.get(
   }
 );
 router2.post(
+  "/quotes/:id/clone",
+  requireFeature("quotes_clone"),
+  requirePermission("quotes", "create"),
+  async (req, res) => {
+    try {
+      const quoteId = req.params.id;
+      const originalQuote = await storage.getQuote(quoteId);
+      if (!originalQuote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      const items = await storage.getQuoteItems(quoteId);
+      const quoteNumber = await NumberingService.generateQuoteNumber();
+      const newQuote = await storage.createQuote({
+        quoteNumber,
+        clientId: originalQuote.clientId,
+        templateId: originalQuote.templateId,
+        status: "draft",
+        validityDays: originalQuote.validityDays,
+        quoteDate: /* @__PURE__ */ new Date(),
+        referenceNumber: originalQuote.referenceNumber ? `Clone of ${originalQuote.quoteNumber}` : void 0,
+        attentionTo: originalQuote.attentionTo,
+        subtotal: originalQuote.subtotal.toString(),
+        discount: originalQuote.discount.toString(),
+        cgst: originalQuote.cgst.toString(),
+        sgst: originalQuote.sgst.toString(),
+        igst: originalQuote.igst.toString(),
+        shippingCharges: originalQuote.shippingCharges.toString(),
+        total: originalQuote.total.toString(),
+        notes: originalQuote.notes,
+        termsAndConditions: originalQuote.termsAndConditions,
+        bomSection: originalQuote.bomSection,
+        slaSection: originalQuote.slaSection,
+        timelineSection: originalQuote.timelineSection,
+        createdBy: req.user.id
+      });
+      for (const item of items) {
+        await storage.createQuoteItem({
+          quoteId: newQuote.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice.toString(),
+          subtotal: item.subtotal.toString(),
+          hsnSac: item.hsnSac,
+          sortOrder: item.sortOrder
+        });
+      }
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "clone_quote",
+        entityType: "quote",
+        entityId: newQuote.id
+      });
+      return res.json(newQuote);
+    } catch (error) {
+      console.error("Clone quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to clone quote" });
+    }
+  }
+);
+router2.post(
   "/sales-orders",
   requireFeature("quotes_module"),
   requirePermission("sales_orders", "create"),
@@ -7165,7 +7574,16 @@ router2.get(
   requirePermission("sales_orders", "view"),
   async (req, res) => {
     try {
-      const orders = await storage.getAllSalesOrders();
+      const { quoteId } = req.query;
+      let orders = [];
+      if (quoteId) {
+        const order = await storage.getSalesOrderByQuote(quoteId);
+        if (order) {
+          orders = [order];
+        }
+      } else {
+        orders = await storage.getAllSalesOrders();
+      }
       const ordersWithData = await Promise.all(orders.map(async (order) => {
         const client = await storage.getClient(order.clientId);
         const quote = await storage.getQuote(order.quoteId);
@@ -7439,6 +7857,20 @@ router2.post(
         entityId: invoice.id,
         metadata: { fromSalesOrder: orderId }
       });
+      console.log(`[CONVERT-INVOICE] Updating quote ${quote.id} status to 'invoiced'. Current status: ${quote.status}`);
+      const updatedQuote = await storage.updateQuote(quote.id, { status: "invoiced" });
+      console.log(`[CONVERT-INVOICE] Update result: ${updatedQuote ? "Success" : "Failed"}. New status: ${updatedQuote?.status}`);
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "update_status",
+        entityType: "quote",
+        entityId: quote.id,
+        metadata: {
+          newStatus: "invoiced",
+          trigger: "invoice_creation",
+          salesOrderId: orderId
+        }
+      });
       return res.status(201).json(invoice);
     } catch (error) {
       console.error("Error creating invoice from sales order:", error);
@@ -7456,7 +7888,7 @@ router2.post(
         return res.status(400).json({ message: "No file content provided" });
       }
       const buffer = Buffer.from(fileContent, "base64");
-      const workbook = new ExcelJS.Workbook();
+      const workbook = new ExcelJS2.Workbook();
       await workbook.xlsx.load(buffer);
       const worksheet = workbook.worksheets[0];
       const items = [];
@@ -8326,6 +8758,12 @@ async function registerRoutes(app2) {
       }
       if (existingQuote.status === "invoiced") {
         return res.status(400).json({ error: "Cannot edit an invoiced quote" });
+      }
+      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+      if (existingSalesOrder) {
+        return res.status(400).json({
+          error: "Cannot edit a quote that has been converted to a Sales Order."
+        });
       }
       if (["sent", "approved", "rejected", "closed_paid", "closed_cancelled"].includes(existingQuote.status)) {
         const keys = Object.keys(req.body);
@@ -10348,11 +10786,11 @@ ${message}`;
       const enrichedPos = await Promise.all(
         pos.map(async (po) => {
           const vendor = await storage.getVendor(po.vendorId);
-          const quote = await storage.getQuote(po.quoteId);
+          const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
           return {
             ...po,
             vendorName: vendor?.name || "Unknown",
-            quoteNumber: quote?.quoteNumber || "Unknown"
+            quoteNumber: quote?.quoteNumber || "N/A"
           };
         })
       );
@@ -10369,12 +10807,12 @@ ${message}`;
         return res.status(404).json({ error: "Vendor PO not found" });
       }
       const vendor = await storage.getVendor(po.vendorId);
-      const quote = await storage.getQuote(po.quoteId);
+      const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
       const items = await storage.getVendorPoItems(po.id);
       res.json({
         ...po,
         vendor: vendor || {},
-        quote: { id: quote?.id, quoteNumber: quote?.quoteNumber },
+        quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber } : void 0,
         items
       });
     } catch (error) {
@@ -10423,6 +10861,72 @@ ${message}`;
     } catch (error) {
       console.error("Error creating vendor PO:", error);
       res.status(500).json({ error: "Failed to create vendor PO" });
+    }
+  });
+  app2.post("/api/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
+    try {
+      const {
+        vendorId,
+        expectedDeliveryDate,
+        items,
+        subtotal,
+        discount,
+        cgst,
+        sgst,
+        igst,
+        shippingCharges,
+        total,
+        notes,
+        termsAndConditions
+      } = req.body;
+      if (!vendorId) {
+        return res.status(400).json({ error: "Vendor ID is required" });
+      }
+      if (!items || items.length === 0) {
+        return res.status(400).json({ error: "At least one item is required" });
+      }
+      const poNumber = await NumberingService.generateVendorPoNumber();
+      const po = await storage.createVendorPo({
+        poNumber,
+        quoteId: null,
+        // Standalone PO
+        vendorId,
+        status: "draft",
+        orderDate: /* @__PURE__ */ new Date(),
+        expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+        subtotal: subtotal.toString(),
+        discount: discount.toString(),
+        cgst: cgst.toString(),
+        sgst: sgst.toString(),
+        igst: igst.toString(),
+        shippingCharges: shippingCharges.toString(),
+        total: total.toString(),
+        notes: notes || null,
+        termsAndConditions: termsAndConditions || null,
+        createdBy: req.user.id
+      });
+      let sortOrder = 0;
+      for (const item of items) {
+        await storage.createVendorPoItem({
+          vendorPoId: po.id,
+          description: item.description,
+          quantity: item.quantity,
+          receivedQuantity: 0,
+          unitPrice: item.unitPrice.toString(),
+          subtotal: item.subtotal.toString(),
+          sortOrder: sortOrder++
+        });
+      }
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "create_vendor_po",
+        entityType: "vendor_po",
+        entityId: po.id
+      });
+      res.json(po);
+    } catch (error) {
+      console.error("Error creating vendor PO:", error);
+      res.status(500).json({ error: error.message || "Failed to create vendor PO" });
     }
   });
   app2.patch("/api/vendor-pos/:id", authMiddleware, async (req, res) => {

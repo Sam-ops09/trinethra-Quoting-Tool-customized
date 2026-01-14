@@ -29,6 +29,7 @@ export type Resource =
   | "admin/settings"
   | "admin/configuration"
   | "admin/governance"
+  | "admin/analytics"
   | "dashboards"
   | "dashboards/sales-quotes"
   | "dashboards/vendor-po"
@@ -131,6 +132,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "admin/configuration", action: "manage" },
     { resource: "admin/governance", action: "view" },
     { resource: "admin/governance", action: "manage" },
+    { resource: "admin/analytics", action: "view" },
     { resource: "dashboards", action: "view" },
     { resource: "dashboards/sales-quotes", action: "view" },
     { resource: "dashboards/vendor-po", action: "view" },
@@ -270,7 +272,7 @@ export function canAccessRoute(role: UserRole, path: string): boolean {
     const validResources: Resource[] = [
       "dashboard", "quotes", "clients", "invoices", "vendors", "vendor-pos",
       "products", "grn", "payments", "serial-search", "analytics", "sales-orders",
-      "admin/users", "admin/settings", "admin/configuration", "admin/governance",
+      "admin/users", "admin/settings", "admin/configuration", "admin/governance", "admin/analytics",
       "dashboards", "dashboards/sales-quotes", "dashboards/vendor-po",
       "dashboards/invoice-collections", "dashboards/serial-tracking"
     ];
