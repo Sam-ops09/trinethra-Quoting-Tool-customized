@@ -399,7 +399,7 @@ export const vendorsRelations = relations(vendors, ({ one, many }) => ({
 export const vendorPurchaseOrders = pgTable("vendor_purchase_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   poNumber: text("po_number").notNull().unique(),
-  quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+  quoteId: varchar("quote_id").references(() => quotes.id),
   vendorId: varchar("vendor_id").notNull().references(() => vendors.id),
   status: vendorPoStatusEnum("status").notNull().default("draft"),
   orderDate: timestamp("order_date").notNull().defaultNow(),

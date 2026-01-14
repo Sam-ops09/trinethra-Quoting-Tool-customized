@@ -52,7 +52,7 @@ interface VendorPoDetail {
         address?: string;
         contactPerson?: string;
     };
-    quote: {
+    quote?: {
         id: string;
         quoteNumber: string;
     };
@@ -510,20 +510,22 @@ export default function VendorPoDetailPage() {
                             </Card>
 
                             {/* Quote Card */}
-                            <Card className="border-slate-200 dark:border-slate-800">
-                                <CardHeader className="p-3 sm:p-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-                                    <CardTitle className="text-xs sm:text-sm font-bold">Related Quote</CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-3 sm:p-4">
-                                    <Button
-                                        variant="outline"
-                                        className="w-full h-9 text-xs sm:text-sm"
-                                        onClick={() => setLocation(`/quotes/${po.quote.id}`)}
-                                    >
-                                        {po.quote.quoteNumber}
-                                    </Button>
-                                </CardContent>
-                            </Card>
+                            {po.quote && (
+                                <Card className="border-slate-200 dark:border-slate-800">
+                                    <CardHeader className="p-3 sm:p-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+                                        <CardTitle className="text-xs sm:text-sm font-bold">Related Quote</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-3 sm:p-4">
+                                        <Button
+                                            variant="outline"
+                                            className="w-full h-9 text-xs sm:text-sm"
+                                            onClick={() => setLocation(`/quotes/${po.quote!.id}`)}
+                                        >
+                                            {po.quote.quoteNumber}
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            )}
                         </div>
 
                         {/* Items List */}

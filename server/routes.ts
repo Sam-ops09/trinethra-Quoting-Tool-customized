@@ -3326,11 +3326,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const enrichedPos = await Promise.all(
         pos.map(async (po) => {
           const vendor = await storage.getVendor(po.vendorId);
-          const quote = await storage.getQuote(po.quoteId);
+          const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
           return {
             ...po,
             vendorName: vendor?.name || "Unknown",
-            quoteNumber: quote?.quoteNumber || "Unknown",
+            quoteNumber: quote?.quoteNumber || "N/A",
           };
         })
       );
@@ -3350,13 +3350,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const vendor = await storage.getVendor(po.vendorId);
-      const quote = await storage.getQuote(po.quoteId);
+      const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
       const items = await storage.getVendorPoItems(po.id);
 
       res.json({
         ...po,
         vendor: vendor || {},
-        quote: { id: quote?.id, quoteNumber: quote?.quoteNumber },
+        quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber } : undefined,
         items,
       });
     } catch (error) {
@@ -3410,6 +3410,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating vendor PO:", error);
       res.status(500).json({ error: "Failed to create vendor PO" });
+    }
+  });
+
+  app.post("/api/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { 
+        vendorId, 
+        expectedDeliveryDate, 
+        items, 
+        subtotal, 
+        discount, 
+        cgst, 
+        sgst, 
+        igst, 
+        shippingCharges, 
+        total, 
+        notes, 
+        termsAndConditions 
+      } = req.body;
+
+      if (!vendorId) {
+        return res.status(400).json({ error: "Vendor ID is required" });
+      }
+
+      if (!items || items.length === 0) {
+        return res.status(400).json({ error: "At least one item is required" });
+      }
+
+      // Generate PO number
+      const poNumber = await NumberingService.generateVendorPoNumber();
+
+      // Create Vendor PO
+      const po = await storage.createVendorPo({
+        poNumber,
+        quoteId: null, // Standalone PO
+        vendorId,
+        status: "draft",
+        orderDate: new Date(),
+        expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+        subtotal: subtotal.toString(),
+        discount: discount.toString(),
+        cgst: cgst.toString(),
+        sgst: sgst.toString(),
+        igst: igst.toString(),
+        shippingCharges: shippingCharges.toString(),
+        total: total.toString(),
+        notes: notes || null,
+        termsAndConditions: termsAndConditions || null,
+        createdBy: req.user!.id,
+      });
+
+      // Create PO Items
+      let sortOrder = 0;
+      for (const item of items) {
+        await storage.createVendorPoItem({
+          vendorPoId: po.id,
+          description: item.description,
+          quantity: item.quantity,
+          receivedQuantity: 0,
+          unitPrice: item.unitPrice.toString(),
+          subtotal: item.subtotal.toString(),
+          sortOrder: sortOrder++,
+        });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "create_vendor_po",
+        entityType: "vendor_po",
+        entityId: po.id,
+      });
+
+      res.json(po);
+    } catch (error: any) {
+      console.error("Error creating vendor PO:", error);
+      res.status(500).json({ error: error.message || "Failed to create vendor PO" });
     }
   });
 

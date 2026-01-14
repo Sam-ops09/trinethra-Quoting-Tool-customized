@@ -26,6 +26,7 @@ import AdminSettings from "@/pages/admin-settings";
 import AdminConfiguration from "@/pages/admin-configuration";
 import Vendors from "@/pages/vendors";
 import VendorPOs from "@/pages/vendor-pos";
+import VendorPoCreate from "@/pages/vendor-po-create";
 import VendorPoDetail from "@/pages/vendor-po-detail";
 import Products from "@/pages/products";
 import GRNList from "@/pages/grn-list";
@@ -166,6 +167,7 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_vendorPOs') && (
             <>
               <Route path="/vendor-pos" component={() => <ProtectedRoute component={VendorPOs} requiredPath="/vendor-pos" />} />
+              <Route path="/vendor-pos/create" component={() => <ProtectedRoute component={VendorPoCreate} requiredPath="/vendor-pos" />} />
               <Route path="/vendor-pos/:id" component={() => <ProtectedRoute component={VendorPoDetail} requiredPath="/vendor-pos" />} />
             </>
           )}
