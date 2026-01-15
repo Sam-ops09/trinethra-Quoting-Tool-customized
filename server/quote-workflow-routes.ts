@@ -16,6 +16,8 @@ import { InvoicePDFService } from "./services/invoice-pdf.service";
 import { SalesOrderPDFService } from "./services/sales-order-pdf.service";
 import { EmailService } from "./services/email.service";
 import { Readable } from "stream";
+import { toDecimal, calculateSubtotal, calculateTotal, toMoneyString } from "./utils/financial";
+import { logger } from "./utils/logger";
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -34,7 +36,7 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 async function reserveStockForSalesOrder(salesOrderId: string): Promise<void> {
   // Skip if stock tracking or reserve-on-order is disabled
   if (!isFeatureEnabled('products_stock_tracking') || !isFeatureEnabled('products_reserve_on_order')) {
-    console.log(`[Stock Reserve] Skipped for SO ${salesOrderId}: Stock tracking or reserve-on-order is disabled`);
+    logger.stock(`[Stock Reserve] Skipped for SO ${salesOrderId}: Stock tracking or reserve-on-order is disabled`);
     return;
   }
   
@@ -59,7 +61,7 @@ async function reserveStockForSalesOrder(salesOrderId: string): Promise<void> {
         .where(eq(schema.products.id, productId));
     }
     
-    console.log(`[Stock Reserve] Reserved stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
+    logger.stock(`[Stock Reserve] Reserved stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
   } catch (error) {
     console.error(`[Stock Reserve] Error reserving stock for SO ${salesOrderId}:`, error);
     throw error;
@@ -73,7 +75,7 @@ async function reserveStockForSalesOrder(salesOrderId: string): Promise<void> {
 async function releaseStockForSalesOrder(salesOrderId: string): Promise<void> {
   // Skip if stock tracking or reserve-on-order is disabled
   if (!isFeatureEnabled('products_stock_tracking') || !isFeatureEnabled('products_reserve_on_order')) {
-    console.log(`[Stock Release] Skipped for SO ${salesOrderId}: Stock tracking or reserve-on-order is disabled`);
+    logger.stock(`[Stock Release] Skipped for SO ${salesOrderId}: Stock tracking or reserve-on-order is disabled`);
     return;
   }
   
@@ -98,7 +100,7 @@ async function releaseStockForSalesOrder(salesOrderId: string): Promise<void> {
         .where(eq(schema.products.id, productId));
     }
     
-    console.log(`[Stock Release] Released stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
+    logger.stock(`[Stock Release] Released stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
   } catch (error) {
     console.error(`[Stock Release] Error releasing stock for SO ${salesOrderId}:`, error);
     // Don't throw - allow cancellation to proceed
@@ -541,26 +543,31 @@ router.patch("/sales-orders/:id",
           if (updateData.expectedDeliveryDate) updateData.expectedDeliveryDate = new Date(updateData.expectedDeliveryDate);
           if (updateData.actualDeliveryDate) updateData.actualDeliveryDate = new Date(updateData.actualDeliveryDate);
 
-          // Server-Side Financial Recalculation
-          let subtotal = Number(currentOrder.subtotal);
+          // Server-Side Financial Recalculation using Decimal.js for precision
+          let subtotal = toDecimal(currentOrder.subtotal);
           
-          // Helper to safely get number or current
-          const getNum = (val: any, current: string | null) => val !== undefined ? Number(val) : Number(current || 0);
+          // Helper to get Decimal value from update or current
+          const getVal = (val: any, current: string | null) => val !== undefined ? val : current;
 
           if (items && Array.isArray(items)) {
-              // Recalculate subtotal from new items
-              subtotal = items.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.unitPrice)), 0);
-              updateData.subtotal = subtotal.toString();
+              // Recalculate subtotal from new items with precision
+              subtotal = calculateSubtotal(items.map((item: any) => ({
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice
+              })));
+              updateData.subtotal = toMoneyString(subtotal);
           }
 
-          const discount = getNum(updateData.discount, currentOrder.discount);
-          const shipping = getNum(updateData.shippingCharges, currentOrder.shippingCharges);
-          const cgst = getNum(updateData.cgst, currentOrder.cgst);
-          const sgst = getNum(updateData.sgst, currentOrder.sgst);
-          const igst = getNum(updateData.igst, currentOrder.igst);
-
-          // Enforce Total Consistency
-          updateData.total = (subtotal - discount + shipping + cgst + sgst + igst).toString();
+          // Calculate total with Decimal.js precision
+          const total = calculateTotal({
+              subtotal: subtotal,
+              discount: getVal(updateData.discount, currentOrder.discount),
+              shippingCharges: getVal(updateData.shippingCharges, currentOrder.shippingCharges),
+              cgst: getVal(updateData.cgst, currentOrder.cgst),
+              sgst: getVal(updateData.sgst, currentOrder.sgst),
+              igst: getVal(updateData.igst, currentOrder.igst),
+          });
+          updateData.total = toMoneyString(total);
 
           // 1. Update Order
           const [updatedOrder] = await tx.update(schema.salesOrders)
@@ -590,33 +597,62 @@ router.patch("/sales-orders/:id",
               }
           }
 
-          // 3. Handle Stock (Reserve Logic)
-          // Note: reserveStockForSalesOrder handles its own logic, but we should verify if it needs to be inside transaction?
-          // It updates Products table.
-          // Ideally yes. But `reserveStockForSalesOrder` is a helper function that does its own updates.
-          // If we want it atomic, we should refactor it to accept `tx` or inline it.
-          // For now, let's keep it after transaction commit or accept minor risk since it's "Reserve" not "Deduct".
-          // Actually, if we fail here, we want to rollback the order update.
-          // Since `reserveStockForSalesOrder` likely uses global `storage` / `db`, it's outside this `tx`.
-          // We can call it AFTER metadata update.
+          // 3. Handle Stock Operations INSIDE Transaction for atomicity
+          if (req.body.status && req.body.status !== currentOrder.status) {
+              // Get items for stock update
+              const orderItems = items && Array.isArray(items) 
+                  ? items 
+                  : await storage.getSalesOrderItems(orderId);
+
+              // Group items by productId
+              const productQuantities: Record<string, number> = {};
+              for (const item of orderItems) {
+                  if (item.productId) {
+                      productQuantities[item.productId] = (productQuantities[item.productId] || 0) + (item.quantity || 0);
+                  }
+              }
+
+              if (req.body.status === "confirmed" && currentOrder.status === "draft") {
+                  // Reserve stock - only if feature enabled
+                  if (isFeatureEnabled('products_stock_tracking') && isFeatureEnabled('products_reserve_on_order')) {
+                      for (const [productId, quantity] of Object.entries(productQuantities)) {
+                          await tx.update(schema.products)
+                              .set({
+                                  reservedQuantity: sql`${schema.products.reservedQuantity} + ${quantity}`,
+                                  availableQuantity: sql`${schema.products.availableQuantity} - ${quantity}`,
+                                  updatedAt: new Date(),
+                              })
+                              .where(eq(schema.products.id, productId));
+                      }
+                      logger.stock(`[Stock Reserve] Reserved stock inside transaction for SO ${orderId}`);
+                  }
+              } else if (req.body.status === "cancelled" && currentOrder.status === "confirmed") {
+                  // Release stock - only if feature enabled
+                  if (isFeatureEnabled('products_stock_tracking') && isFeatureEnabled('products_reserve_on_order')) {
+                      for (const [productId, quantity] of Object.entries(productQuantities)) {
+                          await tx.update(schema.products)
+                              .set({
+                                  reservedQuantity: sql`GREATEST(0, ${schema.products.reservedQuantity} - ${quantity})`,
+                                  availableQuantity: sql`${schema.products.availableQuantity} + ${quantity}`,
+                                  updatedAt: new Date(),
+                              })
+                              .where(eq(schema.products.id, productId));
+                      }
+                      logger.stock(`[Stock Release] Released stock inside transaction for SO ${orderId}`);
+                  }
+              }
+          }
+
+          // 4. Activity Log inside transaction
+          await tx.insert(schema.activityLogs).values({
+              userId: req.user!.id,
+              action: "edit",
+              entityType: "sales_orders",
+              entityId: updatedOrder.id,
+              timestamp: new Date(),
+          });
           
           return updatedOrder;
-      });
-
-      // Post-transaction Side Effects
-      if (req.body.status && req.body.status !== currentOrder.status) {
-          if (req.body.status === "confirmed" && currentOrder.status === "draft") {
-             await reserveStockForSalesOrder(orderId);
-          } else if (req.body.status === "cancelled" && currentOrder.status === "confirmed") {
-             await releaseStockForSalesOrder(orderId);
-          }
-      }
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "edit",
-        entityType: "sales_orders" as any,
-        entityId: result.id
       });
 
       return res.json(result);
@@ -717,7 +753,7 @@ router.post(
                       // Check validation
                       const allowNegative = isFeatureEnabled('products_allow_negative_stock');
                       if (!allowNegative && currentStock < requiredQty) {
-                          console.log(`[Stock Deduction] Stock shortage for ${item.description}`);
+                          logger.stock(`[Stock Deduction] Stock shortage for ${item.description}`);
                       }
                       
                        if (isFeatureEnabled('products_stock_warnings') && currentStock < requiredQty) {
@@ -1199,56 +1235,81 @@ router.post("/quotes/:id/sales-orders",
         return res.status(400).json({ message: "Only approved quotes can be converted to sales orders" });
       }
 
-      // Check if order already exists
-      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
-      if (existingOrder) {
-        return res.status(400).json({ message: "A Sales Order already exists for this quote", orderId: existingOrder.id });
-      }
-
-      // Generate Order Number
-      // Generate Order Number through Service
+      // Generate Order Number (done outside transaction as it's safe and sequential)
       const orderNumber = await NumberingService.generateSalesOrderNumber();
 
-      // Create Sales Order
-      const newOrder = await storage.createSalesOrder({
-        quoteId,
-        orderNumber,
-        clientId: quote.clientId,
-        status: "draft",
-        subtotal: quote.subtotal,
-        discount: quote.discount || "0",
-        cgst: quote.cgst || "0",
-        sgst: quote.sgst || "0",
-        igst: quote.igst || "0",
-        shippingCharges: quote.shippingCharges || "0",
-        total: quote.total,
-        notes: quote.notes,
-        termsAndConditions: quote.termsAndConditions,
-        createdBy: req.user!.id,
+      // Wrap all operations in a transaction to prevent race conditions
+      const result = await db.transaction(async (tx) => {
+        // Check if order already exists INSIDE transaction for atomicity
+        const [existingOrder] = await tx.select().from(schema.salesOrders)
+          .where(eq(schema.salesOrders.quoteId, quoteId));
+        
+        if (existingOrder) {
+          throw new Error(`DUPLICATE_ORDER:${existingOrder.id}`);
+        }
+
+        // Create Sales Order
+        const [newOrder] = await tx.insert(schema.salesOrders).values({
+          quoteId,
+          orderNumber,
+          clientId: quote.clientId,
+          status: "draft",
+          subtotal: quote.subtotal,
+          discount: quote.discount || "0",
+          cgst: quote.cgst || "0",
+          sgst: quote.sgst || "0",
+          igst: quote.igst || "0",
+          shippingCharges: quote.shippingCharges || "0",
+          total: quote.total,
+          notes: quote.notes,
+          termsAndConditions: quote.termsAndConditions,
+          createdBy: req.user!.id,
+        }).returning();
+
+        // Fetch and copy Line Items
+        const quoteItems = await storage.getQuoteItems(quoteId);
+        if (quoteItems && quoteItems.length > 0) {
+          let sortOrder = 0;
+          for (const item of quoteItems) {
+            await tx.insert(schema.salesOrderItems).values({
+              salesOrderId: newOrder.id,
+              productId: item.productId || null,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal,
+              hsnSac: item.hsnSac,
+              sortOrder: sortOrder++,
+              status: "pending",
+              fulfilledQuantity: 0,
+            });
+          }
+        }
+
+        // Update quote status
+        await tx.update(schema.quotes)
+          .set({ status: "sales_order" as any, updatedAt: new Date() })
+          .where(eq(schema.quotes.id, quoteId));
+
+        // Activity log
+        await tx.insert(schema.activityLogs).values({
+          userId: req.user!.id,
+          action: "create",
+          entityType: "sales_orders",
+          entityId: newOrder.id,
+          timestamp: new Date(),
+        });
+
+        return newOrder;
       });
 
-      // Copy Line Items - fetch them from the quote
-      const quoteItems = await storage.getQuoteItems(quoteId);
-      if (quoteItems && quoteItems.length > 0) {
-        let sortOrder = 0;
-        for (const item of quoteItems) {
-          await storage.createSalesOrderItem({
-            salesOrderId: newOrder.id,
-            productId: item.productId || null,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            hsnSac: item.hsnSac,
-            sortOrder: sortOrder++,
-            status: "pending",
-            fulfilledQuantity: 0
-          });
-        }
-      }
-
-      res.status(201).json(newOrder);
+      res.status(201).json(result);
     } catch (error: any) {
+      // Handle duplicate order case gracefully
+      if (error.message?.startsWith("DUPLICATE_ORDER:")) {
+        const orderId = error.message.split(":")[1];
+        return res.status(400).json({ message: "A Sales Order already exists for this quote", orderId });
+      }
       console.error("Failed to create sales order:", error);
       res.status(500).json({ message: error.message || "Internal server error" });
     }

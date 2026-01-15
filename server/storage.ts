@@ -83,6 +83,8 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByRefreshToken(token: string): Promise<User | undefined>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
   createUser(user: Omit<InsertUser, "password"> & { passwordHash: string }): Promise<User>;
   updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
   updateUserWithTokenCheck(id: string, token: string, data: Partial<User>): Promise<User | undefined>;
@@ -261,6 +263,15 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getUserByRefreshToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.refreshToken, token));
+    return user || undefined;
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.resetToken, token));
+    return user || undefined;
+  }
 
   async createUser(user: Omit<InsertUser, "password"> & { passwordHash: string }): Promise<User> {
   const [newUser] = await db
@@ -469,21 +480,21 @@ export class DatabaseStorage implements IStorage {
   return await db
     .select()
     .from(templates)
-    .where(eq(templates.type, type) && eq(templates.isActive, true));
+    .where(and(eq(templates.type, type), eq(templates.isActive, true)));
 }
 
   async getTemplatesByStyle(style: string): Promise < Template[] > {
   return await db
     .select()
     .from(templates)
-    .where(eq(templates.style, style) && eq(templates.isActive, true));
+    .where(and(eq(templates.style, style), eq(templates.isActive, true)));
 }
 
   async getDefaultTemplate(type: string): Promise < Template | undefined > {
   const [template] = await db
     .select()
     .from(templates)
-    .where(eq(templates.type, type) && eq(templates.isDefault, true));
+    .where(and(eq(templates.type, type), eq(templates.isDefault, true)));
   return template || undefined;
 }
 

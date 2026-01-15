@@ -21,6 +21,8 @@ import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
 import { z } from "zod";
+import { toDecimal, add, toMoneyString, moneyGte, moneyGt } from "./utils/financial";
+import { logger } from "./utils/logger";
 // Validate SESSION_SECRET at runtime, not at module load
 function getJWTSecret(): string {
   if (!process.env.SESSION_SECRET) {
@@ -78,11 +80,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
+      // SECURITY: Always set role to "viewer" for self-signup
+      // Admin-created users can have other roles via the /api/users endpoint
       const user = await storage.createUser({
         email,
         passwordHash: hashedPassword,
         name,
-        role: req.body.role || "viewer",
+        role: "viewer",
         status: "active"
       });
 
@@ -291,9 +295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Token and new password are required" });
       }
 
-      // Find user with reset token (ensure token is not null and matches)
-      const users_list = await storage.getAllUsers();
-      const user = users_list.find(u => u.resetToken !== null && u.resetToken === token);
+      // Find user with reset token using indexed lookup
+      const user = await storage.getUserByResetToken(token);
 
       if (!user) {
         return res.status(400).json({ error: "Invalid or expired reset token" });
@@ -359,9 +362,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 return res.status(401).json({ error: "No refresh token" });
             }
 
-            // Find user by refresh token
-            const users_list = await storage.getAllUsers();
-            const user = users_list.find(u => u.refreshToken === refreshToken);
+            // Find user by refresh token using indexed lookup
+            const user = await storage.getUserByRefreshToken(refreshToken);
 
             if (!user) {
                 // Clear invalid refresh token cookie
@@ -1140,11 +1142,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invoice is already cancelled" });
       }
 
-      // Helper function to reverse stock for an invoice
-      const reverseStockForInvoice = async (invoiceId: string) => {
-        try {
+      // If master invoice with child invoices, check if any are paid (do validation outside transaction)
+      let childInvoices: any[] = [];
+      if (invoice.isMaster) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+        const paidChildren = childInvoices.filter((c: any) => c.paymentStatus === "paid");
+        if (paidChildren.length > 0) {
+          return res.status(400).json({ error: "Cannot cancel master invoice with paid child invoices" });
+        }
+      }
+
+      // Wrap all cancellation operations in a transaction for atomicity
+      const result = await db.transaction(async (tx) => {
+        // Helper function to reverse stock for an invoice (within transaction)
+        const reverseStockForInvoice = async (invoiceId: string) => {
           // Get serial numbers linked to this invoice
-          const serialsResult = await db
+          const serialsResult = await tx
             .select()
             .from(schema.serialNumbers)
             .where(eq(schema.serialNumbers.invoiceId, invoiceId));
@@ -1153,13 +1167,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const productStockUpdates: Record<string, number> = {};
 
           for (const serial of serialsResult) {
-            // Track stock to restore per product
             if (serial.productId) {
               productStockUpdates[serial.productId] = (productStockUpdates[serial.productId] || 0) + 1;
             }
 
             // Reset serial number: status back to in_stock, unlink from invoice
-            await db
+            await tx
               .update(schema.serialNumbers)
               .set({
                 status: "in_stock",
@@ -1170,76 +1183,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .where(eq(schema.serialNumbers.id, serial.id));
           }
 
-          // Update product stock quantities
+          // Update product stock quantities using atomic SQL update
           for (const [productId, quantityToRestore] of Object.entries(productStockUpdates)) {
-            const [product] = await db.select().from(schema.products).where(eq(schema.products.id, productId));
-            if (product) {
-              const currentStock = product.stockQuantity || 0;
-              const currentAvailable = product.availableQuantity || 0;
+            await tx
+              .update(schema.products)
+              .set({
+                stockQuantity: sql`${schema.products.stockQuantity} + ${quantityToRestore}`,
+                availableQuantity: sql`${schema.products.availableQuantity} + ${quantityToRestore}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.products.id, productId));
+          }
 
-              await db
-                .update(schema.products)
+          logger.stock(`[Stock Reversal] Restored ${serialsResult.length} serial numbers and updated ${Object.keys(productStockUpdates).length} product stock levels for invoice ${invoiceId}`);
+        };
+
+        // Cancel child invoices if this is a master invoice
+        if (invoice.isMaster) {
+          for (const child of childInvoices) {
+            if (child.paymentStatus !== "paid") {
+              // Reverse stock for child invoice
+              await reverseStockForInvoice(child.id);
+
+              await tx.update(schema.invoices)
                 .set({
-                  stockQuantity: currentStock + quantityToRestore,
-                  availableQuantity: currentAvailable + quantityToRestore,
+                  status: "cancelled",
+                  paymentStatus: "cancelled",
+                  cancelledAt: new Date(),
+                  cancelledBy: req.user!.id,
+                  cancellationReason: `Parent invoice cancelled: ${cancellationReason}`,
                   updatedAt: new Date(),
                 })
-                .where(eq(schema.products.id, productId));
+                .where(eq(schema.invoices.id, child.id));
             }
           }
-
-          console.log(`[Stock Reversal] Restored ${serialsResult.length} serial numbers and updated ${Object.keys(productStockUpdates).length} product stock levels for invoice ${invoiceId}`);
-        } catch (error) {
-          console.error(`[Stock Reversal] Error reversing stock for invoice ${invoiceId}:`, error);
-          // Don't throw - we still want to cancel the invoice even if stock reversal fails
-        }
-      };
-
-      // If master invoice with child invoices, check if any are paid
-      if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        const childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
-        const paidChildren = childInvoices.filter((c: any) => c.paymentStatus === "paid");
-        if (paidChildren.length > 0) {
-          return res.status(400).json({ error: "Cannot cancel master invoice with paid child invoices" });
         }
 
-        // Cancel all unpaid child invoices and reverse their stock
-        for (const child of childInvoices) {
-          if (child.paymentStatus !== "paid") {
-            // Reverse stock for child invoice
-            await reverseStockForInvoice(child.id);
+        // Reverse stock for the main invoice
+        await reverseStockForInvoice(req.params.id);
 
-            await storage.updateInvoice(child.id, {
-              status: "cancelled" as any,
-              paymentStatus: "cancelled" as any,
-              cancelledAt: new Date(),
-              cancelledBy: req.user!.id,
-              cancellationReason: `Parent invoice cancelled: ${cancellationReason}`,
-            });
-          }
-        }
-      }
+        // Cancel the main invoice
+        const [updatedInvoice] = await tx.update(schema.invoices)
+          .set({
+            status: "cancelled",
+            paymentStatus: "cancelled",
+            cancelledAt: new Date(),
+            cancelledBy: req.user!.id,
+            cancellationReason,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.invoices.id, req.params.id))
+          .returning();
 
-      // Reverse stock for the main invoice
-      await reverseStockForInvoice(req.params.id);
+        // Log activity
+        await tx.insert(schema.activityLogs).values({
+          userId: req.user!.id,
+          action: "invoice_cancelled",
+          entityType: "invoice",
+          entityId: invoice.id,
+          timestamp: new Date(),
+        });
 
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
-        status: "cancelled" as any,
-        paymentStatus: "cancelled" as any,
-        cancelledAt: new Date(),
-        cancelledBy: req.user!.id,
-        cancellationReason,
+        return updatedInvoice;
       });
 
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "invoice_cancelled",
-        entityType: "invoice",
-        entityId: invoice.id,
-      });
-
-      res.json({ success: true, invoice: updatedInvoice });
+      res.json({ success: true, invoice: result });
     } catch (error: any) {
       console.error("Cancel invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
@@ -2021,101 +2029,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create payment history record
-      await storage.createPaymentHistory({
-        invoiceId: req.params.id,
-        amount: String(amount),
-        paymentMethod,
-        transactionId: transactionId || undefined,
-        notes: notes || undefined,
-        paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-        recordedBy: req.user!.id,
-      });
+      // Wrap all payment-related updates in a transaction for atomicity
+      const result = await db.transaction(async (tx) => {
+        // 1. Create payment history record
+        const [paymentRecord] = await tx.insert(schema.paymentHistory).values({
+          invoiceId: req.params.id,
+          amount: String(amount),
+          paymentMethod,
+          transactionId: transactionId || null,
+          notes: notes || null,
+          paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+          recordedBy: req.user!.id,
+        }).returning();
 
-      // Update invoice totals
-      const newPaidAmount = Number(invoice.paidAmount) + Number(amount);
-      // Use invoice.total for child invoices, quote.total for regular invoices
-      const totalAmount = Number(invoice.total || quote.total);
+        // 2. Update invoice totals using Decimal.js for precision
+        const newPaidAmount = add(invoice.paidAmount, amount);
+        const totalAmount = toDecimal(invoice.total || quote.total);
 
-      let newPaymentStatus = invoice.paymentStatus;
-      if (newPaidAmount >= totalAmount) {
-        newPaymentStatus = "paid";
-      } else if (newPaidAmount > 0) {
-        newPaymentStatus = "partial";
-      }
+        let newPaymentStatus: string = invoice.paymentStatus || "pending";
+        if (moneyGte(newPaidAmount, totalAmount)) {
+          newPaymentStatus = "paid";
+        } else if (moneyGt(newPaidAmount, 0)) {
+          newPaymentStatus = "partial";
+        }
 
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
-        paidAmount: String(newPaidAmount),
-        paymentStatus: newPaymentStatus,
-        lastPaymentDate: new Date(),
-      });
-
-      // If this is a child invoice, update the master invoice payment totals
-      if (invoice.parentInvoiceId) {
-        const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-        if (masterInvoice) {
-          // Get all child invoices of this master
-          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-          const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
-
-          // Calculate total paid amount from all children (use updated amount for current invoice)
-          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-            const childPaid = child.id === invoice.id ? newPaidAmount : Number(child.paidAmount || 0);
-            return sum + childPaid;
-          }, 0);
-
-          // Update master invoice with aggregated payment data
-          const masterTotal = Number(masterInvoice.total);
-          let masterPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
-          if (totalChildPaidAmount >= masterTotal) {
-            masterPaymentStatus = "paid";
-          } else if (totalChildPaidAmount > 0) {
-            masterPaymentStatus = "partial";
-          }
-
-          await storage.updateInvoice(masterInvoice.id, {
-            paidAmount: String(totalChildPaidAmount),
-            paymentStatus: masterPaymentStatus,
+        const [updatedInvoice] = await tx.update(schema.invoices)
+          .set({
+            paidAmount: toMoneyString(newPaidAmount),
+            paymentStatus: newPaymentStatus,
             lastPaymentDate: new Date(),
-          });
-        }
-      }
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.invoices.id, req.params.id))
+          .returning();
 
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "record_payment",
-        entityType: "invoice",
-        entityId: invoice.id,
+        // 3. If this is a child invoice, update the master invoice payment totals
+        if (invoice.parentInvoiceId) {
+          const [masterInvoice] = await tx.select().from(schema.invoices)
+            .where(eq(schema.invoices.id, invoice.parentInvoiceId));
+          
+          if (masterInvoice) {
+            const allInvoices = await tx.select().from(schema.invoices)
+              .where(eq(schema.invoices.quoteId, masterInvoice.quoteId));
+            const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
+
+            // Calculate total paid using Decimal.js
+            let totalChildPaidAmount = toDecimal(0);
+            for (const child of childInvoices) {
+              const childPaid = child.id === invoice.id ? newPaidAmount : toDecimal(child.paidAmount);
+              totalChildPaidAmount = totalChildPaidAmount.plus(childPaid);
+            }
+
+            const masterTotal = toDecimal(masterInvoice.total);
+            let masterPaymentStatus: string = "pending";
+            if (moneyGte(totalChildPaidAmount, masterTotal)) {
+              masterPaymentStatus = "paid";
+            } else if (moneyGt(totalChildPaidAmount, 0)) {
+              masterPaymentStatus = "partial";
+            }
+
+            await tx.update(schema.invoices)
+              .set({
+                paidAmount: toMoneyString(totalChildPaidAmount),
+                paymentStatus: masterPaymentStatus,
+                lastPaymentDate: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.invoices.id, masterInvoice.id));
+          }
+        }
+
+        // 4. Log activity
+        await tx.insert(schema.activityLogs).values({
+          userId: req.user!.id,
+          action: "record_payment",
+          entityType: "invoice",
+          entityId: invoice.id,
+          timestamp: new Date(),
+        });
+
+        // 5. Check if quote should be auto-closed
+        const [currentQuote] = await tx.select().from(schema.quotes)
+          .where(eq(schema.quotes.id, invoice.quoteId));
+        
+        if (currentQuote && currentQuote.status === "invoiced") {
+          const allInvoicesForQuote = await tx.select().from(schema.invoices)
+            .where(eq(schema.invoices.quoteId, invoice.quoteId));
+
+          const relevantInvoices = allInvoicesForQuote.filter(inv => !inv.parentInvoiceId);
+          const allPaid = relevantInvoices.every(inv => inv.paymentStatus === "paid");
+
+          if (allPaid && relevantInvoices.length > 0) {
+            await tx.update(schema.quotes)
+              .set({
+                status: "closed_paid",
+                closedAt: new Date(),
+                closedBy: req.user!.id,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.quotes.id, invoice.quoteId));
+
+            await tx.insert(schema.activityLogs).values({
+              userId: req.user!.id,
+              action: "close_quote",
+              entityType: "quote",
+              entityId: currentQuote.id,
+              timestamp: new Date(),
+            });
+          }
+        }
+
+        return updatedInvoice;
       });
 
-      // Update quote status to closed_paid if all invoices are now fully paid
-      // Re-fetch quote to get latest status after all invoice updates
-      const updatedQuote = await storage.getQuote(invoice.quoteId);
-      if (updatedQuote && updatedQuote.status === "invoiced") {
-        // Get all invoices for this quote after all updates
-        const allInvoicesForQuote = await storage.getInvoicesByQuote(invoice.quoteId);
-
-        // Check if ALL non-child invoices (master or regular) are fully paid
-        // Child invoices don't count separately - only their master invoice counts
-        const relevantInvoices = allInvoicesForQuote.filter(inv => !inv.parentInvoiceId);
-        const allPaid = relevantInvoices.every(inv => inv.paymentStatus === "paid");
-
-        if (allPaid && relevantInvoices.length > 0) {
-          await storage.updateQuote(invoice.quoteId, {
-            status: "closed_paid",
-            closedAt: new Date(),
-            closedBy: req.user!.id,
-          });
-
-          await storage.createActivityLog({
-            userId: req.user!.id,
-            action: "close_quote",
-            entityType: "quote",
-            entityId: updatedQuote.id,
-          });
-        }
-      }
-
-      return res.json(updatedInvoice);
+      return res.json(result);
     } catch (error: any) {
       console.error("Record payment error:", error);
       return res.status(500).json({ error: error.message || "Failed to record payment" });
@@ -2969,8 +2996,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const body = req.body;
 
+      // Whitelist of allowed settings keys - helps prevent arbitrary settings injection
+      const ALLOWED_SETTINGS_KEYS = [
+        // Company info
+        "companyName", "companyAddress", "companyPhone", "companyEmail", "companyWebsite",
+        "gstin", "pan", "cin", "logo", "companyLogo",
+        // Bank details
+        "bankName", "bankAccountNumber", "bankAccountName", "bankIfscCode", "bankBranch", "bankSwiftCode",
+        // Document prefixes
+        "quotePrefix", "invoicePrefix", "childInvoicePrefix", "salesOrderPrefix", "vendorPoPrefix", "grnPrefix",
+        // Document formats
+        "quoteFormat", "invoiceFormat", "childInvoiceFormat", "salesOrderFormat", "vendorPoFormat", "grnFormat",
+        // Date format
+        "dateFormat", "fiscalYearStart",
+        // Feature-related settings
+        "defaultCurrency", "defaultTaxRate", "defaultPaymentTerms",
+        // Email settings
+        "emailFrom", "emailReplyTo", "emailFooter",
+        // Terms and conditions
+        "defaultTermsAndConditions", "defaultNotes",
+      ];
+
+      const validateSettingKey = (key: string): boolean => {
+        return ALLOWED_SETTINGS_KEYS.includes(key) || key.startsWith("custom_");
+      };
+
       // Check if it's a single key-value pair or bulk update
       if (body.key && body.value !== undefined) {
+        // Validate single setting key
+        if (!validateSettingKey(body.key)) {
+          return res.status(400).json({ error: `Invalid setting key: ${body.key}` });
+        }
         // Single setting update
         const setting = await storage.upsertSetting({
           key: body.key,
@@ -2987,7 +3043,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Bulk settings update
         const results = [];
+        const invalidKeys: string[] = [];
+        
         for (const [key, value] of Object.entries(body)) {
+          if (!validateSettingKey(key)) {
+            invalidKeys.push(key);
+            continue;
+          }
           if (value !== undefined && value !== null) {
             const setting = await storage.upsertSetting({
               key,
@@ -2996,6 +3058,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             results.push(setting);
           }
+        }
+
+        if (invalidKeys.length > 0) {
+          console.warn(`[Settings] Ignored invalid keys: ${invalidKeys.join(", ")}`);
         }
 
         await storage.createActivityLog({
