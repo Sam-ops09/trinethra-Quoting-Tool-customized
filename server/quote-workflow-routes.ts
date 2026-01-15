@@ -1287,10 +1287,6 @@ router.post("/quotes/:id/sales-orders",
         }
 
         // Update quote status
-        await tx.update(schema.quotes)
-          .set({ status: "sales_order" as any, updatedAt: new Date() })
-          .where(eq(schema.quotes.id, quoteId));
-
         // Activity log
         await tx.insert(schema.activityLogs).values({
           userId: req.user!.id,

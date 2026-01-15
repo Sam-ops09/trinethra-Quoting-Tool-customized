@@ -50,3 +50,43 @@ npx tsx test_race_condition.ts
 - `✅ RACE TEST PASSED: Duplicate prevented.`
 
 This confirms that the **database transactions** and **unique constraints** are working correctly.
+
+---
+
+## 3. Audit Bug Fixes Test Suite
+
+**Script:** `test_audit_fixes.ts`
+
+This comprehensive test suite verifies all 12 bug fixes implemented from the security audit, including:
+- Signup role escalation prevention
+- Template query fixes
+- Indexed token lookups (performance)
+- Payment recording atomicity
+- Quote-to-SO race condition prevention
+- Settings key validation whitelist
+- Financial calculation precision (Decimal.js)
+- Invoice cancellation stock reversal
+
+### How to Run
+```bash
+npx tsx test_audit_fixes.ts
+```
+
+### Expected Output
+```
+✅ Role escalation blocked
+✅ Template queries work
+✅ Token refresh efficient
+✅ Payment recorded atomically
+✅ Race condition prevented
+✅ Invalid key rejected
+✅ Valid key accepted
+✅ Custom key accepted
+✅ Financial precision maintained
+✅ Stock reversal worked
+
+Total: 10 passed, 0 failed
+✅ All tests passed!
+```
+
+> **Note:** If you encounter rate limiting (429 errors), restart the dev server and re-run the tests.

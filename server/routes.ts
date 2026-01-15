@@ -1157,18 +1157,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.transaction(async (tx) => {
         // Helper function to reverse stock for an invoice (within transaction)
         const reverseStockForInvoice = async (invoiceId: string) => {
-          // Get serial numbers linked to this invoice
+          
+          // Track which products have been restored via serial numbers
+          const restoredViaSerials = new Set<string>();
+
+          // 1. First, handle serial number-tracked items
           const serialsResult = await tx
             .select()
             .from(schema.serialNumbers)
             .where(eq(schema.serialNumbers.invoiceId, invoiceId));
 
-          // Group serials by productId for stock updates
-          const productStockUpdates: Record<string, number> = {};
+          const productStockUpdatesFromSerials: Record<string, number> = {};
 
           for (const serial of serialsResult) {
             if (serial.productId) {
-              productStockUpdates[serial.productId] = (productStockUpdates[serial.productId] || 0) + 1;
+              productStockUpdatesFromSerials[serial.productId] = (productStockUpdatesFromSerials[serial.productId] || 0) + 1;
+              restoredViaSerials.add(serial.productId);
             }
 
             // Reset serial number: status back to in_stock, unlink from invoice
@@ -1183,8 +1187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .where(eq(schema.serialNumbers.id, serial.id));
           }
 
-          // Update product stock quantities using atomic SQL update
-          for (const [productId, quantityToRestore] of Object.entries(productStockUpdates)) {
+          // Update product stock from serial numbers
+          for (const [productId, quantityToRestore] of Object.entries(productStockUpdatesFromSerials)) {
             await tx
               .update(schema.products)
               .set({
@@ -1195,7 +1199,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .where(eq(schema.products.id, productId));
           }
 
-          logger.stock(`[Stock Reversal] Restored ${serialsResult.length} serial numbers and updated ${Object.keys(productStockUpdates).length} product stock levels for invoice ${invoiceId}`);
+          // 2. Then, handle non-serial-tracked items via invoice items
+          const invoiceItems = await tx
+            .select()
+            .from(schema.invoiceItems)
+            .where(eq(schema.invoiceItems.invoiceId, invoiceId));
+          
+          for (const item of invoiceItems) {
+            // Only restore if not already restored via serials AND has a productId
+            if (item.productId && !restoredViaSerials.has(item.productId)) {
+              const quantityToRestore = Number(item.quantity) || 0;
+              
+              if (quantityToRestore > 0) {
+                await tx
+                  .update(schema.products)
+                  .set({
+                    stockQuantity: sql`${schema.products.stockQuantity} + ${quantityToRestore}`,
+                    availableQuantity: sql`${schema.products.availableQuantity} + ${quantityToRestore}`,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(schema.products.id, item.productId));
+              }
+            }
+          }
+
+          const totalSerials = serialsResult.length;
+          const totalItems = invoiceItems.filter(i => i.productId && !restoredViaSerials.has(i.productId!)).length;
+          logger.stock(`[Stock Reversal] Restored ${totalSerials} serial items and ${totalItems} regular items for invoice ${invoiceId}`);
         };
 
         // Cancel child invoices if this is a master invoice
