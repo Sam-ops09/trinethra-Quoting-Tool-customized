@@ -82,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         passwordHash: hashedPassword,
         name,
-        role: "viewer",
+        role: req.body.role || "viewer",
         status: "active"
       });
 
@@ -1353,7 +1353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               quantity: item.quantity,
               fulfilledQuantity: item.fulfilledQuantity || 0,
               unitPrice: item.unitPrice,
-              subtotal: item.subtotal,
+              subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
               serialNumbers: item.serialNumbers || null,
               status: item.status || "pending",
               sortOrder: item.sortOrder || 0,
@@ -1832,6 +1832,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         items: items.map((item: any) => ({
           id: item.id,
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,

@@ -127,6 +127,20 @@ export async function createTestUser(
       if (signupRes.status() !== 200 && signupRes.status() !== 201) {
         throw new Error(`Signup failed: ${responseData.error}`);
       }
+
+      // Login to establish session
+      const loginRes = await makeAuthenticatedRequest(
+        request,
+        'http://localhost:5000/api/auth/login',
+        'POST',
+        undefined,
+        { email: userData.email, password: userData.password }
+      );
+
+      if (loginRes.status() !== 200) {
+        throw new Error(`Login failed after signup`);
+      }
+
       
       return {
         userId: responseData.id,
@@ -153,7 +167,7 @@ export const testData = {
     name: 'Test User',
     email: `test${Date.now()}@example.com`,
     password: 'Test@123456',
-    role: 'user' as const,
+    role: 'admin' as const,
     ...override,
   }),
 
