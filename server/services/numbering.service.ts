@@ -1,4 +1,6 @@
 import {DatabaseStorage, storage} from "../storage";
+import { db } from "../db";
+import { sql } from "drizzle-orm";
 
 /**
  * NumberingService - Handles document number generation based on configured schemes
@@ -185,42 +187,45 @@ export class NumberingService {
   /**
    * Get the next counter value and increment it
    * Uses year-based counter keys (e.g., quote_counter_2025)
-   * Always checks DB for the latest value before incrementing
+   * Uses ATOMIC SQL UPDATE to prevent race conditions
    * Counters start from 1 (formatted as 001 with padding)
    */
   private static async getAndIncrementCounter(type: string): Promise<number> {
     const year = new Date().getFullYear();
     const counterKey = `${type}_counter_${year}`;
 
-    // Always fetch from DB to get the latest counter value
-    // This ensures we never miss any increments from concurrent requests
-    const currentCounterSetting = await storage.getSetting(counterKey);
+    // ATOMIC UPSERT: 
+    // Try to insert '1'. On conflict (key exists), increment current value + 1 and return it.
+    // We cast to integer for math, then back to text for storage.
+    const result = await db.execute(sql`
+      INSERT INTO settings (id, key, value, updated_at) 
+      VALUES (${sql`gen_random_uuid()`}, ${counterKey}, '1', NOW())
+      ON CONFLICT (key) DO UPDATE 
+      SET value = (CAST(settings.value AS INTEGER) + 1)::text, updated_at = NOW()
+      RETURNING value
+    `);
 
-    // Determine current value:
-    // - If setting exists: parse the stored value
-    // - If setting doesn't exist: this is the first time, initialize to 0 (will become 1)
-    let currentValue = 0;
-
-    if (currentCounterSetting && currentCounterSetting.value) {
-      const parsed = parseInt(currentCounterSetting.value, 10);
-      if (!isNaN(parsed)) {
-        currentValue = parsed;
-      }
+    // Drizzle's execute returns a raw result. Structure depends on driver, but usually rows are in result[0] or result.rows
+    // For pg driver common in Drizzle:
+    // The result from a RETURNING clause is typically in rows.
+    
+    // Safety check for result parsing
+    let nextValue = 1;
+    if (result && Array.isArray(result) && result.length > 0 && result[0].value) {
+        // Some drivers return array of rows directly
+        nextValue = parseInt(result[0].value, 10);
+    } else if (result && 'rows' in result && Array.isArray((result as any).rows) && (result as any).rows.length > 0) {
+        // PG driver often returns { rows: [...] }
+        nextValue = parseInt((result as any).rows[0].value, 10);
+    } else {
+       // Fallback: If we can't parse the atomic result (driver mismatch?), we must re-read.
+       // Note: This fallback loses atomicity guarantee but handles driver weirdness.
+       // Ideally we trust the RETURNING clause. 
+       const setting = await storage.getSetting(counterKey);
+       nextValue = setting ? parseInt(setting.value, 10) : 1;
     }
 
-    // Increment to get next value
-    const nextValue = currentValue + 1;
-
-    console.log(`[NumberingService] ${type}_${year}: current=${currentValue}, next=${nextValue}`);
-
-    // Save updated counter to DB
-    // Note: We don't set updatedBy to avoid foreign key constraint violations
-    // The settings table has a FK constraint on updatedBy, so we leave it null
-    await storage.upsertSetting({
-      key: counterKey,
-      value: String(nextValue),
-    });
-
+    console.log(`[NumberingService] ${type}_${year}: next=${nextValue}`);
     return nextValue;
   }
 

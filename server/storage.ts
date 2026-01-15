@@ -301,23 +301,30 @@ export class DatabaseStorage implements IStorage {
   return updated || undefined;
 }
 
-  async deleteUser(id: string): Promise < void> {
-  // Delete in order of dependencies to avoid foreign key constraint violations
-  // 1. Delete activity logs for this user
-  await db.delete(activityLogs).where(eq(activityLogs.userId, id));
+  async deleteUser(id: string): Promise<void> {
+    // Audit Fix: Use Soft Delete instead of hard delete
+    // Hard deleting users breaks foreign key constraints on quotes, invoices, etc.
+    // preserving financial history is critical.
+    
+    // 1. Mark user as inactive
+    // 2. Clear security tokens (force logout)
+    // 3. Keep the record for historical integrity
+    
+    await db.update(users)
+      .set({ 
+        status: "inactive",
+        refreshToken: null,
+        refreshTokenExpiry: null,
+        resetToken: null,
+        resetTokenExpiry: null,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, id));
 
-  // 2. Delete templates created by this user
-  await db.delete(templates).where(eq(templates.createdBy, id));
-
-  // 3. Delete quotes created by this user (this will cascade to quote items due to onDelete: "cascade")
-  await db.delete(quotes).where(eq(quotes.createdBy, id));
-
-  // 4. Delete clients created by this user
-  await db.delete(clients).where(eq(clients.createdBy, id));
-
-  // 5. Finally, delete the user
-  await db.delete(users).where(eq(users.id, id));
-}
+    // Log the "deletion" (deactivation)
+    // Note: We don't delete their created content.
+    console.log(`[Storage] User ${id} soft-deleted (set to inactive).`);
+  }
 
   async getAllUsers(): Promise < User[] > {
   return await db.select().from(users).orderBy(desc(users.createdAt));

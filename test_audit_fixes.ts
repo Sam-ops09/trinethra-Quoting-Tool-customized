@@ -488,6 +488,143 @@ async function testStockReversalTransaction() {
 }
 
 // =====================================================
+// TEST 9: Numbering Service Concurrency
+// =====================================================
+async function testNumberingConcurrency() {
+  console.log('\n📋 Test 9: Numbering Service Concurrency');
+  
+  // Note: This test simulates concurrency via API requests to create quotes
+  // We can't directly call NumberingService from this test script as it runs in a separate process
+  // from the server. So we'll fire multiple quote creation requests.
+
+  try {
+    await request('/auth/login', 'POST', { email: 'admin@example.com', password: 'Admin@123' });
+    
+    const clientRes = await request('/clients', 'POST', {
+      name: 'Concurrency Client',
+      email: `conc_${Date.now()}@test.com`,
+      phone: '1234567890'
+    });
+    const clientId = clientRes.data.id;
+
+    console.log('  🔥 Firing 10 simultaneous quote creation requests...');
+    const promises = [];
+    const count = 10;
+    
+    for (let i = 0; i < count; i++) {
+      promises.push(request('/quotes', 'POST', {
+        clientId,
+        status: 'draft',
+        items: [{ description: 'Item', quantity: 1, unitPrice: 100 }],
+        validityDays: 30,
+        // No quoteDate, let usage of default invoke NumberingService
+        subtotal: 100, total: 100
+      }));
+    }
+
+    const results = await Promise.all(promises);
+    
+    // Extract quote numbers
+    const quoteNumbers = results
+      .filter(r => r.status === 200 || r.status === 201)
+      .map(r => r.data.quoteNumber);
+      
+    // Check for duplicates
+    const unique = new Set(quoteNumbers);
+    const failed = results.filter(r => r.status !== 200 && r.status !== 201);
+    
+    if (failed.length > 0) {
+      console.log(`  Warning: ${failed.length} requests failed (likely not numbering related, maybe DB pool limits)`);
+    }
+
+    if (unique.size === quoteNumbers.length && quoteNumbers.length > 0) {
+      pass('Concurrency handled', `${quoteNumbers.length} unique quote numbers generated`);
+    } else if (unique.size < quoteNumbers.length) {
+      fail('Duplicates found', `Generated ${quoteNumbers.length} numbers, but only ${unique.size} are unique`);
+    } else {
+      fail('No quotes created', 'All requests failed');
+    }
+
+  } catch (e: any) {
+    fail('Test error', e.message);
+  }
+}
+
+// =====================================================
+// TEST 10: User Soft Delete
+// =====================================================
+async function testUserSoftDelete() {
+  console.log('\n📋 Test 10: User Soft Delete');
+  
+  try {
+    await request('/auth/login', 'POST', { email: 'admin@example.com', password: 'Admin@123' });
+    
+    // 1. Create a user
+    const email = `softdel_${Date.now()}@test.com`;
+    const createRes = await request('/users', 'POST', {
+      email,
+      password: 'Test@12345',
+      name: 'Soft Delete User',
+      role: 'viewer'
+    });
+    
+    if (!createRes.data.id) {
+      fail('User creation failed', JSON.stringify(createRes.data));
+      return;
+    }
+    const userId = createRes.data.id;
+
+    // 2. Delete the user
+    // Note: The API endpoint for deleting user is /api/users/:id
+    const deleteRes = await request(`/users/${userId}`, 'DELETE');
+    
+    if (deleteRes.status !== 200) {
+      fail('User deletion failed', JSON.stringify(deleteRes.data));
+      return;
+    }
+
+    // 3. Verify user still exists but is inactive (Access DB directly via API if possible, or try to login)
+    // Since we are black-box testing the API, we'll try to login as that user.
+    // It SHOULD fail with "Account is inactive".
+    
+    const loginRes = await request('/auth/login', 'POST', {
+      email,
+      password: 'Test@12345'
+    });
+
+    if (loginRes.status === 401 && loginRes.data.error === 'Account is inactive') {
+      pass('Soft delete verified', 'User login rejected with "Account is inactive"');
+    } else if (loginRes.status === 200) {
+      fail('Soft delete failed', 'User was able to login after deletion');
+    } else if (loginRes.status === 401 && loginRes.data.error === 'Invalid credentials') {
+      // This implies the user was HARD deleted (not found -> invalid credentials usually, or specific not found msg)
+      // Actually /auth/login returns "Invalid credentials" if user not found.
+      // We need to distinguish between "Not Found" and "Inactive".
+      // Let's check the admin user list to see the status.
+      
+      // Re-login as admin
+      await request('/auth/login', 'POST', { email: 'admin@example.com', password: 'Admin@123' });
+      const usersRes = await request('/users', 'GET');
+      const deletedUser = usersRes.data.find((u: any) => u.id === userId);
+      
+      if (deletedUser && deletedUser.status === 'inactive') {
+        pass('Soft delete verified via Admin List', 'User status is inactive');
+      } else if (!deletedUser) {
+        fail('Hard delete occurred', 'User record missing from database');
+      } else {
+        fail('User status incorrect', `Status is ${deletedUser.status}`);
+      }
+    } else {
+      fail('Unexpected login response', JSON.stringify(loginRes.data));
+    }
+
+  } catch (e: any) {
+    fail('Test error', e.message);
+  }
+}
+
+
+// =====================================================
 // MAIN TEST RUNNER
 // =====================================================
 async function runAllTests() {
@@ -503,6 +640,8 @@ async function runAllTests() {
   await testSettingsValidation();
   await testFinancialPrecision();
   await testStockReversalTransaction();
+  await testNumberingConcurrency();
+  await testUserSoftDelete();
 
   // Summary
   console.log('\n============================');

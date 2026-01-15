@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index, uniqueIndex, jsonb, serial, primaryKey, foreignKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -169,6 +169,10 @@ export const salesOrders = pgTable("sales_orders", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    uniqueQuote: uniqueIndex("idx_sales_orders_quote_unique").on(table.quoteId),
+  };
 });
 
 export const salesOrdersRelations = relations(salesOrders, ({ one, many }) => ({
