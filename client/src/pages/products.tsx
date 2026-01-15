@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { PermissionGuard } from "@/components/permission-guard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 
 interface Product {
   id: string;
@@ -41,6 +42,11 @@ export default function Products() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showDialog, setShowDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  // Feature flags for stock tracking
+  const stockTrackingEnabled = useFeatureFlag('products_stock_tracking');
+  const stockWarningsEnabled = useFeatureFlag('products_stock_warnings');
+  
   const [formData, setFormData] = useState({
     sku: "",
     name: "",
@@ -138,6 +144,9 @@ export default function Products() {
   );
 
   const getStockStatus = (product: Product) => {
+    if (!stockTrackingEnabled) {
+      return { label: "Catalog", color: "default" };
+    }
     if (product.availableQuantity === 0) {
       return { label: "Out of Stock", color: "destructive" };
     } else if (product.availableQuantity <= product.reorderLevel) {
@@ -198,8 +207,8 @@ export default function Products() {
           </PermissionGuard>
         </div>
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        {/* Statistics Cards - Stock stats only when tracking enabled */}
+        <div className={`grid gap-2 ${stockTrackingEnabled ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2'}`}>
           <Card className="border-slate-200 dark:border-slate-800">
             <CardContent className="p-3">
               <div className="flex items-center justify-between mb-1.5">
@@ -211,38 +220,44 @@ export default function Products() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 dark:border-slate-800">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Low</span>
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{stats.lowStock}</div>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400">Low Stock</p>
-            </CardContent>
-          </Card>
+          {stockTrackingEnabled && stockWarningsEnabled && (
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Low</span>
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{stats.lowStock}</div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">Low Stock</p>
+              </CardContent>
+            </Card>
+          )}
 
-          <Card className="border-slate-200 dark:border-slate-800">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Out</span>
-                <Package className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-              </div>
-              <div className="text-xl font-bold text-rose-600 dark:text-rose-400">{stats.outOfStock}</div>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400">Out of Stock</p>
-            </CardContent>
-          </Card>
+          {stockTrackingEnabled && stockWarningsEnabled && (
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Out</span>
+                  <Package className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                </div>
+                <div className="text-xl font-bold text-rose-600 dark:text-rose-400">{stats.outOfStock}</div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">Out of Stock</p>
+              </CardContent>
+            </Card>
+          )}
 
-          <Card className="border-slate-200 dark:border-slate-800">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Value</span>
-                <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">₹{(stats.totalValue / 1000).toFixed(0)}K</div>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400">Inventory</p>
-            </CardContent>
-          </Card>
+          {stockTrackingEnabled && (
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Value</span>
+                  <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">₹{(stats.totalValue / 1000).toFixed(0)}K</div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">Inventory</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Search & Filter */}
@@ -376,17 +391,19 @@ export default function Products() {
                       </div>
                     </div>
 
-                    {/* Stock Info */}
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Stock</p>
-                        <p className="text-base font-bold text-slate-900 dark:text-white">{product.stockQuantity}</p>
+                    {/* Stock Info - only when stock tracking enabled */}
+                    {stockTrackingEnabled && (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Stock</p>
+                          <p className="text-base font-bold text-slate-900 dark:text-white">{product.stockQuantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Available</p>
+                          <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">{product.availableQuantity}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Available</p>
-                        <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">{product.availableQuantity}</p>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Badges */}
                     <div className="flex flex-wrap gap-1.5">
@@ -400,7 +417,7 @@ export default function Products() {
                           {product.warrantyMonths}M Warranty
                         </Badge>
                       )}
-                      {product.availableQuantity <= product.reorderLevel && product.availableQuantity > 0 && (
+                      {stockTrackingEnabled && stockWarningsEnabled && product.availableQuantity <= product.reorderLevel && product.availableQuantity > 0 && (
                         <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border-amber-200 dark:border-amber-900">
                           <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
                           Reorder
@@ -478,14 +495,18 @@ export default function Products() {
                             <DollarSign className="h-3 w-3" />
                             <span className="font-semibold text-slate-900 dark:text-white">₹{parseFloat(product.unitPrice).toLocaleString()}</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <Package className="h-3 w-3" />
-                            <span>Stock: <strong className="text-slate-900 dark:text-white">{product.stockQuantity}</strong></span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                            <span>Available: <strong className="text-slate-900 dark:text-white">{product.availableQuantity}</strong></span>
-                          </div>
+                          {stockTrackingEnabled && (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <Package className="h-3 w-3" />
+                                <span>Stock: <strong className="text-slate-900 dark:text-white">{product.stockQuantity}</strong></span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                <span>Available: <strong className="text-slate-900 dark:text-white">{product.availableQuantity}</strong></span>
+                              </div>
+                            </>
+                          )}
                           {product.category && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-300 dark:border-slate-700">{product.category}</Badge>
                           )}
@@ -576,26 +597,28 @@ export default function Products() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="stockQuantity">Stock Quantity</Label>
-                  <Input
-                    id="stockQuantity"
-                    type="number"
-                    value={formData.stockQuantity}
-                    onChange={(e) => setFormData({ ...formData, stockQuantity: parseInt(e.target.value) || 0 })}
-                  />
+              {stockTrackingEnabled && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="stockQuantity">Stock Quantity</Label>
+                    <Input
+                      id="stockQuantity"
+                      type="number"
+                      value={formData.stockQuantity}
+                      onChange={(e) => setFormData({ ...formData, stockQuantity: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reorderLevel">Reorder Level</Label>
+                    <Input
+                      id="reorderLevel"
+                      type="number"
+                      value={formData.reorderLevel}
+                      onChange={(e) => setFormData({ ...formData, reorderLevel: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reorderLevel">Reorder Level</Label>
-                  <Input
-                    id="reorderLevel"
-                    type="number"
-                    value={formData.reorderLevel}
-                    onChange={(e) => setFormData({ ...formData, reorderLevel: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

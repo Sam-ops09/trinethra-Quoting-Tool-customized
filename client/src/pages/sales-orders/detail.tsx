@@ -71,7 +71,8 @@ export default function SalesOrderDetail() {
         client: Client; 
         items: SalesOrderItem[]; 
         quote: Quote & { items?: any[] }; 
-        createdByName: string 
+        createdByName: string;
+        invoiceId?: string;
     }>({
         queryKey: [`/api/sales-orders/${id}`],
     });
@@ -335,7 +336,7 @@ export default function SalesOrderDetail() {
                                     </Button>
                                 )}
                                 
-                                {order.status === "fulfilled" && (
+                                {order.status === "fulfilled" && !order.invoiceId && (
                                     <Button
                                         size="sm"
                                         onClick={() => convertToInvoiceMutation.mutate()}
@@ -344,6 +345,17 @@ export default function SalesOrderDetail() {
                                     >
                                         {convertToInvoiceMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Receipt className="h-3 w-3 mr-1" />}
                                         Invoice
+                                    </Button>
+                                )}
+
+                                {order.invoiceId && (
+                                    <Button
+                                        size="sm"
+                                        onClick={() => setLocation(`/invoices/${order.invoiceId}`)}
+                                        className="flex-1 sm:flex-initial h-7 text-xs bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900"
+                                    >
+                                        <Receipt className="h-3 w-3 mr-1" />
+                                        View Invoice
                                     </Button>
                                 )}
                                 

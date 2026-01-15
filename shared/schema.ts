@@ -196,6 +196,7 @@ export const salesOrdersRelations = relations(salesOrders, ({ one, many }) => ({
 export const salesOrderItems = pgTable("sales_order_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   salesOrderId: varchar("sales_order_id").notNull().references(() => salesOrders.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").references(() => products.id), // Optional link to product catalog
   description: text("description").notNull(),
   quantity: integer("quantity").notNull().default(1),
   fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
@@ -218,6 +219,7 @@ export const salesOrderItemsRelations = relations(salesOrderItems, ({ one }) => 
 export const quoteItems = pgTable("quote_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").references(() => products.id), // Optional link to product catalog
   description: text("description").notNull(),
   quantity: integer("quantity").notNull().default(1),
   unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
@@ -342,6 +344,7 @@ export const paymentHistoryRelations = relations(paymentHistory, ({ one }) => ({
 export const invoiceItems = pgTable("invoice_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   invoiceId: varchar("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").references(() => products.id), // Optional link to product catalog
   description: text("description").notNull(),
   quantity: integer("quantity").notNull().default(1),
   fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
@@ -439,6 +442,7 @@ export const vendorPurchaseOrdersRelations = relations(vendorPurchaseOrders, ({ 
 export const vendorPoItems = pgTable("vendor_po_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   vendorPoId: varchar("vendor_po_id").notNull().references(() => vendorPurchaseOrders.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").references(() => products.id), // Optional link to product catalog
   description: text("description").notNull(),
   quantity: integer("quantity").notNull().default(1),
   receivedQuantity: integer("received_quantity").notNull().default(0),

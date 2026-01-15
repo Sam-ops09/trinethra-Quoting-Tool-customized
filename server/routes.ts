@@ -14,6 +14,7 @@ import { pricingService } from "./services/pricing.service";
 import { NumberingService } from "./services/numbering.service";
 import { requirePermission } from "./permissions-middleware";
 import { requireFeature, getFeatureFlagsEndpoint } from "./feature-flags-middleware";
+import { isFeatureEnabled } from "@shared/feature-flags";
 import analyticsRoutes from "./analytics-routes";
 import quoteWorkflowRoutes from "./quote-workflow-routes";
 import { eq, desc, sql } from "drizzle-orm";
@@ -730,6 +731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const item = items[i];
           await storage.createQuoteItem({
             quoteId: quote.id,
+            productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
             unitPrice: String(item.unitPrice),
@@ -817,6 +819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const item = items[i];
           await storage.createQuoteItem({
             quoteId: quote.id,
+            productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
             unitPrice: String(item.unitPrice),
@@ -904,6 +907,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const item of quoteItems) {
         await storage.createInvoiceItem({
           invoiceId: invoice.id,
+          productId: (item as any).productId || null,
           description: item.description,
           quantity: item.quantity,
           fulfilledQuantity: 0,
@@ -1344,6 +1348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const item of req.body.items) {
             await storage.createInvoiceItem({
               invoiceId: invoice.id,
+              productId: item.productId || null,
               description: item.description,
               quantity: item.quantity,
               fulfilledQuantity: item.fulfilledQuantity || 0,
@@ -1493,6 +1498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const item of items) {
         await storage.createInvoiceItem({
           invoiceId: childInvoice.id,
+          productId: (item as any).productId || null,
           description: item.description,
           quantity: item.quantity,
           fulfilledQuantity: 0,
@@ -3460,6 +3466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const item of quoteItems) {
         await storage.createVendorPoItem({
           vendorPoId: po.id,
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           receivedQuantity: 0,
@@ -3529,6 +3536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const item of items) {
         await storage.createVendorPoItem({
           vendorPoId: po.id,
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           receivedQuantity: 0,
@@ -4536,7 +4544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== GRN ROUTES ====================
-  app.get("/api/grns", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/grns", authMiddleware, requireFeature('grn_module'), async (req: AuthRequest, res: Response) => {
     try {
       const grns = await db
         .select({
@@ -4571,7 +4579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/grns/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/grns/:id", authMiddleware, requireFeature('grn_module'), async (req: AuthRequest, res: Response) => {
     try {
       const [grn] = await db
         .select({
@@ -4641,7 +4649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/grns", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/grns", authMiddleware, requireFeature('grn_module'), async (req: AuthRequest, res: Response) => {
     try {
       const {
         vendorPoId,
@@ -4691,10 +4699,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(schema.vendorPoItems.id, vendorPoItemId));
 
+      // Update product stock if productId is linked to the PO item (only if stock tracking is enabled)
+      if (poItem.productId && isFeatureEnabled('products_stock_tracking')) {
+        const quantityAccepted = quantityReceived - (quantityRejected || 0);
+        if (quantityAccepted > 0) {
+          await db
+            .update(schema.products)
+            .set({
+              stockQuantity: sql`${schema.products.stockQuantity} + ${quantityAccepted}`,
+              availableQuantity: sql`${schema.products.availableQuantity} + ${quantityAccepted}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.products.id, poItem.productId));
+          
+          console.log(`[GRN] Updated product ${poItem.productId} stock: +${quantityAccepted}`);
+        }
+      } else if (poItem.productId && !isFeatureEnabled('products_stock_tracking')) {
+        console.log(`[GRN] Stock update skipped for product ${poItem.productId}: Stock tracking is disabled`);
+      }
+
       // Create serial numbers if provided
       if (serialNumbers && Array.isArray(serialNumbers) && serialNumbers.length > 0) {
         const serialRecords = serialNumbers.map((sn: string) => ({
           serialNumber: sn,
+          productId: poItem.productId || null, // Link serial to product
           vendorPoId,
           vendorPoItemId,
           grnId: grn.id,
@@ -4720,7 +4748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/grns/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/grns/:id", authMiddleware, requireFeature('grn_module'), async (req: AuthRequest, res: Response) => {
     try {
       const {
         quantityReceived,
@@ -4766,7 +4794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== SERIAL NUMBER ROUTES ====================
-  app.post("/api/serial-numbers/bulk", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/serial-numbers/bulk", authMiddleware, requireFeature('serialNumber_tracking'), async (req: AuthRequest, res: Response) => {
     try {
       const {
         serialNumbers,
@@ -4824,7 +4852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/serial-numbers/:serialNumber", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/serial-numbers/:serialNumber", authMiddleware, requireFeature('serialNumber_tracking'), async (req: AuthRequest, res: Response) => {
     try {
       const [serial] = await db
         .select()

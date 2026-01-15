@@ -23,7 +23,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Loader2, ArrowLeft, Home, ChevronRight, FileText, Edit, Package } from "lucide-react";
+import { Plus, Trash2, Loader2, ArrowLeft, Home, ChevronRight, FileText, Edit } from "lucide-react";
+import { ProductPicker } from "@/components/ProductPicker";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +45,7 @@ interface VendorPoCreatePayload {
     notes?: string;
     termsAndConditions?: string;
     items: { 
+        productId?: string | null;
         description: string; 
         quantity: number; 
         unitPrice: number; 
@@ -64,6 +66,7 @@ const vendorPoFormSchema = z.object({
     termsAndConditions: z.string().optional(),
     items: z.array(
         z.object({
+            productId: z.string().nullable().optional(),
             description: z.string().min(1, "Description is required"),
             quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
             unitPrice: z.coerce.number().min(0, "Unit price must be positive"),
@@ -100,9 +103,41 @@ export default function VendorPoCreate() {
             shippingCharges: 0,
             notes: "",
             termsAndConditions: "",
-            items: [{ description: "", quantity: 1, unitPrice: 0 }],
+            items: [{ productId: null, description: "", quantity: 1, unitPrice: 0 }],
         },
     });
+
+    // Check for items passed via query search params (e.g. from Invoice Edit)
+    useEffect(() => {
+        const searchParams = new URLSearchParams(window.location.search);
+        const itemsParam = searchParams.get("items");
+        
+        if (itemsParam) {
+            try {
+                const parsedItems = JSON.parse(decodeURIComponent(itemsParam));
+                if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+                    const formItems = parsedItems.map((item: any) => ({
+                         productId: item.productId || null,
+                         description: item.description || "",
+                         quantity: Number(item.quantity) || 1,
+                         unitPrice: Number(item.unitPrice) || 0,
+                    }));
+                    
+                    // Allow React Hook Form to register the items
+                    setTimeout(() => {
+                        form.setValue("items", formItems);
+                    }, 0);
+                    
+                    toast({
+                       title: "Items Pre-filled",
+                       description: "Vendor PO items have been populated from your selection.",
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to parse items param", e);
+            }
+        }
+    }, []);
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
@@ -143,6 +178,7 @@ export default function VendorPoCreate() {
                 notes: values.notes,
                 termsAndConditions: values.termsAndConditions,
                 items: values.items.map(item => ({
+                    productId: item.productId || null,
                     description: item.description,
                     quantity: Number(item.quantity),
                     unitPrice: Number(item.unitPrice),
@@ -298,7 +334,7 @@ export default function VendorPoCreate() {
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => append({ description: "", quantity: 1, unitPrice: 0 })}
+                                            onClick={() => append({ productId: null, description: "", quantity: 1, unitPrice: 0 })}
                                         >
                                             <Plus className="h-4 w-4 mr-2" />
                                             Add Item
@@ -306,9 +342,10 @@ export default function VendorPoCreate() {
                                     </CardHeader>
                                     <CardContent className="p-0">
                                          <div className="overflow-x-auto">
-                                            <table className="w-full text-sm text-left">
+                                            <table className="w-full min-w-[900px] text-sm text-left">
                                                 <thead className="bg-muted/50 text-muted-foreground uppercase text-xs">
                                                     <tr>
+                                                        <th className="px-6 py-3 font-medium" style={{minWidth: '200px'}}>Product</th>
                                                         <th className="px-6 py-3 font-medium">Description</th>
                                                         <th className="px-6 py-3 font-medium w-32">Qty</th>
                                                         <th className="px-6 py-3 font-medium w-40">Unit Price</th>
@@ -319,6 +356,24 @@ export default function VendorPoCreate() {
                                                 <tbody className="divide-y divide-border">
                                                     {fields.map((field, index) => (
                                                         <tr key={field.id} className="group hover:bg-muted/50">
+                                                            <td className="px-6 py-4" style={{minWidth: '200px'}}>
+                                                                <ProductPicker
+                                                                    value={form.watch(`items.${index}.productId`)}
+                                                                    showStock={true}
+                                                                    placeholder="Select product..."
+                                                                    onSelect={(product) => {
+                                                                        if (product) {
+                                                                            form.setValue(`items.${index}.productId`, product.id);
+                                                                            form.setValue(`items.${index}.description`, product.name + (product.description ? `\n${product.description}` : ''));
+                                                                            if (product.basePrice) {
+                                                                                form.setValue(`items.${index}.unitPrice`, parseFloat(product.basePrice));
+                                                                            }
+                                                                        } else {
+                                                                            form.setValue(`items.${index}.productId`, null);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </td>
                                                             <td className="px-6 py-4">
                                                                 <FormField
                                                                     control={form.control}

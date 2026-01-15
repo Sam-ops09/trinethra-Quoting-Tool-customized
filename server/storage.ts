@@ -73,6 +73,9 @@ import {
   type InsertSalesOrder,
   type SalesOrderItem,
   type InsertSalesOrderItem,
+  products,
+  type Product,
+  type InsertProduct,
 } from "@shared/schema";
 import { version } from "os";
 
@@ -239,6 +242,11 @@ export interface IStorage {
   createSalesOrderItem(item: InsertSalesOrderItem): Promise<SalesOrderItem>;
   getSalesOrderItems(salesOrderId: string): Promise<SalesOrderItem[]>;
   deleteSalesOrderItems(salesOrderId: string): Promise<void>;
+  deleteSalesOrderItems(salesOrderId: string): Promise<void>;
+
+  // Products
+  getProduct(id: string): Promise<Product | undefined>;
+  updateProduct(id: string, data: Partial<Product>): Promise<Product | undefined>;
 }
 
 
@@ -990,6 +998,21 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSalesOrderItems(salesOrderId: string): Promise<void> {
     await db.delete(salesOrderItems).where(eq(salesOrderItems.salesOrderId, salesOrderId));
+  }
+
+  // Products
+  async getProduct(id: string): Promise<Product | undefined> {
+    const [product] = await db.select().from(products).where(eq(products.id, id));
+    return product || undefined;
+  }
+
+  async updateProduct(id: string, data: Partial<Product>): Promise<Product | undefined> {
+    const [updated] = await db
+      .update(products)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(products.id, id))
+      .returning();
+    return updated || undefined;
   }
 }
 

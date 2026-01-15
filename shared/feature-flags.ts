@@ -178,6 +178,15 @@ export interface FeatureFlags {
   products_categories: boolean;
   products_pricing: boolean;
   products_reorderLevel: boolean;
+  
+  // Products Linking & Stock Control
+  products_link_to_quotes: boolean;
+  products_link_to_invoices: boolean;
+  products_link_to_vendor_pos: boolean;
+  products_stock_tracking: boolean;
+  products_stock_warnings: boolean;
+  products_reserve_on_order: boolean;
+  products_allow_negative_stock: boolean;
 
   // ==================== ANALYTICS & DASHBOARDS ====================
 
@@ -457,6 +466,15 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   products_categories: true,
   products_pricing: true,
   products_reorderLevel: true,
+  
+  // Products Linking & Stock Control
+  products_link_to_quotes: true,
+  products_link_to_invoices: true,
+  products_link_to_vendor_pos: true,
+  products_stock_tracking: true,
+  products_stock_warnings: true,
+  products_reserve_on_order: true,
+  products_allow_negative_stock: true,
 
   // ==================== ANALYTICS & DASHBOARDS ====================
   analytics_module: true,

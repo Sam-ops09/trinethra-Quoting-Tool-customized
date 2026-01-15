@@ -2,9 +2,13 @@
 import { Router, Response } from "express";
 import { AuthRequest } from "./routes";
 import { storage } from "./storage";
+import { db } from "./db";
+import * as schema from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 import { requirePermission } from "./permissions-middleware";
 import { hasPermission } from "./permissions-service";
 import { requireFeature } from "./feature-flags-middleware";
+import { isFeatureEnabled } from "@shared/feature-flags";
 import ExcelJS from "exceljs";
 import { z } from "zod";
 import { NumberingService } from "./services/numbering.service";
@@ -20,6 +24,85 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
     stream.on("error", (err: any) => reject(err));
     stream.on("end", () => resolve(Buffer.concat(chunks)));
   });
+}
+
+/**
+ * Reserve stock for a sales order when it's confirmed.
+ * For each item with a productId, increases reservedQuantity and decreases availableQuantity.
+ * Skipped if products_stock_tracking or products_reserve_on_order is OFF.
+ */
+async function reserveStockForSalesOrder(salesOrderId: string): Promise<void> {
+  // Skip if stock tracking or reserve-on-order is disabled
+  if (!isFeatureEnabled('products_stock_tracking') || !isFeatureEnabled('products_reserve_on_order')) {
+    console.log(`[Stock Reserve] Skipped for SO ${salesOrderId}: Stock tracking or reserve-on-order is disabled`);
+    return;
+  }
+  
+  try {
+    const items = await storage.getSalesOrderItems(salesOrderId);
+    
+    // Group items by productId
+    const productQuantities: Record<string, number> = {};
+    for (const item of items) {
+      if (item.productId) {
+        productQuantities[item.productId] = (productQuantities[item.productId] || 0) + item.quantity;
+      }
+    }
+    
+    // Update each product's reserved and available quantities
+    for (const [productId, quantity] of Object.entries(productQuantities)) {
+      await db.update(schema.products)
+        .set({
+          reservedQuantity: sql`${schema.products.reservedQuantity} + ${quantity}`,
+          availableQuantity: sql`${schema.products.availableQuantity} - ${quantity}`,
+        })
+        .where(eq(schema.products.id, productId));
+    }
+    
+    console.log(`[Stock Reserve] Reserved stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
+  } catch (error) {
+    console.error(`[Stock Reserve] Error reserving stock for SO ${salesOrderId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Release reserved stock when a sales order is cancelled.
+ * Skipped if products_stock_tracking or products_reserve_on_order is OFF.
+ */
+async function releaseStockForSalesOrder(salesOrderId: string): Promise<void> {
+  // Skip if stock tracking or reserve-on-order is disabled
+  if (!isFeatureEnabled('products_stock_tracking') || !isFeatureEnabled('products_reserve_on_order')) {
+    console.log(`[Stock Release] Skipped for SO ${salesOrderId}: Stock tracking or reserve-on-order is disabled`);
+    return;
+  }
+  
+  try {
+    const items = await storage.getSalesOrderItems(salesOrderId);
+    
+    // Group items by productId
+    const productQuantities: Record<string, number> = {};
+    for (const item of items) {
+      if (item.productId) {
+        productQuantities[item.productId] = (productQuantities[item.productId] || 0) + item.quantity;
+      }
+    }
+    
+    // Restore each product's reserved and available quantities
+    for (const [productId, quantity] of Object.entries(productQuantities)) {
+      await db.update(schema.products)
+        .set({
+          reservedQuantity: sql`GREATEST(0, ${schema.products.reservedQuantity} - ${quantity})`,
+          availableQuantity: sql`${schema.products.availableQuantity} + ${quantity}`,
+        })
+        .where(eq(schema.products.id, productId));
+    }
+    
+    console.log(`[Stock Release] Released stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
+  } catch (error) {
+    console.error(`[Stock Release] Error releasing stock for SO ${salesOrderId}:`, error);
+    // Don't throw - allow cancellation to proceed
+  }
 }
 
 const router = Router();
@@ -235,6 +318,7 @@ router.post("/quotes/:id/clone",
       for (const item of items) {
         await storage.createQuoteItem({
           quoteId: newQuote.id,
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice.toString(),
@@ -321,8 +405,10 @@ router.post("/sales-orders",
       // Create Items
       const quoteItems = await storage.getQuoteItems(quoteId);
       for (const item of quoteItems) {
+        console.log(`[CONVERT SO] Processing item: ${item.description}, ProductID: ${item.productId}`);
         await storage.createSalesOrderItem({
           salesOrderId: salesOrder.id,
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice.toString(),
@@ -400,6 +486,10 @@ router.get("/sales-orders/:id",
       const quoteItems = await storage.getQuoteItems(order.quoteId);
       const creator = await storage.getUser(order.createdBy);
 
+      // Check for linked invoice
+      const invoices = await storage.getInvoicesByQuote(order.quoteId);
+      const linkedInvoice = invoices.find(inv => inv.salesOrderId === order.id);
+
       return res.json({
         ...order,
         client,
@@ -408,7 +498,8 @@ router.get("/sales-orders/:id",
           ...quote,
           items: quoteItems
         },
-        createdByName: creator?.name || "Unknown"
+        createdByName: creator?.name || "Unknown",
+        invoiceId: linkedInvoice?.id
       });
     } catch (error) {
       return res.status(500).json({ error: "Failed to fetch sales order" });
@@ -494,6 +585,7 @@ router.patch("/sales-orders/:id",
           const item = items[i];
           await storage.createSalesOrderItem({
             salesOrderId: req.params.id,
+            productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -501,6 +593,17 @@ router.patch("/sales-orders/:id",
             hsnSac: item.hsnSac || null,
             sortOrder: i,
           });
+        }
+      }
+      
+      // Handle stock operations based on status transition
+      if (req.body.status && req.body.status !== currentOrder.status) {
+        if (req.body.status === "confirmed" && currentOrder.status === "draft") {
+          // Reserve stock when confirmed
+          await reserveStockForSalesOrder(req.params.id);
+        } else if (req.body.status === "cancelled" && currentOrder.status === "confirmed") {
+          // Release reserved stock when confirmed order is cancelled
+          await releaseStockForSalesOrder(req.params.id);
         }
       }
       
@@ -602,10 +705,48 @@ router.post(
         deliveryNotes: `Delivery Date: ${order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : 'N/A'}`,
       });
 
-      // Create Invoice Items
+      // Create Invoice Items keeping track of shortages
+      const shortageNotes: string[] = [];
+
       for (const item of items) {
+        // Stock Deduction Logic - only if stock tracking is enabled
+        if (item.productId && isFeatureEnabled('products_stock_tracking')) {
+          const product = await storage.getProduct(item.productId);
+          if (product) {
+            const requiredQty = Number(item.quantity);
+            const currentStock = Number(product.stockQuantity);
+            
+            // Check if negative stock is allowed
+            const allowNegative = isFeatureEnabled('products_allow_negative_stock');
+            if (!allowNegative && currentStock < requiredQty) {
+              // Continue without error - just log and track shortage
+              console.log(`[Stock Deduction] Stock shortage for ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
+            }
+            
+            // Deduct stock and release reserved quantity (since order is fulfilled)
+            const currentReserved = Number(product.reservedQuantity) || 0;
+            const reserveToRelease = Math.min(currentReserved, requiredQty);
+            
+            const newStock = currentStock - requiredQty;
+            const newReserved = currentReserved - reserveToRelease;
+            const newAvailable = newStock - newReserved; // Explicit calculation since trigger may not be active
+            
+            await storage.updateProduct(product.id, {
+              stockQuantity: newStock,
+              reservedQuantity: newReserved,
+              availableQuantity: newAvailable,
+            });
+
+            // Track shortage only if stock warnings are enabled
+            if (isFeatureEnabled('products_stock_warnings') && currentStock < requiredQty) {
+              shortageNotes.push(`[SHORTAGE] ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
+            }
+          }
+        }
+
         await storage.createInvoiceItem({
           invoiceId: invoice.id,
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -615,6 +756,17 @@ router.post(
           status: "pending",
           fulfilledQuantity: item.quantity, // Fully fulfilled since order is fulfilled
         });
+      }
+
+      // Append shortage notes to delivery notes if any (only if warnings enabled)
+      if (isFeatureEnabled('products_stock_warnings') && shortageNotes.length > 0) {
+        const existingNotes = invoice.deliveryNotes || "";
+        const shortageText = shortageNotes.join("\n");
+        await storage.updateInvoice(invoice.id, {
+          deliveryNotes: existingNotes ? `${existingNotes}\n\n${shortageText}` : shortageText
+        });
+        // Update local invoice object for PDF generation
+        invoice.deliveryNotes = existingNotes ? `${existingNotes}\n\n${shortageText}` : shortageText;
       }
 
       // Fetch dependencies for PDF
@@ -1061,12 +1213,15 @@ router.post("/quotes/:id/sales-orders",
         for (const item of quoteItems) {
           await storage.createSalesOrderItem({
             salesOrderId: newOrder.id,
+            productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             subtotal: item.subtotal,
             hsnSac: item.hsnSac,
             sortOrder: sortOrder++,
+            status: "pending",
+            fulfilledQuantity: 0
           });
         }
       }

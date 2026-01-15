@@ -672,7 +672,11 @@ export class InvoicePDFService {
     const due = this.safeDate(data.dueDate);
     const invDate = this.safeDate(data.invoiceDate ?? (data.quote as any)?.quoteDate);
     const preparedBy = String(data.preparedBy || "-");
-    const deliveryNotesStr = String(data.deliveryNotes || "").trim();
+    const deliveryNotesStr = String(data.deliveryNotes || "")
+      .split('\n')
+      .filter(line => !line.includes('[SHORTAGE]'))
+      .join('\n')
+      .trim();
 
     row(0, "Invoice Date", invDate);
     row(1, "Due Date", due);

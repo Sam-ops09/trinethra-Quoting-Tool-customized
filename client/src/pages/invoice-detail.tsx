@@ -1407,7 +1407,38 @@ export default function InvoiceDetail() {
                         }}
                     />
                 </div>
-            </div>
+
+                {/* DELIVERY NOTES SECTION */}
+                {invoice.deliveryNotes && (
+                    <Card className="border border-border/70 bg-card/95 backdrop-blur-sm shadow-sm">
+                        <CardHeader className="border-b border-slate-200 dark:border-slate-800 px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-950">
+                                    <Package className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-sm font-semibold">Delivery Notes</CardTitle>
+                                    <p className="text-xs text-muted-foreground">Delivery and shortage information</p>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="px-4 py-4">
+                            <div className="space-y-2 text-sm whitespace-pre-wrap">
+                                {invoice.deliveryNotes.split('\n').map((line, idx) => (
+                                    <p 
+                                        key={idx} 
+                                        className={line.includes('[SHORTAGE]') 
+                                            ? 'text-warning font-medium bg-warning/10 px-2 py-1 rounded border-l-2 border-warning' 
+                                            : 'text-muted-foreground'
+                                        }
+                                    >
+                                        {line}
+                                    </p>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
             {/* EMAIL DIALOG */}
             <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
@@ -1928,5 +1959,6 @@ export default function InvoiceDetail() {
                 </DialogContent>
             </Dialog>
         </div>
+    </div>
     );
 }

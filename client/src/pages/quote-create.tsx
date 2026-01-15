@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Loader2, ArrowLeft, Upload, Home, ChevronRight, FileText, Edit, Package, DollarSign } from "lucide-react";
+import { ProductPicker } from "@/components/ProductPicker";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
@@ -78,7 +79,7 @@ interface QuoteCreatePayload {
     termsAndConditions?: string;
     status: "draft" | "sent" | "approved" | "rejected" | "invoiced";
     quoteDate: string;
-    items: { description: string; quantity: number; unitPrice: number; hsnSac?: string }[];
+    items: { productId?: string | null; description: string; quantity: number; unitPrice: number; hsnSac?: string }[];
     bomSection?: string; // JSON string
     slaSection?: string; // JSON string
     timelineSection?: string; // JSON string
@@ -97,6 +98,7 @@ interface QuoteDetail {
     quoteDate?: string;
     items: Array<{
         id: string;
+        productId?: string | null;
         description: string;
         quantity: number;
         unitPrice: string;
@@ -130,6 +132,7 @@ const quoteFormSchema = z.object({
     items: z
         .array(
             z.object({
+                productId: z.string().nullable().optional(),
                 description: z.string().min(1, "Description is required"),
                 quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
                 unitPrice: z.coerce.number().min(0, "Unit price must be positive"),
@@ -180,7 +183,7 @@ export default function QuoteCreate() {
             notes: "",
             termsAndConditions:
                 "Payment Terms: Net 30 days\nDelivery: 7-10 business days\nWarranty: 1 year manufacturer warranty",
-            items: [{ description: "", quantity: 1, unitPrice: 0, hsnSac: "" }],
+            items: [{ productId: null, description: "", quantity: 1, unitPrice: 0, hsnSac: "" }],
         },
     });
 
@@ -243,6 +246,7 @@ export default function QuoteCreate() {
                 notes: existingQuote.notes || "",
                 termsAndConditions: existingQuote.termsAndConditions || "",
                 items: existingQuote.items.map((item) => ({
+                    productId: item.productId || null,
                     description: item.description,
                     quantity: item.quantity,
                     unitPrice: Number(item.unitPrice),
@@ -439,6 +443,7 @@ export default function QuoteCreate() {
                 ? existingQuote?.quoteDate || new Date().toISOString()
                 : new Date().toISOString(),
             items: values.items.map((i) => ({
+                productId: i.productId || null,
                 description: i.description,
                 quantity: i.quantity,
                 unitPrice: i.unitPrice,
@@ -700,6 +705,7 @@ export default function QuoteCreate() {
                                                     type="button"
                                                     onClick={() =>
                                                         append({
+                                                            productId: null,
                                                             description: "",
                                                             quantity: 1,
                                                             unitPrice: 0,
@@ -741,11 +747,14 @@ export default function QuoteCreate() {
                                     </CardHeader>
                                     <CardContent className="p-0">
                                         <div className="w-full overflow-x-auto">
-                                            <table className="w-full min-w-[700px] text-xs sm:text-sm">
+                                            <table className="w-full min-w-[900px] text-xs sm:text-sm">
                                                 <thead className="bg-muted/80 border-b">
                                                     <tr>
                                                         <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
                                                             #
+                                                        </th>
+                                                        <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs" style={{minWidth: '200px'}}>
+                                                            Product
                                                         </th>
                                                         <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
                                                             Description *
@@ -775,6 +784,24 @@ export default function QuoteCreate() {
                                                         >
                                                             <td className="px-4 md:px-6 py-2.5 sm:py-3 text-[11px] sm:text-sm text-muted-foreground">
                                                                 {index + 1}
+                                                            </td>
+                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 align-top" style={{minWidth: '200px'}}>
+                                                                <ProductPicker
+                                                                    value={form.watch(`items.${index}.productId`)}
+                                                                    showStock={true}
+                                                                    placeholder="Select product..."
+                                                                    onSelect={(product) => {
+                                                                        if (product) {
+                                                                            form.setValue(`items.${index}.productId`, product.id);
+                                                                            form.setValue(`items.${index}.description`, product.name + (product.description ? `\n${product.description}` : ''));
+                                                                            if (product.basePrice) {
+                                                                                form.setValue(`items.${index}.unitPrice`, parseFloat(product.basePrice));
+                                                                            }
+                                                                        } else {
+                                                                            form.setValue(`items.${index}.productId`, null);
+                                                                        }
+                                                                    }}
+                                                                />
                                                             </td>
                                                             <td className="px-4 md:px-6 py-2.5 sm:py-3 align-top">
                                                                 <FormField
