@@ -89,4 +89,31 @@ Total: 10 passed, 0 failed
 ✅ All tests passed!
 ```
 
-> **Note:** If you encounter rate limiting (429 errors), restart the dev server and re-run the tests.
+---
+
+## 4. Integrated Audit Test Suite (Consolidated)
+
+**Script:** `tests/integrated_audit_tests.ts`
+
+This is the **primary test suite** for verifying all audit fixes and regression testing. It consolidates:
+- Security Fixes (Role escalation, Settings validation, Soft delete)
+- Financial Integrity (Transactions, Precision, Stock reversal)
+- Workflow Logic (Stock deduction, Shortage notes)
+- Concurrency (Race conditions, Numbering service)
+- **12+ Test Scenarios in one run**
+
+### How to Run
+```bash
+# Note: Run with TESTING=true to avoid rate limits during heavy testing
+TESTING=true npx tsx tests/integrated_audit_tests.ts
+```
+
+### Expected Output
+```
+🧪 INTEGRATED AUDIT TEST SUITE
+==============================
+...
+📊 FINAL SUMMARY
+==============================
+Total: 12 passed, 0 failed
+```
