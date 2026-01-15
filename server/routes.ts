@@ -4510,10 +4510,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/products", authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
+      const stockQuantity = req.body.stockQuantity || 0;
+      const initialAvailable = req.body.availableQuantity !== undefined ? req.body.availableQuantity : stockQuantity;
+
       const [product] = await db
         .insert(schema.products)
         .values({
           ...req.body,
+          stockQuantity,
+          availableQuantity: initialAvailable,
           createdBy: req.user!.id,
         })
         .returning();
