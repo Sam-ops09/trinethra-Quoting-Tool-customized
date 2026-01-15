@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -269,6 +269,7 @@ export const invoices = pgTable("invoices", {
 }, (table) => {
   return {
     parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId),
+    uniqueSalesOrder: uniqueIndex("idx_invoices_sales_order_unique").on(table.salesOrderId).where(sql`sales_order_id IS NOT NULL`),
   };
 });
 
@@ -620,6 +621,7 @@ export const activityLogs = pgTable("activity_logs", {
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),
   entityId: varchar("entity_id"),
+  metadata: jsonb("metadata"),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
 
