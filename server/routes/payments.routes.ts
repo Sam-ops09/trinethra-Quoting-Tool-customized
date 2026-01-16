@@ -187,12 +187,17 @@ router.post("/invoices/:id/payment", authMiddleware, requirePermission("payments
         recordedBy: req.user!.id,
       }).returning();
 
+      
       // 2. Update invoice totals using Decimal.js for precision
       const newPaidAmount = add(invoice.paidAmount, amount);
+      
       const totalAmount = toDecimal(invoice.total || quote.total);
+
+      console.log(`[DEBUG_PAYMENT] paidAmount=${invoice.paidAmount}, amount=${amount}, newPaid=${newPaidAmount.toString()}, total=${totalAmount.toString()}`);
 
       // Validation: Prevent overpayment
       if (moneyGt(newPaidAmount, totalAmount)) {
+           console.log(`[DEBUG_PAYMENT] FAIL: newPaid > total`);
            throw new Error("Payment amount exceeds total invoice amount");
       }
       

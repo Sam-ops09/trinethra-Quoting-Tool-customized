@@ -7,6 +7,7 @@ import { db } from "../db";
 import * as schema from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import { NumberingService } from "../services/numbering.service";
+import { EmailService } from "../services/email.service";
 
 const router = Router();
 
@@ -117,6 +118,125 @@ router.post("/settings", authMiddleware, async (req: AuthRequest, res: Response)
   } catch (error: any) {
     logger.error("Error updating settings:", error);
     return res.status(500).json({ error: error.message || "Failed to update setting" });
+  }
+});
+
+// ==================== BANK DETAILS ROUTES ====================
+
+router.get("/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can access bank details" });
+    }
+    const details = await storage.getAllBankDetails();
+    return res.json(details);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch bank details" });
+  }
+});
+
+router.get("/bank-details/active", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const detail = await storage.getActiveBankDetails();
+    return res.json(detail || null);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch active bank details" });
+  }
+});
+
+router.post("/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can create bank details" });
+    }
+
+    const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode } = req.body;
+
+    if (!bankName || !accountNumber || !accountName || !ifscCode) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const detail = await storage.createBankDetails({
+      bankName,
+      accountNumber,
+      accountName,
+      ifscCode,
+      branch: branch || null,
+      swiftCode: swiftCode || null,
+      isActive: true,
+      updatedBy: req.user!.id,
+    });
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "create_bank_details",
+      entityType: "bank_details",
+      entityId: detail.id,
+    });
+
+    return res.json(detail);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to create bank details" });
+  }
+});
+
+router.put("/bank-details/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can update bank details" });
+    }
+
+    const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode, isActive } = req.body;
+
+    const detail = await storage.updateBankDetails(
+      req.params.id,
+      {
+        ...(bankName && { bankName }),
+        ...(accountNumber && { accountNumber }),
+        ...(accountName && { accountName }),
+        ...(ifscCode && { ifscCode }),
+        ...(branch !== undefined && { branch }),
+        ...(swiftCode !== undefined && { swiftCode }),
+        ...(isActive !== undefined && { isActive }),
+        updatedBy: req.user!.id,
+      }
+    );
+
+    if (!detail) {
+      return res.status(404).json({ error: "Bank details not found" });
+    }
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "update_bank_details",
+      entityType: "bank_details",
+      entityId: detail.id,
+    });
+
+    return res.json(detail);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to update bank details" });
+  }
+});
+
+router.delete("/bank-details/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can delete bank details" });
+    }
+
+    await storage.deleteBankDetails(req.params.id);
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "delete_bank_details",
+      entityType: "bank_details",
+      entityId: req.params.id,
+    });
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to delete bank details" });
   }
 });
 
@@ -424,6 +544,203 @@ router.delete("/payment-terms/:id", authMiddleware, async (req: AuthRequest, res
   } catch (error: any) {
     logger.error("Error deleting payment term:", error);
     return res.status(500).json({ error: error.message || "Failed to delete payment term" });
+  }
+});
+
+// ==================== CURRENCY SETTINGS ROUTES ====================
+
+router.get("/currency-settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const settings = await storage.getCurrencySettings();
+    if (!settings) {
+      return res.json({ baseCurrency: "INR", supportedCurrencies: "[]", exchangeRates: "{}" });
+    }
+    return res.json(settings);
+  } catch (error) {
+    logger.error("Get currency settings error:", error);
+    return res.status(500).json({ error: "Failed to fetch currency settings" });
+  }
+});
+
+router.post("/currency-settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const { baseCurrency, supportedCurrencies, exchangeRates } = req.body;
+
+    const settings = await storage.upsertCurrencySettings({
+      baseCurrency: baseCurrency || "INR",
+      supportedCurrencies: typeof supportedCurrencies === "string" ? supportedCurrencies : JSON.stringify(supportedCurrencies),
+      exchangeRates: typeof exchangeRates === "string" ? exchangeRates : JSON.stringify(exchangeRates),
+    });
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "update_currency_settings",
+      entityType: "settings",
+    });
+
+    return res.json(settings);
+  } catch (error: any) {
+    logger.error("Update currency settings error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update currency settings" });
+  }
+});
+
+// ==================== ADMIN SETTINGS ROUTES ====================
+
+router.get("/admin/settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const settings = await storage.getAllSettings();
+    const settingsMap: Record<string, string> = {};
+    settings.forEach(s => {
+      settingsMap[s.key] = s.value;
+    });
+
+    // Organize settings by category
+    const categories = {
+      company: {
+        companyName: settingsMap["companyName"] || "",
+        companyEmail: settingsMap["companyEmail"] || "",
+        companyPhone: settingsMap["companyPhone"] || "",
+        companyWebsite: settingsMap["companyWebsite"] || "",
+        companyAddress: settingsMap["companyAddress"] || "",
+        companyLogo: settingsMap["companyLogo"] || "",
+      },
+      taxation: {
+        gstin: settingsMap["gstin"] || "",
+        taxType: settingsMap["taxType"] || "GST", // GST, VAT, etc.
+        defaultTaxRate: settingsMap["defaultTaxRate"] || "18",
+        enableIGST: settingsMap["enableIGST"] === "true",
+        enableCGST: settingsMap["enableCGST"] === "true",
+        enableSGST: settingsMap["enableSGST"] === "true",
+      },
+      documents: {
+        quotePrefix: settingsMap["quotePrefix"] || "QT",
+        invoicePrefix: settingsMap["invoicePrefix"] || "INV",
+        nextQuoteNumber: settingsMap["nextQuoteNumber"] || "1001",
+        nextInvoiceNumber: settingsMap["nextInvoiceNumber"] || "1001",
+      },
+      email: {
+        smtpHost: settingsMap["smtpHost"] || "",
+        smtpPort: settingsMap["smtpPort"] || "",
+        smtpEmail: settingsMap["smtpEmail"] || "",
+        emailTemplateQuote: settingsMap["emailTemplateQuote"] || "",
+        emailTemplateInvoice: settingsMap["emailTemplateInvoice"] || "",
+        emailTemplatePaymentReminder: settingsMap["emailTemplatePaymentReminder"] || "",
+      },
+      general: {
+        quotaValidityDays: settingsMap["quotaValidityDays"] || "30",
+        invoiceDueDays: settingsMap["invoiceDueDays"] || "30",
+        enableAutoReminders: settingsMap["enableAutoReminders"] === "true",
+        reminderDaysBeforeDue: settingsMap["reminderDaysBeforeDue"] || "3",
+      },
+    };
+
+    return res.json(categories);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch admin settings" });
+  }
+});
+
+router.post("/admin/settings/company", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const companySettings = req.body;
+    for (const [key, value] of Object.entries(companySettings)) {
+      await storage.upsertSetting({
+        key,
+        value: String(value),
+        updatedBy: req.user!.id,
+      });
+    }
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "update_company_settings",
+      entityType: "settings",
+    });
+
+    return res.json({ success: true, message: "Company settings updated" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to update company settings" });
+  }
+});
+
+router.post("/admin/settings/taxation", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const taxSettings = req.body;
+    for (const [key, value] of Object.entries(taxSettings)) {
+      await storage.upsertSetting({
+        key,
+        value: String(value),
+        updatedBy: req.user!.id,
+      });
+    }
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "update_tax_settings",
+      entityType: "settings",
+    });
+
+    return res.json({ success: true, message: "Tax settings updated" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to update tax settings" });
+  }
+});
+
+router.post("/admin/settings/email", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const emailSettings = req.body;
+    for (const [key, value] of Object.entries(emailSettings)) {
+        await storage.upsertSetting({
+        key,
+        value: String(value),
+        updatedBy: req.user!.id,
+        });
+    }
+
+    await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "update_email_settings",
+        entityType: "settings",
+    });
+
+    // Reinitialize email service with new SMTP settings
+    if (emailSettings.smtpHost) {
+      EmailService.initialize({
+        host: emailSettings.smtpHost,
+        port: Number(emailSettings.smtpPort),
+        secure: emailSettings.smtpSecure === "true",
+        auth: {
+          user: emailSettings.smtpEmail,
+          pass: process.env.SMTP_PASSWORD || "",
+        },
+        from: emailSettings.smtpEmail || "noreply@quoteprogen.com",
+      });
+    }
+
+    return res.json({ success: true, message: "Email settings updated" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to update email settings" });
   }
 });
 

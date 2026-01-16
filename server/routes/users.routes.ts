@@ -49,7 +49,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
       backupEmail,
       passwordHash,
       name,
-      role: role || "user",
+      role: role || "viewer",
       status: status || "active",
     });
 

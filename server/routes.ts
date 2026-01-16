@@ -52,28 +52,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     app.use("/api", authMiddleware, quoteWorkflowRoutes);
 
   // Users Routes (Admin only)
-  app.use("/api/users", usersRoutes);
+  app.use("/api/users", authMiddleware, usersRoutes);
 
   // Clients Routes
-  app.use("/api/clients", clientsRoutes);
+  app.use("/api/clients", authMiddleware, clientsRoutes);
 
   // Quotes Routes
-  app.use("/api/quotes", quotesRoutes);
+  app.use("/api/quotes", authMiddleware, quotesRoutes);
 
   // Invoices Routes
-  app.use("/api/invoices", invoicesRoutes);
+  app.use("/api/invoices", authMiddleware, invoicesRoutes);
 
   // Payments Routes
-  app.use("/api", paymentsRoutes);
+  app.use("/api", authMiddleware, paymentsRoutes);
 
   // Products Routes
-  app.use("/api/products", productsRoutes);
+  app.use("/api/products", authMiddleware, productsRoutes);
 
   // Vendors Routes (includes POs and GRNs)
-  app.use("/api", vendorsRoutes);
+  app.use("/api", authMiddleware, vendorsRoutes);
 
   // Settings Routes
-  app.use("/api", settingsRoutes);
+  app.use("/api", authMiddleware, settingsRoutes);
 
   // Moved to invoices.routes.ts
 
@@ -449,122 +449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== BANK DETAILS ROUTES ====================
 
-  app.get("/api/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can access bank details" });
-      }
-      const details = await storage.getAllBankDetails();
-      return res.json(details);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch bank details" });
-    }
-  });
-
-  app.get("/api/bank-details/active", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      const detail = await storage.getActiveBankDetails();
-      return res.json(detail || null);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch active bank details" });
-    }
-  });
-
-  app.post("/api/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can create bank details" });
-      }
-
-      const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode } = req.body;
-
-      if (!bankName || !accountNumber || !accountName || !ifscCode) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const detail = await storage.createBankDetails({
-        bankName,
-        accountNumber,
-        accountName,
-        ifscCode,
-        branch: branch || null,
-        swiftCode: swiftCode || null,
-        isActive: true,
-        updatedBy: req.user!.id,
-      });
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "create_bank_details",
-        entityType: "bank_details",
-        entityId: detail.id,
-      });
-
-      return res.json(detail);
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to create bank details" });
-    }
-  });
-
-  app.put("/api/bank-details/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can update bank details" });
-      }
-
-      const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode, isActive } = req.body;
-
-      const detail = await storage.updateBankDetails(
-        req.params.id,
-        {
-          ...(bankName && { bankName }),
-          ...(accountNumber && { accountNumber }),
-          ...(accountName && { accountName }),
-          ...(ifscCode && { ifscCode }),
-          ...(branch !== undefined && { branch }),
-          ...(swiftCode !== undefined && { swiftCode }),
-          ...(isActive !== undefined && { isActive }),
-          updatedBy: req.user!.id,
-        }
-      );
-
-      if (!detail) {
-        return res.status(404).json({ error: "Bank details not found" });
-      }
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "update_bank_details",
-        entityType: "bank_details",
-        entityId: detail.id,
-      });
-
-      return res.json(detail);
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to update bank details" });
-    }
-  });
-
-  app.delete("/api/bank-details/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can delete bank details" });
-      }
-
-      await storage.deleteBankDetails(req.params.id);
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "delete_bank_details",
-        entityType: "bank_details",
-        entityId: req.params.id,
-      });
-
-      return res.json({ success: true });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to delete bank details" });
-    }
-  });
+  // Moved to settings.routes.ts
 
   // Moved to vendors.routes.ts
 
@@ -1860,201 +1745,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PHASE 3 - CURRENCY SETTINGS ENDPOINTS
-  app.get("/api/currency-settings", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      const settings = await storage.getCurrencySettings();
-      if (!settings) {
-        return res.json({ baseCurrency: "INR", supportedCurrencies: "[]", exchangeRates: "{}" });
-      }
-      return res.json(settings);
-    } catch (error) {
-      logger.error("Get currency settings error:", error);
-      return res.status(500).json({ error: "Failed to fetch currency settings" });
-    }
-  });
-
-  app.post("/api/currency-settings", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const { baseCurrency, supportedCurrencies, exchangeRates } = req.body;
-
-      const settings = await storage.upsertCurrencySettings({
-        baseCurrency: baseCurrency || "INR",
-        supportedCurrencies: typeof supportedCurrencies === "string" ? supportedCurrencies : JSON.stringify(supportedCurrencies),
-        exchangeRates: typeof exchangeRates === "string" ? exchangeRates : JSON.stringify(exchangeRates),
-      });
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "update_currency_settings",
-        entityType: "settings",
-      });
-
-      return res.json(settings);
-    } catch (error: any) {
-      logger.error("Update currency settings error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update currency settings" });
-    }
-  });
-
-  // Settings Routes
-  // Enhanced Admin Settings
-  app.get("/api/admin/settings", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const settings = await storage.getAllSettings();
-      const settingsMap: Record<string, string> = {};
-      settings.forEach(s => {
-        settingsMap[s.key] = s.value;
-      });
-
-      // Organize settings by category
-      const categories = {
-        company: {
-          companyName: settingsMap["companyName"] || "",
-          companyEmail: settingsMap["companyEmail"] || "",
-          companyPhone: settingsMap["companyPhone"] || "",
-          companyWebsite: settingsMap["companyWebsite"] || "",
-          companyAddress: settingsMap["companyAddress"] || "",
-          companyLogo: settingsMap["companyLogo"] || "",
-        },
-        taxation: {
-          gstin: settingsMap["gstin"] || "",
-          taxType: settingsMap["taxType"] || "GST", // GST, VAT, etc.
-          defaultTaxRate: settingsMap["defaultTaxRate"] || "18",
-          enableIGST: settingsMap["enableIGST"] === "true",
-          enableCGST: settingsMap["enableCGST"] === "true",
-          enableSGST: settingsMap["enableSGST"] === "true",
-        },
-        documents: {
-          quotePrefix: settingsMap["quotePrefix"] || "QT",
-          invoicePrefix: settingsMap["invoicePrefix"] || "INV",
-          nextQuoteNumber: settingsMap["nextQuoteNumber"] || "1001",
-          nextInvoiceNumber: settingsMap["nextInvoiceNumber"] || "1001",
-        },
-        email: {
-          smtpHost: settingsMap["smtpHost"] || "",
-          smtpPort: settingsMap["smtpPort"] || "",
-          smtpEmail: settingsMap["smtpEmail"] || "",
-          emailTemplateQuote: settingsMap["emailTemplateQuote"] || "",
-          emailTemplateInvoice: settingsMap["emailTemplateInvoice"] || "",
-          emailTemplatePaymentReminder: settingsMap["emailTemplatePaymentReminder"] || "",
-        },
-        general: {
-          quotaValidityDays: settingsMap["quotaValidityDays"] || "30",
-          invoiceDueDays: settingsMap["invoiceDueDays"] || "30",
-          enableAutoReminders: settingsMap["enableAutoReminders"] === "true",
-          reminderDaysBeforeDue: settingsMap["reminderDaysBeforeDue"] || "3",
-        },
-      };
-
-      return res.json(categories);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch admin settings" });
-    }
-  });
-
-  app.post("/api/admin/settings/company", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const companySettings = req.body;
-      for (const [key, value] of Object.entries(companySettings)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user!.id,
-        });
-      }
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "update_company_settings",
-        entityType: "settings",
-      });
-
-      return res.json({ success: true, message: "Company settings updated" });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to update company settings" });
-    }
-  });
-
-  app.post("/api/admin/settings/taxation", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const taxSettings = req.body;
-      for (const [key, value] of Object.entries(taxSettings)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user!.id,
-        });
-      }
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "update_tax_settings",
-        entityType: "settings",
-      });
-
-      return res.json({ success: true, message: "Tax settings updated" });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to update tax settings" });
-    }
-  });
-
-  app.post("/api/admin/settings/email", authMiddleware, async (req: AuthRequest, res: Response) => {
-    try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const emailSettings = req.body;
-      for (const [key, value] of Object.entries(emailSettings)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user!.id,
-        });
-      }
-
-      // Reinitialize email service with new SMTP settings
-      if (emailSettings.smtpHost) {
-        EmailService.initialize({
-          host: emailSettings.smtpHost,
-          port: Number(emailSettings.smtpPort),
-          secure: emailSettings.smtpSecure === "true",
-          auth: {
-            user: emailSettings.smtpEmail,
-            pass: process.env.SMTP_PASSWORD || "",
-          },
-          from: emailSettings.smtpEmail || "noreply@quoteprogen.com",
-        });
-      }
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "update_email_settings",
-        entityType: "settings",
-      });
-
-      return res.json({ success: true, message: "Email settings updated" });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to update email settings" });
-    }
-  });
+  // Moved to settings.routes.ts
 
   // User Management (Admin Panel)
   app.get("/api/admin/users", authMiddleware, async (req: AuthRequest, res: Response) => {

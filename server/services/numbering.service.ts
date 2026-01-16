@@ -218,11 +218,10 @@ export class NumberingService {
         // PG driver often returns { rows: [...] }
         nextValue = parseInt((result as any).rows[0].value, 10);
     } else {
-       // Fallback: If we can't parse the atomic result (driver mismatch?), we must re-read.
-       // Note: This fallback loses atomicity guarantee but handles driver weirdness.
-       // Ideally we trust the RETURNING clause. 
-       const setting = await storage.getSetting(counterKey);
-       nextValue = setting ? parseInt(setting.value, 10) : 1;
+       // Fallback: If we can't parse the atomic result, we SHOULD NOT fall back to a non-atomic read.
+       // That would re-introduce race conditions. Instead, we should log a critical error and fail.
+       console.error(`[NumberingService] CRITICAL: Failed to parse atomic result for ${counterKey}. Result was:`, result);
+       throw new Error(`Failed to generate atomic counter for ${type}. Database driver response format unexpected.`);
     }
 
     console.log(`[NumberingService] ${type}_${year}: next=${nextValue}`);

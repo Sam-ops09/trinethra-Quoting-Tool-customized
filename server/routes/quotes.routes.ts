@@ -6,6 +6,7 @@ import { requireFeature } from "../feature-flags-middleware";
 import { requirePermission } from "../permissions-middleware";
 import { NumberingService } from "../services/numbering.service";
 import { logger } from "../utils/logger";
+import { calculateSubtotal, calculateTotal, toMoneyString } from "../utils/financial";
 
 const router = Router();
 
@@ -54,13 +55,13 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
   try {
     const { items, ...quoteData } = req.body;
 
-    // Convert ISO string date to Date object if provided (optional; DB has default)
+    // Convert ISO string date to Date object
     if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
         const parsed = new Date(quoteData.quoteDate);
         if (!isNaN(parsed.getTime())) {
         quoteData.quoteDate = parsed;
         } else {
-        delete quoteData.quoteDate; // invalid date string, let DB default
+        delete quoteData.quoteDate; 
         }
     }
 
@@ -68,13 +69,12 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
     const prefixSetting = await storage.getSetting("quotePrefix");
     const prefix = prefixSetting?.value || "QT";
 
-    // Generate quote number using NumberingService
+    // Generate quote number
     const quoteNumber = await NumberingService.generateQuoteNumber();
 
-    // Create quote
-    // Prepare items for transaction
+    // Prepare items
     const quoteItemsData = (items || []).map((item: any, i: number) => ({
-        quoteId: "", // Placeholder, will be set in transaction
+        quoteId: "", 
         productId: item.productId || null,
         description: item.description,
         quantity: item.quantity,
@@ -84,12 +84,43 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
         hsnSac: item.hsnSac || null,
     }));
 
-    // Create quote and items in transaction
-    const quote = await storage.createQuoteTransaction({
+    // Calculate Financials Server-Side
+    // We import these dynamically or assume they are imported. 
+    // Need to ensure imports are present at top of file. 
+    // Assuming imports are: toDecimal, calculateSubtotal, calculateTotal, toMoneyString
+    const subtotal = calculateSubtotal(quoteItemsData);
+    
+    // Use provided values or defaults for taxes/discounts
+    const discount = quoteData.discount || 0;
+    const shippingCharges = quoteData.shippingCharges || 0;
+    const cgst = quoteData.cgst || 0;
+    const sgst = quoteData.sgst || 0;
+    const igst = quoteData.igst || 0;
+
+    const total = calculateTotal({
+        subtotal,
+        discount,
+        shippingCharges,
+        cgst,
+        sgst,
+        igst
+    });
+
+    const finalQuoteData = {
         ...quoteData,
         quoteNumber,
         createdBy: req.user!.id,
-    }, quoteItemsData);
+        subtotal: toMoneyString(subtotal),
+        discount: toMoneyString(discount),
+        shippingCharges: toMoneyString(shippingCharges),
+        cgst: toMoneyString(cgst),
+        sgst: toMoneyString(sgst),
+        igst: toMoneyString(igst),
+        total: toMoneyString(total),
+    };
+
+    // Create quote and items in transaction
+    const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
 
     await storage.createActivityLog({
         userId: req.user!.id,
