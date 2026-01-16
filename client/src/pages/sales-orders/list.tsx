@@ -490,15 +490,17 @@ export default function SalesOrdersList() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
-                                                        <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-950 flex items-center justify-center shrink-0">
-                                                            <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                                    {order.quoteNumber && (
+                                                        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                            <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-950 flex items-center justify-center shrink-0">
+                                                                <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Quote</p>
+                                                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.quoteNumber}</p>
+                                                            </div>
                                                         </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Quote</p>
-                                                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.quoteNumber}</p>
-                                                        </div>
-                                                    </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -604,13 +606,15 @@ export default function SalesOrdersList() {
                                                     })}
                                                 </p>
                                             </div>
-                                            <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
-                                                <div className="flex items-center gap-1.5 mb-1">
-                                                    <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                                                    <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Quote</span>
+                                            {order.quoteNumber && (
+                                                <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Quote</span>
+                                                    </div>
+                                                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.quoteNumber}</p>
                                                 </div>
-                                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{order.quoteNumber}</p>
-                                            </div>
+                                            )}
                                         </div>
 
                                         {/* Amount */}

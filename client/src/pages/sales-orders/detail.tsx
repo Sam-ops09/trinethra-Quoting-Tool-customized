@@ -709,19 +709,21 @@ export default function SalesOrderDetail() {
                                 )}
 
                                 {/* Source Quote */}
-                                <div className="p-2.5 rounded-md bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <Hash className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                                        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase">Source Quote</p>
+                                {order.quoteId && order.quote && (
+                                    <div className="p-2.5 rounded-md bg-emerald-50 dark:bg-emerald-950 border-l-4 border-emerald-500">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <Hash className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase">Source Quote</p>
+                                        </div>
+                                        <Button 
+                                            variant="link" 
+                                            onClick={() => setLocation(`/quotes/${order.quoteId}`)} 
+                                            className="h-auto p-0 font-semibold text-xs text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400"
+                                        >
+                                            {order.quote.quoteNumber} →
+                                        </Button>
                                     </div>
-                                    <Button 
-                                        variant="link" 
-                                        onClick={() => setLocation(`/quotes/${order.quoteId}`)} 
-                                        className="h-auto p-0 font-semibold text-xs text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400"
-                                    >
-                                        {order.quote.quoteNumber} →
-                                    </Button>
-                                </div>
+                                )}
 
                                 {/* Financial Summary */}
                                 <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">

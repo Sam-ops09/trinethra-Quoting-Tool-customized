@@ -356,26 +356,87 @@ router.post("/sales-orders",
   requirePermission("sales_orders", "create"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { quoteId } = req.body;
+      const { quoteId, clientId, items, subtotal, total, ...otherFields } = req.body;
       
-      if (!quoteId) {
-        return res.status(400).json({ error: "Quote ID is required" });
-      }
+      let baseOrderData: any = {};
+      let orderItems: any[] = [];
 
-      // Check if quote exists
-      const quote = await storage.getQuote(quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
+      if (quoteId) {
+        // --- CASE 1: CREATE FROM QUOTE ---
+        // Check if quote exists
+        const quote = await storage.getQuote(quoteId);
+        if (!quote) {
+          return res.status(404).json({ error: "Quote not found" });
+        }
 
-      if (quote.status !== "approved") {
-        return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
-      }
+        if (quote.status !== "approved") {
+          return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
+        }
 
-      // Check if sales order already exists
-      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
-      if (existingOrder) {
-        return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
+        // Check if sales order already exists
+        const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+        if (existingOrder) {
+          return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
+        }
+
+        baseOrderData = {
+          quoteId: quote.id,
+          clientId: quote.clientId,
+          subtotal: quote.subtotal.toString(),
+          discount: quote.discount.toString(),
+          cgst: quote.cgst.toString(),
+          sgst: quote.sgst.toString(),
+          igst: quote.igst.toString(),
+          shippingCharges: quote.shippingCharges.toString(),
+          total: quote.total.toString(),
+          notes: quote.notes,
+          termsAndConditions: quote.termsAndConditions,
+        };
+
+        const existingItems = await storage.getQuoteItems(quoteId);
+        orderItems = existingItems.map(item => ({
+             productId: item.productId || null,
+             description: item.description,
+             quantity: item.quantity,
+             unitPrice: item.unitPrice.toString(),
+             subtotal: item.subtotal.toString(),
+             hsnSac: item.hsnSac,
+             sortOrder: item.sortOrder
+        }));
+
+      } else {
+        // --- CASE 2: STANDALONE SALES ORDER ---
+        if (!clientId) {
+           return res.status(400).json({ error: "Client ID is required for standalone Sales Orders" });
+        }
+        if (!items || !Array.isArray(items) || items.length === 0) {
+           return res.status(400).json({ error: "Items are required for standalone Sales Orders" });
+        }
+
+        baseOrderData = {
+          quoteId: null,
+          clientId: clientId,
+          subtotal: subtotal ? String(subtotal) : "0",
+          total: total ? String(total) : "0",
+          // Allow other fields or defaults
+          notes: otherFields.notes || "",
+          termsAndConditions: otherFields.termsAndConditions || "",
+          shippingCharges: "0",
+          discount: "0",
+          cgst: "0",
+          sgst: "0",
+          igst: "0"
+        };
+        
+        orderItems = items.map(item => ({
+             productId: item.productId || null,
+             description: item.description,
+             quantity: item.quantity,
+             unitPrice: String(item.unitPrice || 0),
+             subtotal: String(item.subtotal || 0),
+             hsnSac: item.hsnSac || "",
+             sortOrder: item.sortOrder || 0
+        }));
       }
 
       const orderNumber = await NumberingService.generateSalesOrderNumber(); 
@@ -384,32 +445,21 @@ router.post("/sales-orders",
           // Create Sales Order
           const [order] = await tx.insert(schema.salesOrders).values({
             orderNumber,
-            quoteId: quote.id,
-            clientId: quote.clientId,
             status: "draft",
             orderDate: new Date(),
-            subtotal: quote.subtotal.toString(),
-            discount: quote.discount.toString(),
-            cgst: quote.cgst.toString(),
-            sgst: quote.sgst.toString(),
-            igst: quote.igst.toString(),
-            shippingCharges: quote.shippingCharges.toString(),
-            total: quote.total.toString(),
-            notes: quote.notes,
-            termsAndConditions: quote.termsAndConditions,
+            ...baseOrderData,
             createdBy: req.user!.id,
           }).returning();
 
           // Create Items
-          const quoteItems = await storage.getQuoteItems(quoteId);
-          for (const item of quoteItems) {
+          for (const item of orderItems) {
             await tx.insert(schema.salesOrderItems).values({
               salesOrderId: order.id,
-              productId: item.productId || null,
+              productId: item.productId,
               description: item.description,
               quantity: item.quantity,
-              unitPrice: item.unitPrice.toString(),
-              subtotal: item.subtotal.toString(),
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal,
               hsnSac: item.hsnSac,
               sortOrder: item.sortOrder,
               status: "pending",
@@ -455,11 +505,11 @@ router.get("/sales-orders",
       // Enrich with client name
       const ordersWithData = await Promise.all(orders.map(async (order) => {
         const client = await storage.getClient(order.clientId);
-        const quote = await storage.getQuote(order.quoteId);
+        const quote = order.quoteId ? await storage.getQuote(order.quoteId) : undefined;
         return {
           ...order,
           clientName: client?.name || "Unknown",
-          quoteNumber: quote?.quoteNumber || "Unknown"
+          quoteNumber: quote?.quoteNumber || "" // Return empty if no quote
         };
       }));
       return res.json(ordersWithData);
@@ -483,13 +533,19 @@ router.get("/sales-orders/:id",
       
       const items = await storage.getSalesOrderItems(order.id);
       const client = await storage.getClient(order.clientId);
-      const quote = await storage.getQuote(order.quoteId);
-      const quoteItems = await storage.getQuoteItems(order.quoteId);
+      
+      let quote = undefined;
+      let quoteItems: any[] = [];
+      if (order.quoteId) {
+        quote = await storage.getQuote(order.quoteId);
+        quoteItems = await storage.getQuoteItems(order.quoteId);
+      }
+      
       const creator = await storage.getUser(order.createdBy);
 
       // Check for linked invoice
-      const invoices = await storage.getInvoicesByQuote(order.quoteId);
-      const linkedInvoice = invoices.find(inv => inv.salesOrderId === order.id);
+      const invoices = await storage.getInvoicesBySalesOrder(order.id);
+      const linkedInvoice = invoices[0];
 
       return res.json({
         ...order,
@@ -683,16 +739,18 @@ router.post(
         });
       }
 
-      const quote = await storage.getQuote(order.quoteId);
-      if (!quote || quote.status !== "approved") {
-        return res.status(400).json({ 
-          error: "Linked quote must be approved" 
-        });
+      if (order.quoteId) {
+        const quote = await storage.getQuote(order.quoteId);
+        if (!quote || quote.status !== "approved") {
+          return res.status(400).json({ 
+            error: "Linked quote must be approved" 
+          });
+        }
       }
 
       // 2. Prepare Data
       let items: any[] = await storage.getSalesOrderItems(orderId);
-      if (!items || items.length === 0) {
+      if ((!items || items.length === 0) && order.quoteId) {
         items = await storage.getQuoteItems(order.quoteId);
       }
       if (!items || items.length === 0) {
@@ -815,9 +873,11 @@ router.post(
           }
 
           // E. Update Quote Status
-          await tx.update(schema.quotes)
-              .set({ status: "invoiced" })
-              .where(eq(schema.quotes.id, quote.id));
+          if (order.quoteId) {
+            await tx.update(schema.quotes)
+                .set({ status: "invoiced" })
+                .where(eq(schema.quotes.id, order.quoteId));
+          }
 
           // F. Log Activities
           await tx.insert(schema.activityLogs).values({
@@ -828,18 +888,21 @@ router.post(
               metadata: { fromSalesOrder: orderId },
               timestamp: new Date()
           });
-          await tx.insert(schema.activityLogs).values({
-              userId: req.user!.id,
-              action: "update_status", 
-              entityType: "quote",
-              entityId: quote.id,
-              metadata: { 
-                newStatus: "invoiced", 
-                trigger: "invoice_creation",
-                salesOrderId: orderId
-              },
-              timestamp: new Date()
-          });
+          
+          if (order.quoteId) {
+             await tx.insert(schema.activityLogs).values({
+                userId: req.user!.id,
+                action: "update_status", 
+                entityType: "quote",
+                entityId: order.quoteId,
+                metadata: { 
+                  newStatus: "invoiced", 
+                  trigger: "invoice_creation",
+                  salesOrderId: orderId
+                },
+                timestamp: new Date()
+            });
+          }
 
           return { invoice, items };
       });
@@ -859,12 +922,18 @@ router.post(
 
           const bankDetail = await storage.getActiveBankDetails();
           const client = await storage.getClient(invoice.clientId!);
+          
+          // Only fetch quote if it exists
+          let quote = undefined;
+          if (invoice.quoteId) {
+            quote = await storage.getQuote(invoice.quoteId);
+          }
 
           const { PassThrough } = await import("stream");
           const pt = new PassThrough();
 
           const pdfPromise = InvoicePDFService.generateInvoicePDF({
-              quote: quote as any,
+              quote: (quote || {}) as any,
               client: client!,
               items: items as any,
               companyName,
@@ -1041,8 +1110,8 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
     const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
     const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
 
-    const quote = await storage.getQuote(order.quoteId);
-    if (!quote) {
+    const quote = order.quoteId ? await storage.getQuote(order.quoteId) : undefined;
+    if (!quote && order.quoteId) {
       // Should rare, but handle it
       logger.warn(`Quote not found for order ${order.id}`);
     }

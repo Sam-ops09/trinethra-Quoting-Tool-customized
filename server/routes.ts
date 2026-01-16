@@ -874,6 +874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoice = await storage.createInvoice({
         invoiceNumber,
         quoteId: quote.id,
+        clientId: quote.clientId,
         isMaster: true,
         masterInvoiceStatus: "draft", 
         paymentStatus: "pending", 
@@ -996,7 +997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Validation: Cannot delete master invoices with child invoices
       if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
         const childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
         if (childInvoices.length > 0) {
           return res.status(400).json({ error: "Cannot delete master invoice with child invoices" });
@@ -1132,7 +1133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If master invoice with child invoices, check if any are paid (do validation outside transaction)
       let childInvoices: any[] = [];
       if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
         childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
         const paidChildren = childInvoices.filter((c: any) => c.paymentStatus === "paid");
         if (paidChildren.length > 0) {
@@ -1330,7 +1331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
             if (masterInvoice) {
               const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-              const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
+              const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
               const siblingInvoices = allChildInvoices.filter(
                 inv => inv.parentInvoiceId === masterInvoice.id && inv.id !== invoice.id
               );
@@ -1444,7 +1445,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Validate items don't exceed master invoice quantities
       const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-      const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
+      const allChildInvoices = masterInvoice.quoteId ? await storage.getInvoicesByQuote(masterInvoice.quoteId || "") : await storage.getInvoicesBySalesOrder(masterInvoice.salesOrderId || "");
+
       const siblingInvoices = allChildInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
 
       // Calculate already invoiced quantities per item
@@ -1567,7 +1569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const masterItems = await storage.getInvoiceItems(masterInvoice.id);
 
       // Get all child invoices
-      const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
+      const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
       const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
 
       // Calculate invoiced and remaining quantities
@@ -1782,13 +1784,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoices = await storage.getAllInvoices();
       const invoicesWithDetails = await Promise.all(
         invoices.map(async (invoice) => {
-          const quote = await storage.getQuote(invoice.quoteId);
-          const client = quote ? await storage.getClient(quote.clientId) : null;
+          const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId) : null;
+          // Fix: Fetch client using invoice.clientId, fallback to quote.clientId for legacy/migration support
+          const clientId = invoice.clientId || (quote ? quote.clientId : null);
+          const client = clientId ? await storage.getClient(clientId) : null;
+          
           return {
             ...invoice,
             quoteNumber: quote?.quoteNumber || "",
             clientName: client?.name || "Unknown",
-            total: invoice.total, // Use invoice's total, not quote's
+            total: invoice.total, 
             isMaster: invoice.isMaster || false,
             parentInvoiceId: invoice.parentInvoiceId || null,
           };
@@ -1808,45 +1813,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
-      }
-
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
+      const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId || "") : undefined;
+      const clientId = invoice.clientId || (quote ? quote.clientId : null);
+      
+      if (!clientId) return res.status(404).json({ error: "Client ID not found" });
+      
+      const client = await storage.getClient(clientId);
+      if (!client) return res.status(404).json({ error: "Client not found" });
 
       // Try to get invoice items first, fallback to quote items if none exist
       let items = await storage.getInvoiceItems(invoice.id);
       const isUsingQuoteItems = !items || items.length === 0;
-      if (isUsingQuoteItems) {
+      
+      if (isUsingQuoteItems && quote) {
         const quoteItems = await storage.getQuoteItems(quote.id);
         items = quoteItems as any; // Use quote items directly for backward compatibility
       }
 
-      const creator = await storage.getUser(quote.createdBy);
+      const creator = await storage.getUser(invoice.createdBy || (quote ? quote.createdBy : ""));
 
-      // Get child invoices if this is a master invoice
       let childInvoices: any[] = [];
       if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        childInvoices = allInvoices
-          .filter(inv => inv.parentInvoiceId === invoice.id)
-          .map(child => ({
-            id: child.id,
-            invoiceNumber: child.invoiceNumber,
-            total: child.total,
-            paymentStatus: child.paymentStatus,
-            createdAt: child.createdAt,
-          }));
+        // If it's a master invoice, we try to find children
+        // Use quoteId if available, otherwise maybe salesOrderId?
+        // Original logic relied on quote linkage.
+        if (invoice.quoteId) {
+             const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+             childInvoices = allInvoices
+              .filter(inv => inv.parentInvoiceId === invoice.id)
+              .map(child => ({
+                id: child.id,
+                invoiceNumber: child.invoiceNumber,
+                total: child.total,
+                paymentStatus: child.paymentStatus,
+                createdAt: child.createdAt,
+              }));
+        }
       }
 
       const invoiceDetail = {
         ...invoice,
-        quoteNumber: quote.quoteNumber,
-        status: quote.status,
+        quoteNumber: quote?.quoteNumber || "N/A",
+        status: quote?.status || "invoiced",
         isMaster: invoice.isMaster || false,
         parentInvoiceId: invoice.parentInvoiceId || null,
         childInvoices,
@@ -1869,13 +1877,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: item.status || "pending",
           hsnSac: item.hsnSac || item.hsn_sac || null,
         })),
-        subtotal: invoice.subtotal !== null && invoice.subtotal !== undefined ? invoice.subtotal : quote.subtotal,
-        discount: invoice.discount !== null && invoice.discount !== undefined ? invoice.discount : quote.discount,
-        cgst: invoice.cgst !== null && invoice.cgst !== undefined ? invoice.cgst : quote.cgst,
-        sgst: invoice.sgst !== null && invoice.sgst !== undefined ? invoice.sgst : quote.sgst,
-        igst: invoice.igst !== null && invoice.igst !== undefined ? invoice.igst : quote.igst,
-        shippingCharges: invoice.shippingCharges !== null && invoice.shippingCharges !== undefined ? invoice.shippingCharges : quote.shippingCharges,
-        total: invoice.total !== null && invoice.total !== undefined ? invoice.total : quote.total,
+        subtotal: invoice.subtotal !== null && invoice.subtotal !== undefined ? invoice.subtotal : (quote?.subtotal || "0"),
+        discount: invoice.discount !== null && invoice.discount !== undefined ? invoice.discount : (quote?.discount || "0"),
+        cgst: invoice.cgst !== null && invoice.cgst !== undefined ? invoice.cgst : (quote?.cgst || "0"),
+        sgst: invoice.sgst !== null && invoice.sgst !== undefined ? invoice.sgst : (quote?.sgst || "0"),
+        igst: invoice.igst !== null && invoice.igst !== undefined ? invoice.igst : (quote?.igst || "0"),
+        shippingCharges: invoice.shippingCharges !== null && invoice.shippingCharges !== undefined ? invoice.shippingCharges : (quote?.shippingCharges || "0"),
+        total: invoice.total !== null && invoice.total !== undefined ? invoice.total : (quote?.total || "0"),
         deliveryNotes: invoice.deliveryNotes || null,
         milestoneDescription: invoice.milestoneDescription || null,
         createdByName: creator?.name || "Unknown",
@@ -1898,7 +1906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId);
+      const quote = await storage.getQuote(invoice.quoteId || "");
       if (!quote) {
         return res.status(404).json({ error: "Related quote not found" });
       }
@@ -1941,7 +1949,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
         if (masterInvoice) {
           // Get all child invoices of this master
-          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
+          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
           const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
 
           // Calculate total paid amount from all children (including the just-updated one)
@@ -1966,7 +1974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Check if we should auto-close the quote
           if (masterPaymentStatus === "paid") {
-            const quote = await storage.getQuote(masterInvoice.quoteId);
+            const quote = await storage.getQuote(masterInvoice.quoteId || "");
             if (quote && quote.status === "invoiced") {
               // All invoices are paid, auto-close the quote
               await storage.updateQuote(quote.id, {
@@ -1987,11 +1995,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (updatedInvoice?.paymentStatus === "paid") {
         // For master or standalone invoices, check if we should close the quote
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
         const allPaid = allInvoices.every(inv => inv.paymentStatus === "paid");
 
         if (allPaid) {
-          const quote = await storage.getQuote(invoice.quoteId);
+          const quote = await storage.getQuote(invoice.quoteId || "");
           if (quote && quote.status === "invoiced") {
             await storage.updateQuote(quote.id, {
               status: "closed_paid",
@@ -2042,7 +2050,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId);
+      const quote = await storage.getQuote(invoice.quoteId || "");
       if (!quote) {
         return res.status(404).json({ error: "Related quote not found" });
       }
@@ -2096,9 +2104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .where(eq(schema.invoices.id, invoice.parentInvoiceId));
           
           if (masterInvoice) {
-            const allInvoices = await tx.select().from(schema.invoices)
-              .where(eq(schema.invoices.quoteId, masterInvoice.quoteId));
-            const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
+            // Use parentInvoiceId directly to find child invoices (quoteId is now nullable)
+            const childInvoices = await tx.select().from(schema.invoices)
+              .where(eq(schema.invoices.parentInvoiceId, masterInvoice.id));
 
             // Calculate total paid using Decimal.js
             let totalChildPaidAmount = toDecimal(0);
@@ -2136,33 +2144,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         // 5. Check if quote should be auto-closed
-        const [currentQuote] = await tx.select().from(schema.quotes)
-          .where(eq(schema.quotes.id, invoice.quoteId));
-        
-        if (currentQuote && currentQuote.status === "invoiced") {
-          const allInvoicesForQuote = await tx.select().from(schema.invoices)
-            .where(eq(schema.invoices.quoteId, invoice.quoteId));
+        if (invoice.quoteId) {
+          const [currentQuote] = await tx.select().from(schema.quotes)
+            .where(eq(schema.quotes.id, invoice.quoteId));
+          
+          if (currentQuote && currentQuote.status === "invoiced") {
+            const allInvoicesForQuote = await tx.select().from(schema.invoices)
+              .where(eq(schema.invoices.quoteId, invoice.quoteId));
 
-          const relevantInvoices = allInvoicesForQuote.filter(inv => !inv.parentInvoiceId);
-          const allPaid = relevantInvoices.every(inv => inv.paymentStatus === "paid");
+            const relevantInvoices = allInvoicesForQuote.filter(inv => !inv.parentInvoiceId);
+            const allPaid = relevantInvoices.every(inv => inv.paymentStatus === "paid");
 
-          if (allPaid && relevantInvoices.length > 0) {
-            await tx.update(schema.quotes)
-              .set({
-                status: "closed_paid",
-                closedAt: new Date(),
-                closedBy: req.user!.id,
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.quotes.id, invoice.quoteId));
+            if (allPaid && relevantInvoices.length > 0) {
+              await tx.update(schema.quotes)
+                .set({
+                  status: "closed_paid",
+                  closedAt: new Date(),
+                  closedBy: req.user!.id,
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.quotes.id, invoice.quoteId));
 
-            await tx.insert(schema.activityLogs).values({
-              userId: req.user!.id,
-              action: "close_quote",
-              entityType: "quote",
-              entityId: currentQuote.id,
-              timestamp: new Date(),
-            });
+              await tx.insert(schema.activityLogs).values({
+                userId: req.user!.id,
+                action: "close_quote",
+                entityType: "quote",
+                entityId: currentQuote.id,
+                timestamp: new Date(),
+              });
+            }
           }
         }
 
@@ -2190,14 +2200,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If this is a master invoice, aggregate payment history from all child invoices
       if (invoice.isMaster) {
-        logger.info(`[Payment History] Master invoice detected, aggregating child payments`);
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === invoice.id);
-        logger.info(`[Payment History] Found ${childInvoices.length} child invoices:`, childInvoices.map(c => c.id));
+        let childInvoices: any[] = [];
+        if (invoice.quoteId) {
+          const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+          childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+        } else if (invoice.salesOrderId) {
+           const allInvoices = await storage.getInvoicesBySalesOrder(invoice.salesOrderId);
+           childInvoices = allInvoices.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+        }
+
+        logger.info(`[Payment History] Found ${childInvoices.length} child invoices:`, childInvoices.map((c: any) => c.id));
 
         // Get payment history for all child invoices
         const childPayments = await Promise.all(
-          childInvoices.map(child => storage.getPaymentHistory(child.id))
+          childInvoices.map((child: any) => storage.getPaymentHistory(child.id))
         );
 
         // Flatten and sort by date (most recent first)
@@ -2280,7 +2296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId);
+      const quote = await storage.getQuote(invoice.quoteId || "");
       if (!quote) {
         return res.status(404).json({ error: "Related quote not found" });
       }
@@ -2314,7 +2330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
         if (masterInvoice) {
           // Get all child invoices of this master
-          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
+          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
           const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
 
           // Calculate total paid amount from all children (with updated payment for current invoice)
@@ -2476,7 +2492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId);
+      const quote = await storage.getQuote(invoice.quoteId || "");
       if (!quote) {
         return res.status(404).json({ error: "Related quote not found" });
       }
@@ -2506,7 +2522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get child invoices if this is a master invoice
       let childInvoices: any[] = [];
       if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
         childInvoices = allInvoices
           .filter(inv => inv.parentInvoiceId === invoice.id)
           .map(child => ({
@@ -2639,7 +2655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId);
+      const quote = await storage.getQuote(invoice.quoteId || "");
       if (!quote) {
         return res.status(404).json({ error: "Related quote not found" });
       }
@@ -2811,7 +2827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId);
+      const quote = await storage.getQuote(invoice.quoteId || "");
       if (!quote) {
         return res.status(404).json({ error: "Related quote not found" });
       }
@@ -4261,7 +4277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           logger.info(`Found master item: ${masterItem.description} (ID: ${masterItem.id})`);
 
           // Get all child invoices of this master
-          const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
+          const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
           const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === invoice.parentInvoiceId);
 
           logger.info(`Found ${childInvoices.length} child invoices for this master`);
@@ -4468,7 +4484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 4. Generate child invoice number (INV-001-1, INV-001-2, etc.)
-      const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
+      const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
       const siblings = allInvoices.filter(inv => inv.parentInvoiceId === masterId);
       // Generate child invoice number using admin child invoice numbering settings
       const childInvoiceNumber = await NumberingService.generateChildInvoiceNumber();

@@ -927,6 +927,8 @@ export class DatabaseStorage implements IStorage {
     return newAttachment;
   }
 
+  async getInvoicesBySalesOrder(salesOrderId: string): Promise < Invoice[] > { return await db.select().from(invoices).where(eq(invoices.salesOrderId, salesOrderId)).orderBy(desc(invoices.createdAt)); }
+
   async getInvoicesByQuote(quoteId: string): Promise < Invoice[] > {
   return await db.select().from(invoices).where(eq(invoices.quoteId, quoteId)).orderBy(desc(invoices.createdAt));
 }

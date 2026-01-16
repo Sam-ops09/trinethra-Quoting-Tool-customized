@@ -150,7 +150,7 @@ export const quoteVersionsRelations = relations(quoteVersions, ({ one }) => ({
 export const salesOrders = pgTable("sales_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orderNumber: text("order_number").notNull().unique(),
-  quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+  quoteId: varchar("quote_id").references(() => quotes.id),
   clientId: varchar("client_id").notNull().references(() => clients.id),
   status: salesOrderStatusEnum("status").notNull().default("draft"),
   orderDate: timestamp("order_date").notNull().defaultNow(),
@@ -240,7 +240,7 @@ export const quoteItems = pgTable("quote_items", {
 export const invoices = pgTable("invoices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   invoiceNumber: text("invoice_number").notNull().unique(),
-  quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+  quoteId: varchar("quote_id").references(() => quotes.id),
   salesOrderId: varchar("sales_order_id").references(() => salesOrders.id),
   clientId: varchar("client_id").references(() => clients.id),
   parentInvoiceId: varchar("parent_invoice_id"),

@@ -92,10 +92,17 @@ export class PaymentReminderScheduler {
         if (reminderDays.includes(daysOverdue)) {
           try {
             // Get quote and client details
-            const quote = await storage.getQuote(invoice.quoteId);
-            if (!quote) continue;
+            // Get client details (support both quote-based and standalone invoices)
+            let client;
+            if (invoice.clientId) {
+              client = await storage.getClient(invoice.clientId);
+            } else if (invoice.quoteId) {
+              const quote = await storage.getQuote(invoice.quoteId);
+              if (quote) {
+                client = await storage.getClient(quote.clientId);
+              }
+            }
 
-            const client = await storage.getClient(quote.clientId);
             if (!client || !client.email) continue;
 
             // Calculate outstanding amount

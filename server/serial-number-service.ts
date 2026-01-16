@@ -159,47 +159,51 @@ export async function validateSerialNumbers(
     if (invoice.length > 0) {
       const quoteId = invoice[0].quoteId;
 
-      // Get all invoices for this quote
-      const relatedInvoices = await db
-        .select()
-        .from(invoices)
-        .where(
-          and(
-            eq(invoices.quoteId, quoteId),
-            sql`${invoices.id} != ${invoiceId}`
-          )
+      
+      if (quoteId) {
+        // Get all invoices for this quote
+        const relatedInvoices = await db
+          .select()
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.quoteId, quoteId),
+              sql`${invoices.id} != ${invoiceId}`
+            )
+          );
+          
+        // Use existingSerialsInQuote...
+        const existingSerialsInQuote: string[] = [];
+
+        for (const relInvoice of relatedInvoices) {
+            const items = await db
+            .select()
+            .from(invoiceItems)
+            .where(eq(invoiceItems.invoiceId, relInvoice.id));
+
+            for (const item of items) {
+            if (item.serialNumbers) {
+                try {
+                const itemSerials = JSON.parse(item.serialNumbers);
+                existingSerialsInQuote.push(...itemSerials);
+                } catch (e) {
+                // Skip invalid JSON
+                }
+            }
+            }
+        }
+
+        const duplicatesInQuote = validSerials.filter(s =>
+            existingSerialsInQuote.includes(s)
         );
 
-      const existingSerialsInQuote: string[] = [];
-
-      for (const relInvoice of relatedInvoices) {
-        const items = await db
-          .select()
-          .from(invoiceItems)
-          .where(eq(invoiceItems.invoiceId, relInvoice.id));
-
-        for (const item of items) {
-          if (item.serialNumbers) {
-            try {
-              const itemSerials = JSON.parse(item.serialNumbers);
-              existingSerialsInQuote.push(...itemSerials);
-            } catch (e) {
-              // Skip invalid JSON
-            }
-          }
+        if (duplicatesInQuote.length > 0) {
+            errors.push({
+            type: 'duplicate_in_quote',
+            message: 'Serial numbers already used in other invoices for this quote',
+            affectedSerials: duplicatesInQuote,
+            });
         }
-      }
-
-      const duplicatesInQuote = validSerials.filter(s =>
-        existingSerialsInQuote.includes(s)
-      );
-
-      if (duplicatesInQuote.length > 0) {
-        errors.push({
-          type: 'duplicate_in_quote',
-          message: 'Serial numbers already used in other invoices for this quote',
-          affectedSerials: duplicatesInQuote,
-        });
       }
     }
   }
@@ -255,7 +259,9 @@ export async function getSerialTraceability(serialNumberValue: string): Promise<
       return null;
     }
 
-    const quote = await db.select().from(quotes).where(eq(quotes.id, invoice[0].quoteId)).limit(1);
+    const quote = invoice[0].quoteId 
+      ? await db.select().from(quotes).where(eq(quotes.id, invoice[0].quoteId)).limit(1)
+      : [];
     const customer = quote.length > 0
       ? await db.select().from(clients).where(eq(clients.id, quote[0].clientId)).limit(1)
       : [];
@@ -386,7 +392,9 @@ async function constructTraceabilityFromInvoiceItem(
   const invoice = await db.select().from(invoices).where(eq(invoices.id, item.invoiceId)).limit(1);
   if (invoice.length === 0) return null;
 
-  const quote = await db.select().from(quotes).where(eq(quotes.id, invoice[0].quoteId)).limit(1);
+  const quote = invoice[0].quoteId 
+    ? await db.select().from(quotes).where(eq(quotes.id, invoice[0].quoteId)).limit(1)
+    : [];
   const customer = quote.length > 0
     ? await db.select().from(clients).where(eq(clients.id, quote[0].clientId)).limit(1)
     : [];

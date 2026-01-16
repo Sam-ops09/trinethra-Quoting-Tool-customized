@@ -36,14 +36,14 @@ const isTestEnv = Boolean(process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.TE
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isTestEnv ? 10000 : 100, // Much higher limit in test mode
+  max: isTestEnv ? 10000 : 5000, // Much higher limit in test mode or dev
   message: "Too many requests from this IP, please try again later.",
   skip: () => isTestEnv, // Skip rate limiting entirely in test mode
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isTestEnv ? 10000 : 5, // Much higher limit in test mode
+  max: isTestEnv ? 10000 : 1000, // Much higher limit in test mode or dev
   message: "Too many login attempts, please try again later.",
   skipSuccessfulRequests: true,
   skip: () => isTestEnv, // Skip rate limiting entirely in test mode
