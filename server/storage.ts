@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import {
   users,
   type User,
@@ -107,6 +107,10 @@ export interface IStorage {
   updateQuote(id: string, data: Partial<Quote>): Promise<Quote | undefined>;
   deleteQuote(id: string): Promise<void>;
   getLastQuoteNumber(): Promise<string | undefined>;
+  
+  // Transactional Methods
+  createQuoteTransaction(quote: InsertQuote & { createdBy: string; quoteNumber: string }, items: InsertQuoteItem[]): Promise<Quote>;
+  updateQuoteTransaction(id: string, data: Partial<Quote>, items: InsertQuoteItem[]): Promise<Quote | undefined>;
 
   // Quote Items
   getQuoteItems(quoteId: string): Promise<QuoteItem[]>;
@@ -358,9 +362,17 @@ export class DatabaseStorage implements IStorage {
   return updated || undefined;
 }
 
-  async deleteClient(id: string): Promise < void> {
-  await db.delete(clients).where(eq(clients.id, id));
-}
+  async deleteClient(id: string): Promise<void> {
+    // Audit Fix: Use soft delete for clients to prevent orphaned quotes/invoices
+    await db.update(clients)
+      .set({ 
+        isActive: false
+      })
+      .where(eq(clients.id, id));
+    
+    // Log the soft deletion
+    console.log(`[Storage] Client ${id} soft-deleted (set to inactive).`);
+  }
 
   // Quotes
   async getQuote(id: string): Promise < Quote | undefined > {
@@ -390,9 +402,45 @@ export class DatabaseStorage implements IStorage {
   return updated || undefined;
 }
 
-  async deleteQuote(id: string): Promise < void> {
-  await db.delete(quotes).where(eq(quotes.id, id));
-}
+  async deleteQuote(id: string): Promise<void> {
+    await db.delete(quotes).where(eq(quotes.id, id));
+  }
+
+  async createQuoteTransaction(quote: InsertQuote & { createdBy: string; quoteNumber: string }, items: InsertQuoteItem[]): Promise<Quote> {
+    return await db.transaction(async (tx) => {
+      // 1. Create Quote
+      const [newQuote] = await tx.insert(quotes).values(quote).returning();
+      
+      // 2. Create Items
+      for (const item of items) {
+         await tx.insert(quoteItems).values({ ...item, quoteId: newQuote.id });
+      }
+      
+      return newQuote;
+    });
+  }
+
+  async updateQuoteTransaction(id: string, data: Partial<Quote>, items: InsertQuoteItem[]): Promise<Quote | undefined> {
+    return await db.transaction(async (tx) => {
+      // 1. Update Quote
+       const [updated] = await tx
+        .update(quotes)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(quotes.id, id))
+        .returning();
+      
+      if (!updated) return undefined;
+      
+      // 2. Replace Items
+      await tx.delete(quoteItems).where(eq(quoteItems.quoteId, id));
+      
+      for (const item of items) {
+         await tx.insert(quoteItems).values({ ...item, quoteId: id });
+      }
+      
+      return updated;
+    });
+  }
 
   async getLastQuoteNumber(): Promise < string | undefined > {
   const [lastQuote] = await db.select().from(quotes).orderBy(desc(quotes.createdAt)).limit(1);
@@ -519,9 +567,16 @@ export class DatabaseStorage implements IStorage {
   return updated || undefined;
 }
 
-  async deleteTemplate(id: string): Promise < void> {
-  await db.delete(templates).where(eq(templates.id, id));
-}
+  async deleteTemplate(id: string): Promise<void> {
+    // Audit Fix: Prevent deletion if used by quotes
+    const [existingQuote] = await db.select().from(quotes).where(eq(quotes.templateId, id)).limit(1);
+    
+    if (existingQuote) {
+      throw new Error("Cannot delete template: it is referenced by existing quotes.");
+    }
+    
+    await db.delete(templates).where(eq(templates.id, id));
+  }
 
   // Activity Logs
   async createActivityLog(log: InsertActivityLog): Promise < ActivityLog > {
@@ -768,9 +823,16 @@ export class DatabaseStorage implements IStorage {
   return updated || undefined;
 }
 
-  async deleteVendor(id: string): Promise < void> {
-  await db.delete(vendors).where(eq(vendors.id, id));
-}
+  async deleteVendor(id: string): Promise<void> {
+    // Audit Fix: Validate no POs exist before delete
+    const pos = await db.select({ id: vendorPurchaseOrders.id }).from(vendorPurchaseOrders).where(eq(vendorPurchaseOrders.vendorId, id)).limit(1);
+    
+    if (pos.length > 0) {
+        throw new Error("Cannot delete vendor: there are existing purchase orders for this vendor.");
+    }
+    
+    await db.delete(vendors).where(eq(vendors.id, id));
+  }
 
   // NEW FEATURE - Vendor Purchase Orders
   async getVendorPo(id: string): Promise < VendorPurchaseOrder | undefined > {
@@ -931,9 +993,36 @@ export class DatabaseStorage implements IStorage {
   return updated || undefined;
 }
 
-  async deleteGrn(id: string): Promise < void> {
-  await db.delete(goodsReceivedNotes).where(eq(goodsReceivedNotes.id, id));
-}
+  async deleteGrn(id: string): Promise<void> {
+    // Audit Fix: Reverse stock transaction logic before deletion
+    await db.transaction(async (tx) => {
+        // 1. Get GRN to find quantity and related PO item
+        const [grn] = await tx.select().from(goodsReceivedNotes).where(eq(goodsReceivedNotes.id, id));
+        
+        if (!grn) return; // Nothing to delete
+
+        // 2. Get PO Item to find Product ID
+        const [poItem] = await tx.select().from(vendorPoItems).where(eq(vendorPoItems.id, grn.vendorPoItemId));
+
+        if (poItem && poItem.productId) {
+             // Decrease stockQuantity and availableQuantity by the received quantity
+             // GRN creation (presumably) added to stock and available. So we subtract.
+             
+             await tx.update(products)
+                .set({
+                    stockQuantity: sql`${products.stockQuantity} - ${grn.quantityReceived}`,
+                    availableQuantity: sql`${products.availableQuantity} - ${grn.quantityReceived}`,
+                    updatedAt: new Date()
+                })
+                .where(eq(products.id, poItem.productId));
+            
+            console.log(`[Storage] Reversing GRN stock for product ${poItem.productId}: -${grn.quantityReceived}`);
+        }
+
+        // 3. Delete GRN
+        await tx.delete(goodsReceivedNotes).where(eq(goodsReceivedNotes.id, id));
+    });
+  }
 
 
   // Quote Versions

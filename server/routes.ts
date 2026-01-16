@@ -21,7 +21,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
 import { z } from "zod";
-import { toDecimal, add, toMoneyString, moneyGte, moneyGt } from "./utils/financial";
+import { toDecimal, add, subtract, toMoneyString, moneyGte, moneyGt } from "./utils/financial";
 import { logger } from "./utils/logger";
 // Validate SESSION_SECRET at runtime, not at module load
 function getJWTSecret(): string {
@@ -102,48 +102,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         await EmailService.sendWelcomeEmail(email, name);
       } catch (error) {
-        console.error("Failed to send welcome email:", error);
+        logger.error("Failed to send welcome email:", error);
         // Don't fail signup if email fails
       }
 
       return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
     } catch (error: any) {
-      console.error("Signup error:", error);
+      logger.error("Signup error:", error);
       return res.status(500).json({ error: error.message || "Failed to create account" });
     }
   });
 
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
-      console.log("Login attempt received");
+      logger.info("Login attempt received");
       const { email, password } = req.body;
 
       if (!email || !password) {
-        console.log("Missing email or password");
+        logger.info("Missing email or password");
         return res.status(400).json({ error: "Email and password are required" });
       }
 
-      console.log("Fetching user from database");
+      logger.info("Fetching user from database");
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        console.log("User not found:", email);
+        logger.info("User not found:", email);
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      console.log("User found, checking status");
+      logger.info("User found, checking status");
       if (user.status !== "active") {
-        console.log("User account is not active:", user.status);
+        logger.info("User account is not active:", user.status);
         return res.status(401).json({ error: "Account is inactive" });
       }
 
-      console.log("Verifying password");
+      logger.info("Verifying password");
       const validPassword = await bcrypt.compare(password, user.passwordHash);
       if (!validPassword) {
-        console.log("Invalid password");
+        logger.info("Invalid password");
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      console.log("Generating tokens");
+      logger.info("Generating tokens");
       // Generate new refresh token
       const refreshToken = nanoid(32);
       const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -161,7 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { expiresIn: JWT_EXPIRES_IN }
       );
 
-      console.log("Setting cookies");
+      logger.info("Setting cookies");
       res.cookie("token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -176,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
-      console.log("Creating activity log");
+      logger.info("Creating activity log");
       await storage.createActivityLog({
         userId: user.id,
         action: "login",
@@ -184,11 +184,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: user.id,
       });
 
-      console.log("Login successful");
+      logger.info("Login successful");
       return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
     } catch (error: any) {
-      console.error("Login error:", error);
-      console.error("Error details:", {
+      logger.error("Login error:", error);
+      logger.error("Error details:", {
         message: error.message,
         stack: error.stack,
         name: error.name,
@@ -224,7 +224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("Logout error:", error);
+      logger.error("Logout error:", error);
       // Still clear cookies even if database update fails
       res.clearCookie("token");
       res.clearCookie("refreshToken");
@@ -276,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         await EmailService.sendPasswordResetEmail(user.backupEmail, resetLink);
       } catch (error) {
-        console.error("Failed to send password reset email:", error);
+        logger.error("Failed to send password reset email:", error);
         // Don't fail the request, just log the error
       }
 
@@ -334,11 +334,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If no user was updated, the token was already used or invalidated
       if (!updatedUser) {
-        console.warn(`Reset token already used or invalidated for user ${user.id}`);
+        logger.warn(`Reset token already used or invalidated for user ${user.id}`);
         return res.status(400).json({ error: "Invalid or expired reset token" });
       }
 
-      console.log(`Password reset successful for user ${user.id}, token cleared`);
+      logger.info(`Password reset successful for user ${user.id}, token cleared`);
 
       await storage.createActivityLog({
         userId: user.id,
@@ -349,7 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true, message: "Password reset successfully" });
     } catch (error: any) {
-      console.error("Reset password confirm error:", error);
+      logger.error("Reset password confirm error:", error);
       return res.status(500).json({ error: "Failed to reset password" });
     }
   });
@@ -409,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 user: { id: user.id, email: user.email, name: user.name, role: user.role }
             });
         } catch (error: any) {
-            console.error("Refresh token error:", error);
+            logger.error("Refresh token error:", error);
             // Clear cookies on any error
             res.clearCookie("refreshToken");
             res.clearCookie("token");
@@ -546,7 +546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("Delete user error:", error);
+      logger.error("Delete user error:", error);
       return res.status(500).json({ error: error.message || "Failed to delete user" });
     }
   });
@@ -721,28 +721,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const quoteNumber = await NumberingService.generateQuoteNumber();
 
       // Create quote
-      const quote = await storage.createQuote({
+      // Prepare items for transaction
+      const quoteItemsData = (items || []).map((item: any, i: number) => ({
+         quoteId: "", // Placeholder, will be set in transaction
+         productId: item.productId || null,
+         description: item.description,
+         quantity: item.quantity,
+         unitPrice: String(item.unitPrice),
+         subtotal: String(item.quantity * item.unitPrice),
+         sortOrder: i,
+         hsnSac: item.hsnSac || null,
+      }));
+
+      // Create quote and items in transaction
+      const quote = await storage.createQuoteTransaction({
         ...quoteData,
         quoteNumber,
         createdBy: req.user!.id,
-      });
-
-      // Create quote items
-      if (items && items.length > 0) {
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          await storage.createQuoteItem({
-            quoteId: quote.id,
-            productId: item.productId || null,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: String(item.unitPrice),
-            subtotal: String(item.quantity * item.unitPrice),
-            sortOrder: i,
-            hsnSac: item.hsnSac || null,
-          });
-        }
-      }
+      }, quoteItemsData);
 
       await storage.createActivityLog({
         userId: req.user!.id,
@@ -753,7 +749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(quote);
     } catch (error: any) {
-      console.error("Create quote error:", error);
+      logger.error("Create quote error:", error);
       return res.status(500).json({ error: error.message || "Failed to create quote" });
     }
   });
@@ -809,18 +805,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
       if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
 
-      const quote = await storage.updateQuote(req.params.id, updateData);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
+      let quote;
 
-      // Update items if provided
       if (items && Array.isArray(items)) {
-        await storage.deleteQuoteItems(quote.id);
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          await storage.createQuoteItem({
-            quoteId: quote.id,
+          // Prepare items for transaction
+          const quoteItemsData = items.map((item: any, i: number) => ({
+            quoteId: req.params.id,
             productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
@@ -828,8 +818,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             subtotal: String(item.quantity * item.unitPrice),
             sortOrder: i,
             hsnSac: item.hsnSac || null,
-          });
-        }
+          }));
+
+          quote = await storage.updateQuoteTransaction(req.params.id, updateData, quoteItemsData);
+      } else {
+          quote = await storage.updateQuote(req.params.id, updateData);
+      }
+
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
       }
 
       await storage.createActivityLog({
@@ -841,21 +838,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
       // DISABLED: Automatic email sending when quote status changes to "sent"
-      // if (updateData.status === "sent" && existingQuote.status !== "sent") {
-      /*
-        try {
-          const client = await storage.getClient(quote.clientId);
-          if (client?.email) {
-            // ... email sending code disabled ...
-          }
-        } catch (emailError) {
-          console.error("Auto-send email error:", emailError);
-        }
-      */
+      // Future implementation should use event bus or queue
 
       return res.json(quote);
     } catch (error) {
-      console.error("Update quote error:", error);
+      logger.error("Update quote error:", error);
       res.status(500).json({ error: "Failed to update quote" });
     }
   });
@@ -935,7 +922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(invoice);
       
     } catch (error: any) {
-      console.error("Convert quote error:", error);
+      logger.error("Convert quote error:", error);
       return res.status(500).json({ error: error.message || "Failed to convert quote" });
     }
   });
@@ -989,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, invoice: updatedInvoice });
     } catch (error: any) {
-      console.error("Update master invoice status error:", error);
+      logger.error("Update master invoice status error:", error);
       return res.status(500).json({ error: error.message || "Failed to update master invoice status" });
     }
   });
@@ -1033,7 +1020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, message: "Invoice deleted successfully" });
     } catch (error: any) {
-      console.error("Delete invoice error:", error);
+      logger.error("Delete invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to delete invoice" });
     }
   });
@@ -1076,7 +1063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, invoice: updatedInvoice });
     } catch (error: any) {
-      console.error("Finalize invoice error:", error);
+      logger.error("Finalize invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to finalize invoice" });
     }
   });
@@ -1113,7 +1100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, invoice: updatedInvoice });
     } catch (error: any) {
-      console.error("Lock invoice error:", error);
+      logger.error("Lock invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to lock/unlock invoice" });
     }
   });
@@ -1279,7 +1266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, invoice: result });
     } catch (error: any) {
-      console.error("Cancel invoice error:", error);
+      logger.error("Cancel invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
     }
   });
@@ -1353,21 +1340,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               for (const sibling of siblingInvoices) {
                 const siblingItems = await storage.getInvoiceItems(sibling.id);
                 for (const item of siblingItems) {
-                  const key = item.description;
+                  const key = item.productId || item.description;
                   invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
                 }
               }
 
               // Validate new items don't exceed remaining quantities
               for (const newItem of req.body.items) {
-                const masterItem = masterItems.find(mi => mi.description === newItem.description);
+                const masterItem = masterItems.find(mi => (mi.productId && mi.productId === newItem.productId) || mi.description === newItem.description);
                 if (!masterItem) {
                   return res.status(400).json({
                     error: `Item "${newItem.description}" not found in master invoice`
                   });
                 }
 
-                const alreadyInvoiced = invoicedQuantities[newItem.description] || 0;
+                const key = newItem.productId || newItem.description;
+                const alreadyInvoiced = invoicedQuantities[key] || 0;
                 const remaining = masterItem.quantity - alreadyInvoiced;
 
                 if (newItem.quantity > remaining) {
@@ -1429,7 +1417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(updatedInvoice);
     } catch (error: any) {
-      console.error("Update master invoice error:", error);
+      logger.error("Update master invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to update master invoice" });
     }
   });
@@ -1464,21 +1452,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const sibling of siblingInvoices) {
         const siblingItems = await storage.getInvoiceItems(sibling.id);
         for (const item of siblingItems) {
-          const key = item.description; // Use description as key
+          const key = item.productId || item.description; // Use productId or description as key
           invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
         }
       }
 
       // Validate new items don't exceed remaining quantities
       for (const newItem of items) {
-        const masterItem = masterItems.find(mi => mi.description === newItem.description);
+        const masterItem = masterItems.find(mi => (mi.productId && mi.productId === newItem.productId) || mi.description === newItem.description);
         if (!masterItem) {
           return res.status(400).json({
             error: `Item "${newItem.description}" not found in master invoice`
           });
         }
 
-        const alreadyInvoiced = invoicedQuantities[newItem.description] || 0;
+        const key = newItem.productId || newItem.description;
+        const alreadyInvoiced = invoicedQuantities[key] || 0;
         const remaining = masterItem.quantity - alreadyInvoiced;
 
         if (newItem.quantity > remaining) {
@@ -1557,7 +1546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(childInvoice);
     } catch (error: any) {
-      console.error("Create child invoice error:", error);
+      logger.error("Create child invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to create child invoice" });
     }
   });
@@ -1641,7 +1630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error: any) {
-      console.error("Get master invoice summary error:", error);
+      logger.error("Get master invoice summary error:", error);
       return res.status(500).json({ error: error.message || "Failed to get master invoice summary" });
     }
   });
@@ -1782,7 +1771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true, message: "Quote sent successfully" });
     } catch (error: any) {
-      console.error("Email quote error:", error);
+      logger.error("Email quote error:", error);
       return res.status(500).json({ error: error.message || "Failed to send quote email" });
     }
   });
@@ -1894,7 +1883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(invoiceDetail);
     } catch (error: any) {
-      console.error("Get invoice error:", error);
+      logger.error("Get invoice error:", error);
       return res.status(500).json({ error: "Failed to fetch invoice" });
     }
   });
@@ -2030,7 +2019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(updatedInvoice);
     } catch (error: any) {
-      console.error("Update payment status error:", error);
+      logger.error("Update payment status error:", error);
       return res.status(500).json({ error: error.message || "Failed to update payment status" });
     }
   });
@@ -2076,6 +2065,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newPaidAmount = add(invoice.paidAmount, amount);
         const totalAmount = toDecimal(invoice.total || quote.total);
 
+        // Validation: Prevent overpayment
+        if (moneyGt(newPaidAmount, totalAmount)) {
+             throw new Error("Payment amount exceeds total invoice amount");
+        }
+        
+        const newRemainingAmount = subtract(totalAmount, newPaidAmount);
+
         let newPaymentStatus: string = invoice.paymentStatus || "pending";
         if (moneyGte(newPaidAmount, totalAmount)) {
           newPaymentStatus = "paid";
@@ -2086,6 +2082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const [updatedInvoice] = await tx.update(schema.invoices)
           .set({
             paidAmount: toMoneyString(newPaidAmount),
+            remainingAmount: toMoneyString(newRemainingAmount),
             paymentStatus: newPaymentStatus,
             lastPaymentDate: new Date(),
             updatedAt: new Date(),
@@ -2174,7 +2171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(result);
     } catch (error: any) {
-      console.error("Record payment error:", error);
+      logger.error("Record payment error:", error);
       return res.status(500).json({ error: error.message || "Failed to record payment" });
     }
   });
@@ -2187,16 +2184,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      console.log(`[Payment History] Fetching for invoice ${req.params.id}, isMaster: ${invoice.isMaster}`);
+      logger.info(`[Payment History] Fetching for invoice ${req.params.id}, isMaster: ${invoice.isMaster}`);
 
       let payments;
 
       // If this is a master invoice, aggregate payment history from all child invoices
       if (invoice.isMaster) {
-        console.log(`[Payment History] Master invoice detected, aggregating child payments`);
+        logger.info(`[Payment History] Master invoice detected, aggregating child payments`);
         const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
         const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === invoice.id);
-        console.log(`[Payment History] Found ${childInvoices.length} child invoices:`, childInvoices.map(c => c.id));
+        logger.info(`[Payment History] Found ${childInvoices.length} child invoices:`, childInvoices.map(c => c.id));
 
         // Get payment history for all child invoices
         const childPayments = await Promise.all(
@@ -2207,11 +2204,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         payments = childPayments.flat().sort((a, b) =>
           new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()
         );
-        console.log(`[Payment History] Aggregated ${payments.length} payments from children`);
+        logger.info(`[Payment History] Aggregated ${payments.length} payments from children`);
       } else {
         // For regular or child invoices, get payment history directly
         payments = await storage.getPaymentHistory(req.params.id);
-        console.log(`[Payment History] Regular/child invoice, found ${payments.length} payments`);
+        logger.info(`[Payment History] Regular/child invoice, found ${payments.length} payments`);
       }
 
       // Enrich with user names
@@ -2225,10 +2222,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
 
-      console.log(`[Payment History] Returning ${enrichedPayments.length} enriched payments`);
+      logger.info(`[Payment History] Returning ${enrichedPayments.length} enriched payments`);
       return res.json(enrichedPayments);
     } catch (error) {
-      console.error("Fetch payment history error:", error);
+      logger.error("Fetch payment history error:", error);
       return res.status(500).json({ error: "Failed to fetch payment history" });
     }
   });
@@ -2352,17 +2349,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("Delete payment error:", error);
+      logger.error("Delete payment error:", error);
       return res.status(500).json({ error: error.message || "Failed to delete payment" });
     }
   });
 
   // PDF Export for Quotes
   app.get("/api/quotes/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) => {
-    console.log(`[PDF Export START] Received request for quote: ${req.params.id}`);
+    logger.info(`[PDF Export START] Received request for quote: ${req.params.id}`);
     try {
       const quote = await storage.getQuote(req.params.id);
-      console.log(`[PDF Export] Found quote: ${quote?.quoteNumber}`);
+      logger.info(`[PDF Export] Found quote: ${quote?.quoteNumber}`);
       if (!quote) {
         return res.status(404).json({ error: "Quote not found" });
       }
@@ -2378,7 +2375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch company settings
       const settings = await storage.getAllSettings();
       // Debug logging to see what keys are available
-      console.log("Available settings keys:", settings.map(s => s.key));
+      logger.info("Available settings keys:", settings.map(s => s.key));
 
       const companyName = settings.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
       
@@ -2397,7 +2394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
       const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
       
-      console.log("Company Logo found:", !!companyLogo, "Length:", companyLogo?.length);
+      logger.info("Company Logo found:", !!companyLogo, "Length:", companyLogo?.length);
 
       // Fetch bank details from settings
       const bankName = settings.find((s) => s.key === "bank_bankName")?.value || "";
@@ -2407,7 +2404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
       const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
 
-      console.error("!!! DEBUG BANK DETAILS !!!", {
+      logger.error("!!! DEBUG BANK DETAILS !!!", {
           bankName,
           bankAccountNumber,
           bankAccountName,
@@ -2427,12 +2424,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Expires", "0");
 
       // DEBUG: Log what we're sending
-      console.log(`[PDF Export] Quote #${quote.quoteNumber}`);
-      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
-      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+      logger.info(`[PDF Export] Quote #${quote.quoteNumber}`);
+      logger.info(`[PDF Export] Clean filename: ${cleanFilename}`);
+      logger.info(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
 
       // Generate PDF
-      console.log(`[PDF Export] About to generate PDF`);
+      logger.info(`[PDF Export] About to generate PDF`);
       await PDFService.generateQuotePDF({
         quote,
         client,
@@ -2455,7 +2452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           swift: bankSwiftCode,
         },
       }, res);
-      console.log(`[PDF Export] PDF stream piped successfully`);
+      logger.info(`[PDF Export] PDF stream piped successfully`);
 
       // Log after headers are sent
       await storage.createActivityLog({
@@ -2464,9 +2461,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "quote",
         entityId: quote.id,
       });
-      console.log(`[PDF Export COMPLETE] Quote PDF exported successfully: ${quote.quoteNumber}`);
+      logger.info(`[PDF Export COMPLETE] Quote PDF exported successfully: ${quote.quoteNumber}`);
     } catch (error: any) {
-      console.error("[PDF Export ERROR]", error);
+      logger.error("[PDF Export ERROR]", error);
       return res.status(500).json({ error: error.message || "Failed to generate PDF" });
     }
   });
@@ -2560,9 +2557,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Expires", "0");
 
       // DEBUG: Log what we're sending
-      console.log(`[PDF Export] Invoice #${invoice.invoiceNumber}`);
-      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
-      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+      logger.info(`[PDF Export] Invoice #${invoice.invoiceNumber}`);
+      logger.info(`[PDF Export] Clean filename: ${cleanFilename}`);
+      logger.info(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
 
       // Generate PDF
       await InvoicePDFService.generateInvoicePDF({
@@ -2623,7 +2620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: invoice.id,
       });
     } catch (error: any) {
-      console.error("PDF export error:", error);
+      logger.error("PDF export error:", error);
       return res.status(500).json({ error: error.message || "Failed to generate PDF" });
     }
   });
@@ -2795,7 +2792,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true, message: "Invoice sent successfully" });
     } catch (error: any) {
-      console.error("Email invoice error:", error);
+      logger.error("Email invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to send invoice email" });
     }
   });
@@ -2882,7 +2879,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true, message: "Payment reminder sent successfully" });
     } catch (error: any) {
-      console.error("Payment reminder error:", error);
+      logger.error("Payment reminder error:", error);
       return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
     }
   });
@@ -2957,7 +2954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(template);
     } catch (error: any) {
-      console.error("Create template error:", error);
+      logger.error("Create template error:", error);
       return res.status(500).json({ error: error.message || "Failed to create template" });
     }
   });
@@ -2978,7 +2975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(template);
     } catch (error: any) {
-      console.error("Update template error:", error);
+      logger.error("Update template error:", error);
       return res.status(500).json({ error: error.message || "Failed to update template" });
     }
   });
@@ -3091,7 +3088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (invalidKeys.length > 0) {
-          console.warn(`[Settings] Ignored invalid keys: ${invalidKeys.join(", ")}`);
+          logger.warn(`[Settings] Ignored invalid keys: ${invalidKeys.join(", ")}`);
         }
 
         await storage.createActivityLog({
@@ -3143,7 +3140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: result.errors,
       });
     } catch (error: any) {
-      console.error("Document number migration error:", error);
+      logger.error("Document number migration error:", error);
       return res.status(500).json({
         error: error.message || "Failed to migrate document numbers",
         success: false,
@@ -3185,7 +3182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(counters);
     } catch (error: any) {
-      console.error("Get counters error:", error);
+      logger.error("Get counters error:", error);
       return res.status(500).json({ error: error.message || "Failed to get counters" });
     }
   });
@@ -3240,7 +3237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentValue: 0,
       });
     } catch (error: any) {
-      console.error("Reset counter error:", error);
+      logger.error("Reset counter error:", error);
       return res.status(500).json({ error: error.message || "Failed to reset counter" });
     }
   });
@@ -3300,7 +3297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentValue: numericValue,
       });
     } catch (error: any) {
-      console.error("Set counter error:", error);
+      logger.error("Set counter error:", error);
       return res.status(500).json({ error: error.message || "Failed to set counter" });
     }
   });
@@ -3430,7 +3427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const vendors = await storage.getAllVendors();
       res.json(vendors);
     } catch (error) {
-      console.error("Error fetching vendors:", error);
+      logger.error("Error fetching vendors:", error);
       res.status(500).json({ error: "Failed to fetch vendors" });
     }
   });
@@ -3443,7 +3440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(vendor);
     } catch (error) {
-      console.error("Error fetching vendor:", error);
+      logger.error("Error fetching vendor:", error);
       res.status(500).json({ error: "Failed to fetch vendor" });
     }
   });
@@ -3456,7 +3453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.json(vendor);
     } catch (error) {
-      console.error("Error creating vendor:", error);
+      logger.error("Error creating vendor:", error);
       res.status(500).json({ error: "Failed to create vendor" });
     }
   });
@@ -3469,7 +3466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(updated);
     } catch (error) {
-      console.error("Error updating vendor:", error);
+      logger.error("Error updating vendor:", error);
       res.status(500).json({ error: "Failed to update vendor" });
     }
   });
@@ -3479,7 +3476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteVendor(req.params.id);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting vendor:", error);
+      logger.error("Error deleting vendor:", error);
       res.status(500).json({ error: "Failed to delete vendor" });
     }
   });
@@ -3503,7 +3500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(enrichedPos);
     } catch (error) {
-      console.error("Error fetching vendor POs:", error);
+      logger.error("Error fetching vendor POs:", error);
       res.status(500).json({ error: "Failed to fetch vendor POs" });
     }
   });
@@ -3526,7 +3523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         items,
       });
     } catch (error) {
-      console.error("Error fetching vendor PO:", error);
+      logger.error("Error fetching vendor PO:", error);
       res.status(500).json({ error: "Failed to fetch vendor PO" });
     }
   });
@@ -3575,7 +3572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(po);
     } catch (error) {
-      console.error("Error creating vendor PO:", error);
+      logger.error("Error creating vendor PO:", error);
       res.status(500).json({ error: "Failed to create vendor PO" });
     }
   });
@@ -3652,7 +3649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(po);
     } catch (error: any) {
-      console.error("Error creating vendor PO:", error);
+      logger.error("Error creating vendor PO:", error);
       res.status(500).json({ error: error.message || "Failed to create vendor PO" });
     }
   });
@@ -3665,7 +3662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(updated);
     } catch (error) {
-      console.error("Error updating vendor PO:", error);
+      logger.error("Error updating vendor PO:", error);
       res.status(500).json({ error: "Failed to update vendor PO" });
     }
   });
@@ -3684,7 +3681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updated);
     } catch (error) {
-      console.error("Error updating serial numbers:", error);
+      logger.error("Error updating serial numbers:", error);
       res.status(500).json({ error: "Failed to update serial numbers" });
     }
   });
@@ -3701,7 +3698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       res.json(enrichedInvoices);
     } catch (error) {
-      console.error("Error fetching invoices:", error);
+      logger.error("Error fetching invoices:", error);
       res.status(500).json({ error: "Failed to fetch invoices" });
     }
   });
@@ -3785,7 +3782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(invoice);
     } catch (error: any) {
-      console.error("Create invoice error:", error);
+      logger.error("Create invoice error:", error);
       return res.status(500).json({ error: error.message || "Failed to create invoice" });
     }
   });
@@ -3922,7 +3919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recentApprovals,
       });
     } catch (error: any) {
-      console.error("Error fetching governance stats:", error);
+      logger.error("Error fetching governance stats:", error);
       return res.status(500).json({ error: error.message || "Failed to fetch governance stats" });
     }
   });
@@ -3954,7 +3951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(enrichedLogs);
     } catch (error: any) {
-      console.error("Error fetching activity logs:", error);
+      logger.error("Error fetching activity logs:", error);
       return res.status(500).json({ error: error.message || "Failed to fetch activity logs" });
     }
   });
@@ -3981,7 +3978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
       return res.json(simplifiedRates);
     } catch (error: any) {
-      console.error("Error fetching tax rates:", error);
+      logger.error("Error fetching tax rates:", error);
       return res.status(500).json({ error: "Failed to fetch tax rates" });
     }
   });
@@ -4028,7 +4025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         igstRate: parseFloat(igst),
       });
     } catch (error: any) {
-      console.error("Error creating tax rate:", error);
+      logger.error("Error creating tax rate:", error);
       return res.status(500).json({ error: error.message || "Failed to create tax rate" });
     }
   });
@@ -4051,7 +4048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("Error deleting tax rate:", error);
+      logger.error("Error deleting tax rate:", error);
       return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
     }
   });
@@ -4062,7 +4059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const terms = await db.select().from(schema.paymentTerms).where(eq(schema.paymentTerms.isActive, true));
       return res.json(terms);
     } catch (error: any) {
-      console.error("Error fetching payment terms:", error);
+      logger.error("Error fetching payment terms:", error);
       return res.status(500).json({ error: "Failed to fetch payment terms" });
     }
   });
@@ -4102,7 +4099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(newTerm[0]);
     } catch (error: any) {
-      console.error("Error creating payment term:", error);
+      logger.error("Error creating payment term:", error);
       return res.status(500).json({ error: error.message || "Failed to create payment term" });
     }
   });
@@ -4125,7 +4122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("Error deleting payment term:", error);
+      logger.error("Error deleting payment term:", error);
       return res.status(500).json({ error: error.message || "Failed to delete payment term" });
     }
   });
@@ -4158,7 +4155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Next value shows what will be generated next"
       });
     } catch (error: any) {
-      console.error("Error fetching counters:", error);
+      logger.error("Error fetching counters:", error);
       return res.status(500).json({ error: error.message || "Failed to fetch counters" });
     }
   });
@@ -4168,7 +4165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { type } = req.params;
       const year = new Date().getFullYear();
 
-      console.log(`[DEBUG] Resetting counter for ${type} in year ${year}`);
+      logger.info(`[DEBUG] Resetting counter for ${type} in year ${year}`);
 
       await NumberingService.resetCounter(type, year);
 
@@ -4178,7 +4175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nextNumber: "0001"
       });
     } catch (error: any) {
-      console.error("Error resetting counter:", error);
+      logger.error("Error resetting counter:", error);
       return res.status(500).json({ error: error.message || "Failed to reset counter" });
     }
   });
@@ -4193,7 +4190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Value must be a non-negative integer" });
       }
 
-      console.log(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
+      logger.info(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
 
       await NumberingService.setCounter(type, year, numValue);
 
@@ -4204,7 +4201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nextNumber: String(nextValue).padStart(4, "0")
       });
     } catch (error: any) {
-      console.error("Error setting counter:", error);
+      logger.error("Error setting counter:", error);
       return res.status(500).json({ error: error.message || "Failed to set counter" });
     }
   });
@@ -4215,8 +4212,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { serialNumbers } = req.body;
 
-      console.log(`Updating serial numbers for item ${req.params.itemId} in invoice ${req.params.id}`);
-      console.log(`Serial numbers count: ${serialNumbers?.length || 0}`);
+      logger.info(`Updating serial numbers for item ${req.params.itemId} in invoice ${req.params.id}`);
+      logger.info(`Serial numbers count: ${serialNumbers?.length || 0}`);
 
       // Get the invoice item being updated
       const invoiceItem = await storage.getInvoiceItem(req.params.itemId);
@@ -4240,18 +4237,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If this is a child invoice, update the corresponding master item
       if (invoice && invoice.parentInvoiceId) {
-        console.log(`This is a child invoice. Parent: ${invoice.parentInvoiceId}`);
-        console.log(`Syncing with master invoice...`);
+        logger.info(`This is a child invoice. Parent: ${invoice.parentInvoiceId}`);
+        logger.info(`Syncing with master invoice...`);
 
         // Get master invoice items
         const masterItems = await storage.getInvoiceItems(invoice.parentInvoiceId);
 
-        console.log(`Searching for master item with:`);
-        console.log(`  Description: "${invoiceItem.description}"`);
-        console.log(`  Unit Price: ${invoiceItem.unitPrice}`);
-        console.log(`\nAvailable master items:`);
+        logger.info(`Searching for master item with:`);
+        logger.info(`  Description: "${invoiceItem.description}"`);
+        logger.info(`  Unit Price: ${invoiceItem.unitPrice}`);
+        logger.info(`\nAvailable master items:`);
         masterItems.forEach((mi: any, index: number) => {
-          console.log(`  [${index}] Description: "${mi.description}", Unit Price: ${mi.unitPrice}`);
+          logger.info(`  [${index}] Description: "${mi.description}", Unit Price: ${mi.unitPrice}`);
         });
 
         // Find the corresponding master item by matching description and unitPrice
@@ -4261,13 +4258,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         if (masterItem) {
-          console.log(`Found master item: ${masterItem.description} (ID: ${masterItem.id})`);
+          logger.info(`Found master item: ${masterItem.description} (ID: ${masterItem.id})`);
 
           // Get all child invoices of this master
           const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
           const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === invoice.parentInvoiceId);
 
-          console.log(`Found ${childInvoices.length} child invoices for this master`);
+          logger.info(`Found ${childInvoices.length} child invoices for this master`);
 
           // Aggregate serial numbers from all child invoices for this item
           const allChildSerialNumbers = [];
@@ -4282,14 +4279,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               try {
                 const serials = JSON.parse(matchingChildItem.serialNumbers);
                 allChildSerialNumbers.push(...serials);
-                console.log(`  Child ${childInvoice.invoiceNumber}: ${serials.length} serial numbers`);
+                logger.info(`  Child ${childInvoice.invoiceNumber}: ${serials.length} serial numbers`);
               } catch (e) {
-                console.error("Error parsing serial numbers:", e);
+                logger.error("Error parsing serial numbers:", e);
               }
             }
           }
 
-          console.log(`Total aggregated serial numbers: ${allChildSerialNumbers.length}`);
+          logger.info(`Total aggregated serial numbers: ${allChildSerialNumbers.length}`);
 
           // Update master item with aggregated serial numbers
           await storage.updateInvoiceItem(masterItem.id, {
@@ -4299,17 +4296,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: masterItem.fulfilledQuantity >= masterItem.quantity ? "fulfilled" : "pending",
           });
 
-          console.log(`✓ Master item updated successfully with ${allChildSerialNumbers.length} serial numbers`);
+          logger.info(`✓ Master item updated successfully with ${allChildSerialNumbers.length} serial numbers`);
         } else {
-          console.log(`⚠ No matching master item found for: ${invoiceItem.description}`);
+          logger.info(`⚠ No matching master item found for: ${invoiceItem.description}`);
         }
       } else {
-        console.log(`This is not a child invoice or is a master invoice itself`);
+        logger.info(`This is not a child invoice or is a master invoice itself`);
       }
 
       res.json(updated);
     } catch (error) {
-      console.error("Error updating serial numbers:", error);
+      logger.error("Error updating serial numbers:", error);
       res.status(500).json({ error: "Failed to update serial numbers" });
     }
   });
@@ -4343,7 +4340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(validation);
     } catch (error: any) {
-      console.error("Error validating serial numbers:", error);
+      logger.error("Error validating serial numbers:", error);
       return res.status(500).json({ error: error.message || "Failed to validate serial numbers" });
     }
   });
@@ -4358,7 +4355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(permissions);
     } catch (error: any) {
-      console.error("Error checking serial edit permissions:", error);
+      logger.error("Error checking serial edit permissions:", error);
       return res.status(500).json({ error: error.message || "Failed to check permissions" });
     }
   });
@@ -4381,7 +4378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(traceability);
     } catch (error: any) {
-      console.error("Error searching serial number:", error);
+      logger.error("Error searching serial number:", error);
       return res.status(500).json({ error: error.message || "Failed to search serial number" });
     }
   });
@@ -4410,7 +4407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ results });
     } catch (error: any) {
-      console.error("Error batch validating serials:", error);
+      logger.error("Error batch validating serials:", error);
       return res.status(500).json({ error: error.message || "Failed to validate serials" });
     }
   });
@@ -4421,33 +4418,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { masterId } = req.params;
       const { items, milestoneDescription, deliveryNotes, notes } = req.body;
 
-      console.log("Creating child invoice for master:", masterId);
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      logger.info("Creating child invoice for master:", masterId);
+      logger.info("Request body:", JSON.stringify(req.body, null, 2));
 
       // 1. Verify master invoice exists and is actually a master
       const masterInvoice = await storage.getInvoice(masterId);
       if (!masterInvoice) {
-        console.error("Master invoice not found:", masterId);
+        logger.error("Master invoice not found:", masterId);
         return res.status(404).json({ error: "Master invoice not found" });
       }
 
       if (!masterInvoice.isMaster) {
-        console.error("Invoice is not a master invoice:", masterId);
+        logger.error("Invoice is not a master invoice:", masterId);
         return res.status(400).json({ error: "Invoice is not a master invoice" });
       }
 
       // 2. Get master invoice items
       const masterItems = await storage.getInvoiceItems(masterId);
-      console.log("Master items count:", masterItems?.length || 0);
+      logger.info("Master items count:", masterItems?.length || 0);
 
       if (!masterItems || masterItems.length === 0) {
-        console.error("Master invoice has no items");
+        logger.error("Master invoice has no items");
         return res.status(400).json({ error: "Master invoice has no items" });
       }
 
       // 3. Validate items array
       if (!items || !Array.isArray(items) || items.length === 0) {
-        console.error("Invalid items array:", items);
+        logger.error("Invalid items array:", items);
         return res.status(400).json({ error: "Items array is required and must not be empty" });
       }
 
@@ -4455,15 +4452,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const item of items) {
         const masterItem = masterItems.find((mi: any) => mi.id === item.itemId);
         if (!masterItem) {
-          console.error("Item not found in master:", item.itemId);
+          logger.error("Item not found in master:", item.itemId);
           return res.status(400).json({ error: `Item ${item.itemId} not found in master invoice` });
         }
 
         const remaining = masterItem.quantity - masterItem.fulfilledQuantity;
-        console.log(`Item ${masterItem.description}: qty=${item.quantity}, remaining=${remaining}`);
+        logger.info(`Item ${masterItem.description}: qty=${item.quantity}, remaining=${remaining}`);
 
         if (item.quantity > remaining) {
-          console.error(`Over-invoicing detected: requested=${item.quantity}, remaining=${remaining}`);
+          logger.error(`Over-invoicing detected: requested=${item.quantity}, remaining=${remaining}`);
           return res.status(400).json({
             error: `Cannot invoice ${item.quantity} of "${masterItem.description}". Only ${remaining} remaining.`
           });
@@ -4478,24 +4475,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 5. Calculate totals based on selected items
       let subtotal = 0;
-      console.log("Calculating subtotal for child invoice...");
+      logger.info("Calculating subtotal for child invoice...");
       for (const item of items) {
         const masterItem = masterItems.find((mi: any) => mi.id === item.itemId);
         if (!masterItem) {
-          console.error("Master item not found during calculation:", item.itemId);
+          logger.error("Master item not found during calculation:", item.itemId);
           continue; // Skip if not found (already validated, but safety check)
         }
         const itemSubtotal = Number(masterItem.unitPrice) * item.quantity;
-        console.log(`  Item: ${masterItem.description}, unitPrice: ${masterItem.unitPrice}, qty: ${item.quantity}, subtotal: ${itemSubtotal}`);
+        logger.info(`  Item: ${masterItem.description}, unitPrice: ${masterItem.unitPrice}, qty: ${item.quantity}, subtotal: ${itemSubtotal}`);
         subtotal += itemSubtotal;
       }
-      console.log("Total subtotal:", subtotal);
+      logger.info("Total subtotal:", subtotal);
 
       // 6. Pro-rate taxes and discounts proportionally
       const masterSubtotal = Number(masterInvoice.subtotal);
-      console.log("Master subtotal:", masterSubtotal);
+      logger.info("Master subtotal:", masterSubtotal);
       const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
-      console.log("Ratio:", ratio);
+      logger.info("Ratio:", ratio);
 
       const discount = Number(masterInvoice.discount) * ratio;
       const cgst = Number(masterInvoice.cgst) * ratio;
@@ -4503,10 +4500,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const igst = Number(masterInvoice.igst) * ratio;
       const shippingCharges = Number(masterInvoice.shippingCharges) * ratio;
 
-      console.log("Calculated amounts - discount:", discount, "cgst:", cgst, "sgst:", sgst, "igst:", igst, "shipping:", shippingCharges);
+      logger.info("Calculated amounts - discount:", discount, "cgst:", cgst, "sgst:", sgst, "igst:", igst, "shipping:", shippingCharges);
 
       const total = subtotal - discount + cgst + sgst + igst + shippingCharges;
-      console.log("Final total:", total);
+      logger.info("Final total:", total);
 
       // 7. Create child invoice
       const childInvoice = await storage.createInvoice({
@@ -4570,7 +4567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(childInvoice);
     } catch (error) {
-      console.error("Error creating child invoice:", error);
+      logger.error("Error creating child invoice:", error);
       res.status(500).json({ error: "Failed to create child invoice" });
     }
   });
@@ -4581,7 +4578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const products = await db.select().from(schema.products).orderBy(schema.products.name);
       res.json(products);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      logger.error("Error fetching products:", error);
       res.status(500).json({ error: "Failed to fetch products" });
     }
   });
@@ -4599,7 +4596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(product);
     } catch (error) {
-      console.error("Error fetching product:", error);
+      logger.error("Error fetching product:", error);
       res.status(500).json({ error: "Failed to fetch product" });
     }
   });
@@ -4621,7 +4618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(product);
     } catch (error) {
-      console.error("Error creating product:", error);
+      logger.error("Error creating product:", error);
       res.status(500).json({ error: "Failed to create product" });
     }
   });
@@ -4640,7 +4637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updated);
     } catch (error) {
-      console.error("Error updating product:", error);
+      logger.error("Error updating product:", error);
       res.status(500).json({ error: "Failed to update product" });
     }
   });
@@ -4676,7 +4673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(grns);
     } catch (error) {
-      console.error("Error fetching GRNs:", error);
+      logger.error("Error fetching GRNs:", error);
       res.status(500).json({ error: "Failed to fetch GRNs" });
     }
   });
@@ -4746,7 +4743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         inspectedBy: inspector,
       });
     } catch (error) {
-      console.error("Error fetching GRN:", error);
+      logger.error("Error fetching GRN:", error);
       res.status(500).json({ error: "Failed to fetch GRN" });
     }
   });
@@ -4814,10 +4811,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             })
             .where(eq(schema.products.id, poItem.productId));
           
-          console.log(`[GRN] Updated product ${poItem.productId} stock: +${quantityAccepted}`);
+          logger.info(`[GRN] Updated product ${poItem.productId} stock: +${quantityAccepted}`);
         }
       } else if (poItem.productId && !isFeatureEnabled('products_stock_tracking')) {
-        console.log(`[GRN] Stock update skipped for product ${poItem.productId}: Stock tracking is disabled`);
+        logger.info(`[GRN] Stock update skipped for product ${poItem.productId}: Stock tracking is disabled`);
       }
 
       // Create serial numbers if provided
@@ -4845,7 +4842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(grn);
     } catch (error: any) {
-      console.error("Error creating GRN:", error);
+      logger.error("Error creating GRN:", error);
       res.status(500).json({ error: error.message || "Failed to create GRN" });
     }
   });
@@ -4890,7 +4887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(grn);
     } catch (error: any) {
-      console.error("Error updating GRN:", error);
+      logger.error("Error updating GRN:", error);
       res.status(500).json({ error: error.message || "Failed to update GRN" });
     }
   });
@@ -4949,7 +4946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ count: created.length, serialNumbers: created });
     } catch (error: any) {
-      console.error("Error importing serial numbers:", error);
+      logger.error("Error importing serial numbers:", error);
       res.status(500).json({ error: error.message || "Failed to import serial numbers" });
     }
   });
@@ -5028,7 +5025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invoice,
       });
     } catch (error) {
-      console.error("Error fetching serial number:", error);
+      logger.error("Error fetching serial number:", error);
       res.status(500).json({ error: "Failed to fetch serial number" });
     }
   });
@@ -5144,7 +5141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         monthlyRevenue,
       });
     } catch (error) {
-      console.error("Analytics error:", error);
+      logger.error("Analytics error:", error);
       return res.status(500).json({ error: "Failed to fetch analytics" });
     }
   });
@@ -5248,7 +5245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         statusBreakdown,
       });
     } catch (error) {
-      console.error("Analytics error:", error);
+      logger.error("Analytics error:", error);
       return res.status(500).json({ error: "Failed to fetch analytics" });
     }
   });
@@ -5260,7 +5257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const forecast = await analyticsService.getRevenueForecast(monthsAhead);
       return res.json(forecast);
     } catch (error) {
-      console.error("Forecast error:", error);
+      logger.error("Forecast error:", error);
       return res.status(500).json({ error: "Failed to fetch forecast" });
     }
   });
@@ -5270,7 +5267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const distribution = await analyticsService.getDealDistribution();
       return res.json(distribution);
     } catch (error) {
-      console.error("Deal distribution error:", error);
+      logger.error("Deal distribution error:", error);
       return res.status(500).json({ error: "Failed to fetch deal distribution" });
     }
   });
@@ -5280,7 +5277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const regionalData = await analyticsService.getRegionalDistribution();
       return res.json(regionalData);
     } catch (error) {
-      console.error("Regional data error:", error);
+      logger.error("Regional data error:", error);
       return res.status(500).json({ error: "Failed to fetch regional data" });
     }
   });
@@ -5297,7 +5294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       return res.json(report);
     } catch (error) {
-      console.error("Custom report error:", error);
+      logger.error("Custom report error:", error);
       return res.status(500).json({ error: "Failed to generate custom report" });
     }
   });
@@ -5307,7 +5304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pipeline = await analyticsService.getSalesPipeline();
       return res.json(pipeline);
     } catch (error) {
-      console.error("Pipeline error:", error);
+      logger.error("Pipeline error:", error);
       return res.status(500).json({ error: "Failed to fetch pipeline data" });
     }
   });
@@ -5317,7 +5314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
       return res.json(ltv);
     } catch (error) {
-      console.error("LTV error:", error);
+      logger.error("LTV error:", error);
       return res.status(500).json({ error: "Failed to fetch client LTV" });
     }
   });
@@ -5327,7 +5324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const insights = await analyticsService.getCompetitorInsights();
       return res.json(insights);
     } catch (error) {
-      console.error("Competitor insights error:", error);
+      logger.error("Competitor insights error:", error);
       return res.status(500).json({ error: "Failed to fetch competitor insights" });
     }
   });
@@ -5430,7 +5427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error) {
-      console.error("Vendor analytics error:", error);
+      logger.error("Vendor analytics error:", error);
       return res.status(500).json({ error: "Failed to fetch vendor analytics" });
     }
   });
@@ -5441,7 +5438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tags = await storage.getClientTags(req.params.clientId);
       return res.json(tags);
     } catch (error) {
-      console.error("Get tags error:", error);
+      logger.error("Get tags error:", error);
       return res.status(500).json({ error: "Failed to fetch client tags" });
     }
   });
@@ -5467,7 +5464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(clientTag);
     } catch (error) {
-      console.error("Add tag error:", error);
+      logger.error("Add tag error:", error);
       return res.status(500).json({ error: "Failed to add tag" });
     }
   });
@@ -5485,7 +5482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error) {
-      console.error("Remove tag error:", error);
+      logger.error("Remove tag error:", error);
       return res.status(500).json({ error: "Failed to remove tag" });
     }
   });
@@ -5495,7 +5492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const communications = await storage.getClientCommunications(req.params.clientId);
       return res.json(communications);
     } catch (error) {
-      console.error("Get communications error:", error);
+      logger.error("Get communications error:", error);
       return res.status(500).json({ error: "Failed to fetch communications" });
     }
   });
@@ -5527,7 +5524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(communication);
     } catch (error: any) {
-      console.error("Create communication error:", error);
+      logger.error("Create communication error:", error);
       return res.status(500).json({ error: error.message || "Failed to create communication" });
     }
   });
@@ -5545,7 +5542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error) {
-      console.error("Delete communication error:", error);
+      logger.error("Delete communication error:", error);
       return res.status(500).json({ error: "Failed to delete communication" });
     }
   });
@@ -5557,7 +5554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tiers = await storage.getAllPricingTiers();
       return res.json(tiers);
     } catch (error) {
-      console.error("Get pricing tiers error:", error);
+      logger.error("Get pricing tiers error:", error);
       return res.status(500).json({ error: "Failed to fetch pricing tiers" });
     }
   });
@@ -5592,7 +5589,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(tier);
     } catch (error: any) {
-      console.error("Create pricing tier error:", error);
+      logger.error("Create pricing tier error:", error);
       return res.status(500).json({ error: error.message || "Failed to create pricing tier" });
     }
   });
@@ -5617,7 +5614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(updated);
     } catch (error: any) {
-      console.error("Update pricing tier error:", error);
+      logger.error("Update pricing tier error:", error);
       return res.status(500).json({ error: error.message || "Failed to update pricing tier" });
     }
   });
@@ -5639,7 +5636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error) {
-      console.error("Delete pricing tier error:", error);
+      logger.error("Delete pricing tier error:", error);
       return res.status(500).json({ error: "Failed to delete pricing tier" });
     }
   });
@@ -5656,7 +5653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await pricingService.calculateDiscount(subtotal);
       return res.json(result);
     } catch (error: any) {
-      console.error("Calculate discount error:", error);
+      logger.error("Calculate discount error:", error);
       return res.status(500).json({ error: error.message || "Failed to calculate discount" });
     }
   });
@@ -5672,7 +5669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taxes = await pricingService.calculateTaxes(amount, region, useIGST);
       return res.json(taxes);
     } catch (error: any) {
-      console.error("Calculate taxes error:", error);
+      logger.error("Calculate taxes error:", error);
       return res.status(500).json({ error: error.message || "Failed to calculate taxes" });
     }
   });
@@ -5695,7 +5692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(total);
     } catch (error: any) {
-      console.error("Calculate total error:", error);
+      logger.error("Calculate total error:", error);
       return res.status(500).json({ error: error.message || "Failed to calculate total" });
     }
   });
@@ -5711,7 +5708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const converted = await pricingService.convertCurrency(amount, fromCurrency, toCurrency);
       return res.json({ original: amount, converted, fromCurrency, toCurrency });
     } catch (error: any) {
-      console.error("Convert currency error:", error);
+      logger.error("Convert currency error:", error);
       return res.status(500).json({ error: error.message || "Failed to convert currency" });
     }
   });
@@ -5725,7 +5722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return res.json(settings);
     } catch (error) {
-      console.error("Get currency settings error:", error);
+      logger.error("Get currency settings error:", error);
       return res.status(500).json({ error: "Failed to fetch currency settings" });
     }
   });
@@ -5752,7 +5749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(settings);
     } catch (error: any) {
-      console.error("Update currency settings error:", error);
+      logger.error("Update currency settings error:", error);
       return res.status(500).json({ error: error.message || "Failed to update currency settings" });
     }
   });
@@ -6126,7 +6123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recentApprovals,
       });
     } catch (error: any) {
-      console.error("Error fetching governance stats:", error);
+      logger.error("Error fetching governance stats:", error);
       return res.status(500).json({ error: error.message || "Failed to fetch governance stats" });
     }
   });
@@ -6158,7 +6155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(enrichedLogs);
     } catch (error: any) {
-      console.error("Error fetching activity logs:", error);
+      logger.error("Error fetching activity logs:", error);
       return res.status(500).json({ error: error.message || "Failed to fetch activity logs" });
     }
   });
@@ -6185,7 +6182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
       return res.json(simplifiedRates);
     } catch (error: any) {
-      console.error("Error fetching tax rates:", error);
+      logger.error("Error fetching tax rates:", error);
       return res.status(500).json({ error: "Failed to fetch tax rates" });
     }
   });
@@ -6232,7 +6229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         igstRate: parseFloat(igst),
       });
     } catch (error: any) {
-      console.error("Error creating tax rate:", error);
+      logger.error("Error creating tax rate:", error);
       return res.status(500).json({ error: error.message || "Failed to create tax rate" });
     }
   });
@@ -6255,7 +6252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("Error deleting tax rate:", error);
+      logger.error("Error deleting tax rate:", error);
       return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
     }
   });
@@ -6266,7 +6263,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const terms = await db.select().from(schema.paymentTerms).where(eq(schema.paymentTerms.isActive, true));
       return res.json(terms);
     } catch (error: any) {
-      console.error("Error fetching payment terms:", error);
+      logger.error("Error fetching payment terms:", error);
       return res.status(500).json({ error: "Failed to fetch payment terms" });
     }
   });
@@ -6306,7 +6303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(newTerm[0]);
     } catch (error: any) {
-      console.error("Error creating payment term:", error);
+      logger.error("Error creating payment term:", error);
       return res.status(500).json({ error: error.message || "Failed to create payment term" });
     }
   });
@@ -6329,7 +6326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("Error deleting payment term:", error);
+      logger.error("Error deleting payment term:", error);
       return res.status(500).json({ error: error.message || "Failed to delete payment term" });
     }
   });
@@ -6362,7 +6359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Next value shows what will be generated next"
       });
     } catch (error: any) {
-      console.error("Error fetching counters:", error);
+      logger.error("Error fetching counters:", error);
       return res.status(500).json({ error: error.message || "Failed to fetch counters" });
     }
   });
@@ -6372,7 +6369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { type } = req.params;
       const year = new Date().getFullYear();
 
-      console.log(`[DEBUG] Resetting counter for ${type} in year ${year}`);
+      logger.info(`[DEBUG] Resetting counter for ${type} in year ${year}`);
 
       await NumberingService.resetCounter(type, year);
 
@@ -6382,7 +6379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nextNumber: "0001"
       });
     } catch (error: any) {
-      console.error("Error resetting counter:", error);
+      logger.error("Error resetting counter:", error);
       return res.status(500).json({ error: error.message || "Failed to reset counter" });
     }
   });
@@ -6397,7 +6394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Value must be a non-negative integer" });
       }
 
-      console.log(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
+      logger.info(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
 
       await NumberingService.setCounter(type, year, numValue);
 
@@ -6408,7 +6405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nextNumber: String(nextValue).padStart(4, "0")
       });
     } catch (error: any) {
-      console.error("Error setting counter:", error);
+      logger.error("Error setting counter:", error);
       return res.status(500).json({ error: error.message || "Failed to set counter" });
     }
   });
@@ -6428,7 +6425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(settingsObj);
     } catch (error: any) {
-      console.error("Error fetching settings:", error);
+      logger.error("Error fetching settings:", error);
       res.status(500).json({ error: error.message || "Failed to fetch settings" });
     }
   });
@@ -6449,7 +6446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(setting);
     } catch (error: any) {
-      console.error("Error saving setting:", error);
+      logger.error("Error saving setting:", error);
       res.status(500).json({ error: error.message || "Failed to save setting" });
     }
   });

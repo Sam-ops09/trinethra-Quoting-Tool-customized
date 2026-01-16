@@ -63,7 +63,7 @@ async function reserveStockForSalesOrder(salesOrderId: string): Promise<void> {
     
     logger.stock(`[Stock Reserve] Reserved stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
   } catch (error) {
-    console.error(`[Stock Reserve] Error reserving stock for SO ${salesOrderId}:`, error);
+    logger.error(`[Stock Reserve] Error reserving stock for SO ${salesOrderId}:`, error);
     throw error;
   }
 }
@@ -102,7 +102,7 @@ async function releaseStockForSalesOrder(salesOrderId: string): Promise<void> {
     
     logger.stock(`[Stock Release] Released stock for SO ${salesOrderId}: ${Object.keys(productQuantities).length} products`);
   } catch (error) {
-    console.error(`[Stock Release] Error releasing stock for SO ${salesOrderId}:`, error);
+    logger.error(`[Stock Release] Error releasing stock for SO ${salesOrderId}:`, error);
     // Don't throw - allow cancellation to proceed
   }
 }
@@ -176,7 +176,7 @@ router.post("/quotes/:id/revise",
 
       return res.json(updatedQuote);
     } catch (error: any) {
-      console.error("Revise quote error:", error);
+      logger.error("Revise quote error:", error);
       return res.status(500).json({ error: error.message || "Failed to revise quote" });
     }
   }
@@ -235,7 +235,7 @@ router.post("/quotes/:id/versions",
 
       return res.json(version);
     } catch (error: any) {
-      console.error("Create quote version error:", error);
+      logger.error("Create quote version error:", error);
       return res.status(500).json({ error: error.message || "Failed to create quote version" });
     }
   }
@@ -339,7 +339,7 @@ router.post("/quotes/:id/clone",
 
       return res.json(newQuote);
     } catch (error: any) {
-      console.error("Clone quote error:", error);
+      logger.error("Clone quote error:", error);
       return res.status(500).json({ error: error.message || "Failed to clone quote" });
     }
   }
@@ -430,7 +430,7 @@ router.post("/sales-orders",
 
       return res.json(salesOrder);
     } catch (error: any) {
-      console.error("Create sales order error:", error);
+      logger.error("Create sales order error:", error);
       return res.status(500).json({ error: error.message || "Failed to create sales order" });
     }
   }
@@ -475,7 +475,7 @@ router.get("/sales-orders/:id",
     try {
       const order = await storage.getSalesOrder(req.params.id);
       if (order) {
-          console.log(`[GET SO] ID: ${order.id}, Subtotal: ${order.subtotal}, Discount: ${order.discount}, Tax: ${order.cgst}/${order.sgst}/${order.igst}, Total: ${order.total}`);
+          logger.info(`[GET SO] ID: ${order.id}, Subtotal: ${order.subtotal}, Discount: ${order.discount}, Tax: ${order.cgst}/${order.sgst}/${order.igst}, Total: ${order.total}`);
       }
       if (!order) {
         return res.status(404).json({ error: "Sales Order not found" });
@@ -657,7 +657,7 @@ router.patch("/sales-orders/:id",
 
       return res.json(result);
     } catch (error: any) {
-      console.error("Error updating sales order:", error);
+      logger.error("Error updating sales order:", error);
       return res.status(500).json({ error: error.message });
     }
   }
@@ -752,12 +752,18 @@ router.post(
                       
                       // Check validation
                       const allowNegative = isFeatureEnabled('products_allow_negative_stock');
-                      if (!allowNegative && currentStock < requiredQty) {
-                          logger.stock(`[Stock Deduction] Stock shortage for ${item.description}`);
-                      }
                       
-                       if (isFeatureEnabled('products_stock_warnings') && currentStock < requiredQty) {
-                          shortageNotes.push(`[SHORTAGE] ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
+                      // Always log stock shortages internally
+                      if (currentStock < requiredQty) {
+                          logger.stock(`[Stock Shortage] Product ${item.description} (ID: ${item.productId}): Required ${requiredQty}, Available ${currentStock}`);
+                          
+                          if (!allowNegative) {
+                              logger.warn(`[Stock Block] Shortage blocked for ${item.description}`);
+                          }
+                          
+                          if (isFeatureEnabled('products_stock_warnings')) {
+                              shortageNotes.push(`[SHORTAGE] ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
+                          }
                       }
 
                       // Atomic SQL Update
@@ -910,13 +916,13 @@ router.post(
           });
 
       } catch (pdfError) {
-          console.error("PDF generation failed for invoice:", result.invoice.id, pdfError);
+          logger.error("PDF generation failed for invoice:", result.invoice.id, pdfError);
       }
 
       return res.status(201).json(result.invoice);
 
     } catch (error: any) {
-      console.error("Error creating invoice from sales order:", error);
+      logger.error("Error creating invoice from sales order:", error);
       if (error.message.includes("already")) {
            return res.status(409).json({ error: error.message });
       }
@@ -987,7 +993,7 @@ router.post(
 
       res.json(items);
     } catch (error) {
-      console.error("Error parsing Excel:", error);
+      logger.error("Error parsing Excel:", error);
       res.status(500).json({ message: "Failed to parse Excel file" });
     }
   }
@@ -1038,7 +1044,7 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
     const quote = await storage.getQuote(order.quoteId);
     if (!quote) {
       // Should rare, but handle it
-      console.warn(`Quote not found for order ${order.id}`);
+      logger.warn(`Quote not found for order ${order.id}`);
     }
 
     const items = await storage.getSalesOrderItems(order.id);
@@ -1096,7 +1102,7 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
       deliveryNotes: undefined, // Schema update needed if this field is required
     }, res);
   } catch (error) {
-    console.error("Error generating PDF:", error);
+    logger.error("Error generating PDF:", error);
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 });
@@ -1213,7 +1219,7 @@ router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view")
 
     res.json({ success: true, message: "Email sent successfully" });
   } catch (error) {
-    console.error("Error sending email:", error);
+    logger.error("Error sending email:", error);
     res.status(500).json({ error: "Failed to send email" });
   }
 });
@@ -1306,7 +1312,7 @@ router.post("/quotes/:id/sales-orders",
         const orderId = error.message.split(":")[1];
         return res.status(400).json({ message: "A Sales Order already exists for this quote", orderId });
       }
-      console.error("Failed to create sales order:", error);
+      logger.error("Failed to create sales order:", error);
       res.status(500).json({ message: error.message || "Internal server error" });
     }
   }

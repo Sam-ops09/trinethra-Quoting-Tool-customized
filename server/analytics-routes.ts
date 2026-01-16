@@ -11,6 +11,8 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { analyticsService } from "./services/analytics.service";
 import ExcelJS from "exceljs";
+import { toDecimal, add, subtract, divide, toMoneyString } from "./utils/financial";
+import { logger } from "./utils/logger";
 
 const router = Router();
 
@@ -30,14 +32,14 @@ router.get("/analytics", async (req: AuthRequest, res: Response) => {
     // Revenue from paid invoices
     const totalRevenueVal = allInvoices.reduce((sum, inv) => {
       if (inv.paymentStatus === 'paid' || inv.paymentStatus === 'partial') {
-        return sum + parseFloat((inv.paidAmount || 0).toString());
+        return add(sum, inv.paidAmount);
       }
       return sum;
-    }, 0);
+    }, toDecimal(0));
 
     // Average Deal Size (from Quotes)
-    const totalQuoteValue = allQuotes.reduce((sum, q) => sum + parseFloat((q.total || 0).toString()), 0);
-    const avgQuoteValue = allQuotes.length > 0 ? totalQuoteValue / allQuotes.length : 0;
+    const totalQuoteValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
+    const avgQuoteValue = allQuotes.length > 0 ? divide(totalQuoteValue, allQuotes.length) : toDecimal(0);
 
     // Conversion Rate (Invoices vs Quotes)
     // Simple approximation: converted quotes / total quotes
@@ -46,8 +48,8 @@ router.get("/analytics", async (req: AuthRequest, res: Response) => {
 
     const overview = {
       totalQuotes,
-      totalRevenue: Math.round(totalRevenueVal).toLocaleString(),
-      avgQuoteValue: Math.round(avgQuoteValue).toLocaleString(),
+      totalRevenue: Math.round(totalRevenueVal.toNumber()).toLocaleString(),
+      avgQuoteValue: Math.round(avgQuoteValue.toNumber()).toLocaleString(),
       conversionRate: conversionRate.toFixed(1),
     };
 
@@ -80,7 +82,7 @@ router.get("/analytics", async (req: AuthRequest, res: Response) => {
         if (monthlyDataMap.has(key)) {
             const entry = monthlyDataMap.get(key)!;
              if (inv.paymentStatus === 'paid' || inv.paymentStatus === 'partial') {
-                entry.revenue += parseFloat((inv.paidAmount || 0).toString());
+                entry.revenue = add(entry.revenue, inv.paidAmount).toNumber();
             }
         }
     });
@@ -108,9 +110,9 @@ router.get("/analytics", async (req: AuthRequest, res: Response) => {
     // Let's use Quote Total as it represents "Deal Value" for Sales.
     const clientDealValue = new Map<string, number>();
     allQuotes.forEach(q => {
-        const val = parseFloat((q.total || 0).toString());
-        const curr = clientDealValue.get(q.clientId) || 0;
-        clientDealValue.set(q.clientId, curr + val);
+        const val = toDecimal(q.total);
+        const curr = toDecimal(clientDealValue.get(q.clientId) || 0);
+        clientDealValue.set(q.clientId, add(curr, val).toNumber());
     });
 
     const topClients = Array.from(clientDealValue.entries()).map(([clientId, val]) => {
@@ -127,10 +129,10 @@ router.get("/analytics", async (req: AuthRequest, res: Response) => {
     const statusMap = new Map<string, { count: number; value: number }>();
     allQuotes.forEach(q => {
         const status = q.status;
-        const val = parseFloat((q.total || 0).toString());
+        const val = toDecimal(q.total);
         const entry = statusMap.get(status) || { count: 0, value: 0 };
         entry.count++;
-        entry.value += val;
+        entry.value = add(entry.value, val).toNumber();
         statusMap.set(status, entry);
     });
 
@@ -148,7 +150,7 @@ router.get("/analytics", async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error) {
-    console.error("Error fetching analytics overview:", error);
+    logger.error("Error fetching analytics overview:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
@@ -306,7 +308,7 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
     res.end();
 
   } catch (error) {
-    console.error("Error exporting analytics report:", error);
+    logger.error("Error exporting analytics report:", error);
     res.status(500).json({ error: "Failed to export report" });
   }
 });
@@ -336,8 +338,8 @@ router.get("/analytics/vendor-spend", async (req: AuthRequest, res: Response) =>
     const vendorStats = new Map<string, { spend: number; count: number; fulfilled: number }>();
 
     allPOs.rows.forEach((po: any) => {
-        const val = parseFloat(po.total || po.total_amount || 0); // Handle diza vs raw
-        totalSpend += val;
+        const val = toDecimal(po.total || po.total_amount); // Handle diza vs raw
+        totalSpend = add(totalSpend, val).toNumber();
         totalPOs++;
 
         if (po.status === 'fulfilled') fulfilledPOs++;
@@ -348,7 +350,7 @@ router.get("/analytics/vendor-spend", async (req: AuthRequest, res: Response) =>
         }
 
         const stats = vendorStats.get(po.vendor_id) || { spend: 0, count: 0, fulfilled: 0 };
-        stats.spend += val;
+        stats.spend = add(stats.spend, val).toNumber();
         stats.count++;
         if (po.status === 'fulfilled') stats.fulfilled++;
         vendorStats.set(po.vendor_id, stats);
@@ -395,7 +397,7 @@ router.get("/analytics/vendor-spend", async (req: AuthRequest, res: Response) =>
 
     res.json(data);
   } catch (error) {
-    console.error("Error fetching vendor analytics:", error);
+    logger.error("Error fetching vendor analytics:", error);
     res.status(500).json({ error: "Failed to fetch vendor analytics" });
   }
 });
@@ -442,7 +444,7 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
       const status = quote.status as keyof typeof quotesByStatus;
       if (quotesByStatus.hasOwnProperty(status)) {
         quotesByStatus[status]++;
-        valueByStatus[status] += parseFloat((quote.total || 0).toString());
+        valueByStatus[status] = add(valueByStatus[status], quote.total).toNumber();
       }
     });
 
@@ -451,24 +453,25 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
     const conversionRate = sentQuotes > 0 ? (quotesByStatus.approved / sentQuotes) * 100 : 0;
 
     // Average quote value
-    const totalValue = allQuotes.reduce((sum, q) => sum + parseFloat((q.total || 0).toString()), 0);
-    const averageQuoteValue = allQuotes.length > 0 ? totalValue / allQuotes.length : 0;
+    // Average quote value
+    const totalValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
+    const averageQuoteValue = allQuotes.length > 0 ? divide(totalValue, allQuotes.length).toNumber() : 0;
 
     // Top customers
     const customerQuotes = new Map<string, { name: string; count: number; value: number }>();
     allQuotes.forEach((quote) => {
       const existing = customerQuotes.get(quote.clientId);
-      const value = parseFloat((quote.total || 0).toString());
+      const value = toDecimal(quote.total);
       if (existing) {
         existing.count++;
-        existing.value += value;
+        existing.value = add(existing.value, value).toNumber();
       } else {
         const client = allClients.find(c => c.id === quote.clientId);
         if (client) {
           customerQuotes.set(quote.clientId, {
             name: client.name,
             count: 1,
-            value: value,
+            value: value.toNumber(),
           });
         }
       }
@@ -493,12 +496,12 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
       const existing = monthlyData.get(monthKey);
       if (existing) {
         existing.quotes++;
-        existing.value += parseFloat((quote.total || 0).toString());
+        existing.value = add(existing.value, quote.total).toNumber();
         if (quote.status === "approved") existing.approved++;
       } else {
         monthlyData.set(monthKey, {
           quotes: 1,
-          value: parseFloat((quote.total || 0).toString()),
+          value: toDecimal(quote.total).toNumber(),
           approved: quote.status === "approved" ? 1 : 0,
         });
       }
@@ -514,12 +517,12 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
       valueByStatus,
       conversionRate,
       averageQuoteValue: Math.round(averageQuoteValue),
-      totalQuoteValue: Math.round(totalValue),
+      totalQuoteValue: Math.round(totalValue.toNumber()),
       topCustomers,
       monthlyTrend,
     });
   } catch (error) {
-    console.error("Error fetching sales analytics:", error);
+    logger.error("Error fetching sales analytics:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
@@ -561,16 +564,16 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
     const vendorSpend = new Map<string, { name: string; spend: number; count: number }>();
     allPOs.rows.forEach((po: any) => {
       const existing = vendorSpend.get(po.vendor_id);
-      const amount = parseFloat(po.total_amount || 0);
+      const amount = toDecimal(po.total_amount);
       if (existing) {
-        existing.spend += amount;
+        existing.spend = add(existing.spend, amount).toNumber();
         existing.count++;
       } else {
         const vendor = allVendors.find(v => v.id === po.vendor_id);
         if (vendor) {
           vendorSpend.set(po.vendor_id, {
             name: vendor.name,
-            spend: amount,
+            spend: amount.toNumber(),
             count: 1,
           });
         }
@@ -593,12 +596,12 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
       const existing = monthlySpendMap.get(monthKey);
-      const amount = parseFloat(po.total_amount || 0);
+      const amount = toDecimal(po.total_amount);
       if (existing) {
-        existing.spend += amount;
+        existing.spend = add(existing.spend, amount).toNumber();
         existing.count++;
       } else {
-        monthlySpendMap.set(monthKey, { spend: amount, count: 1 });
+        monthlySpendMap.set(monthKey, { spend: amount.toNumber(), count: 1 });
       }
     });
 
@@ -620,7 +623,7 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
       fulfillmentRate,
     });
   } catch (error) {
-    console.error("Error fetching PO analytics:", error);
+    logger.error("Error fetching PO analytics:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
@@ -651,13 +654,15 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
     const now = new Date();
 
     allInvoices.forEach((invoice) => {
-      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
-      const totalAmt = parseFloat((invoice.total || 0).toString());
-      const remaining = totalAmt - paidAmt;
+      const paidAmt = toDecimal(invoice.paidAmount);
+      const totalAmt = toDecimal(invoice.total);
+      const remaining = subtract(totalAmt, paidAmt).toNumber();
+      
+      const totalAmtVal = totalAmt.toNumber();
 
       if (invoice.paymentStatus === "paid") {
         invoicesByStatus.paid++;
-        totalPaid += totalAmt;
+        totalPaid = add(totalPaid, totalAmt).toNumber();
 
         // Calculate collection days - use lastPaymentDate if available, otherwise updatedAt
         const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
@@ -709,7 +714,7 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       if (invoice.paymentStatus !== "paid") {
         const invoiceDate = new Date(invoice.createdAt);
         const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
-        const remaining = parseFloat((invoice.total || 0).toString()) - parseFloat((invoice.paidAmount || 0).toString());
+        const remaining = subtract(invoice.total, invoice.paidAmount).toNumber();
 
         if (days <= 30) {
           ageingBuckets[0].count++;
@@ -738,8 +743,8 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
       const existing = monthlyMap.get(monthKey);
-      const totalAmt = parseFloat((invoice.total || 0).toString());
-      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
+      const totalAmt = toDecimal(invoice.total).toNumber();
+      const paidAmt = toDecimal(invoice.paidAmount).toNumber();
 
       if (existing) {
         existing.invoiced += totalAmt;
@@ -765,11 +770,11 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
     const debtorMap = new Map<string, { name: string; outstanding: number; count: number; oldestDays: number }>();
     
     allInvoices.forEach((invoice) => {
-      const remaining = parseFloat((invoice.remainingAmount || "0").toString());
+      const remaining = toDecimal(invoice.remainingAmount);
       // Fallback for remainingAmount if not populated correctly (should be handled by business logic but safety check)
-      const calcRemaining = parseFloat((invoice.total || "0").toString()) - parseFloat((invoice.paidAmount || "0").toString());
+      const calcRemaining = subtract(invoice.total, invoice.paidAmount);
       
-      const outstanding = Math.max(remaining, calcRemaining);
+      const outstanding = Math.max(remaining.toNumber(), calcRemaining.toNumber());
 
       if (outstanding > 0 && invoice.clientId) {
          const existing = debtorMap.get(invoice.clientId);
@@ -815,7 +820,7 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       topDebtors,
     });
   } catch (error) {
-    console.error("Error fetching invoice analytics:", error);
+    logger.error("Error fetching invoice analytics:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
@@ -875,7 +880,7 @@ router.get("/analytics/serial-tracking", async (req: AuthRequest, res: Response)
       serialsByStatus,
     });
   } catch (error) {
-    console.error("Error fetching serial tracking analytics:", error);
+    logger.error("Error fetching serial tracking analytics:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });

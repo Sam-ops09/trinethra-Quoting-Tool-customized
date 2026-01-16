@@ -41,14 +41,14 @@ export function add(...values: (string | number | null | undefined | Decimal)[])
 /**
  * Subtracts the second value from the first with decimal precision.
  */
-export function subtract(a: string | number | null | undefined, b: string | number | null | undefined): Decimal {
+export function subtract(a: string | number | null | undefined | Decimal, b: string | number | null | undefined | Decimal): Decimal {
   return toDecimal(a).minus(toDecimal(b));
 }
 
 /**
  * Multiplies two values with decimal precision.
  */
-export function multiply(a: string | number | null | undefined, b: string | number | null | undefined): Decimal {
+export function multiply(a: string | number | null | undefined | Decimal, b: string | number | null | undefined | Decimal): Decimal {
   return toDecimal(a).times(toDecimal(b));
 }
 
@@ -56,7 +56,7 @@ export function multiply(a: string | number | null | undefined, b: string | numb
  * Divides the first value by the second with decimal precision.
  * @throws Error if dividing by zero
  */
-export function divide(a: string | number | null | undefined, b: string | number | null | undefined): Decimal {
+export function divide(a: string | number | null | undefined | Decimal, b: string | number | null | undefined | Decimal): Decimal {
   const divisor = toDecimal(b);
   if (divisor.isZero()) {
     throw new Error('Division by zero');

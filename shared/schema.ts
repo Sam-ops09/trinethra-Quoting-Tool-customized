@@ -58,6 +58,7 @@ export const clients = pgTable("clients", {
   preferredTheme: text("preferred_theme"), // professional, modern, minimal, creative, premium
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const clientsRelations = relations(clients, ({ one, many }) => ({
@@ -211,6 +212,10 @@ export const salesOrderItems = pgTable("sales_order_items", {
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    salesOrderIdx: index("idx_sales_order_items_order_id").on(table.salesOrderId),
+  };
 });
 
 export const salesOrderItemsRelations = relations(salesOrderItems, ({ one }) => ({
@@ -274,6 +279,8 @@ export const invoices = pgTable("invoices", {
   return {
     parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId),
     uniqueSalesOrder: uniqueIndex("idx_invoices_sales_order_unique").on(table.salesOrderId).where(sql`sales_order_id IS NOT NULL`),
+    clientIdx: index("idx_invoices_client_id").on(table.clientId),
+    paymentStatusIdx: index("idx_invoices_payment_status").on(table.paymentStatus),
   };
 });
 

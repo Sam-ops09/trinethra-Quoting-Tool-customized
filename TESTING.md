@@ -106,6 +106,7 @@ This is the **primary test suite** for verifying all audit fixes and regression 
 ```bash
 # Note: Run with TESTING=true to avoid rate limits during heavy testing
 TESTING=true npx tsx tests/integrated_audit_tests.ts
+npx tsx test_phase2_fixes.ts
 ```
 
 ### Expected Output
