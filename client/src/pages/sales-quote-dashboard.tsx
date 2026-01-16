@@ -74,6 +74,8 @@ const STATUS_COLORS = {
     approved: "#22c55e", // Green
     rejected: "#ef4444", // Red
     invoiced: "#8b5cf6", // Violet
+    closed_paid: "#f59e0b", // Amber
+    closed_cancelled: "#737373", // Neutral
 };
 
 const formatCurrency = (value: number) => {

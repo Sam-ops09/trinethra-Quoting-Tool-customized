@@ -39,6 +39,7 @@ import SalesQuoteDashboard from "@/pages/sales-quote-dashboard";
 import VendorPODashboard from "@/pages/vendor-po-dashboard";
 import InvoiceCollectionsDashboard from "@/pages/invoice-collections-dashboard";
 import SerialTrackingDashboard from "@/pages/serial-tracking-dashboard";
+import InvoiceAnalytics from "@/pages/invoice-analytics";
 import { Loader2, ShieldAlert } from "lucide-react";
 import React from "react";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
@@ -155,6 +156,7 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_invoices') && (
             <>
               <Route path="/invoices" component={() => <ProtectedRoute component={Invoices} requiredPath="/invoices" />} />
+              <Route path="/invoices/analytics" component={() => <ProtectedRoute component={InvoiceAnalytics} requiredPath="/invoices" />} />
               <Route path="/invoices/:id" component={() => <ProtectedRoute component={InvoiceDetail} requiredPath="/invoices" />} />
             </>
           )}

@@ -25,6 +25,7 @@ import {
     Grid3x3,
     Calendar,
     Users,
+    BarChart3,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +70,10 @@ type SortOption = "newest" | "oldest" | "amount-high" | "amount-low" | "client";
  * Utility: safely coerce to number and guard against NaN/Infinity.
  */
 const safeNumber = (value: string | number | null | undefined): number => {
-    const n = Number(value);
+    if (typeof value === 'number') return value;
+    if (!value) return 0;
+    const str = String(value).replace(/[^0-9.-]+/g, "");
+    const n = parseFloat(str);
     return Number.isFinite(n) ? n : 0;
 };
 
@@ -261,6 +265,14 @@ export default function Invoices() {
                                     </div>
                                 </div>
                             </div>
+                            <Button 
+                                onClick={() => setLocation("/invoices/analytics")}
+                                className="bg-white/50 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 backdrop-blur-sm"
+                                variant="outline"
+                            >
+                                <BarChart3 className="h-4 w-4 mr-2" />
+                                Analytics
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -273,7 +285,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Revenue</p>
-                                    <p className="text-3xl font-bold text-slate-900 dark:text-white">₹{(stats.totalRevenue / 1000).toFixed(0)}K</p>
+                                    <p className="text-3xl font-bold text-slate-900 dark:text-white">₹{stats.totalRevenue.toLocaleString()}</p>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
                                     <DollarSign className="h-6 w-6 text-slate-600 dark:text-slate-400" />
@@ -292,7 +304,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Collected</p>
-                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">₹{(stats.totalCollected / 1000).toFixed(0)}K</p>
+                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">₹{stats.totalCollected.toLocaleString()}</p>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
                                     <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
@@ -311,7 +323,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Outstanding</p>
-                                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">₹{(outstanding / 1000).toFixed(0)}K</p>
+                                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">₹{outstanding.toLocaleString()}</p>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0 shadow-md">
                                     <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />

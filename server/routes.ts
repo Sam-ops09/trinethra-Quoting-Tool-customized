@@ -5043,8 +5043,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalQuotes = quotes.length;
       const totalClients = clients.length;
 
-      const approvedQuotes = quotes.filter(q => q.status === "approved" || q.status === "invoiced");
-      const totalRevenue = approvedQuotes.reduce((sum, q) => sum + Number(q.total), 0);
+      const safeToNum = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        const str = String(val).replace(/[^0-9.-]+/g, "");
+        return parseFloat(str) || 0;
+      };
+
+      const approvedQuotes = quotes.filter(q => q.status === "approved" || q.status === "invoiced" || q.status === "closed_paid");
+      
+      // Calculate Total Revenue from Invoices (Collected Amount)
+      const totalRevenue = invoices.reduce((sum, inv) => sum + safeToNum(inv.paidAmount), 0);
 
       const conversionRate = totalQuotes > 0
         ? ((approvedQuotes.length / totalQuotes) * 100).toFixed(1)
@@ -5063,6 +5072,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
+
+      // Create client map for faster lookup
+      const clientMap = new Map(clients.map(c => [c.id, c]));
+
+      // Top clients (by Collected Amount)
+      const clientRevenue = new Map<string, { name: string; totalRevenue: number; quoteCount: number }>();
+      
+      for (const inv of invoices) {
+        if (!inv.clientId) continue;
+        const paid = safeToNum(inv.paidAmount);
+        if (paid <= 0) continue;
+
+        const client = clientMap.get(inv.clientId);
+        if (!client) continue;
+        
+        const existing = clientRevenue.get(inv.clientId);
+        if (existing) {
+          existing.totalRevenue += paid;
+          existing.quoteCount += 1; // Actually invoice count, but re-using the field name for frontend compatibility
+        } else {
+          clientRevenue.set(inv.clientId, {
+            name: client.name,
+            totalRevenue: paid,
+            quoteCount: 1,
+          });
+        }
+      }
+
+      const topClients = Array.from(clientRevenue.values())
+        .map(c => ({
+          name: c.name,
+          total: c.totalRevenue, // Send as number
+          quoteCount: c.quoteCount,
+        }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
 
       const quotesByStatus = quotes.reduce((acc: any[], quote) => {
         const existing = acc.find(item => item.status === quote.status);
@@ -5084,7 +5129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const qDate = new Date(q.createdAt);
           return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
         });
-        const revenue = monthQuotes.reduce((sum, q) => sum + Number(q.total), 0);
+        const revenue = monthQuotes.reduce((sum, q) => sum + safeToNum(q.total), 0);
         monthlyRevenue.push({ month, revenue });
       }
 
@@ -5094,6 +5139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalRevenue: totalRevenue.toFixed(2),
         conversionRate,
         recentQuotes,
+        topClients,
         quotesByStatus,
         monthlyRevenue,
       });

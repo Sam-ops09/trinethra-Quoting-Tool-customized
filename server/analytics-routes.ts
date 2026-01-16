@@ -659,12 +659,16 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
         invoicesByStatus.paid++;
         totalPaid += totalAmt;
 
-        // Calculate collection days
-        const invoiceDate = new Date(invoice.createdAt);
-        const paidDate = new Date(invoice.updatedAt);
+        // Calculate collection days - use lastPaymentDate if available, otherwise updatedAt
+        const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
+        const paidDate = invoice.lastPaymentDate ? new Date(invoice.lastPaymentDate) : new Date(invoice.updatedAt);
         const days = Math.floor((paidDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
-        totalCollectionDays += days;
-        paidInvoicesCount++;
+        
+        // Only count positive days (avoid negative values from data issues)
+        if (days >= 0) {
+          totalCollectionDays += days;
+          paidInvoicesCount++;
+        }
       } else if (invoice.paymentStatus === "partial") {
         invoicesByStatus.partial++;
         totalOutstanding += remaining;
@@ -759,9 +763,35 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
 
     // Top debtors
     const debtorMap = new Map<string, { name: string; outstanding: number; count: number; oldestDays: number }>();
-    // NOTE: This section analyzes debtors but invoices don't have clientId directly
-    // Would need to join with quotes table to get client information
-    // Skipping detailed debtor analysis for now
+    
+    allInvoices.forEach((invoice) => {
+      const remaining = parseFloat((invoice.remainingAmount || "0").toString());
+      // Fallback for remainingAmount if not populated correctly (should be handled by business logic but safety check)
+      const calcRemaining = parseFloat((invoice.total || "0").toString()) - parseFloat((invoice.paidAmount || "0").toString());
+      
+      const outstanding = Math.max(remaining, calcRemaining);
+
+      if (outstanding > 0 && invoice.clientId) {
+         const existing = debtorMap.get(invoice.clientId);
+         const invoiceDate = new Date(invoice.createdAt);
+         const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+         
+         if (existing) {
+             existing.outstanding += outstanding;
+             existing.count++;
+             existing.oldestDays = Math.max(existing.oldestDays, days);
+         } else {
+             const client = allClients.find(c => c.id === invoice.clientId);
+             
+             debtorMap.set(invoice.clientId, {
+                 name: client?.name || "Unknown Client",
+                 outstanding: outstanding,
+                 count: 1,
+                 oldestDays: days
+             });
+         }
+      }
+    });
 
     const topDebtors = Array.from(debtorMap.entries())
       .map(([clientId, data]) => ({
@@ -782,7 +812,7 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       averageCollectionDays,
       ageingBuckets,
       monthlyCollections,
-      topDebtors: [], // Simplified for now
+      topDebtors,
     });
   } catch (error) {
     console.error("Error fetching invoice analytics:", error);

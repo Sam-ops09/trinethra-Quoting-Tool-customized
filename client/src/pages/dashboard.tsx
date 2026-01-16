@@ -82,6 +82,11 @@ interface DashboardMetrics {
     }>;
     quotesByStatus: Array<{ status: QuoteStatus; count: number }>;
     monthlyRevenue: Array<{ month: string; revenue: number }>;
+    topClients: Array<{
+        name: string;
+        total: number;
+        quoteCount: number;
+    }>;
     recentActivity?: Array<{
         id: string;
         type: "quote" | "invoice" | "client";
@@ -99,6 +104,8 @@ const STATUS_COLORS: Record<string, string> = {
     approved: "hsl(142 60% 40%)",
     rejected: "hsl(0 65% 55%)",
     invoiced: "hsl(205 48% 22%)",
+    closed_paid: "hsl(45 90% 50%)",
+    closed_cancelled: "hsl(0 0% 45%)",
 };
 
 const INR = new Intl.NumberFormat("en-IN", {
@@ -119,24 +126,6 @@ const lastN = <T,>(arr: T[], n: number) =>
     arr?.length ? arr.slice(Math.max(0, arr.length - n)) : [];
 
 /* ------------ Pure helpers (no hooks here) ------------ */
-
-function getTopClients(
-    recent: DashboardMetrics["recentQuotes"],
-    limit = 5
-) {
-    const m = new Map<string, number>();
-    for (const q of recent || []) {
-        if (q.status === "approved" || q.status === "invoiced") {
-            m.set(q.clientName, (m.get(q.clientName) || 0) + toNum(q.total));
-        }
-    }
-    const rows = Array.from(m.entries())
-        .map(([client, total]) => ({ client, total }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, limit);
-    const grand = rows.reduce((s, r) => s + r.total, 0);
-    return { rows, grand };
-}
 
 function calcTrend(current: number, series: number[]) {
     if (!series || series.length < 2) return { trend: "neutral" as const, value: "0%" };
@@ -379,7 +368,11 @@ export default function Dashboard() {
             0
         ) || 0;
 
-    const topClients = getTopClients(metrics.recentQuotes || []);
+    const topClientsData = metrics.topClients || [];
+    const topClients = {
+        rows: topClientsData.map(c => ({ client: c.name, total: c.total })),
+        grand: topClientsData.reduce((acc, c) => acc + c.total, 0)
+    };
     const revenueTrend = calcTrend(totalRevenueNum, sparkSeries);
     const latestRevenue =
         metrics.monthlyRevenue?.[metrics.monthlyRevenue.length - 1]?.revenue || 0;
@@ -548,9 +541,9 @@ export default function Dashboard() {
                             index={1}
                         />
                         <MetricCard
-                            label="Total Revenue"
+                            label="Total Collected"
                             value={inr(totalRevenueNum)}
-                            sub="From approved quotes"
+                            sub="From paid invoices"
                             icon={DollarSign}
                             sparkData={sparkSeries}
                             tint="green"

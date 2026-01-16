@@ -8,24 +8,24 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
 
 | Metric | Count | Description |
 |--------|-------|-------------|
-| **Total Lines of Code** | 50,000+ | Complete codebase |
-| **API Endpoints** | 126+ | RESTful API routes |
-| **Database Tables** | 25+ | Comprehensive data model |
-| **Feature Flags** | 150+ | Granular feature control (NEW!) |
+| **Total Lines of Code** | 60,000+ | Complete codebase |
+| **API Endpoints** | 130+ | RESTful API routes |
+| **Database Tables** | 29 | Comprehensive data model |
+| **Feature Flags** | 150+ | Granular feature control |
 | **UI Components** | 47 | shadcn/ui components |
-| **Pages/Views** | 32 | Complete application pages |
+| **Pages/Views** | 35 | Complete application pages |
 | **User Roles** | 6 | Granular access control |
 | **PDF Themes** | 7 | Professional document themes |
 | **Test Suites** | 14 | E2E test coverage |
 | **Dependencies** | 145 | Production + dev packages |
-| **Services** | 10 | Backend business logic services |
+| **Services** | 11 | Backend business logic services |
 | **Migrations** | 15 | Database schema versions |
 | **Documentation** | 50+ | Markdown documentation files |
 
 ### 🎯 Core Capabilities
 
 - ✅ **Complete Quote-to-Cash Workflow** - From quote creation to invoice payment
-- ✅ **Feature Flags System** - 150+ flags to enable/disable any feature without code deletion (NEW!)
+- ✅ **Feature Flags System** - 150+ flags to enable/disable any feature without code deletion
 - ✅ **Supply Chain Management** - Vendor POs, GRN, serial number tracking
 - ✅ **CRM & Client Management** - Full customer relationship management
 - ✅ **Financial Operations** - Invoicing, payments, collections, analytics
@@ -35,7 +35,7 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
 - ✅ **Advanced Analytics** - 15+ dashboard endpoints with forecasting
 - ✅ **Inventory Management** - Products, stock tracking, serial numbers
 - ✅ **Audit & Compliance** - Complete activity logging and history
-- ✅ **Responsive Design** - Adaptive layouts for all screen sizes (NEW!)
+- ✅ **Responsive Design** - Adaptive layouts for all screen sizes
 - ✅ **Production Ready** - Vercel deployment, PostgreSQL, comprehensive testing
 
 ## 📑 Table of Contents
@@ -70,7 +70,8 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
   - 📄 **Bill of Materials (BOM)** - Detailed component breakdowns with JSON support
   - ⏱️ **Service Level Agreements (SLA)** - Define service commitments and response times
   - 📅 **Project Timeline** - Visual timeline with milestones and deliverables
-- **Quote Items** - Add multiple line items with quantity, unit price, HSN/SAC codes for GST compliance
+- **Quote Items** - Add multiple line items with quantity, unit price, HSN/SAC codes
+- **Free Text Items** - Support for ad-hoc line items without product catalog selection
 - **Discount Management** - Apply percentage or fixed amount discounts
 - **Shipping Charges** - Add delivery and shipping costs
 - **Notes & Terms** - Custom notes and terms & conditions per quote
@@ -99,6 +100,7 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
 - **Payment Notes** - Add notes to each payment transaction
 - **Payment Analytics** - View payment trends and collection metrics
 - **Invoice PDFs** - Generate professional invoice PDFs with payment details and themes
+- **PDF Customization** - granular control over column visibility (stock, serials, etc.)
 - **Email Invoices** - Send invoices and payment reminders via email with PDF attachment
 - **Child Invoice Management** - Hierarchical invoice structure for complex projects
 
@@ -221,6 +223,7 @@ Multiple professional themes for quotes and invoices:
   - Bank details for payments
   - Performance ratings and notes
 - **Purchase Orders (PO)** - Create and manage vendor purchase orders
+  - **Standalone POs** - Create POs directly without starting from a quote
   - Auto-generated from approved quotes
   - Status tracking: Draft, Sent, Acknowledged, Fulfilled, Cancelled
   - PO items with descriptions, quantities, and unit prices
