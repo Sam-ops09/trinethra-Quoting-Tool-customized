@@ -5,7 +5,7 @@
  */
 
 import { Response, NextFunction } from "express";
-import { AuthRequest } from "./routes";
+import { AuthRequest } from "./middleware";
 import {
   hasPermission,
   requiresAuditLog,

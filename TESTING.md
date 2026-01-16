@@ -107,6 +107,12 @@ This is the **primary test suite** for verifying all audit fixes and regression 
 # Note: Run with TESTING=true to avoid rate limits during heavy testing
 TESTING=true npx tsx tests/integrated_audit_tests.ts
 npx tsx test_phase2_fixes.ts
+npx tsx test_full_flow.ts
+npx tsx test_audit_fixes.ts
+npx tsx test_phase2_fixes.ts
+npx tsx test_race_condition.ts
+npx tsx verify_stock.ts
+npx tsx verify_audit_fixes_v2.ts
 ```
 
 ### Expected Output

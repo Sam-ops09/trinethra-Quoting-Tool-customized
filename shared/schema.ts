@@ -775,6 +775,7 @@ export const insertClientSchema = createInsertSchema(clients).omit({
   createdAt: true,
   createdBy: true,
 }).extend({
+  email: z.string().email("Invalid email format"),
   segment: z.string().optional(),
   preferredTheme: z.string().optional(),
 });
