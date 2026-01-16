@@ -1,6 +1,6 @@
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "./db";
-import { serialNumbers, invoices, invoiceItems, quotes, clients, users, activityLogs } from "@shared/schema";
+import { serialNumbers, invoices, invoiceItems, quotes, clients, users, activityLogs, salesOrders } from "@shared/schema";
 
 export interface SerialValidationResult {
   valid: boolean;
@@ -22,6 +22,10 @@ export interface SerialTraceabilityInfo {
   quote: {
     id: string;
     quoteNumber: string;
+  };
+  salesOrder?: {
+    id: string;
+    orderNumber: string;
   };
   invoice: {
     id: string;
@@ -256,6 +260,11 @@ export async function getSerialTraceability(serialNumberValue: string): Promise<
       ? await db.select().from(clients).where(eq(clients.id, quote[0].clientId)).limit(1)
       : [];
 
+    // Fetch sales order if it exists
+    const salesOrder = invoice[0].salesOrderId
+      ? await db.select().from(salesOrders).where(eq(salesOrders.id, invoice[0].salesOrderId)).limit(1)
+      : [];
+
     const invoiceItem = serial.invoiceItemId
       ? await db.select().from(invoiceItems).where(eq(invoiceItems.id, serial.invoiceItemId)).limit(1)
       : [];
@@ -310,6 +319,12 @@ export async function getSerialTraceability(serialNumberValue: string): Promise<
             id: '',
             quoteNumber: 'Unknown',
           },
+      salesOrder: salesOrder.length > 0
+        ? {
+            id: salesOrder[0].id,
+            orderNumber: salesOrder[0].orderNumber,
+          }
+        : undefined,
       invoice: {
         id: invoice[0].id,
         invoiceNumber: invoice[0].invoiceNumber,
@@ -376,6 +391,11 @@ async function constructTraceabilityFromInvoiceItem(
     ? await db.select().from(clients).where(eq(clients.id, quote[0].clientId)).limit(1)
     : [];
 
+  // Fetch sales order if it exists
+  const salesOrder = invoice[0].salesOrderId
+    ? await db.select().from(salesOrders).where(eq(salesOrders.id, invoice[0].salesOrderId)).limit(1)
+    : [];
+
   return {
     serialNumber: serialNumberValue,
     status: 'delivered',
@@ -399,6 +419,12 @@ async function constructTraceabilityFromInvoiceItem(
           id: '',
           quoteNumber: 'Unknown',
         },
+    salesOrder: salesOrder.length > 0
+      ? {
+          id: salesOrder[0].id,
+          orderNumber: salesOrder[0].orderNumber,
+        }
+      : undefined,
     invoice: {
       id: invoice[0].id,
       invoiceNumber: invoice[0].invoiceNumber,

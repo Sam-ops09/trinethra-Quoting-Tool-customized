@@ -46,6 +46,8 @@ interface SerialTraceabilityInfo {
     customer: { id: string; name: string; email: string };
     quote: { id: string; quoteNumber: string };
 
+    salesOrder?: { id: string; orderNumber: string };
+
     invoice: {
         id: string;
         invoiceNumber: string;
@@ -208,6 +210,15 @@ export default function SerialNumberSearch() {
                 icon: FileText,
                 onClick: () => navigate(`/quotes/${data.quote.id}`),
             },
+            data.salesOrder
+                ? {
+                    key: "salesOrder",
+                    label: "Sales Order",
+                    sub: data.salesOrder.orderNumber,
+                    icon: ShieldCheck,
+                    onClick: () => navigate(`/sales-orders/${data.salesOrder!.id}`),
+                }
+                : null,
             data.vendorPo
                 ? {
                     key: "vendorPo",
@@ -263,7 +274,7 @@ export default function SerialNumberSearch() {
                                         </h1>
                                     </div>
                                     <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
-                                        Track serials through Customer → Quote → PO → Invoice
+                                        Track serials through Customer → Quote → SO → Invoice
                                     </p>
                                 </div>
                             </div>
@@ -616,7 +627,7 @@ export default function SerialNumberSearch() {
                                                 Trace Path
                                             </CardTitle>
                                             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                                                Customer → Quote → {data.vendorPo ? "Vendor PO → " : ""}
+                                                Customer → Quote → {data.salesOrder ? "Sales Order → " : ""}{data.vendorPo ? "Vendor PO → " : ""}
                                                 Invoice → Serial
                                             </p>
                                         </div>
@@ -634,6 +645,12 @@ export default function SerialNumberSearch() {
                                         <Node label="Customer" value={data.customer.name} icon={User} />
                                         <ArrowBridge />
                                         <Node label="Quote" value={data.quote.quoteNumber} icon={FileText} />
+                                        {data.salesOrder ? (
+                                            <>
+                                                <ArrowBridge />
+                                                <Node label="Sales Order" value={data.salesOrder.orderNumber} icon={ShieldCheck} />
+                                            </>
+                                        ) : null}
                                         {data.vendorPo ? (
                                             <>
                                                 <ArrowBridge />
