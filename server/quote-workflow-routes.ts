@@ -596,8 +596,18 @@ router.patch("/sales-orders/:id",
           delete updateData.items;
 
           // Date Conversions
-          if (updateData.expectedDeliveryDate) updateData.expectedDeliveryDate = new Date(updateData.expectedDeliveryDate);
-          if (updateData.actualDeliveryDate) updateData.actualDeliveryDate = new Date(updateData.actualDeliveryDate);
+          // Date Conversions - Handle empty strings as null
+          if (updateData.expectedDeliveryDate === "") {
+            updateData.expectedDeliveryDate = null;
+          } else if (updateData.expectedDeliveryDate) {
+            updateData.expectedDeliveryDate = new Date(updateData.expectedDeliveryDate);
+          }
+
+          if (updateData.actualDeliveryDate === "") {
+            updateData.actualDeliveryDate = null;
+          } else if (updateData.actualDeliveryDate) {
+            updateData.actualDeliveryDate = new Date(updateData.actualDeliveryDate);
+          }
 
           // Server-Side Financial Recalculation using Decimal.js for precision
           let subtotal = toDecimal(currentOrder.subtotal);

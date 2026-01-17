@@ -119,6 +119,7 @@ npx tsx verify_default_role.ts
 npx tsx debug_payment_failure.ts
 npx tsx verify_decimal.ts
 npx tsx verify_audit_fixes_v3.ts
+npx tsx reproduce_so_edit.ts
 ```
 
 ### Expected Output

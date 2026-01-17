@@ -40,13 +40,24 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
 
 router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const stockQuantity = req.body.stockQuantity || 0;
-    const initialAvailable = req.body.availableQuantity !== undefined ? req.body.availableQuantity : stockQuantity;
+    // Pre-process: Coerce unitPrice to string if number (backward compatibility)
+    if (req.body && typeof req.body.unitPrice === 'number') {
+      req.body.unitPrice = String(req.body.unitPrice);
+    }
+
+    const parseResult = schema.insertProductSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: parseResult.error.errors });
+    }
+
+    const validatedData = parseResult.data;
+    const stockQuantity = validatedData.stockQuantity || 0;
+    const initialAvailable = validatedData.availableQuantity !== undefined ? validatedData.availableQuantity : stockQuantity;
 
     const [product] = await db
       .insert(schema.products)
       .values({
-        ...req.body,
+        ...validatedData,
         stockQuantity,
         availableQuantity: initialAvailable,
         createdBy: req.user!.id,
