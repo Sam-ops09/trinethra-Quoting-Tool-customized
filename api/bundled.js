@@ -264,7 +264,9 @@ var init_schema = __esm({
       confirmedBy: varchar("confirmed_by").references(() => users.id),
       createdBy: varchar("created_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow()
+      updatedAt: timestamp("updated_at").notNull().defaultNow(),
+      bomSection: text("bom_section")
+      // Stores JSON string of ExecBOMData
     }, (table) => {
       return {
         uniqueQuote: uniqueIndex("idx_sales_orders_quote_unique").on(table.quoteId)
@@ -358,6 +360,8 @@ var init_schema = __esm({
       paymentNotes: text("payment_notes"),
       termsAndConditions: text("terms_and_conditions"),
       isMaster: boolean("is_master").notNull().default(false),
+      bomSection: text("bom_section"),
+      // Stores JSON string of ExecBOMData
       // Invoice management fields
       cancelledAt: timestamp("cancelled_at"),
       cancelledBy: varchar("cancelled_by").references(() => users.id),
@@ -4190,7 +4194,7 @@ var InvoicePDFService = class _InvoicePDFService {
       },
       bufferPages: true,
       info: {
-        Author: data.companyName || "AICERA"
+        Author: data.companyName || "Company Name"
       }
     });
     doc.pipe(res);
@@ -4205,6 +4209,9 @@ var InvoicePDFService = class _InvoicePDFService {
       doc.addPage();
       this.drawHeader(doc, data);
       this.drawSerialAppendix(doc, data, appendix);
+    }
+    if (data.bomSection) {
+      this.drawBOMSection(doc, data);
     }
     const range = doc.bufferedPageRange();
     const totalPages = range.count;
@@ -4273,6 +4280,9 @@ var InvoicePDFService = class _InvoicePDFService {
       lineBreak: false
     });
     doc.restore();
+  }
+  static clean(v) {
+    return String(v ?? "").trim();
   }
   static safeDate(d) {
     try {
@@ -4385,9 +4395,8 @@ var InvoicePDFService = class _InvoicePDFService {
         doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
         logoPrinted = true;
       } catch {
+        logoPrinted = false;
       }
-    } else {
-      logoPrinted = false;
     }
     const leftX = logoPrinted ? x + logoSize + 8 : x;
     doc.font("Helvetica-Bold").fontSize(11).fillColor(this.INK);
@@ -4404,7 +4413,8 @@ var InvoicePDFService = class _InvoicePDFService {
     const parts = [];
     if (this.isValidEmail(data.companyEmail)) parts.push(String(data.companyEmail).trim());
     if (this.isValidPhone(data.companyPhone)) parts.push(String(data.companyPhone).trim());
-    if (this.isValidGSTIN(data.companyGSTIN)) parts.push(`GSTIN: ${String(data.companyGSTIN).trim().toUpperCase()}`);
+    if (this.isValidGSTIN(data.companyGSTIN))
+      parts.push(`GSTIN: ${String(data.companyGSTIN).trim().toUpperCase()}`);
     doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
     if (parts.length) {
       doc.text(parts.join("  |  "), leftX, topY + 24, {
@@ -4467,7 +4477,8 @@ var InvoicePDFService = class _InvoicePDFService {
       const companyInfo = [];
       if (companyDetails.address) companyInfo.push(String(companyDetails.address).trim());
       if (companyDetails.phone) companyInfo.push(`Ph: ${String(companyDetails.phone).trim()}`);
-      if (companyDetails.gstin) companyInfo.push(`GSTIN: ${String(companyDetails.gstin).trim().toUpperCase()}`);
+      if (companyDetails.gstin)
+        companyInfo.push(`GSTIN: ${String(companyDetails.gstin).trim().toUpperCase()}`);
       if (data.userEmail) companyInfo.push(`Contact: ${String(data.userEmail).trim()}`);
       doc.font("Helvetica").fontSize(7.2);
       const compInfoText = companyInfo.join(" | ");
@@ -4508,7 +4519,8 @@ var InvoicePDFService = class _InvoicePDFService {
     const billParts = [];
     if (this.isValidPhone(clientPhone)) billParts.push(`Ph: ${String(clientPhone).trim()}`);
     if (this.isValidEmail(clientEmail)) billParts.push(`Email: ${String(clientEmail).trim()}`);
-    if (this.isValidGSTIN(clientGSTIN)) billParts.push(`GSTIN: ${String(clientGSTIN).trim().toUpperCase()}`);
+    if (this.isValidGSTIN(clientGSTIN))
+      billParts.push(`GSTIN: ${String(clientGSTIN).trim().toUpperCase()}`);
     doc.font("Helvetica").fontSize(7);
     const contactText = billParts.join("  |  ");
     const contactH = billParts.length ? doc.heightOfString(contactText, { width: leftW - 16 }) : 0;
@@ -4785,7 +4797,8 @@ var InvoicePDFService = class _InvoicePDFService {
     const totalsRows = [
       { label: "Subtotal", value: subtotal }
     ];
-    if (effectiveDiscount > 0) totalsRows.push({ label: "Discount", value: -effectiveDiscount, signed: true });
+    if (effectiveDiscount > 0)
+      totalsRows.push({ label: "Discount", value: -effectiveDiscount, signed: true });
     if (shipping > 0) totalsRows.push({ label: "Shipping/Handling", value: shipping });
     if (cgst > 0) totalsRows.push({ label: "CGST", value: cgst });
     if (sgst > 0) totalsRows.push({ label: "SGST", value: sgst });
@@ -5027,6 +5040,170 @@ var InvoicePDFService = class _InvoicePDFService {
       y += 8;
     });
     doc.y = Math.max(doc.y, y);
+  }
+  // ---------------------------
+  // BOM Section (Annexure - 1) — SAME DESIGN AS EXEC BOM
+  // ---------------------------
+  static drawBOMSection(doc, data) {
+    if (!data.bomSection) return;
+    let bom = null;
+    try {
+      bom = JSON.parse(data.bomSection);
+    } catch (e) {
+      console.error("Invalid bomSection JSON:", e);
+      return;
+    }
+    if (!bom?.blocks || !Array.isArray(bom.blocks) || bom.blocks.length === 0) return;
+    doc.addPage();
+    const bottomLimit = () => this.bottomY() - 12;
+    const drawAnnexureHeader = () => {
+      const title = "Annexure - 1";
+      const y = doc.page.margins.top;
+      doc.font("Helvetica-Bold").fontSize(12).fillColor(this.INK);
+      doc.text(title, this.MARGIN_LEFT, y, { width: this.CONTENT_WIDTH, align: "center" });
+      doc.y = y + 22;
+      this.hr(doc, doc.y);
+      doc.y += 10;
+    };
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const headerH = 20;
+    const minRowH = 16;
+    const colModule = Math.floor(w * 0.3);
+    const colQty = 44;
+    const colDesc = w - colModule - colQty;
+    const cx = {
+      module: x,
+      desc: x + colModule,
+      qty: x + colModule + colDesc,
+      right: x + w
+    };
+    const drawTableHeader = () => {
+      if (doc.y + headerH > bottomLimit()) {
+        doc.addPage();
+        drawAnnexureHeader();
+      }
+      const yy = doc.y;
+      this.box(doc, x, yy, w, headerH, { fill: this.SOFT, stroke: this.LINE, lineWidth: 0.9 });
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.qty].forEach((vx) => doc.moveTo(vx, yy).lineTo(vx, yy + headerH).stroke());
+      doc.restore();
+      doc.font("Helvetica").fontSize(7).fillColor(this.SUBTLE);
+      doc.text("MODULE", cx.module + 6, yy + 6, {
+        width: colModule - 12,
+        lineBreak: false,
+        characterSpacing: 0.6
+      });
+      doc.text("DESCRIPTION", cx.desc + 6, yy + 6, {
+        width: colDesc - 12,
+        lineBreak: false,
+        characterSpacing: 0.6
+      });
+      doc.text("QTY", cx.qty, yy + 6, {
+        width: colQty - 8,
+        align: "right",
+        lineBreak: false,
+        characterSpacing: 0.6
+      });
+      doc.y = yy + headerH;
+    };
+    const ensureAnnexureSpace = (need) => {
+      if (doc.y + need <= bottomLimit()) return;
+      doc.addPage();
+      drawAnnexureHeader();
+      drawTableHeader();
+    };
+    const drawBlockTitle = (title, skipEnsure = false) => {
+      const h = 18;
+      if (!skipEnsure) ensureAnnexureSpace(h + headerH + minRowH);
+      const yy = doc.y;
+      this.box(doc, x, yy, w, h, { fill: "#FFFFFF" });
+      doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.SUBTLE);
+      doc.text(this.truncateToWidth(doc, title, w - 12, "\u2026"), x + 6, yy + 5, {
+        width: w - 12,
+        lineBreak: false
+      });
+      doc.y = yy + h;
+    };
+    const drawSectionLabel = (label) => {
+      const h = 16;
+      ensureAnnexureSpace(h + minRowH);
+      const yy = doc.y;
+      this.box(doc, x, yy, w, h, { fill: "#FFFFFF" });
+      doc.font("Helvetica").fontSize(7.4).fillColor(this.SUBTLE);
+      doc.text(this.truncateToWidth(doc, label, w - 24, "\u2026"), x + 12, yy + 4, {
+        width: w - 24,
+        lineBreak: false
+      });
+      doc.y = yy + h;
+    };
+    const drawItemRow = (moduleTxt, descTxt, qtyTxt) => {
+      doc.font("Helvetica").fontSize(7.2);
+      const descLines = this.wrapTextLines(doc, descTxt, colDesc - 12, 2);
+      const rowH = Math.max(minRowH, 6 + descLines.length * 9);
+      ensureAnnexureSpace(rowH);
+      const yy = doc.y;
+      this.box(doc, x, yy, w, rowH, { fill: "#FFFFFF" });
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.qty].forEach((vx) => doc.moveTo(vx, yy).lineTo(vx, yy + rowH).stroke());
+      doc.restore();
+      doc.font("Helvetica").fontSize(7.2).fillColor(this.INK);
+      doc.text(this.truncateToWidth(doc, moduleTxt, colModule - 12, "\u2026"), cx.module + 6, yy + 5, {
+        width: colModule - 12,
+        lineBreak: false
+      });
+      let dy = yy + 5;
+      for (const ln of descLines) {
+        doc.text(this.truncateToWidth(doc, ln, colDesc - 12, "\u2026"), cx.desc + 6, dy, {
+          width: colDesc - 12,
+          lineBreak: false
+        });
+        dy += 9;
+      }
+      doc.font("Helvetica-Bold").fontSize(7.2).fillColor(this.INK);
+      doc.text(qtyTxt, cx.qty, yy + Math.floor((rowH - 9) / 2), {
+        width: colQty - 8,
+        align: "right",
+        lineBreak: false
+      });
+      doc.y = yy + rowH;
+    };
+    drawAnnexureHeader();
+    drawTableHeader();
+    let currentBlockTitle = null;
+    const guardedEnsure = (need) => {
+      if (doc.y + need <= bottomLimit()) return;
+      doc.addPage();
+      drawAnnexureHeader();
+      drawTableHeader();
+      if (currentBlockTitle) drawBlockTitle(currentBlockTitle, true);
+    };
+    for (const block of bom.blocks) {
+      currentBlockTitle = this.clean(block.title || "BOM");
+      guardedEnsure(28);
+      drawBlockTitle(currentBlockTitle);
+      for (const sec of block.sections || []) {
+        const selectedItems = (sec.items || []).filter((it) => it?.selected !== false);
+        if (selectedItems.length === 0) continue;
+        guardedEnsure(22);
+        drawSectionLabel(this.clean(sec.label || "Section"));
+        for (const item of selectedItems) {
+          guardedEnsure(24);
+          drawItemRow(
+            this.clean(item.module || "-"),
+            this.clean(item.description || "-"),
+            String(item.qty ?? "")
+          );
+        }
+        doc.y += 6;
+        guardedEnsure(12);
+      }
+      doc.y += 6;
+      guardedEnsure(12);
+    }
+    doc.y += 10;
   }
   // ---------------------------
   // Footer
@@ -5992,7 +6169,6 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
   }
   // ---------------------------
   // Footer (inside margins; does not mutate doc.y)
-  // ---------------------------
   static drawFooter(doc, page, total) {
     const oldY = doc.y;
     const y = this.bottomY() - 10;
@@ -6722,7 +6898,7 @@ router2.post(
   requirePermission("sales_orders", "create"),
   async (req, res) => {
     try {
-      const { quoteId, clientId, items, subtotal, total, ...otherFields } = req.body;
+      const { quoteId, clientId, items, subtotal, total, bomSection, ...otherFields } = req.body;
       let baseOrderData = {};
       let orderItems = [];
       if (quoteId) {
@@ -6748,7 +6924,8 @@ router2.post(
           shippingCharges: quote.shippingCharges.toString(),
           total: quote.total.toString(),
           notes: quote.notes,
-          termsAndConditions: quote.termsAndConditions
+          termsAndConditions: quote.termsAndConditions,
+          bomSection: quote.bomSection
         };
         const existingItems = await storage.getQuoteItems(quoteId);
         orderItems = existingItems.map((item) => ({
@@ -6779,7 +6956,8 @@ router2.post(
           discount: "0",
           cgst: "0",
           sgst: "0",
-          igst: "0"
+          igst: "0",
+          bomSection: bomSection || null
         };
         orderItems = items.map((item) => ({
           productId: item.productId || null,
@@ -7039,8 +7217,9 @@ router2.post(
           error: "Sales order must be Confirmed or Fulfilled to be converted to an invoice"
         });
       }
+      let quote = null;
       if (order.quoteId) {
-        const quote = await storage.getQuote(order.quoteId);
+        quote = await storage.getQuote(order.quoteId);
         if (!quote || quote.status !== "approved") {
           return res.status(400).json({
             error: "Linked quote must be approved"
@@ -7082,6 +7261,8 @@ router2.post(
           total: order.total,
           notes: order.notes,
           termsAndConditions: order.termsAndConditions,
+          bomSection: quote?.bomSection,
+          // Copy BOM from quote
           deliveryNotes: `Delivery Date: ${order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : "N/A"}`
         }).returning();
         const shortageNotes = [];
@@ -7169,14 +7350,14 @@ ${shortageText}` : shortageText;
         const companyGSTIN = settingss.find((s) => s.key === "company_gstin")?.value || "";
         const bankDetail = await storage.getActiveBankDetails();
         const client = await storage.getClient(invoice.clientId);
-        let quote = void 0;
+        let quote2 = void 0;
         if (invoice.quoteId) {
-          quote = await storage.getQuote(invoice.quoteId);
+          quote2 = await storage.getQuote(invoice.quoteId);
         }
         const { PassThrough } = await import("stream");
         const pt = new PassThrough();
         const pdfPromise = InvoicePDFService.generateInvoicePDF({
-          quote: quote || {},
+          quote: quote2 || {},
           client,
           items: items2,
           companyName,
@@ -7358,6 +7539,7 @@ router2.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), 
       total: order.total || "0",
       notes: order.notes || void 0,
       termsAndConditions: order.termsAndConditions || void 0,
+      bomSection: order.bomSection || void 0,
       // Bank details (nested and top-level for backward compatibility)
       bankDetails: {
         bankName,
@@ -9700,7 +9882,8 @@ router7.put("/:id/master-details", authMiddleware, requirePermission("invoices",
         "shippingCharges",
         "total",
         "paymentStatus",
-        "paidAmount"
+        "paidAmount",
+        "bomSection"
       ];
       for (const field of editableFields) {
         if (req.body[field] !== void 0) {
@@ -10275,6 +10458,7 @@ router7.get("/:id/pdf", authMiddleware, async (req, res) => {
       notes: invoice.notes || void 0,
       termsAndConditions: invoice.termsAndConditions || void 0,
       // Fix null vs undefined
+      bomSection: invoice.bomSection || void 0,
       bankName,
       // Pass at top level too if required by service (it was in routes.ts)
       bankAccountNumber,
