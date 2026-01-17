@@ -356,7 +356,7 @@ router.post("/sales-orders",
   requirePermission("sales_orders", "create"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { quoteId, clientId, items, subtotal, total, ...otherFields } = req.body;
+      const { quoteId, clientId, items, subtotal, total, bomSection, ...otherFields } = req.body;
       
       let baseOrderData: any = {};
       let orderItems: any[] = [];
@@ -391,6 +391,7 @@ router.post("/sales-orders",
           total: quote.total.toString(),
           notes: quote.notes,
           termsAndConditions: quote.termsAndConditions,
+          bomSection: quote.bomSection,
         };
 
         const existingItems = await storage.getQuoteItems(quoteId);
@@ -425,7 +426,8 @@ router.post("/sales-orders",
           discount: "0",
           cgst: "0",
           sgst: "0",
-          igst: "0"
+          igst: "0",
+          bomSection: bomSection || null
         };
         
         orderItems = items.map(item => ({
@@ -749,8 +751,9 @@ router.post(
         });
       }
 
+      let quote = null;
       if (order.quoteId) {
-        const quote = await storage.getQuote(order.quoteId);
+        quote = await storage.getQuote(order.quoteId);
         if (!quote || quote.status !== "approved") {
           return res.status(400).json({ 
             error: "Linked quote must be approved" 
@@ -805,6 +808,7 @@ router.post(
               total: order.total,
               notes: order.notes,
               termsAndConditions: order.termsAndConditions,
+              bomSection: quote?.bomSection, // Copy BOM from quote
               deliveryNotes: `Delivery Date: ${order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : 'N/A'}`,
           }).returning();
 
@@ -1167,6 +1171,7 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
       total: order.total || "0",
       notes: order.notes || undefined,
       termsAndConditions: order.termsAndConditions || undefined,
+      bomSection: (order as any).bomSection || undefined,
       // Bank details (nested and top-level for backward compatibility)
       bankDetails: {
         bankName,

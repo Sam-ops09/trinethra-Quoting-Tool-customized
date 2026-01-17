@@ -30,7 +30,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
 import type { Client } from "@shared/schema";
-import { BOMSection, type BOMItem } from "@/components/quote/bom-section";
+import { ExecBOMSection } from "@/components/shared/exec-bom-section";
+import type { ExecBOMData, ExecBOMItemRow } from "@/types/bom-types";
 import { SLASection, type SLAData } from "@/components/quote/sla-section";
 import {
     TimelineSection,
@@ -80,9 +81,9 @@ interface QuoteCreatePayload {
     status: "draft" | "sent" | "approved" | "rejected" | "invoiced";
     quoteDate: string;
     items: { productId?: string | null; description: string; quantity: number; unitPrice: number; hsnSac?: string }[];
-    bomSection?: string; // JSON string
-    slaSection?: string; // JSON string
-    timelineSection?: string; // JSON string
+    bomSection?: string | null; // JSON string
+    slaSection?: string | null; // JSON string
+    timelineSection?: string | null; // JSON string
 }
 
 interface QuoteDetail {
@@ -188,7 +189,7 @@ export default function QuoteCreate() {
     });
 
     // Advanced Sections State
-    const [bomItems, setBomItems] = useState<BOMItem[]>([]);
+    const [bomData, setBomData] = useState<ExecBOMData>({ blocks: [] });
     const [slaData, setSlaData] = useState<SLAData>({
         overview: "",
         responseTime: "",
@@ -256,8 +257,32 @@ export default function QuoteCreate() {
 
             if (existingQuote.bomSection) {
                 try {
-                    const parsedBOM = JSON.parse(existingQuote.bomSection);
-                    setBomItems(parsedBOM);
+                    const parsed = JSON.parse(existingQuote.bomSection);
+                    // Check if legacy format (array)
+                    if (Array.isArray(parsed)) {
+                        const legacyItems = parsed;
+                        const newItems: ExecBOMItemRow[] = legacyItems.map((item: any) => ({
+                            type: 'item',
+                            id: item.id || crypto.randomUUID(),
+                            module: item.partNumber || "Item",
+                            description: item.description || "",
+                            qty: item.quantity || 1,
+                            selected: true
+                        }));
+                        setBomData({
+                            blocks: [{
+                                id: crypto.randomUUID(),
+                                title: "Legacy BOM Block",
+                                sections: [{
+                                    id: crypto.randomUUID(),
+                                    label: "Legacy Import",
+                                    items: newItems
+                                }]
+                            }]
+                        });
+                    } else {
+                        setBomData(parsed);
+                    }
                 } catch (e) {
                     console.error("Failed to parse BOM section:", e);
                 }
@@ -450,16 +475,16 @@ export default function QuoteCreate() {
                 hsnSac: i.hsnSac || undefined,
             })),
             bomSection:
-                bomItems.length > 0 ? JSON.stringify(bomItems) : undefined,
+                bomData.blocks.length > 0 ? JSON.stringify(bomData) : null,
             slaSection:
                 slaData.overview || slaData.metrics.length > 0
                     ? JSON.stringify(slaData)
-                    : undefined,
+                    : null,
             timelineSection:
                 timelineData.projectOverview ||
                 timelineData.milestones.length > 0
                     ? JSON.stringify(timelineData)
-                    : undefined,
+                    : null,
         };
 
         if (isEditMode) {
@@ -1005,9 +1030,9 @@ export default function QuoteCreate() {
                                                 <TabsTrigger value="timeline">📅 Timeline</TabsTrigger>
                                             </TabsList>
                                             <TabsContent value="bom" className="mt-4">
-                                                <BOMSection
-                                                    items={bomItems}
-                                                    onChange={setBomItems}
+                                                <ExecBOMSection
+                                                    value={bomData}
+                                                    onChange={setBomData}
                                                 />
                                             </TabsContent>
                                             <TabsContent value="sla" className="mt-4">

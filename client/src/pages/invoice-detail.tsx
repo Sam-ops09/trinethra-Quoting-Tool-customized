@@ -1,5 +1,5 @@
 import { useLocation, useRoute } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,9 @@ import { InvoiceSplitWizard } from "@/components/invoice/split-wizard";
 import { SerialNumberEntry } from "@/components/invoice/serial-number-entry";
 import { MasterInvoiceManager } from "@/components/invoice/master-invoice-manager";
 import { EditInvoiceDialog } from "@/components/invoice/edit-invoice-dialog";
+import { ExecBOMSection } from "@/components/shared/exec-bom-section";
+import type { ExecBOMData } from "@/types/bom-types";
+
 
 interface InvoiceDetail {
     id: string;
@@ -111,6 +114,7 @@ interface InvoiceDetail {
     milestoneDescription?: string;
     createdAt: string;
     createdByName?: string;
+    bomSection?: string;
     // Invoice management fields
     cancelledAt?: string;
     cancelledBy?: string;
@@ -152,11 +156,63 @@ export default function InvoiceDetail() {
     const [showCancelDialog, setShowCancelDialog] = useState(false);
     const [cancellationReason, setCancellationReason] = useState("");
     const [showFinalizeDialog, setShowFinalizeDialog] = useState(false);
+    
+    // BOM State
+    const [bomData, setBomData] = useState<ExecBOMData>({ blocks: [] });
+    // Keep track if BOM data is dirty/changed to enable save button
+    const [isBomDirty, setIsBomDirty] = useState(false);
 
     const { data: invoice, isLoading } = useQuery<InvoiceDetail>({
         queryKey: ["/api/invoices", params?.id],
         enabled: !!params?.id,
     });
+    
+    // Sync BOM data when invoice loads
+    useEffect(() => {
+        if (invoice?.bomSection) {
+            try {
+                const parsed = JSON.parse(invoice.bomSection);
+                setBomData(parsed);
+            } catch (e) {
+                console.error("Failed to parse BOM section:", e);
+                setBomData({ blocks: [] });
+            }
+        } else if (invoice) {
+             setBomData({ blocks: [] });
+        }
+    }, [invoice]);
+    
+    const updateBomMutation = useMutation({
+        mutationFn: async (data: ExecBOMData) => {
+            return await apiRequest("PUT", `/api/invoices/${params?.id}/master-details`, {
+                bomSection: JSON.stringify(data)
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices", params?.id] });
+            toast({
+                title: "Success",
+                description: "BOM updated successfully.",
+            });
+            setIsBomDirty(false);
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Error",
+                description: error?.message || "Failed to update BOM.",
+                variant: "destructive",
+            });
+        },
+    });
+    
+    const handleBomChange = (newData: ExecBOMData) => {
+        setBomData(newData);
+        setIsBomDirty(true);
+    };
+    
+    const handleSaveBom = () => {
+        updateBomMutation.mutate(bomData);
+    };
 
     const updatePaymentMutation = useMutation({
         mutationFn: async (data: { paymentStatus?: string; paidAmount?: string }) => {
@@ -782,11 +838,10 @@ export default function InvoiceDetail() {
                     </CardContent>
                 </Card>
 
-                {/* MASTER INVOICE MANAGER */}
                 {invoice.isMaster && (
                     <MasterInvoiceManager invoiceId={invoice.id} />
                 )}
-
+                
                 {/* MAIN GRID */}
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     {/* LEFT COLUMN */}
@@ -1384,6 +1439,26 @@ export default function InvoiceDetail() {
                         </Card>
                     </div>
                 </div>
+
+                {/* BOM SECTION */}
+                <Card className="border-slate-200 dark:border-slate-800 mt-4 sm:mt-6">
+                    <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-4 flex flex-row items-center justify-between">
+                         <CardTitle className="text-base">Bill of Materials</CardTitle>
+                         {isBomDirty && (
+                             <Button size="sm" onClick={handleSaveBom} disabled={updateBomMutation.isPending}>
+                                 {updateBomMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                 Save BOM
+                             </Button>
+                         )}
+                    </CardHeader>
+                    <CardContent className="p-4">
+                        <ExecBOMSection 
+                            value={bomData} 
+                            onChange={handleBomChange} 
+                            readonly={invoice.isLocked || (invoice.paymentStatus === 'paid' && !invoice.isMaster)}
+                        />
+                    </CardContent>
+                </Card>
 
                 {/* PAYMENT TRACKER (bottom section) */}
                 <div className="mt-4 sm:mt-6">

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Shield, Calendar, CheckCircle2 } from "lucide-react";
-
+import { ExecBOMSection } from "@/components/shared/exec-bom-section";
+import type { ExecBOMData } from "@/types/bom-types";
 // Type definitions
 interface BOMItem {
   id: string;
@@ -52,13 +53,14 @@ interface TimelineData {
 }
 
 interface AdvancedSectionsDisplayProps {
-  bomData?: BOMItem[];
+  bomData?: BOMItem[] | ExecBOMData;
   slaData?: SLAData;
   timelineData?: TimelineData;
 }
 
 export function AdvancedSectionsDisplay({ bomData, slaData, timelineData }: AdvancedSectionsDisplayProps) {
-  const hasBOM = bomData && bomData.length > 0;
+  const isLegacyBOM = Array.isArray(bomData);
+  const hasBOM = bomData && (isLegacyBOM ? (bomData as BOMItem[]).length > 0 : (bomData as ExecBOMData).blocks?.length > 0);
   const hasSLA = slaData && (slaData.overview || slaData.metrics.length > 0);
   const hasTimeline = timelineData && (timelineData.projectOverview || timelineData.milestones.length > 0);
 
@@ -93,44 +95,52 @@ export function AdvancedSectionsDisplay({ bomData, slaData, timelineData }: Adva
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {bomData.map((item, index) => (
-                <div key={item.id} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <h4 className="font-medium text-lg">Item {index + 1}: {item.partNumber}</h4>
-                    <span className="text-sm text-muted-foreground">Qty: {item.quantity} {item.unitOfMeasure}</span>
-                  </div>
-
-                  <div className="grid gap-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Description: </span>
-                      <span>{item.description}</span>
+            {isLegacyBOM ? (
+              <div className="space-y-4">
+                {(bomData as BOMItem[]).map((item, index) => (
+                  <div key={item.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <h4 className="font-medium text-lg">Item {index + 1}: {item.partNumber}</h4>
+                      <span className="text-sm text-muted-foreground">Qty: {item.quantity} {item.unitOfMeasure}</span>
                     </div>
 
-                    {item.manufacturer && (
+                    <div className="grid gap-3 text-sm">
                       <div>
-                        <span className="text-muted-foreground">Manufacturer: </span>
-                        <span>{item.manufacturer}</span>
+                        <span className="text-muted-foreground">Description: </span>
+                        <span>{item.description}</span>
                       </div>
-                    )}
 
-                    {item.specifications && (
-                      <div>
-                        <span className="text-muted-foreground">Specifications: </span>
-                        <span className="whitespace-pre-line">{item.specifications}</span>
-                      </div>
-                    )}
+                      {item.manufacturer && (
+                        <div>
+                          <span className="text-muted-foreground">Manufacturer: </span>
+                          <span>{item.manufacturer}</span>
+                        </div>
+                      )}
 
-                    {item.notes && (
-                      <div>
-                        <span className="text-muted-foreground">Notes: </span>
-                        <span className="whitespace-pre-line">{item.notes}</span>
-                      </div>
-                    )}
+                      {item.specifications && (
+                        <div>
+                          <span className="text-muted-foreground">Specifications: </span>
+                          <span className="whitespace-pre-line">{item.specifications}</span>
+                        </div>
+                      )}
+
+                      {item.notes && (
+                        <div>
+                          <span className="text-muted-foreground">Notes: </span>
+                          <span className="whitespace-pre-line">{item.notes}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <ExecBOMSection
+                value={bomData as ExecBOMData}
+                onChange={() => {}}
+                readonly={true}
+              />
+            )}
           </CardContent>
         </Card>
       )}

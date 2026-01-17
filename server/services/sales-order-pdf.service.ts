@@ -43,6 +43,7 @@ export interface SalesOrderPdfData {
   deliveryNotes?: string;
   notes?: string;
   termsAndConditions?: string;
+  bomSection?: string | null;
 
   // Optional for SO
   bankDetails?: {
@@ -1246,7 +1247,6 @@ export class SalesOrderPDFService {
 
   // ---------------------------
   // Footer (inside margins; does not mutate doc.y)
-  // ---------------------------
   private static drawFooter(doc: InstanceType<typeof PDFDocument>, page: number, total: number) {
     const oldY = doc.y;
     const y = this.bottomY() - 10;

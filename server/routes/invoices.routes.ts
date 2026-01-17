@@ -181,7 +181,7 @@ router.put("/:id/master-details", authMiddleware, requirePermission("invoices", 
       const editableFields = [
         "notes", "termsAndConditions", "deliveryNotes", "milestoneDescription",
         "dueDate", "subtotal", "discount", "cgst", "sgst", "igst",
-        "shippingCharges", "total", "paymentStatus", "paidAmount"
+        "shippingCharges", "total", "paymentStatus", "paidAmount", "bomSection"
       ];
 
       for (const field of editableFields) {
@@ -951,6 +951,7 @@ router.get("/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) =
         total: invoice.total || "0",
         notes: invoice.notes || undefined,
         termsAndConditions: invoice.termsAndConditions || undefined, // Fix null vs undefined
+        bomSection: invoice.bomSection || undefined,
 
         bankName, // Pass at top level too if required by service (it was in routes.ts)
         bankAccountNumber,

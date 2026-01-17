@@ -172,6 +172,7 @@ export const salesOrders = pgTable("sales_orders", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  bomSection: text("bom_section"), // Stores JSON string of ExecBOMData
 }, (table) => {
   return {
     uniqueQuote: uniqueIndex("idx_sales_orders_quote_unique").on(table.quoteId),
@@ -268,6 +269,7 @@ export const invoices = pgTable("invoices", {
   paymentNotes: text("payment_notes"),
   termsAndConditions: text("terms_and_conditions"),
   isMaster: boolean("is_master").notNull().default(false),
+  bomSection: text("bom_section"), // Stores JSON string of ExecBOMData
   // Invoice management fields
   cancelledAt: timestamp("cancelled_at"),
   cancelledBy: varchar("cancelled_by").references(() => users.id),

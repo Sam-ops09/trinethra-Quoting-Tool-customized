@@ -4,6 +4,30 @@ import path from "path";
 import fs from "fs";
 import type { Quote, QuoteItem, Client } from "@shared/schema";
 
+interface BOMItem {
+  id: string;
+  module: string;
+  description: string;
+  qty: number;
+  selected?: boolean;
+}
+
+interface BOMSection {
+  id: string;
+  label: string;
+  items: BOMItem[];
+}
+
+interface BOMBlock {
+  id: string;
+  title: string;
+  sections: BOMSection[];
+}
+
+interface BOMData {
+  blocks: BOMBlock[];
+}
+
 interface InvoicePdfData {
   quote: Quote;
   client: Client;
@@ -64,6 +88,7 @@ interface InvoicePdfData {
 
   notes?: string | null;
   termsAndConditions?: string | null;
+  bomSection?: string | null;
 
   // Bank account details
   bankName?: string;
@@ -127,7 +152,7 @@ export class InvoicePDFService {
       },
       bufferPages: true,
       info: {
-        Author: data.companyName || "AICERA",
+        Author: data.companyName || "Company Name",
       },
     });
 
@@ -143,12 +168,18 @@ export class InvoicePDFService {
     this.drawHeader(doc, data);
     this.drawTopBlocks(doc, data);
     this.drawItemsTable(doc, data, appendix);
+
     this.drawFinalSections(doc, data);
 
     if (appendix.length > 0) {
       doc.addPage();
       this.drawHeader(doc, data);
       this.drawSerialAppendix(doc, data, appendix);
+    }
+
+    // Draw BOM Section (Annexure - 1) as the last page(s)
+    if (data.bomSection) {
+      this.drawBOMSection(doc, data);
     }
 
     const range = doc.bufferedPageRange();
@@ -163,29 +194,24 @@ export class InvoicePDFService {
 
   // Preload assets async
   private static async prepareAssets(doc: PDFKit.PDFDocument, data: InvoicePdfData) {
-      // Fonts
-      // Since font paths might be standard, we just register them if they exist or default to Helvetica
-      // But we want to do it safely.
-      // (Optional: Reuse the logic from pdf.service.ts if desired, or simplified here)
-      
-      // Logo
-      let logoToUse = "";
-      if (data.companyLogo) {
-          logoToUse = data.companyLogo;
-      } else {
-          const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-          const p2 = path.join(process.cwd(), "client", "public", "logo.png");
-          try {
-             await fs.promises.access(p1, fs.constants.F_OK);
-             logoToUse = p1;
-          } catch {
-             try {
-                await fs.promises.access(p2, fs.constants.F_OK);
-                logoToUse = p2;
-             } catch {}
-          }
+    // Logo
+    let logoToUse = "";
+    if (data.companyLogo) {
+      logoToUse = data.companyLogo;
+    } else {
+      const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+      const p2 = path.join(process.cwd(), "client", "public", "logo.png");
+      try {
+        await fs.promises.access(p1, fs.constants.F_OK);
+        logoToUse = p1;
+      } catch {
+        try {
+          await fs.promises.access(p2, fs.constants.F_OK);
+          logoToUse = p2;
+        } catch {}
       }
-      (data as any).resolvedLogo = logoToUse;
+    }
+    (data as any).resolvedLogo = logoToUse;
   }
 
   // ---------------------------
@@ -260,6 +286,10 @@ export class InvoicePDFService {
       lineBreak: false,
     });
     doc.restore();
+  }
+
+  private static clean(v: any): string {
+    return String(v ?? "").trim();
   }
 
   private static safeDate(d: any): string {
@@ -368,7 +398,7 @@ export class InvoicePDFService {
   ): string[] {
     const t = String(text ?? "").replace(/\s+/g, " ").trim();
     if (!t) return [];
-    
+
     // Quick check
     if (doc.widthOfString(t) <= width) return [t];
 
@@ -412,12 +442,12 @@ export class InvoicePDFService {
     // Use resolved logo
     const logoPath = (data as any).resolvedLogo;
     if (logoPath) {
-        try {
-            doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-            logoPrinted = true;
-        } catch {}
-    } else {
+      try {
+        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
+        logoPrinted = true;
+      } catch {
         logoPrinted = false;
+      }
     }
 
     const leftX = logoPrinted ? x + logoSize + 8 : x;
@@ -438,7 +468,8 @@ export class InvoicePDFService {
     const parts: string[] = [];
     if (this.isValidEmail(data.companyEmail)) parts.push(String(data.companyEmail).trim());
     if (this.isValidPhone(data.companyPhone)) parts.push(String(data.companyPhone).trim());
-    if (this.isValidGSTIN(data.companyGSTIN)) parts.push(`GSTIN: ${String(data.companyGSTIN).trim().toUpperCase()}`);
+    if (this.isValidGSTIN(data.companyGSTIN))
+      parts.push(`GSTIN: ${String(data.companyGSTIN).trim().toUpperCase()}`);
 
     doc.font("Helvetica").fontSize(7.2).fillColor(this.SUBTLE);
     if (parts.length) {
@@ -510,7 +541,8 @@ export class InvoicePDFService {
 
     // Optional "From" company-details block
     const companyDetails = data.companyDetails || {};
-    const hasCompanyDetails = companyDetails.name || companyDetails.address || companyDetails.email;
+    const hasCompanyDetails =
+      companyDetails.name || companyDetails.address || companyDetails.email;
 
     if (hasCompanyDetails) {
       doc.font("Helvetica-Bold").fontSize(8.6);
@@ -521,7 +553,8 @@ export class InvoicePDFService {
       const companyInfo: string[] = [];
       if (companyDetails.address) companyInfo.push(String(companyDetails.address).trim());
       if (companyDetails.phone) companyInfo.push(`Ph: ${String(companyDetails.phone).trim()}`);
-      if (companyDetails.gstin) companyInfo.push(`GSTIN: ${String(companyDetails.gstin).trim().toUpperCase()}`);
+      if (companyDetails.gstin)
+        companyInfo.push(`GSTIN: ${String(companyDetails.gstin).trim().toUpperCase()}`);
       if (data.userEmail) companyInfo.push(`Contact: ${String(data.userEmail).trim()}`);
 
       doc.font("Helvetica").fontSize(7.2);
@@ -580,21 +613,22 @@ export class InvoicePDFService {
     const billParts: string[] = [];
     if (this.isValidPhone(clientPhone)) billParts.push(`Ph: ${String(clientPhone).trim()}`);
     if (this.isValidEmail(clientEmail)) billParts.push(`Email: ${String(clientEmail).trim()}`);
-    if (this.isValidGSTIN(clientGSTIN)) billParts.push(`GSTIN: ${String(clientGSTIN).trim().toUpperCase()}`);
+    if (this.isValidGSTIN(clientGSTIN))
+      billParts.push(`GSTIN: ${String(clientGSTIN).trim().toUpperCase()}`);
 
     doc.font("Helvetica").fontSize(7.0);
     const contactText = billParts.join("  |  ");
-    const contactH = billParts.length ? doc.heightOfString(contactText, { width: leftW - 16 }) : 0;
+    const contactH = billParts.length
+      ? doc.heightOfString(contactText, { width: leftW - 16 })
+      : 0;
 
     const shipBlockH = 6 + 14 + cNameH + 2 + shipAddrH + 8;
-
-    // IMPORTANT FIX: contact is NOT bottom-anchored anymore — it flows after bill address.
-    const billBlockH = 6 + 14 + cNameH + 2 + billAddrH + (contactH ? 6 + contactH : 0) + 8;
+    const billBlockH =
+      6 + 14 + cNameH + 2 + billAddrH + (contactH ? 6 + contactH : 0) + 8;
 
     const leftTotalH = shipBlockH + billBlockH;
 
-    // right meta rows
-    const rightTotalH = 20 + (6 * 18) + 10;
+    const rightTotalH = 20 + 6 * 18 + 10;
     const h = Math.max(leftTotalH, rightTotalH, 128);
 
     this.ensureSpace(doc, data, h + 10);
@@ -602,7 +636,6 @@ export class InvoicePDFService {
     // Left big box
     this.box(doc, leftX, startY2, leftW, h, { fill: "#FFFFFF" });
 
-    // FIX: only draw local divider, NOT a full-width hr
     const splitY = startY2 + shipBlockH;
     this.hrLocal(doc, leftX, leftX + leftW, splitY, 0.8);
 
@@ -673,9 +706,9 @@ export class InvoicePDFService {
     const invDate = this.safeDate(data.invoiceDate ?? (data.quote as any)?.quoteDate);
     const preparedBy = String(data.preparedBy || "-");
     const deliveryNotesStr = String(data.deliveryNotes || "")
-      .split('\n')
-      .filter(line => !line.includes('[SHORTAGE]'))
-      .join('\n')
+      .split("\n")
+      .filter((line) => !line.includes("[SHORTAGE]"))
+      .join("\n")
       .trim();
 
     row(0, "Invoice Date", invDate);
@@ -796,7 +829,8 @@ export class InvoicePDFService {
       const rate = Number((it as any).unitPrice ?? 0);
       const amount = Number((it as any).subtotal ?? qty * rate);
 
-      const hsnSac = String((it as any).hsnSac ?? (it as any).hsn_sac ?? "").trim() || "-";
+      const hsnSac =
+        String((it as any).hsnSac ?? (it as any).hsn_sac ?? "").trim() || "-";
 
       const serials = this.parseSerialNumbers((it as any).serialNumbers);
       const needsAppendix = serials.length > this.SERIAL_APPENDIX_THRESHOLD;
@@ -814,7 +848,6 @@ export class InvoicePDFService {
 
       if (allDescLines.length > this.TABLE_DESC_MAX_LINES) {
         descLines = allDescLines.slice(0, this.TABLE_DESC_MAX_LINES);
-        // indicate truncation cleanly
         const last = descLines[descLines.length - 1];
         descLines[descLines.length - 1] = this.truncateToWidth(
           doc,
@@ -955,14 +988,14 @@ export class InvoicePDFService {
     const igst = data.igst !== undefined ? Number(data.igst) : Number((data.quote as any).igst) || 0;
     const total = data.total !== undefined ? Number(data.total) : Number((data.quote as any).total) || 0;
 
-    // Discount should display (cleanly) and affect taxable.
     const effectiveDiscount = Math.max(0, discount);
     const taxable = Math.max(0, subtotal - effectiveDiscount + Math.max(0, shipping));
 
     const totalsRows: Array<{ label: string; value: number; bold?: boolean; signed?: boolean }> = [
       { label: "Subtotal", value: subtotal },
     ];
-    if (effectiveDiscount > 0) totalsRows.push({ label: "Discount", value: -effectiveDiscount, signed: true });
+    if (effectiveDiscount > 0)
+      totalsRows.push({ label: "Discount", value: -effectiveDiscount, signed: true });
     if (shipping > 0) totalsRows.push({ label: "Shipping/Handling", value: shipping });
     if (cgst > 0) totalsRows.push({ label: "CGST", value: cgst });
     if (sgst > 0) totalsRows.push({ label: "SGST", value: sgst });
@@ -975,7 +1008,6 @@ export class InvoicePDFService {
     const milestone = String(data.milestoneDescription || "").trim();
     const delivery = String(data.deliveryNotes || "").trim();
 
-    // Notes: render as clean bullet-ish lines (not a single “A | B | C” blob)
     const notesLinesRaw: string[] = [];
     if (milestone) notesLinesRaw.push(`Milestone: ${milestone}`);
     if (delivery) notesLinesRaw.push(`Delivery: ${delivery}`);
@@ -1191,7 +1223,7 @@ export class InvoicePDFService {
 
     doc.y = sigY + sigH + 10;
 
-    // Computer generated note (kept)
+    // Computer generated note
     const oldY = doc.y;
     const noteY = this.bottomY() - 24;
 
@@ -1296,6 +1328,223 @@ export class InvoicePDFService {
   }
 
   // ---------------------------
+  // BOM Section (Annexure - 1) — SAME DESIGN AS EXEC BOM
+  // ---------------------------
+  private static drawBOMSection(doc: InstanceType<typeof PDFDocument>, data: InvoicePdfData) {
+    if (!data.bomSection) return;
+
+    let bom: BOMData | null = null;
+    try {
+      bom = JSON.parse(data.bomSection) as BOMData;
+    } catch (e) {
+      console.error("Invalid bomSection JSON:", e);
+      return;
+    }
+
+    if (!bom?.blocks || !Array.isArray(bom.blocks) || bom.blocks.length === 0) return;
+
+    // Always start annexure on a new page
+    doc.addPage();
+
+    // Keep content away from footer zone
+    const bottomLimit = () => this.bottomY() - 12;
+
+    // ---------- Annexure Header ----------
+    const drawAnnexureHeader = () => {
+      const title = "Annexure - 1";
+      const y = doc.page.margins.top;
+
+      doc.font("Helvetica-Bold").fontSize(12).fillColor(this.INK);
+      doc.text(title, this.MARGIN_LEFT, y, { width: this.CONTENT_WIDTH, align: "center" });
+
+      doc.y = y + 22;
+      this.hr(doc, doc.y);
+      doc.y += 10;
+    };
+
+    // ---------- Table Geometry ----------
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+
+    const headerH = 20;
+    const minRowH = 16;
+
+    const colModule = Math.floor(w * 0.30);
+    const colQty = 44;
+    const colDesc = w - colModule - colQty;
+
+    const cx = {
+      module: x,
+      desc: x + colModule,
+      qty: x + colModule + colDesc,
+      right: x + w,
+    };
+
+    const drawTableHeader = () => {
+      if (doc.y + headerH > bottomLimit()) {
+        doc.addPage();
+        drawAnnexureHeader();
+      }
+
+      const yy = doc.y;
+      this.box(doc, x, yy, w, headerH, { fill: this.SOFT, stroke: this.LINE, lineWidth: 0.9 });
+
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.qty].forEach((vx) => doc.moveTo(vx, yy).lineTo(vx, yy + headerH).stroke());
+      doc.restore();
+
+      doc.font("Helvetica").fontSize(7.0).fillColor(this.SUBTLE);
+      doc.text("MODULE", cx.module + 6, yy + 6, {
+        width: colModule - 12,
+        lineBreak: false,
+        characterSpacing: 0.6,
+      });
+      doc.text("DESCRIPTION", cx.desc + 6, yy + 6, {
+        width: colDesc - 12,
+        lineBreak: false,
+        characterSpacing: 0.6,
+      });
+      doc.text("QTY", cx.qty, yy + 6, {
+        width: colQty - 8,
+        align: "right",
+        lineBreak: false,
+        characterSpacing: 0.6,
+      });
+
+      doc.y = yy + headerH;
+    };
+
+    const ensureAnnexureSpace = (need: number) => {
+      if (doc.y + need <= bottomLimit()) return;
+      doc.addPage();
+      drawAnnexureHeader();
+      drawTableHeader();
+      // block title repeat handled by guardedEnsure below
+    };
+
+    const drawBlockTitle = (title: string, skipEnsure = false) => {
+      const h = 18;
+      if (!skipEnsure) ensureAnnexureSpace(h + headerH + minRowH);
+
+      const yy = doc.y;
+      this.box(doc, x, yy, w, h, { fill: "#FFFFFF" });
+
+      doc.font("Helvetica-Bold").fontSize(8.2).fillColor(this.SUBTLE);
+      doc.text(this.truncateToWidth(doc, title, w - 12, "…"), x + 6, yy + 5, {
+        width: w - 12,
+        lineBreak: false,
+      });
+
+      doc.y = yy + h;
+    };
+
+    const drawSectionLabel = (label: string) => {
+      const h = 16;
+      ensureAnnexureSpace(h + minRowH);
+
+      const yy = doc.y;
+      this.box(doc, x, yy, w, h, { fill: "#FFFFFF" });
+
+      doc.font("Helvetica").fontSize(7.4).fillColor(this.SUBTLE);
+      doc.text(this.truncateToWidth(doc, label, w - 24, "…"), x + 12, yy + 4, {
+        width: w - 24,
+        lineBreak: false,
+      });
+
+      doc.y = yy + h;
+    };
+
+    const drawItemRow = (moduleTxt: string, descTxt: string, qtyTxt: string) => {
+      doc.font("Helvetica").fontSize(7.2);
+
+      // clamp to 2 lines (same style)
+      const descLines = this.wrapTextLines(doc, descTxt, colDesc - 12, 2);
+      const rowH = Math.max(minRowH, 6 + descLines.length * 9);
+
+      ensureAnnexureSpace(rowH);
+
+      const yy = doc.y;
+      this.box(doc, x, yy, w, rowH, { fill: "#FFFFFF" });
+
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.qty].forEach((vx) => doc.moveTo(vx, yy).lineTo(vx, yy + rowH).stroke());
+      doc.restore();
+
+      doc.font("Helvetica").fontSize(7.2).fillColor(this.INK);
+      doc.text(this.truncateToWidth(doc, moduleTxt, colModule - 12, "…"), cx.module + 6, yy + 5, {
+        width: colModule - 12,
+        lineBreak: false,
+      });
+
+      let dy = yy + 5;
+      for (const ln of descLines) {
+        doc.text(this.truncateToWidth(doc, ln, colDesc - 12, "…"), cx.desc + 6, dy, {
+          width: colDesc - 12,
+          lineBreak: false,
+        });
+        dy += 9;
+      }
+
+      doc.font("Helvetica-Bold").fontSize(7.2).fillColor(this.INK);
+      doc.text(qtyTxt, cx.qty, yy + Math.floor((rowH - 9) / 2), {
+        width: colQty - 8,
+        align: "right",
+        lineBreak: false,
+      });
+
+      doc.y = yy + rowH;
+    };
+
+    // Start render
+    drawAnnexureHeader();
+    drawTableHeader();
+
+    let currentBlockTitle: string | null = null;
+
+    // Repeat context on page break (table header + current block title)
+    const guardedEnsure = (need: number) => {
+      if (doc.y + need <= bottomLimit()) return;
+      doc.addPage();
+      drawAnnexureHeader();
+      drawTableHeader();
+      if (currentBlockTitle) drawBlockTitle(currentBlockTitle, true);
+    };
+
+    for (const block of bom.blocks) {
+      currentBlockTitle = this.clean(block.title || "BOM");
+      guardedEnsure(28);
+      drawBlockTitle(currentBlockTitle);
+
+      for (const sec of block.sections || []) {
+        const selectedItems = (sec.items || []).filter((it) => it?.selected !== false);
+        if (selectedItems.length === 0) continue;
+
+        guardedEnsure(22);
+        drawSectionLabel(this.clean(sec.label || "Section"));
+
+        for (const item of selectedItems) {
+          guardedEnsure(24);
+          drawItemRow(
+            this.clean(item.module || "-"),
+            this.clean(item.description || "-"),
+            String(item.qty ?? "")
+          );
+        }
+
+        doc.y += 6;
+        guardedEnsure(12);
+      }
+
+      doc.y += 6;
+      guardedEnsure(12);
+    }
+
+    doc.y += 10;
+  }
+
+  // ---------------------------
   // Footer
   // ---------------------------
   private static drawFooter(doc: InstanceType<typeof PDFDocument>, page: number, total: number) {
@@ -1374,7 +1623,6 @@ export class InvoicePDFService {
     const r = this.numberToWordsIndian(rupees);
     const p = paise > 0 ? this.numberToWordsIndian(paise) : "";
 
-    // FIX: include "Rupees" so the sentence reads correctly.
     if (paise > 0) return `INR ${r} Rupees and ${p} Paise Only`;
     return `INR ${r} Rupees Only`;
   }
