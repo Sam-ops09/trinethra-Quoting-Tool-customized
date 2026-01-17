@@ -94,7 +94,7 @@ __export(schema_exports, {
   vendorsRelations: () => vendorsRelations
 });
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -152,7 +152,8 @@ var init_schema = __esm({
       preferredTheme: text("preferred_theme"),
       // professional, modern, minimal, creative, premium
       createdBy: varchar("created_by").notNull().references(() => users.id),
-      createdAt: timestamp("created_at").notNull().defaultNow()
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      isActive: boolean("is_active").notNull().default(true)
     });
     clientsRelations = relations(clients, ({ one, many }) => ({
       creator: one(users, {
@@ -175,6 +176,7 @@ var init_schema = __esm({
       validUntil: timestamp("valid_until"),
       referenceNumber: text("reference_number"),
       attentionTo: text("attention_to"),
+      currency: text("currency").notNull().default("INR"),
       subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
       discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
       cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -242,12 +244,13 @@ var init_schema = __esm({
     salesOrders = pgTable("sales_orders", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       orderNumber: text("order_number").notNull().unique(),
-      quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+      quoteId: varchar("quote_id").references(() => quotes.id),
       clientId: varchar("client_id").notNull().references(() => clients.id),
       status: salesOrderStatusEnum("status").notNull().default("draft"),
       orderDate: timestamp("order_date").notNull().defaultNow(),
       expectedDeliveryDate: timestamp("expected_delivery_date"),
       actualDeliveryDate: timestamp("actual_delivery_date"),
+      currency: text("currency").notNull().default("INR"),
       subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
       discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
       cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -262,6 +265,10 @@ var init_schema = __esm({
       createdBy: varchar("created_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
+    }, (table) => {
+      return {
+        uniqueQuote: uniqueIndex("idx_sales_orders_quote_unique").on(table.quoteId)
+      };
     });
     salesOrdersRelations = relations(salesOrders, ({ one, many }) => ({
       quote: one(quotes, {
@@ -287,6 +294,8 @@ var init_schema = __esm({
     salesOrderItems = pgTable("sales_order_items", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       salesOrderId: varchar("sales_order_id").notNull().references(() => salesOrders.id, { onDelete: "cascade" }),
+      productId: varchar("product_id").references(() => products.id),
+      // Optional link to product catalog
       description: text("description").notNull(),
       quantity: integer("quantity").notNull().default(1),
       fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
@@ -297,6 +306,10 @@ var init_schema = __esm({
       sortOrder: integer("sort_order").notNull().default(0),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
+    }, (table) => {
+      return {
+        salesOrderIdx: index("idx_sales_order_items_order_id").on(table.salesOrderId)
+      };
     });
     salesOrderItemsRelations = relations(salesOrderItems, ({ one }) => ({
       salesOrder: one(salesOrders, {
@@ -307,6 +320,8 @@ var init_schema = __esm({
     quoteItems = pgTable("quote_items", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+      productId: varchar("product_id").references(() => products.id),
+      // Optional link to product catalog
       description: text("description").notNull(),
       quantity: integer("quantity").notNull().default(1),
       unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
@@ -317,7 +332,7 @@ var init_schema = __esm({
     invoices = pgTable("invoices", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       invoiceNumber: text("invoice_number").notNull().unique(),
-      quoteId: varchar("quote_id").notNull().references(() => quotes.id),
+      quoteId: varchar("quote_id").references(() => quotes.id),
       salesOrderId: varchar("sales_order_id").references(() => salesOrders.id),
       clientId: varchar("client_id").references(() => clients.id),
       parentInvoiceId: varchar("parent_invoice_id"),
@@ -328,6 +343,7 @@ var init_schema = __esm({
       dueDate: timestamp("due_date"),
       paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
       remainingAmount: decimal("remaining_amount", { precision: 12, scale: 2 }).default("0"),
+      currency: text("currency").notNull().default("INR"),
       subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0"),
       discount: decimal("discount", { precision: 12, scale: 2 }).default("0"),
       cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
@@ -354,7 +370,11 @@ var init_schema = __esm({
       updatedAt: timestamp("updated_at").notNull().defaultNow()
     }, (table) => {
       return {
-        parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId)
+        parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId),
+        // REMOVED unique constraint to allow partial invoicing (multiple invoices per SO)
+        // uniqueSalesOrder: uniqueIndex("idx_invoices_sales_order_unique").on(table.salesOrderId).where(sql`sales_order_id IS NOT NULL`),
+        clientIdx: index("idx_invoices_client_id").on(table.clientId),
+        paymentStatusIdx: index("idx_invoices_payment_status").on(table.paymentStatus)
       };
     });
     quotesRelations = relations(quotes, ({ one, many }) => ({
@@ -425,6 +445,8 @@ var init_schema = __esm({
     invoiceItems = pgTable("invoice_items", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       invoiceId: varchar("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+      productId: varchar("product_id").references(() => products.id),
+      // Optional link to product catalog
       description: text("description").notNull(),
       quantity: integer("quantity").notNull().default(1),
       fulfilledQuantity: integer("fulfilled_quantity").notNull().default(0),
@@ -484,6 +506,7 @@ var init_schema = __esm({
       orderDate: timestamp("order_date").notNull().defaultNow(),
       expectedDeliveryDate: timestamp("expected_delivery_date"),
       actualDeliveryDate: timestamp("actual_delivery_date"),
+      currency: text("currency").notNull().default("INR"),
       subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
       discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
       cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -515,6 +538,8 @@ var init_schema = __esm({
     vendorPoItems = pgTable("vendor_po_items", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       vendorPoId: varchar("vendor_po_id").notNull().references(() => vendorPurchaseOrders.id, { onDelete: "cascade" }),
+      productId: varchar("product_id").references(() => products.id),
+      // Optional link to product catalog
       description: text("description").notNull(),
       quantity: integer("quantity").notNull().default(1),
       receivedQuantity: integer("received_quantity").notNull().default(0),
@@ -685,6 +710,7 @@ var init_schema = __esm({
       action: text("action").notNull(),
       entityType: text("entity_type").notNull(),
       entityId: varchar("entity_id"),
+      metadata: jsonb("metadata"),
       timestamp: timestamp("timestamp").notNull().defaultNow()
     });
     activityLogsRelations = relations(activityLogs, ({ one }) => ({
@@ -819,6 +845,7 @@ var init_schema = __esm({
       createdAt: true,
       createdBy: true
     }).extend({
+      email: z.string().email("Invalid email format"),
       segment: z.string().optional(),
       preferredTheme: z.string().optional()
     });
@@ -973,7 +1000,7 @@ var init_db = __esm({
 });
 
 // server/storage.ts
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql as sql2 } from "drizzle-orm";
 var DatabaseStorage, storage;
 var init_storage = __esm({
   "server/storage.ts"() {
@@ -989,6 +1016,14 @@ var init_storage = __esm({
         const [user] = await db.select().from(users).where(eq(users.email, email));
         return user || void 0;
       }
+      async getUserByRefreshToken(token) {
+        const [user] = await db.select().from(users).where(eq(users.refreshToken, token));
+        return user || void 0;
+      }
+      async getUserByResetToken(token) {
+        const [user] = await db.select().from(users).where(eq(users.resetToken, token));
+        return user || void 0;
+      }
       async createUser(user) {
         const [newUser] = await db.insert(users).values(user).returning();
         return newUser;
@@ -1002,11 +1037,15 @@ var init_storage = __esm({
         return updated || void 0;
       }
       async deleteUser(id) {
-        await db.delete(activityLogs).where(eq(activityLogs.userId, id));
-        await db.delete(templates).where(eq(templates.createdBy, id));
-        await db.delete(quotes).where(eq(quotes.createdBy, id));
-        await db.delete(clients).where(eq(clients.createdBy, id));
-        await db.delete(users).where(eq(users.id, id));
+        await db.update(users).set({
+          status: "inactive",
+          refreshToken: null,
+          refreshTokenExpiry: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq(users.id, id));
+        console.log(`[Storage] User ${id} soft-deleted (set to inactive).`);
       }
       async getAllUsers() {
         return await db.select().from(users).orderBy(desc(users.createdAt));
@@ -1031,7 +1070,10 @@ var init_storage = __esm({
         return updated || void 0;
       }
       async deleteClient(id) {
-        await db.delete(clients).where(eq(clients.id, id));
+        await db.update(clients).set({
+          isActive: false
+        }).where(eq(clients.id, id));
+        console.log(`[Storage] Client ${id} soft-deleted (set to inactive).`);
       }
       // Quotes
       async getQuote(id) {
@@ -1054,6 +1096,26 @@ var init_storage = __esm({
       }
       async deleteQuote(id) {
         await db.delete(quotes).where(eq(quotes.id, id));
+      }
+      async createQuoteTransaction(quote, items) {
+        return await db.transaction(async (tx) => {
+          const [newQuote] = await tx.insert(quotes).values(quote).returning();
+          for (const item of items) {
+            await tx.insert(quoteItems).values({ ...item, quoteId: newQuote.id });
+          }
+          return newQuote;
+        });
+      }
+      async updateQuoteTransaction(id, data, items) {
+        return await db.transaction(async (tx) => {
+          const [updated] = await tx.update(quotes).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(quotes.id, id)).returning();
+          if (!updated) return void 0;
+          await tx.delete(quoteItems).where(eq(quoteItems.quoteId, id));
+          for (const item of items) {
+            await tx.insert(quoteItems).values({ ...item, quoteId: id });
+          }
+          return updated;
+        });
       }
       async getLastQuoteNumber() {
         const [lastQuote] = await db.select().from(quotes).orderBy(desc(quotes.createdAt)).limit(1);
@@ -1118,13 +1180,13 @@ var init_storage = __esm({
         return await db.select().from(templates).where(eq(templates.isActive, true));
       }
       async getTemplatesByType(type) {
-        return await db.select().from(templates).where(eq(templates.type, type) && eq(templates.isActive, true));
+        return await db.select().from(templates).where(and(eq(templates.type, type), eq(templates.isActive, true)));
       }
       async getTemplatesByStyle(style) {
-        return await db.select().from(templates).where(eq(templates.style, style) && eq(templates.isActive, true));
+        return await db.select().from(templates).where(and(eq(templates.style, style), eq(templates.isActive, true)));
       }
       async getDefaultTemplate(type) {
-        const [template] = await db.select().from(templates).where(eq(templates.type, type) && eq(templates.isDefault, true));
+        const [template] = await db.select().from(templates).where(and(eq(templates.type, type), eq(templates.isDefault, true)));
         return template || void 0;
       }
       async createTemplate(template) {
@@ -1136,6 +1198,10 @@ var init_storage = __esm({
         return updated || void 0;
       }
       async deleteTemplate(id) {
+        const [existingQuote] = await db.select().from(quotes).where(eq(quotes.templateId, id)).limit(1);
+        if (existingQuote) {
+          throw new Error("Cannot delete template: it is referenced by existing quotes.");
+        }
         await db.delete(templates).where(eq(templates.id, id));
       }
       // Activity Logs
@@ -1300,6 +1366,10 @@ var init_storage = __esm({
         return updated || void 0;
       }
       async deleteVendor(id) {
+        const pos = await db.select({ id: vendorPurchaseOrders.id }).from(vendorPurchaseOrders).where(eq(vendorPurchaseOrders.vendorId, id)).limit(1);
+        if (pos.length > 0) {
+          throw new Error("Cannot delete vendor: there are existing purchase orders for this vendor.");
+        }
         await db.delete(vendors).where(eq(vendors.id, id));
       }
       // NEW FEATURE - Vendor Purchase Orders
@@ -1366,23 +1436,26 @@ var init_storage = __esm({
         const [newAttachment] = await db.insert(invoiceAttachments).values(attachment).returning();
         return newAttachment;
       }
+      async getInvoicesBySalesOrder(salesOrderId) {
+        return await db.select().from(invoices).where(eq(invoices.salesOrderId, salesOrderId)).orderBy(desc(invoices.createdAt));
+      }
       async getInvoicesByQuote(quoteId) {
         return await db.select().from(invoices).where(eq(invoices.quoteId, quoteId)).orderBy(desc(invoices.createdAt));
       }
       // Serial Numbers
       async getSerialNumber(id) {
         const { serialNumbers: serialNumbers2 } = await Promise.resolve().then(() => (init_schema(), schema_exports));
-        const [serial] = await db.select().from(serialNumbers2).where(eq(serialNumbers2.id, id));
-        return serial || void 0;
+        const [serial2] = await db.select().from(serialNumbers2).where(eq(serialNumbers2.id, id));
+        return serial2 || void 0;
       }
       async getSerialNumberByValue(serialNumber) {
         const { serialNumbers: serialNumbers2 } = await Promise.resolve().then(() => (init_schema(), schema_exports));
-        const [serial] = await db.select().from(serialNumbers2).where(eq(serialNumbers2.serialNumber, serialNumber));
-        return serial || void 0;
+        const [serial2] = await db.select().from(serialNumbers2).where(eq(serialNumbers2.serialNumber, serialNumber));
+        return serial2 || void 0;
       }
-      async createSerialNumber(serial) {
+      async createSerialNumber(serial2) {
         const { serialNumbers: serialNumbers2 } = await Promise.resolve().then(() => (init_schema(), schema_exports));
-        const [newSerial] = await db.insert(serialNumbers2).values(serial).returning();
+        const [newSerial] = await db.insert(serialNumbers2).values(serial2).returning();
         return newSerial;
       }
       async updateSerialNumber(id, data) {
@@ -1414,7 +1487,20 @@ var init_storage = __esm({
         return updated || void 0;
       }
       async deleteGrn(id) {
-        await db.delete(goodsReceivedNotes).where(eq(goodsReceivedNotes.id, id));
+        await db.transaction(async (tx) => {
+          const [grn] = await tx.select().from(goodsReceivedNotes).where(eq(goodsReceivedNotes.id, id));
+          if (!grn) return;
+          const [poItem] = await tx.select().from(vendorPoItems).where(eq(vendorPoItems.id, grn.vendorPoItemId));
+          if (poItem && poItem.productId) {
+            await tx.update(products).set({
+              stockQuantity: sql2`${products.stockQuantity} - ${grn.quantityReceived}`,
+              availableQuantity: sql2`${products.availableQuantity} - ${grn.quantityReceived}`,
+              updatedAt: /* @__PURE__ */ new Date()
+            }).where(eq(products.id, poItem.productId));
+            console.log(`[Storage] Reversing GRN stock for product ${poItem.productId}: -${grn.quantityReceived}`);
+          }
+          await tx.delete(goodsReceivedNotes).where(eq(goodsReceivedNotes.id, id));
+        });
       }
       // Quote Versions
       async createQuoteVersion(version) {
@@ -1466,498 +1552,17 @@ var init_storage = __esm({
       async deleteSalesOrderItems(salesOrderId) {
         await db.delete(salesOrderItems).where(eq(salesOrderItems.salesOrderId, salesOrderId));
       }
+      // Products
+      async getProduct(id) {
+        const [product] = await db.select().from(products).where(eq(products.id, id));
+        return product || void 0;
+      }
+      async updateProduct(id, data) {
+        const [updated] = await db.update(products).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(products.id, id)).returning();
+        return updated || void 0;
+      }
     };
     storage = new DatabaseStorage();
-  }
-});
-
-// server/services/pdf-themes.ts
-var pdf_themes_exports = {};
-__export(pdf_themes_exports, {
-  creativeTheme: () => creativeTheme,
-  educationTheme: () => educationTheme,
-  getAllThemes: () => getAllThemes,
-  getSuggestedTheme: () => getSuggestedTheme,
-  getTheme: () => getTheme,
-  governmentTheme: () => governmentTheme,
-  minimalTheme: () => minimalTheme,
-  modernTheme: () => modernTheme,
-  premiumTheme: () => premiumTheme,
-  professionalTheme: () => professionalTheme,
-  segmentThemeMapping: () => segmentThemeMapping,
-  themeRegistry: () => themeRegistry
-});
-function getTheme(themeName) {
-  if (!themeName) return professionalTheme;
-  return themeRegistry[themeName] || professionalTheme;
-}
-function getSuggestedTheme(segment) {
-  if (!segment) return professionalTheme;
-  const themeName = segmentThemeMapping[segment] || "professional";
-  return getTheme(themeName);
-}
-function getAllThemes() {
-  return Object.values(themeRegistry);
-}
-var professionalTheme, modernTheme, minimalTheme, creativeTheme, premiumTheme, governmentTheme, educationTheme, themeRegistry, segmentThemeMapping;
-var init_pdf_themes = __esm({
-  "server/services/pdf-themes.ts"() {
-    "use strict";
-    professionalTheme = {
-      name: "professional",
-      displayName: "Professional",
-      description: "Classic corporate design with navy blue accents (original theme)",
-      colors: {
-        primary: "#0f172a",
-        // Original default PRIMARY
-        primaryLight: "#1e293b",
-        // Original default PRIMARY_LIGHT
-        accent: "#3b82f6",
-        // Original default ACCENT
-        accentLight: "#60a5fa",
-        // Original default ACCENT_LIGHT
-        text: "#1e293b",
-        // Original default TEXT
-        muted: "#64748b",
-        // Original default MUTED
-        border: "#e2e8f0",
-        // Original default BORDER
-        bgSoft: "#f8fafc",
-        // Original default BG_SOFT
-        bgAlt: "#f1f5f9",
-        // Original default BG_ALT
-        success: "#10b981",
-        // Original default SUCCESS
-        warning: "#f59e0b"
-        // Original default WARNING
-      },
-      fonts: {
-        heading: "Helvetica-Bold",
-        body: "Helvetica",
-        bold: "Helvetica-Bold"
-      },
-      styles: {
-        headerStyle: "wave",
-        borderRadius: 0,
-        shadowIntensity: "light",
-        spacing: "normal"
-      }
-    };
-    modernTheme = {
-      name: "modern",
-      displayName: "Modern",
-      description: "Contemporary design with vibrant colors and clean lines",
-      colors: {
-        primary: "#6366f1",
-        primaryLight: "#818cf8",
-        accent: "#ec4899",
-        accentLight: "#f472b6",
-        text: "#111827",
-        muted: "#6b7280",
-        border: "#e5e7eb",
-        bgSoft: "#faf5ff",
-        bgAlt: "#f3f4f6",
-        success: "#34d399",
-        warning: "#fbbf24"
-      },
-      fonts: {
-        heading: "Helvetica-Bold",
-        body: "Helvetica",
-        bold: "Helvetica-Bold"
-      },
-      styles: {
-        headerStyle: "gradient",
-        borderRadius: 4,
-        shadowIntensity: "medium",
-        spacing: "spacious"
-      }
-    };
-    minimalTheme = {
-      name: "minimal",
-      displayName: "Minimal",
-      description: "Clean and simple design with focus on content",
-      colors: {
-        primary: "#18181b",
-        primaryLight: "#27272a",
-        accent: "#71717a",
-        accentLight: "#a1a1aa",
-        text: "#09090b",
-        muted: "#71717a",
-        border: "#e4e4e7",
-        bgSoft: "#fafafa",
-        bgAlt: "#f4f4f5",
-        success: "#22c55e",
-        warning: "#eab308"
-      },
-      fonts: {
-        heading: "Helvetica-Bold",
-        body: "Helvetica",
-        bold: "Helvetica-Bold"
-      },
-      styles: {
-        headerStyle: "minimal",
-        borderRadius: 0,
-        shadowIntensity: "none",
-        spacing: "spacious"
-      }
-    };
-    creativeTheme = {
-      name: "creative",
-      displayName: "Creative",
-      description: "Bold and colorful design for creative industries",
-      colors: {
-        primary: "#7c3aed",
-        primaryLight: "#8b5cf6",
-        accent: "#f59e0b",
-        accentLight: "#fbbf24",
-        text: "#1f2937",
-        muted: "#6b7280",
-        border: "#d1d5db",
-        bgSoft: "#fef3c7",
-        bgAlt: "#fef9c3",
-        success: "#10b981",
-        warning: "#ef4444"
-      },
-      fonts: {
-        heading: "Helvetica-Bold",
-        body: "Helvetica",
-        bold: "Helvetica-Bold"
-      },
-      styles: {
-        headerStyle: "modern",
-        borderRadius: 8,
-        shadowIntensity: "strong",
-        spacing: "normal"
-      }
-    };
-    premiumTheme = {
-      name: "premium",
-      displayName: "Premium",
-      description: "Luxurious design with gold accents for premium clients",
-      colors: {
-        primary: "#1e1b4b",
-        primaryLight: "#312e81",
-        accent: "#d97706",
-        accentLight: "#f59e0b",
-        text: "#0f172a",
-        muted: "#475569",
-        border: "#cbd5e1",
-        bgSoft: "#fef9c3",
-        bgAlt: "#fefce8",
-        success: "#059669",
-        warning: "#dc2626"
-      },
-      fonts: {
-        heading: "Helvetica-Bold",
-        body: "Helvetica",
-        bold: "Helvetica-Bold"
-      },
-      styles: {
-        headerStyle: "corporate",
-        borderRadius: 2,
-        shadowIntensity: "strong",
-        spacing: "spacious"
-      }
-    };
-    governmentTheme = {
-      name: "government",
-      displayName: "Government",
-      description: "Formal and structured design for government entities",
-      colors: {
-        primary: "#1e3a8a",
-        primaryLight: "#1e40af",
-        accent: "#0369a1",
-        accentLight: "#0284c7",
-        text: "#1e293b",
-        muted: "#64748b",
-        border: "#cbd5e1",
-        bgSoft: "#f8fafc",
-        bgAlt: "#f1f5f9",
-        success: "#16a34a",
-        warning: "#ea580c"
-      },
-      fonts: {
-        heading: "Helvetica-Bold",
-        body: "Helvetica",
-        bold: "Helvetica-Bold"
-      },
-      styles: {
-        headerStyle: "corporate",
-        borderRadius: 0,
-        shadowIntensity: "none",
-        spacing: "compact"
-      }
-    };
-    educationTheme = {
-      name: "education",
-      displayName: "Education",
-      description: "Friendly and approachable design for education sector",
-      colors: {
-        primary: "#0891b2",
-        primaryLight: "#06b6d4",
-        accent: "#14b8a6",
-        accentLight: "#2dd4bf",
-        text: "#0f172a",
-        muted: "#64748b",
-        border: "#cbd5e1",
-        bgSoft: "#f0fdfa",
-        bgAlt: "#ccfbf1",
-        success: "#10b981",
-        warning: "#f97316"
-      },
-      fonts: {
-        heading: "Helvetica-Bold",
-        body: "Helvetica",
-        bold: "Helvetica-Bold"
-      },
-      styles: {
-        headerStyle: "modern",
-        borderRadius: 4,
-        shadowIntensity: "light",
-        spacing: "normal"
-      }
-    };
-    themeRegistry = {
-      professional: professionalTheme,
-      modern: modernTheme,
-      minimal: minimalTheme,
-      creative: creativeTheme,
-      premium: premiumTheme,
-      government: governmentTheme,
-      education: educationTheme
-    };
-    segmentThemeMapping = {
-      enterprise: "premium",
-      corporate: "professional",
-      startup: "modern",
-      government: "government",
-      education: "education",
-      creative: "creative"
-    };
-  }
-});
-
-// server/services/numbering.service.ts
-var numbering_service_exports = {};
-__export(numbering_service_exports, {
-  NumberingService: () => NumberingService
-});
-var NumberingService;
-var init_numbering_service = __esm({
-  "server/services/numbering.service.ts"() {
-    "use strict";
-    init_storage();
-    NumberingService = class {
-      /**
-       * Generate a formatted quote number
-       * Example: QT-2025-001
-       */
-      static async generateQuoteNumber() {
-        try {
-          let formatSetting = await storage.getSetting("quoteFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("quote_number_format");
-          let prefixSetting = await storage.getSetting("quotePrefix");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("quote_prefix");
-          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
-          const prefix = prefixSetting?.value || "QT";
-          const counter = await this.getAndIncrementCounter("quote");
-          return this.applyFormat(format, prefix, counter);
-        } catch (error) {
-          console.error("Error generating quote number:", error);
-          const counter = Math.floor(Math.random() * 1e4);
-          return `QT-${String(counter).padStart(4, "0")}`;
-        }
-      }
-      /**
-       * Generate a formatted invoice number (unified for all invoices)
-       * Example: INV-2025-001
-       * Both master and child invoices use the same numbering sequence
-       */
-      static async generateMasterInvoiceNumber() {
-        try {
-          let formatSetting = await storage.getSetting("masterInvoiceFormat");
-          let prefixSetting = await storage.getSetting("masterInvoicePrefix");
-          if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
-          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
-          const prefix = prefixSetting?.value || "MINV";
-          const counter = await this.getAndIncrementCounter("invoice");
-          return this.applyFormat(format, prefix, counter);
-        } catch (error) {
-          console.error("Error generating master invoice number:", error);
-          const counter = Math.floor(Math.random() * 1e4);
-          return `MINV-${String(counter).padStart(4, "0")}`;
-        }
-      }
-      /**
-       * Generate a formatted invoice number (unified for all invoices)
-       * Example: INV-2025-001
-       * Both master and child invoices use the same numbering sequence
-       */
-      static async generateChildInvoiceNumber() {
-        try {
-          let formatSetting = await storage.getSetting("childInvoiceFormat");
-          let prefixSetting = await storage.getSetting("childInvoicePrefix");
-          if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
-          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
-          const prefix = prefixSetting?.value || "INV";
-          const counter = await this.getAndIncrementCounter("invoice");
-          return this.applyFormat(format, prefix, counter);
-        } catch (error) {
-          console.error("Error generating child invoice number:", error);
-          const counter = Math.floor(Math.random() * 1e4);
-          return `INV-${String(counter).padStart(4, "0")}`;
-        }
-      }
-      /**
-       * Generate a formatted invoice number (backwards compatibility)
-       * Example: INV-2025-001
-       */
-      static async generateInvoiceNumber() {
-        return this.generateChildInvoiceNumber();
-      }
-      /**
-       * Generate a formatted vendor PO number
-       * Example: PO-2025-001
-       */
-      static async generateVendorPoNumber() {
-        try {
-          let formatSetting = await storage.getSetting("vendorPoFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("po_number_format");
-          let prefixSetting = await storage.getSetting("vendorPoPrefix");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("po_prefix");
-          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
-          const prefix = prefixSetting?.value || "PO";
-          const counter = await this.getAndIncrementCounter("vendor_po");
-          return this.applyFormat(format, prefix, counter);
-        } catch (error) {
-          console.error("Error generating vendor PO number:", error);
-          const counter = Math.floor(Math.random() * 1e4);
-          return `PO-${String(counter).padStart(4, "0")}`;
-        }
-      }
-      /**
-       * Generate a formatted GRN number
-       * Example: GRN-2025-001
-       */
-      static async generateGrnNumber() {
-        try {
-          let formatSetting = await storage.getSetting("grnFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("grn_number_format");
-          let prefixSetting = await storage.getSetting("grnPrefix");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("grn_prefix");
-          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
-          const prefix = prefixSetting?.value || "GRN";
-          const counter = await this.getAndIncrementCounter("grn");
-          return this.applyFormat(format, prefix, counter);
-        } catch (error) {
-          console.error("Error generating GRN number:", error);
-          const counter = Math.floor(Math.random() * 1e4);
-          return `GRN-${String(counter).padStart(4, "0")}`;
-        }
-      }
-      /**
-       * Generate a formatted sales order number
-       * Example: SO-2025-001
-       */
-      static async generateSalesOrderNumber() {
-        try {
-          let formatSetting = await storage.getSetting("salesOrderFormat");
-          if (!formatSetting) formatSetting = await storage.getSetting("sales_order_number_format");
-          let prefixSetting = await storage.getSetting("salesOrderPrefix");
-          if (!prefixSetting) prefixSetting = await storage.getSetting("sales_order_prefix");
-          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
-          const prefix = prefixSetting?.value || "SO";
-          const counter = await this.getAndIncrementCounter("sales_order");
-          return this.applyFormat(format, prefix, counter);
-        } catch (error) {
-          console.error("Error generating sales order number:", error);
-          const counter = Math.floor(Math.random() * 1e4);
-          return `SO-${String(counter).padStart(4, "0")}`;
-        }
-      }
-      /**
-       * Get the next counter value and increment it
-       * Uses year-based counter keys (e.g., quote_counter_2025)
-       * Always checks DB for the latest value before incrementing
-       * Counters start from 1 (formatted as 001 with padding)
-       */
-      static async getAndIncrementCounter(type) {
-        const year = (/* @__PURE__ */ new Date()).getFullYear();
-        const counterKey = `${type}_counter_${year}`;
-        const currentCounterSetting = await storage.getSetting(counterKey);
-        let currentValue = 0;
-        if (currentCounterSetting && currentCounterSetting.value) {
-          const parsed = parseInt(currentCounterSetting.value, 10);
-          if (!isNaN(parsed)) {
-            currentValue = parsed;
-          }
-        }
-        const nextValue = currentValue + 1;
-        console.log(`[NumberingService] ${type}_${year}: current=${currentValue}, next=${nextValue}`);
-        await storage.upsertSetting({
-          key: counterKey,
-          value: String(nextValue)
-        });
-        return nextValue;
-      }
-      /**
-       * Apply format string with variables
-       * Supported variables:
-       * - {PREFIX}: Document prefix (QT, INV, PO, GRN)
-       * - {YEAR}: Current year (2025)
-       * - {COUNTER}: Counter value (1, 2, 3...)
-       * - {COUNTER:04d}: Counter with zero padding to 4 digits (0001, 0002...)
-       */
-      static applyFormat(format, prefix, counter) {
-        let result = format;
-        result = result.replace(/{PREFIX}/g, prefix);
-        const year = (/* @__PURE__ */ new Date()).getFullYear();
-        result = result.replace(/{YEAR}/g, String(year));
-        result = result.replace(/{COUNTER:(\d+)d}/g, (match, padding) => {
-          return String(counter).padStart(parseInt(padding), "0");
-        });
-        result = result.replace(/{COUNTER}/g, String(counter).padStart(4, "0"));
-        return result;
-      }
-      /**
-       * Reset a counter to 0 (for testing/admin purposes)
-       */
-      static async resetCounter(type, year) {
-        const counterKey = `${type}_counter_${year}`;
-        console.log(`[NumberingService] RESETTING counter ${counterKey} to 0`);
-        await storage.upsertSetting({
-          key: counterKey,
-          value: "0"
-        });
-      }
-      /**
-       * Set a counter to a specific value
-       */
-      static async setCounter(type, year, value) {
-        const counterKey = `${type}_counter_${year}`;
-        console.log(`[NumberingService] Setting counter ${counterKey} to ${value}`);
-        await storage.upsertSetting({
-          key: counterKey,
-          value: String(value)
-        });
-      }
-      /**
-       * Get current counter value without incrementing
-       */
-      static async getCounter(type, year) {
-        const counterKey = `${type}_counter_${year}`;
-        const setting = await storage.getSetting(counterKey);
-        const value = setting ? parseInt(setting.value || "0", 10) : 0;
-        console.log(`[NumberingService] Current ${counterKey} = ${value}`);
-        return value;
-      }
-    };
   }
 });
 
@@ -2348,6 +1953,14 @@ var init_feature_flags = __esm({
       products_categories: true,
       products_pricing: true,
       products_reorderLevel: true,
+      // Products Linking & Stock Control
+      products_link_to_quotes: true,
+      products_link_to_invoices: true,
+      products_link_to_vendor_pos: true,
+      products_stock_tracking: true,
+      products_stock_warnings: true,
+      products_reserve_on_order: true,
+      products_allow_negative_stock: true,
       // ==================== ANALYTICS & DASHBOARDS ====================
       analytics_module: true,
       analytics_revenueMetrics: true,
@@ -2461,6 +2074,559 @@ var init_feature_flags = __esm({
       integration_externalApi: true
     };
     featureFlags = getFeatureFlags();
+  }
+});
+
+// server/services/numbering.service.ts
+var numbering_service_exports = {};
+__export(numbering_service_exports, {
+  NumberingService: () => NumberingService
+});
+import { sql as sql4 } from "drizzle-orm";
+var NumberingService;
+var init_numbering_service = __esm({
+  "server/services/numbering.service.ts"() {
+    "use strict";
+    init_storage();
+    init_db();
+    NumberingService = class {
+      /**
+       * Generate a formatted quote number
+       * Example: QT-2025-001
+       */
+      static async generateQuoteNumber() {
+        try {
+          let formatSetting = await storage.getSetting("quoteFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("quote_number_format");
+          let prefixSetting = await storage.getSetting("quotePrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("quote_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "QT";
+          const counter = await this.getAndIncrementCounter("quote");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating quote number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `QT-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted invoice number (unified for all invoices)
+       * Example: INV-2025-001
+       * Both master and child invoices use the same numbering sequence
+       */
+      static async generateMasterInvoiceNumber() {
+        try {
+          let formatSetting = await storage.getSetting("masterInvoiceFormat");
+          let prefixSetting = await storage.getSetting("masterInvoicePrefix");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "MINV";
+          const counter = await this.getAndIncrementCounter("invoice");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating master invoice number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `MINV-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted invoice number (unified for all invoices)
+       * Example: INV-2025-001
+       * Both master and child invoices use the same numbering sequence
+       */
+      static async generateChildInvoiceNumber() {
+        try {
+          let formatSetting = await storage.getSetting("childInvoiceFormat");
+          let prefixSetting = await storage.getSetting("childInvoicePrefix");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoiceFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("invoice_number_format");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("invoicePrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("invoice_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "INV";
+          const counter = await this.getAndIncrementCounter("invoice");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating child invoice number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `INV-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted invoice number (backwards compatibility)
+       * Example: INV-2025-001
+       */
+      static async generateInvoiceNumber() {
+        return this.generateChildInvoiceNumber();
+      }
+      /**
+       * Generate a formatted vendor PO number
+       * Example: PO-2025-001
+       */
+      static async generateVendorPoNumber() {
+        try {
+          let formatSetting = await storage.getSetting("vendorPoFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("po_number_format");
+          let prefixSetting = await storage.getSetting("vendorPoPrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("po_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "PO";
+          const counter = await this.getAndIncrementCounter("vendor_po");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating vendor PO number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `PO-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted GRN number
+       * Example: GRN-2025-001
+       */
+      static async generateGrnNumber() {
+        try {
+          let formatSetting = await storage.getSetting("grnFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("grn_number_format");
+          let prefixSetting = await storage.getSetting("grnPrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("grn_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "GRN";
+          const counter = await this.getAndIncrementCounter("grn");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating GRN number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `GRN-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted sales order number
+       * Example: SO-2025-001
+       */
+      static async generateSalesOrderNumber() {
+        try {
+          let formatSetting = await storage.getSetting("salesOrderFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("sales_order_number_format");
+          let prefixSetting = await storage.getSetting("salesOrderPrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("sales_order_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "SO";
+          const counter = await this.getAndIncrementCounter("sales_order");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating sales order number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `SO-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Get the next counter value and increment it
+       * Uses year-based counter keys (e.g., quote_counter_2025)
+       * Uses ATOMIC SQL UPDATE to prevent race conditions
+       * Counters start from 1 (formatted as 001 with padding)
+       */
+      static async getAndIncrementCounter(type) {
+        const year = (/* @__PURE__ */ new Date()).getFullYear();
+        const counterKey = `${type}_counter_${year}`;
+        const result = await db.execute(sql4`
+      INSERT INTO settings (id, key, value, updated_at) 
+      VALUES (${sql4`gen_random_uuid()`}, ${counterKey}, '1', NOW())
+      ON CONFLICT (key) DO UPDATE 
+      SET value = (CAST(settings.value AS INTEGER) + 1)::text, updated_at = NOW()
+      RETURNING value
+    `);
+        let nextValue = 1;
+        if (result && Array.isArray(result) && result.length > 0 && result[0].value) {
+          nextValue = parseInt(result[0].value, 10);
+        } else if (result && "rows" in result && Array.isArray(result.rows) && result.rows.length > 0) {
+          nextValue = parseInt(result.rows[0].value, 10);
+        } else {
+          console.error(`[NumberingService] CRITICAL: Failed to parse atomic result for ${counterKey}. Result was:`, result);
+          throw new Error(`Failed to generate atomic counter for ${type}. Database driver response format unexpected.`);
+        }
+        console.log(`[NumberingService] ${type}_${year}: next=${nextValue}`);
+        return nextValue;
+      }
+      /**
+       * Apply format string with variables
+       * Supported variables:
+       * - {PREFIX}: Document prefix (QT, INV, PO, GRN)
+       * - {YEAR}: Current year (2025)
+       * - {COUNTER}: Counter value (1, 2, 3...)
+       * - {COUNTER:04d}: Counter with zero padding to 4 digits (0001, 0002...)
+       */
+      static applyFormat(format, prefix, counter) {
+        let result = format;
+        result = result.replace(/{PREFIX}/g, prefix);
+        const year = (/* @__PURE__ */ new Date()).getFullYear();
+        result = result.replace(/{YEAR}/g, String(year));
+        result = result.replace(/{COUNTER:(\d+)d}/g, (match, padding) => {
+          return String(counter).padStart(parseInt(padding), "0");
+        });
+        result = result.replace(/{COUNTER}/g, String(counter).padStart(4, "0"));
+        return result;
+      }
+      /**
+       * Reset a counter to 0 (for testing/admin purposes)
+       */
+      static async resetCounter(type, year) {
+        const counterKey = `${type}_counter_${year}`;
+        console.log(`[NumberingService] RESETTING counter ${counterKey} to 0`);
+        await storage.upsertSetting({
+          key: counterKey,
+          value: "0"
+        });
+      }
+      /**
+       * Set a counter to a specific value
+       */
+      static async setCounter(type, year, value) {
+        const counterKey = `${type}_counter_${year}`;
+        console.log(`[NumberingService] Setting counter ${counterKey} to ${value}`);
+        await storage.upsertSetting({
+          key: counterKey,
+          value: String(value)
+        });
+      }
+      /**
+       * Get current counter value without incrementing
+       */
+      static async getCounter(type, year) {
+        const counterKey = `${type}_counter_${year}`;
+        const setting = await storage.getSetting(counterKey);
+        const value = setting ? parseInt(setting.value || "0", 10) : 0;
+        console.log(`[NumberingService] Current ${counterKey} = ${value}`);
+        return value;
+      }
+    };
+  }
+});
+
+// server/serial-number-service.ts
+var serial_number_service_exports = {};
+__export(serial_number_service_exports, {
+  canEditSerialNumbers: () => canEditSerialNumbers,
+  getSerialTraceability: () => getSerialTraceability,
+  logSerialNumberChange: () => logSerialNumberChange,
+  validateSerialNumbers: () => validateSerialNumbers
+});
+import { eq as eq3, and as and2, sql as sql6 } from "drizzle-orm";
+async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expectedQuantity, options = {
+  checkInvoiceScope: true,
+  checkQuoteScope: true,
+  checkSystemWide: true
+}) {
+  const errors = [];
+  const emptySerials = serials.filter((s) => !s || s.trim().length === 0);
+  if (emptySerials.length > 0) {
+    errors.push({
+      type: "empty_serial",
+      message: "Empty serial numbers are not allowed"
+    });
+  }
+  const validSerials = serials.filter((s) => s && s.trim().length > 0);
+  if (validSerials.length !== expectedQuantity) {
+    errors.push({
+      type: "count_mismatch",
+      message: `Expected ${expectedQuantity} serial numbers, but received ${validSerials.length}`
+    });
+  }
+  const duplicatesInList = validSerials.filter(
+    (serial2, index2) => validSerials.indexOf(serial2) !== index2
+  );
+  const uniqueDuplicatesInList = Array.from(new Set(duplicatesInList));
+  if (uniqueDuplicatesInList.length > 0) {
+    errors.push({
+      type: "duplicate_in_invoice",
+      message: `Duplicate serial numbers in submission`,
+      affectedSerials: uniqueDuplicatesInList
+    });
+  }
+  if (options.checkInvoiceScope) {
+    const invoiceItemsList = await db.select().from(invoiceItems).where(
+      and2(
+        eq3(invoiceItems.invoiceId, invoiceId),
+        sql6`${invoiceItems.id} != ${invoiceItemId}`
+      )
+    );
+    const existingSerialsInInvoice = [];
+    for (const item of invoiceItemsList) {
+      if (item.serialNumbers) {
+        try {
+          const itemSerials = JSON.parse(item.serialNumbers);
+          existingSerialsInInvoice.push(...itemSerials);
+        } catch (e) {
+        }
+      }
+    }
+    const duplicatesInInvoice = validSerials.filter(
+      (s) => existingSerialsInInvoice.includes(s)
+    );
+    if (duplicatesInInvoice.length > 0) {
+      errors.push({
+        type: "duplicate_in_invoice",
+        message: "Serial numbers already used in this invoice",
+        affectedSerials: duplicatesInInvoice
+      });
+    }
+  }
+  if (options.checkQuoteScope) {
+    const invoice = await db.select().from(invoices).where(eq3(invoices.id, invoiceId)).limit(1);
+    if (invoice.length > 0) {
+      const quoteId = invoice[0].quoteId;
+      if (quoteId) {
+        const relatedInvoices = await db.select().from(invoices).where(
+          and2(
+            eq3(invoices.quoteId, quoteId),
+            sql6`${invoices.id} != ${invoiceId}`
+          )
+        );
+        const existingSerialsInQuote = [];
+        for (const relInvoice of relatedInvoices) {
+          const items = await db.select().from(invoiceItems).where(eq3(invoiceItems.invoiceId, relInvoice.id));
+          for (const item of items) {
+            if (item.serialNumbers) {
+              try {
+                const itemSerials = JSON.parse(item.serialNumbers);
+                existingSerialsInQuote.push(...itemSerials);
+              } catch (e) {
+              }
+            }
+          }
+        }
+        const duplicatesInQuote = validSerials.filter(
+          (s) => existingSerialsInQuote.includes(s)
+        );
+        if (duplicatesInQuote.length > 0) {
+          errors.push({
+            type: "duplicate_in_quote",
+            message: "Serial numbers already used in other invoices for this quote",
+            affectedSerials: duplicatesInQuote
+          });
+        }
+      }
+    }
+  }
+  if (options.checkSystemWide) {
+    const existingSerials = await db.select({ serialNumber: serialNumbers.serialNumber }).from(serialNumbers).where(
+      sql6`${serialNumbers.serialNumber} IN (${sql6.join(validSerials.map((s) => sql6`${s}`), sql6`, `)})`
+    );
+    const duplicatesInSystem = existingSerials.map((s) => s.serialNumber);
+    if (duplicatesInSystem.length > 0) {
+      errors.push({
+        type: "duplicate_in_system",
+        message: "Serial numbers already exist in the system",
+        affectedSerials: duplicatesInSystem
+      });
+    }
+  }
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+async function getSerialTraceability(serialNumberValue) {
+  console.log("[Serial Traceability] Searching for:", serialNumberValue);
+  const [serial2] = await db.select().from(serialNumbers).where(eq3(serialNumbers.serialNumber, serialNumberValue)).limit(1);
+  if (serial2) {
+    console.log("[Serial Traceability] Found in serialNumbers table:", serial2.id);
+    const invoice = serial2.invoiceId ? await db.select().from(invoices).where(eq3(invoices.id, serial2.invoiceId)).limit(1) : [];
+    if (invoice.length === 0) {
+      console.log("[Serial Traceability] No invoice found for serial");
+      return null;
+    }
+    const quote = invoice[0].quoteId ? await db.select().from(quotes).where(eq3(quotes.id, invoice[0].quoteId)).limit(1) : [];
+    const customer = quote.length > 0 ? await db.select().from(clients).where(eq3(clients.id, quote[0].clientId)).limit(1) : [];
+    const salesOrder = invoice[0].salesOrderId ? await db.select().from(salesOrders).where(eq3(salesOrders.id, invoice[0].salesOrderId)).limit(1) : [];
+    const invoiceItem = serial2.invoiceItemId ? await db.select().from(invoiceItems).where(eq3(invoiceItems.id, serial2.invoiceItemId)).limit(1) : [];
+    const history = await db.select({
+      action: activityLogs.action,
+      userId: activityLogs.userId,
+      timestamp: activityLogs.timestamp
+    }).from(activityLogs).where(
+      and2(
+        eq3(activityLogs.entityType, "serial_number"),
+        eq3(activityLogs.entityId, serial2.id)
+      )
+    ).orderBy(activityLogs.timestamp);
+    const historyWithUsers = await Promise.all(
+      history.map(async (h) => {
+        const user = await db.select().from(users).where(eq3(users.id, h.userId)).limit(1);
+        return {
+          action: h.action,
+          user: user.length > 0 ? user[0].name : "Unknown",
+          timestamp: h.timestamp.toISOString()
+        };
+      })
+    );
+    return {
+      serialNumber: serial2.serialNumber,
+      status: serial2.status || "unknown",
+      customer: customer.length > 0 ? {
+        id: customer[0].id,
+        name: customer[0].name,
+        email: customer[0].email
+      } : {
+        id: "",
+        name: "Unknown",
+        email: ""
+      },
+      quote: quote.length > 0 ? {
+        id: quote[0].id,
+        quoteNumber: quote[0].quoteNumber
+      } : {
+        id: "",
+        quoteNumber: "Unknown"
+      },
+      salesOrder: salesOrder.length > 0 ? {
+        id: salesOrder[0].id,
+        orderNumber: salesOrder[0].orderNumber
+      } : void 0,
+      invoice: {
+        id: invoice[0].id,
+        invoiceNumber: invoice[0].invoiceNumber,
+        invoiceDate: invoice[0].createdAt.toISOString(),
+        isMaster: invoice[0].isMaster,
+        masterInvoiceId: invoice[0].parentInvoiceId || void 0
+      },
+      invoiceItem: invoiceItem.length > 0 ? {
+        id: invoiceItem[0].id,
+        description: invoiceItem[0].description,
+        quantity: invoiceItem[0].quantity
+      } : {
+        id: "",
+        description: "Unknown",
+        quantity: 0
+      },
+      warranty: serial2.warrantyStartDate && serial2.warrantyEndDate ? {
+        startDate: serial2.warrantyStartDate.toISOString(),
+        endDate: serial2.warrantyEndDate.toISOString()
+      } : void 0,
+      location: serial2.location || void 0,
+      notes: serial2.notes || void 0,
+      history: historyWithUsers
+    };
+  }
+  console.log("[Serial Traceability] Not in serialNumbers table, checking invoice items...");
+  const allInvoiceItems = await db.select().from(invoiceItems);
+  console.log("[Serial Traceability] Found", allInvoiceItems.length, "invoice items to check");
+  for (const item of allInvoiceItems) {
+    if (item.serialNumbers) {
+      try {
+        const itemSerials = JSON.parse(item.serialNumbers);
+        if (Array.isArray(itemSerials) && itemSerials.includes(serialNumberValue)) {
+          console.log("[Serial Traceability] Found in invoice item:", item.id);
+          return await constructTraceabilityFromInvoiceItem(serialNumberValue, item);
+        }
+      } catch (e) {
+        console.error("[Serial Traceability] Error parsing serialNumbers JSON for item:", item.id, e);
+      }
+    }
+  }
+  console.log("[Serial Traceability] Serial number not found anywhere");
+  return null;
+}
+async function constructTraceabilityFromInvoiceItem(serialNumberValue, item) {
+  const invoice = await db.select().from(invoices).where(eq3(invoices.id, item.invoiceId)).limit(1);
+  if (invoice.length === 0) return null;
+  const quote = invoice[0].quoteId ? await db.select().from(quotes).where(eq3(quotes.id, invoice[0].quoteId)).limit(1) : [];
+  const customer = quote.length > 0 ? await db.select().from(clients).where(eq3(clients.id, quote[0].clientId)).limit(1) : [];
+  const salesOrder = invoice[0].salesOrderId ? await db.select().from(salesOrders).where(eq3(salesOrders.id, invoice[0].salesOrderId)).limit(1) : [];
+  return {
+    serialNumber: serialNumberValue,
+    status: "delivered",
+    customer: customer.length > 0 ? {
+      id: customer[0].id,
+      name: customer[0].name,
+      email: customer[0].email
+    } : {
+      id: "",
+      name: "Unknown",
+      email: ""
+    },
+    quote: quote.length > 0 ? {
+      id: quote[0].id,
+      quoteNumber: quote[0].quoteNumber
+    } : {
+      id: "",
+      quoteNumber: "Unknown"
+    },
+    salesOrder: salesOrder.length > 0 ? {
+      id: salesOrder[0].id,
+      orderNumber: salesOrder[0].orderNumber
+    } : void 0,
+    invoice: {
+      id: invoice[0].id,
+      invoiceNumber: invoice[0].invoiceNumber,
+      invoiceDate: invoice[0].createdAt.toISOString(),
+      isMaster: invoice[0].isMaster,
+      masterInvoiceId: invoice[0].parentInvoiceId || void 0
+    },
+    invoiceItem: {
+      id: item.id,
+      description: item.description,
+      quantity: item.quantity
+    },
+    history: []
+  };
+}
+async function logSerialNumberChange(userId, action, serialId) {
+  await db.insert(activityLogs).values({
+    userId,
+    action: `serial_number_${action}`,
+    entityType: "serial_number",
+    entityId: serialId
+  });
+}
+async function canEditSerialNumbers(userId, invoiceId) {
+  const invoice = await db.select().from(invoices).where(eq3(invoices.id, invoiceId)).limit(1);
+  if (invoice.length === 0) {
+    return { canEdit: false, reason: "Invoice not found" };
+  }
+  const user = await db.select().from(users).where(eq3(users.id, userId)).limit(1);
+  if (user.length === 0) {
+    return { canEdit: false, reason: "User not found" };
+  }
+  const userRole = user[0].role;
+  const invoiceStatus = invoice[0].paymentStatus;
+  const masterStatus = invoice[0].masterInvoiceStatus;
+  if (invoice[0].isMaster) {
+    if (masterStatus === "draft") {
+      return { canEdit: true };
+    }
+    if (masterStatus === "confirmed") {
+      if (userRole === "admin" || userRole === "sales_manager") {
+        return { canEdit: true };
+      }
+      return { canEdit: false, reason: "Only administrators and managers can edit serial numbers for confirmed master invoices" };
+    }
+    if (masterStatus === "locked") {
+      if (userRole === "admin") {
+        return { canEdit: true };
+      }
+      return { canEdit: false, reason: "Only administrators can edit serial numbers for locked master invoices" };
+    }
+  }
+  if (invoiceStatus === "pending" || invoiceStatus === "partial") {
+    return { canEdit: true };
+  }
+  if (invoiceStatus === "paid") {
+    if (userRole === "admin" || userRole === "sales_manager") {
+      return { canEdit: true };
+    }
+    return { canEdit: false, reason: "Only administrators and managers can edit serial numbers for paid invoices" };
+  }
+  return { canEdit: true };
+}
+var init_serial_number_service = __esm({
+  "server/serial-number-service.ts"() {
+    "use strict";
+    init_db();
+    init_schema();
   }
 });
 
@@ -2651,318 +2817,6 @@ var init_document_number_migration_service = __esm({
   }
 });
 
-// server/serial-number-service.ts
-var serial_number_service_exports = {};
-__export(serial_number_service_exports, {
-  canEditSerialNumbers: () => canEditSerialNumbers,
-  getSerialTraceability: () => getSerialTraceability,
-  logSerialNumberChange: () => logSerialNumberChange,
-  validateSerialNumbers: () => validateSerialNumbers
-});
-import { eq as eq2, and as and2, sql as sql3 } from "drizzle-orm";
-async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expectedQuantity, options = {
-  checkInvoiceScope: true,
-  checkQuoteScope: true,
-  checkSystemWide: true
-}) {
-  const errors = [];
-  const emptySerials = serials.filter((s) => !s || s.trim().length === 0);
-  if (emptySerials.length > 0) {
-    errors.push({
-      type: "empty_serial",
-      message: "Empty serial numbers are not allowed"
-    });
-  }
-  const validSerials = serials.filter((s) => s && s.trim().length > 0);
-  if (validSerials.length !== expectedQuantity) {
-    errors.push({
-      type: "count_mismatch",
-      message: `Expected ${expectedQuantity} serial numbers, but received ${validSerials.length}`
-    });
-  }
-  const duplicatesInList = validSerials.filter(
-    (serial, index2) => validSerials.indexOf(serial) !== index2
-  );
-  const uniqueDuplicatesInList = Array.from(new Set(duplicatesInList));
-  if (uniqueDuplicatesInList.length > 0) {
-    errors.push({
-      type: "duplicate_in_invoice",
-      message: `Duplicate serial numbers in submission`,
-      affectedSerials: uniqueDuplicatesInList
-    });
-  }
-  if (options.checkInvoiceScope) {
-    const invoiceItemsList = await db.select().from(invoiceItems).where(
-      and2(
-        eq2(invoiceItems.invoiceId, invoiceId),
-        sql3`${invoiceItems.id} != ${invoiceItemId}`
-      )
-    );
-    const existingSerialsInInvoice = [];
-    for (const item of invoiceItemsList) {
-      if (item.serialNumbers) {
-        try {
-          const itemSerials = JSON.parse(item.serialNumbers);
-          existingSerialsInInvoice.push(...itemSerials);
-        } catch (e) {
-        }
-      }
-    }
-    const duplicatesInInvoice = validSerials.filter(
-      (s) => existingSerialsInInvoice.includes(s)
-    );
-    if (duplicatesInInvoice.length > 0) {
-      errors.push({
-        type: "duplicate_in_invoice",
-        message: "Serial numbers already used in this invoice",
-        affectedSerials: duplicatesInInvoice
-      });
-    }
-  }
-  if (options.checkQuoteScope) {
-    const invoice = await db.select().from(invoices).where(eq2(invoices.id, invoiceId)).limit(1);
-    if (invoice.length > 0) {
-      const quoteId = invoice[0].quoteId;
-      const relatedInvoices = await db.select().from(invoices).where(
-        and2(
-          eq2(invoices.quoteId, quoteId),
-          sql3`${invoices.id} != ${invoiceId}`
-        )
-      );
-      const existingSerialsInQuote = [];
-      for (const relInvoice of relatedInvoices) {
-        const items = await db.select().from(invoiceItems).where(eq2(invoiceItems.invoiceId, relInvoice.id));
-        for (const item of items) {
-          if (item.serialNumbers) {
-            try {
-              const itemSerials = JSON.parse(item.serialNumbers);
-              existingSerialsInQuote.push(...itemSerials);
-            } catch (e) {
-            }
-          }
-        }
-      }
-      const duplicatesInQuote = validSerials.filter(
-        (s) => existingSerialsInQuote.includes(s)
-      );
-      if (duplicatesInQuote.length > 0) {
-        errors.push({
-          type: "duplicate_in_quote",
-          message: "Serial numbers already used in other invoices for this quote",
-          affectedSerials: duplicatesInQuote
-        });
-      }
-    }
-  }
-  if (options.checkSystemWide) {
-    const existingSerials = await db.select({ serialNumber: serialNumbers.serialNumber }).from(serialNumbers).where(
-      sql3`${serialNumbers.serialNumber} IN (${sql3.join(validSerials.map((s) => sql3`${s}`), sql3`, `)})`
-    );
-    const duplicatesInSystem = existingSerials.map((s) => s.serialNumber);
-    if (duplicatesInSystem.length > 0) {
-      errors.push({
-        type: "duplicate_in_system",
-        message: "Serial numbers already exist in the system",
-        affectedSerials: duplicatesInSystem
-      });
-    }
-  }
-  return {
-    valid: errors.length === 0,
-    errors
-  };
-}
-async function getSerialTraceability(serialNumberValue) {
-  console.log("[Serial Traceability] Searching for:", serialNumberValue);
-  const [serial] = await db.select().from(serialNumbers).where(eq2(serialNumbers.serialNumber, serialNumberValue)).limit(1);
-  if (serial) {
-    console.log("[Serial Traceability] Found in serialNumbers table:", serial.id);
-    const invoice = serial.invoiceId ? await db.select().from(invoices).where(eq2(invoices.id, serial.invoiceId)).limit(1) : [];
-    if (invoice.length === 0) {
-      console.log("[Serial Traceability] No invoice found for serial");
-      return null;
-    }
-    const quote = await db.select().from(quotes).where(eq2(quotes.id, invoice[0].quoteId)).limit(1);
-    const customer = quote.length > 0 ? await db.select().from(clients).where(eq2(clients.id, quote[0].clientId)).limit(1) : [];
-    const invoiceItem = serial.invoiceItemId ? await db.select().from(invoiceItems).where(eq2(invoiceItems.id, serial.invoiceItemId)).limit(1) : [];
-    const history = await db.select({
-      action: activityLogs.action,
-      userId: activityLogs.userId,
-      timestamp: activityLogs.timestamp
-    }).from(activityLogs).where(
-      and2(
-        eq2(activityLogs.entityType, "serial_number"),
-        eq2(activityLogs.entityId, serial.id)
-      )
-    ).orderBy(activityLogs.timestamp);
-    const historyWithUsers = await Promise.all(
-      history.map(async (h) => {
-        const user = await db.select().from(users).where(eq2(users.id, h.userId)).limit(1);
-        return {
-          action: h.action,
-          user: user.length > 0 ? user[0].name : "Unknown",
-          timestamp: h.timestamp.toISOString()
-        };
-      })
-    );
-    return {
-      serialNumber: serial.serialNumber,
-      status: serial.status || "unknown",
-      customer: customer.length > 0 ? {
-        id: customer[0].id,
-        name: customer[0].name,
-        email: customer[0].email
-      } : {
-        id: "",
-        name: "Unknown",
-        email: ""
-      },
-      quote: quote.length > 0 ? {
-        id: quote[0].id,
-        quoteNumber: quote[0].quoteNumber
-      } : {
-        id: "",
-        quoteNumber: "Unknown"
-      },
-      invoice: {
-        id: invoice[0].id,
-        invoiceNumber: invoice[0].invoiceNumber,
-        invoiceDate: invoice[0].createdAt.toISOString(),
-        isMaster: invoice[0].isMaster,
-        masterInvoiceId: invoice[0].parentInvoiceId || void 0
-      },
-      invoiceItem: invoiceItem.length > 0 ? {
-        id: invoiceItem[0].id,
-        description: invoiceItem[0].description,
-        quantity: invoiceItem[0].quantity
-      } : {
-        id: "",
-        description: "Unknown",
-        quantity: 0
-      },
-      warranty: serial.warrantyStartDate && serial.warrantyEndDate ? {
-        startDate: serial.warrantyStartDate.toISOString(),
-        endDate: serial.warrantyEndDate.toISOString()
-      } : void 0,
-      location: serial.location || void 0,
-      notes: serial.notes || void 0,
-      history: historyWithUsers
-    };
-  }
-  console.log("[Serial Traceability] Not in serialNumbers table, checking invoice items...");
-  const allInvoiceItems = await db.select().from(invoiceItems);
-  console.log("[Serial Traceability] Found", allInvoiceItems.length, "invoice items to check");
-  for (const item of allInvoiceItems) {
-    if (item.serialNumbers) {
-      try {
-        const itemSerials = JSON.parse(item.serialNumbers);
-        if (Array.isArray(itemSerials) && itemSerials.includes(serialNumberValue)) {
-          console.log("[Serial Traceability] Found in invoice item:", item.id);
-          return await constructTraceabilityFromInvoiceItem(serialNumberValue, item);
-        }
-      } catch (e) {
-        console.error("[Serial Traceability] Error parsing serialNumbers JSON for item:", item.id, e);
-      }
-    }
-  }
-  console.log("[Serial Traceability] Serial number not found anywhere");
-  return null;
-}
-async function constructTraceabilityFromInvoiceItem(serialNumberValue, item) {
-  const invoice = await db.select().from(invoices).where(eq2(invoices.id, item.invoiceId)).limit(1);
-  if (invoice.length === 0) return null;
-  const quote = await db.select().from(quotes).where(eq2(quotes.id, invoice[0].quoteId)).limit(1);
-  const customer = quote.length > 0 ? await db.select().from(clients).where(eq2(clients.id, quote[0].clientId)).limit(1) : [];
-  return {
-    serialNumber: serialNumberValue,
-    status: "delivered",
-    customer: customer.length > 0 ? {
-      id: customer[0].id,
-      name: customer[0].name,
-      email: customer[0].email
-    } : {
-      id: "",
-      name: "Unknown",
-      email: ""
-    },
-    quote: quote.length > 0 ? {
-      id: quote[0].id,
-      quoteNumber: quote[0].quoteNumber
-    } : {
-      id: "",
-      quoteNumber: "Unknown"
-    },
-    invoice: {
-      id: invoice[0].id,
-      invoiceNumber: invoice[0].invoiceNumber,
-      invoiceDate: invoice[0].createdAt.toISOString(),
-      isMaster: invoice[0].isMaster,
-      masterInvoiceId: invoice[0].parentInvoiceId || void 0
-    },
-    invoiceItem: {
-      id: item.id,
-      description: item.description,
-      quantity: item.quantity
-    },
-    history: []
-  };
-}
-async function logSerialNumberChange(userId, action, serialId) {
-  await db.insert(activityLogs).values({
-    userId,
-    action: `serial_number_${action}`,
-    entityType: "serial_number",
-    entityId: serialId
-  });
-}
-async function canEditSerialNumbers(userId, invoiceId) {
-  const invoice = await db.select().from(invoices).where(eq2(invoices.id, invoiceId)).limit(1);
-  if (invoice.length === 0) {
-    return { canEdit: false, reason: "Invoice not found" };
-  }
-  const user = await db.select().from(users).where(eq2(users.id, userId)).limit(1);
-  if (user.length === 0) {
-    return { canEdit: false, reason: "User not found" };
-  }
-  const userRole = user[0].role;
-  const invoiceStatus = invoice[0].paymentStatus;
-  const masterStatus = invoice[0].masterInvoiceStatus;
-  if (invoice[0].isMaster) {
-    if (masterStatus === "draft") {
-      return { canEdit: true };
-    }
-    if (masterStatus === "confirmed") {
-      if (userRole === "admin" || userRole === "sales_manager") {
-        return { canEdit: true };
-      }
-      return { canEdit: false, reason: "Only administrators and managers can edit serial numbers for confirmed master invoices" };
-    }
-    if (masterStatus === "locked") {
-      if (userRole === "admin") {
-        return { canEdit: true };
-      }
-      return { canEdit: false, reason: "Only administrators can edit serial numbers for locked master invoices" };
-    }
-  }
-  if (invoiceStatus === "pending" || invoiceStatus === "partial") {
-    return { canEdit: true };
-  }
-  if (invoiceStatus === "paid") {
-    if (userRole === "admin" || userRole === "sales_manager") {
-      return { canEdit: true };
-    }
-    return { canEdit: false, reason: "Only administrators and managers can edit serial numbers for paid invoices" };
-  }
-  return { canEdit: true };
-}
-var init_serial_number_service = __esm({
-  "server/serial-number-service.ts"() {
-    "use strict";
-    init_db();
-    init_schema();
-  }
-});
-
 // api/index.ts
 import express from "express";
 import helmet from "helmet";
@@ -2972,831 +2826,1333 @@ import cookieParser from "cookie-parser";
 // server/routes.ts
 init_storage();
 import { createServer } from "http";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { nanoid } from "nanoid";
 
-// server/services/pdf.service.ts
-init_pdf_themes();
-import PDFDocument from "pdfkit";
-import path from "path";
-import fs from "fs";
-var PDFService = class _PDFService {
-  // ===== A4 =====
-  static PAGE_WIDTH = 595.28;
-  static PAGE_HEIGHT = 841.89;
-  // ===== Compact margins =====
-  static MARGIN_LEFT = 28;
-  static MARGIN_RIGHT = 28;
-  static MARGIN_TOP = 22;
-  static MARGIN_BOTTOM = 32;
-  static CONTENT_WIDTH = _PDFService.PAGE_WIDTH - _PDFService.MARGIN_LEFT - _PDFService.MARGIN_RIGHT;
-  // ===== Footer safety (prevents content overlapping footer line/text) =====
-  static FOOTER_TOP = _PDFService.PAGE_HEIGHT - 34;
-  // matches drawFooter()
-  static FOOTER_SAFE_GAP = 10;
-  // extra breathing room
-  static HEADER_H = 70;
-  // fixed header block height
-  // ===== Palette =====
-  static INK = "#111827";
-  static SUBTLE = "#4B5563";
-  static FAINT = "#9CA3AF";
-  static LINE = "#D1D5DB";
-  static SOFT = "#F3F4F6";
-  static SURFACE = "#FFFFFF";
-  static ACCENT = "#111827";
-  static SUCCESS = "#16A34A";
-  static WARNING = "#F59E0B";
-  static DANGER = "#B91C1C";
-  static activeTheme = null;
-  // ===== Fonts =====
-  static FONT_REG = "Helvetica";
-  static FONT_BOLD = "Helvetica-Bold";
-  // ===== Stroke & padding =====
-  static STROKE_W = 0.9;
-  static PAD_X = 8;
-  // ======================================================================
-  // PUBLIC
-  // ======================================================================
-  static async generateQuotePDF(data, res) {
-    let selectedTheme;
-    if (data.theme) selectedTheme = getTheme(data.theme);
-    else if (data.client.preferredTheme)
-      selectedTheme = getTheme(data.client.preferredTheme);
-    else if (data.client.segment)
-      selectedTheme = getSuggestedTheme(data.client.segment);
-    else selectedTheme = getTheme("professional");
-    this.applyTheme(selectedTheme);
-    const doc = new PDFDocument({
-      size: "A4",
-      margins: {
-        top: this.MARGIN_TOP,
-        bottom: this.MARGIN_BOTTOM,
-        left: this.MARGIN_LEFT,
-        right: this.MARGIN_RIGHT
-      },
-      bufferPages: true,
-      info: {
-        Title: `Quote ${data.quote.quoteNumber}`,
-        // Assuming quoteNumber is on data.quote
-        Author: data.companyName || "AICERA"
-      }
-    });
-    doc.pipe(res);
-    await this.prepareAssets(doc, data);
-    doc.lineGap(2);
-    if (this.clean(data.abstract)) {
-      this.drawCover(doc, data);
-      doc.addPage();
-    }
-    this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
-    this.drawFromBox(doc, data);
-    this.drawShipBillAndMetaRow(doc, data);
-    this.drawItemsTable(doc, data);
-    this.drawWordsTermsTotalsRow(doc, data);
-    this.drawDeclarationBankRow(doc, data);
-    this.drawSignaturesRow(doc, data);
-    const range = doc.bufferedPageRange();
-    const total = range.count;
-    for (let i = 0; i < total; i++) {
-      doc.switchToPage(i);
-      this.drawFooter(doc, i + 1, total);
-    }
-    doc.end();
-  }
-  // Optimize: Check assets async
-  static async prepareAssets(doc, data) {
-    const fontsDir = path.join(process.cwd(), "server", "pdf", "fonts");
-    const tryFont = async (filename) => {
-      try {
-        const p = path.join(fontsDir, filename);
-        await fs.promises.access(p, fs.constants.F_OK);
-        return p;
-      } catch {
-        return null;
-      }
-    };
-    const [regPath, boldPath] = await Promise.all([
-      tryFont("Inter-Regular.ttf"),
-      tryFont("Inter-Bold.ttf")
-    ]);
-    if (regPath && boldPath) {
-      doc.registerFont("Inter", regPath);
-      doc.registerFont("Inter-Bold", boldPath);
-      this.FONT_REG = "Inter";
-      this.FONT_BOLD = "Inter-Bold";
-    } else {
-      this.FONT_REG = "Helvetica";
-      this.FONT_BOLD = "Helvetica-Bold";
-    }
-    let logoToUse = "";
-    if (data.companyLogo) {
-      logoToUse = data.companyLogo;
-    } else {
-      const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      const p2 = path.join(process.cwd(), "client", "public", "logo.png");
-      try {
-        await fs.promises.access(p1, fs.constants.F_OK);
-        logoToUse = p1;
-      } catch {
-        try {
-          await fs.promises.access(p2, fs.constants.F_OK);
-          logoToUse = p2;
-        } catch {
-        }
-      }
-    }
-    data.resolvedLogo = logoToUse;
-  }
-  // ======================================================================
-  // THEME + FONTS
-  // ======================================================================
-  static applyTheme(theme) {
-    this.activeTheme = theme;
-    this.ACCENT = theme.colors?.accent || "#111827";
-    this.INK = "#111827";
-    this.SUBTLE = "#4B5563";
-    this.FAINT = "#9CA3AF";
-    this.LINE = "#D1D5DB";
-    this.SOFT = "#F3F4F6";
-    this.SURFACE = "#FFFFFF";
-    this.SUCCESS = theme.colors?.success || "#16A34A";
-    this.WARNING = theme.colors?.warning || "#F59E0B";
-  }
-  // No-op or deprecated
-  static setupFonts(doc) {
-  }
-  // ======================================================================
-  // HELPERS
-  // ======================================================================
-  static bottomY() {
-    return this.FOOTER_TOP - this.FOOTER_SAFE_GAP;
-  }
-  static ensureSpace(doc, data, needed) {
-    if (doc.y + needed <= this.bottomY()) return;
-    doc.addPage();
-    this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
-  }
-  static clean(v) {
-    return String(v ?? "").trim();
-  }
-  static safeDate(d) {
+// server/services/analytics.service.ts
+init_storage();
+var AnalyticsService = class {
+  /**
+   * Get revenue forecast based on historical data
+   */
+  async getRevenueForecast(monthsAhead = 3) {
     try {
-      if (!d) return "-";
-      const dt = new Date(d);
-      if (Number.isNaN(dt.getTime())) return "-";
-      return dt.toLocaleDateString("en-IN");
-    } catch {
-      return "-";
-    }
-  }
-  static currency(v) {
-    const n = Number(v) || 0;
-    return `Rs. ${n.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
-  }
-  static normalizeAddress(addr, maxLines = 3) {
-    if (!addr) return "";
-    const rawParts = String(addr).split(/[\n,]/g).map((s) => s.trim()).filter(Boolean);
-    const seen = /* @__PURE__ */ new Set();
-    const parts = [];
-    for (const p of rawParts) {
-      const key = p.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      parts.push(p);
-    }
-    return parts.slice(0, Math.max(3, maxLines * 2)).join(", ");
-  }
-  // ===== Invoice-style box drawing =====
-  static box(doc, x, y, w, h, opts) {
-    doc.save();
-    if (opts?.fill) doc.fillColor(opts.fill).rect(x, y, w, h).fill();
-    doc.strokeColor(opts?.stroke ?? this.LINE).lineWidth(opts?.lineWidth ?? this.STROKE_W).rect(x, y, w, h).stroke();
-    doc.restore();
-  }
-  static hLine(doc, x1, x2, y) {
-    doc.save();
-    doc.strokeColor(this.LINE).lineWidth(0.8);
-    doc.moveTo(x1, y).lineTo(x2, y).stroke();
-    doc.restore();
-  }
-  static label(doc, txt, x, y) {
-    doc.save();
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(String(txt).toUpperCase(), x, y, {
-      characterSpacing: 0.6,
-      lineBreak: false
-    });
-    doc.restore();
-  }
-  static truncateToWidth(doc, text2, width, suffix = "\u2026") {
-    const t = this.clean(text2);
-    if (!t) return "";
-    if (doc.widthOfString(t) <= width) return t;
-    let lo = 0;
-    let hi = t.length;
-    while (lo < hi) {
-      const mid = Math.floor((lo + hi) / 2);
-      const cand = t.slice(0, mid) + suffix;
-      if (doc.widthOfString(cand) <= width) lo = mid + 1;
-      else hi = mid;
-    }
-    const cut = Math.max(0, lo - 1);
-    return t.slice(0, cut) + suffix;
-  }
-  static wrapLines(doc, text2, width, maxLines) {
-    const t = this.clean(text2).replace(/\s+/g, " ");
-    if (!t) return [];
-    const height = doc.heightOfString(t, { width });
-    if (doc.widthOfString(t) <= width) return [t];
-    const words = t.split(" ");
-    const lines = [];
-    let line = "";
-    for (const w of words) {
-      const cand = line ? `${line} ${w}` : w;
-      if (doc.widthOfString(cand) <= width) {
-        line = cand;
-      } else {
-        if (line) lines.push(line);
-        line = w;
-        if (lines.length >= maxLines) break;
+      const allQuotes = await storage.getAllQuotes();
+      const allInvoices = await storage.getAllInvoices();
+      const now = /* @__PURE__ */ new Date();
+      const monthlyRevenue = {};
+      for (let i = 0; i < 12; i++) {
+        const date = new Date(now);
+        date.setMonth(date.getMonth() - i);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        monthlyRevenue[monthKey] = 0;
       }
-    }
-    if (line && lines.length < maxLines) lines.push(line);
-    return lines.slice(0, maxLines);
-  }
-  // ======================================================================
-  // COVER (optional)
-  // ======================================================================
-  static drawCover(doc, data) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    doc.font(this.FONT_BOLD).fontSize(18).fillColor(this.INK);
-    doc.text("COMMERCIAL PROPOSAL", x, 120, { width: w });
-    doc.font(this.FONT_REG).fontSize(10).fillColor(this.SUBTLE);
-    doc.text(`Quote No: ${this.clean(data.quote.quoteNumber || "-")}`, x, 148, { width: w });
-    doc.y = 176;
-    this.hLine(doc, x, x + w, doc.y);
-    doc.y += 18;
-    this.label(doc, "Abstract", x, doc.y);
-    doc.y += 12;
-    doc.font(this.FONT_REG).fontSize(10).fillColor(this.INK);
-    doc.text(this.clean(data.abstract), x, doc.y, { width: w, lineGap: 3 });
-  }
-  // ======================================================================
-  // HEADER (fixed-height, deterministic)
-  // ======================================================================
-  static drawHeader(doc, data, title) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    const topY = doc.page.margins.top;
-    const logoSize = 26;
-    let logoPrinted = false;
-    const logoPath = data.resolvedLogo;
-    if (logoPath) {
-      try {
-        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } catch {
+      allInvoices.forEach((invoice) => {
+        const date = new Date(invoice.createdAt);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (monthlyRevenue.hasOwnProperty(monthKey)) {
+          monthlyRevenue[monthKey] += parseFloat((invoice.paidAmount || 0).toString());
+        }
+      });
+      const revenues = Object.values(monthlyRevenue).filter((v) => v > 0);
+      const avgRevenue = revenues.length > 0 ? revenues.reduce((a, b) => a + b, 0) / revenues.length : 0;
+      const forecast = [];
+      for (let i = 1; i <= monthsAhead; i++) {
+        const date = new Date(now);
+        date.setMonth(date.getMonth() + i);
+        const monthStr = date.toLocaleString("default", { month: "short", year: "numeric" });
+        forecast.push({
+          month: monthStr,
+          forecastedRevenue: this.roundAmount(avgRevenue * (1 + (Math.random() - 0.5) * 0.2)),
+          confidence: 0.75 + Math.random() * 0.15
+          // 75-90% confidence
+        });
       }
+      return forecast;
+    } catch (error) {
+      console.error("Error getting revenue forecast:", error);
+      return [];
     }
-    doc.font(this.FONT_BOLD).fontSize(11).fillColor(this.INK);
-    doc.text(title, x, topY - 2, { width: w, align: "center", lineBreak: false });
-    const leftX = logoPrinted ? x + logoSize + 8 : x;
-    const leftW = 320;
-    const company = this.clean(data.companyName || "AICERA");
-    const contactBits = [];
-    if (data.companyEmail) contactBits.push(this.clean(data.companyEmail));
-    if (data.companyPhone) contactBits.push(this.clean(data.companyPhone));
-    if (data.companyGSTIN) contactBits.push(`GSTIN: ${this.clean(data.companyGSTIN).toUpperCase()}`);
-    const contactLine = contactBits.join("  |  ");
-    doc.font(this.FONT_BOLD).fontSize(10).fillColor(this.INK);
-    doc.text(company, leftX, topY + 12, { width: leftW, lineBreak: false });
-    if (contactLine) {
-      doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-      doc.text(this.truncateToWidth(doc, contactLine, leftW), leftX, topY + 24, {
-        width: leftW,
-        lineBreak: false
-      });
-    }
-    const addr = this.normalizeAddress(data.companyAddress, 2);
-    if (addr) {
-      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-      doc.text(addr, leftX, topY + 34, { width: leftW });
-    }
-    const rightW = 210;
-    const rightX = x + w - rightW;
-    const quoteNo = this.clean(data.quote.quoteNumber || "-");
-    const date = this.safeDate(data.quote.quoteDate);
-    doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-    doc.text("Quote No.", rightX, topY + 12, { width: rightW, align: "right", lineBreak: false });
-    doc.font(this.FONT_BOLD).fontSize(9.6).fillColor(this.INK);
-    doc.text(quoteNo, rightX, topY + 22, { width: rightW, align: "right", lineBreak: false });
-    doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-    doc.text("Date", rightX, topY + 34, { width: rightW, align: "right", lineBreak: false });
-    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
-    doc.text(date, rightX, topY + 44, { width: rightW, align: "right", lineBreak: false });
-    const headerBottom = topY + this.HEADER_H;
-    this.hLine(doc, x, x + w, headerBottom - 10);
-    doc.y = headerBottom;
   }
-  // ======================================================================
-  // FROM
-  // ======================================================================
-  static drawFromBox(doc, data) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    const name = this.clean(data.companyName || "AICERA");
-    const addr = this.normalizeAddress(data.companyAddress, 10) || "-";
-    doc.font(this.FONT_BOLD).fontSize(8.6);
-    const nameH = doc.heightOfString(name, { width: w - this.PAD_X * 2 });
-    doc.font(this.FONT_REG).fontSize(7.2);
-    const addrH = doc.heightOfString(addr, { width: w - this.PAD_X * 2 });
-    const contactBits = [];
-    if (data.companyPhone) contactBits.push(`Ph: ${this.clean(data.companyPhone)}`);
-    if (data.companyGSTIN) contactBits.push(`GSTIN: ${this.clean(data.companyGSTIN).toUpperCase()}`);
-    if (data.preparedByEmail) contactBits.push(`Email: ${this.clean(data.preparedByEmail)}`);
-    doc.font(this.FONT_REG).fontSize(7);
-    const contactText = contactBits.join("  |  ");
-    const contactH = contactBits.length ? doc.heightOfString(contactText, { width: w - this.PAD_X * 2 }) : 0;
-    const contentH = 6 + 10 + nameH + 2 + addrH + (contactH ? 8 + contactH : 0) + 6;
-    const h = Math.max(contentH, 58);
-    this.ensureSpace(doc, data, h + 10);
-    const y0 = doc.y;
-    this.box(doc, x, y0, w, h, { fill: this.SURFACE });
-    this.label(doc, "From", x + this.PAD_X, y0 + 6);
-    let cy = y0 + 18;
-    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
-    doc.text(name, x + this.PAD_X, cy, { width: w - this.PAD_X * 2 });
-    cy += nameH + 2;
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(addr, x + this.PAD_X, cy, { width: w - this.PAD_X * 2 });
-    if (contactBits.length) {
-      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-      const contactY = y0 + h - contactH - 6;
-      doc.text(contactText, x + this.PAD_X, contactY, {
-        width: w - this.PAD_X * 2
+  /**
+   * Get deal distribution by value ranges
+   */
+  async getDealDistribution() {
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const ranges = [
+        { label: "0-10K", min: 0, max: 1e4 },
+        { label: "10K-50K", min: 1e4, max: 5e4 },
+        { label: "50K-100K", min: 5e4, max: 1e5 },
+        { label: "100K-500K", min: 1e5, max: 5e5 },
+        { label: "500K+", min: 5e5, max: Infinity }
+      ];
+      const distribution = ranges.map((range) => {
+        const quotesInRange = allQuotes.filter((q) => {
+          const total = parseFloat(q.total.toString());
+          return total >= range.min && total < range.max;
+        });
+        const totalValue = quotesInRange.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
+        return {
+          range: range.label,
+          count: quotesInRange.length,
+          totalValue: this.roundAmount(totalValue),
+          percentage: 0
+          // Will calculate after
+        };
       });
+      const totalQuotes = distribution.reduce((sum, d) => sum + d.count, 0);
+      return distribution.map((d) => ({
+        ...d,
+        percentage: totalQuotes > 0 ? d.count / totalQuotes * 100 : 0
+      }));
+    } catch (error) {
+      console.error("Error getting deal distribution:", error);
+      return [];
     }
-    doc.y = y0 + h + 10;
   }
-  // ======================================================================
-  // SHIP/BILL + META
-  // ======================================================================
-  static drawShipBillAndMetaRow(doc, data) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    const gap = 10;
-    const leftW = w * 0.56;
-    const rightW = w - leftW - gap;
-    const clientName = this.clean(data.client.name || "-");
-    const shipAddr = this.normalizeAddress(data.client.shippingAddress || data.client.billingAddress, 10) || "-";
-    const billAddr = this.normalizeAddress(data.client.billingAddress, 10) || "-";
-    const phone = this.clean(data.client.phone);
-    const email = this.clean(data.client.email);
-    const contact = [phone ? `Ph: ${phone}` : "", email ? `Email: ${email}` : ""].filter(Boolean).join("  |  ");
-    doc.font(this.FONT_BOLD).fontSize(8.6);
-    const cNameH = doc.heightOfString(clientName, { width: leftW - this.PAD_X * 2 });
-    doc.font(this.FONT_REG).fontSize(7.2);
-    const shipAddrH = doc.heightOfString(shipAddr, { width: leftW - this.PAD_X * 2 });
-    const shipH = 6 + 10 + cNameH + 2 + shipAddrH + 6;
-    const billAddrH = doc.heightOfString(billAddr, { width: leftW - this.PAD_X * 2 });
-    doc.font(this.FONT_REG).fontSize(7);
-    const contactH = contact ? doc.heightOfString(contact, { width: leftW - this.PAD_X * 2 }) : 0;
-    const billH = 6 + 10 + cNameH + 2 + billAddrH + (contactH ? 8 + contactH : 0) + 6;
-    const leftTotalH = shipH + 8 + billH;
-    const q = data.quote;
-    const rows = [
-      { k: "Quote Date", v: this.safeDate(q.quoteDate) },
-      { k: "Validity", v: q.validUntil ? `Until ${this.safeDate(q.validUntil)}` : `${Number(q.validityDays || 30)} days` },
-      { k: "Reference", v: this.clean(q.referenceNumber || "-") },
-      { k: "Prepared By", v: this.clean(data.preparedBy || "-") }
-    ];
-    const h = Math.max(leftTotalH, 130);
-    this.ensureSpace(doc, data, h + 10);
-    const y0 = doc.y;
-    const leftX = x;
-    const rightX = x + leftW + gap;
-    this.box(doc, leftX, y0, leftW, h, { fill: this.SURFACE });
-    const minBillSpace = 48;
-    const idealSplitY = y0 + shipH + 8;
-    const splitY = Math.min(idealSplitY, y0 + h - minBillSpace);
-    this.hLine(doc, leftX, leftX + leftW, splitY);
-    this.label(doc, "Consignee (Ship To)", leftX + this.PAD_X, y0 + 6);
-    let cy = y0 + 18;
-    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
-    doc.text(clientName, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
-    cy += cNameH + 2;
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(shipAddr, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
-    this.label(doc, "Buyer (Bill To)", leftX + this.PAD_X, splitY + 6);
-    cy = splitY + 18;
-    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
-    doc.text(clientName, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
-    cy += cNameH + 2;
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    doc.text(billAddr, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
-    if (contact) {
-      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-      const contactY = y0 + h - contactH - 6;
-      doc.text(contact, leftX + this.PAD_X, contactY, {
-        width: leftW - this.PAD_X * 2
-      });
+  /**
+   * Get regional sales distribution
+   */
+  async getRegionalDistribution() {
+    try {
+      const allClients = await storage.getAllClients();
+      const allQuotes = await storage.getAllQuotes();
+      const regionData = {};
+      for (const quote of allQuotes) {
+        const client = allClients.find((c) => c.id === quote.clientId);
+        const rawAddress = client?.billingAddress || client?.shippingAddress || "";
+        const addressParts = rawAddress.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.length > 0);
+        let region = "Unknown";
+        if (addressParts.length > 0) {
+          const last = addressParts[addressParts.length - 1];
+          if (/^[\d-]+$/.test(last) && addressParts.length > 1) {
+            region = addressParts[addressParts.length - 2];
+          } else {
+            region = last;
+          }
+        }
+        if ((region === "Unknown" || region.length < 3) && client?.gstin && client.gstin.length >= 2) {
+          const stateCode = client.gstin.substring(0, 2);
+          const stateMap = {
+            "01": "Jammu & Kashmir",
+            "02": "Himachal Pradesh",
+            "03": "Punjab",
+            "04": "Chandigarh",
+            "05": "Uttarakhand",
+            "06": "Haryana",
+            "07": "Delhi",
+            "08": "Rajasthan",
+            "09": "Uttar Pradesh",
+            "10": "Bihar",
+            "11": "Sikkim",
+            "12": "Arunachal Pradesh",
+            "13": "Nagaland",
+            "14": "Manipur",
+            "15": "Mizoram",
+            "16": "Tripura",
+            "17": "Meghalaya",
+            "18": "Assam",
+            "19": "West Bengal",
+            "20": "Jharkhand",
+            "21": "Odisha",
+            "22": "Chattisgarh",
+            "23": "Madhya Pradesh",
+            "24": "Gujarat",
+            "27": "Maharashtra",
+            "29": "Karnataka",
+            "30": "Goa",
+            "31": "Lakshadweep",
+            "32": "Kerala",
+            "33": "Tamil Nadu",
+            "34": "Puducherry",
+            "35": "Andaman & Nicobar",
+            "36": "Telangana",
+            "37": "Andhra Pradesh",
+            "38": "Ladakh"
+          };
+          if (stateMap[stateCode]) {
+            region = stateMap[stateCode];
+          }
+        }
+        if (!regionData[region]) {
+          regionData[region] = { count: 0, revenue: 0 };
+        }
+        regionData[region].count++;
+        regionData[region].revenue += parseFloat(quote.total.toString());
+      }
+      const totalQuotes = Object.values(regionData).reduce((sum, r) => sum + r.count, 0);
+      return Object.entries(regionData).map(([region, data]) => ({
+        region,
+        quoteCount: data.count,
+        totalRevenue: this.roundAmount(data.revenue),
+        percentage: totalQuotes > 0 ? data.count / totalQuotes * 100 : 0
+      }));
+    } catch (error) {
+      console.error("Error getting regional distribution:", error);
+      return [];
     }
-    this.box(doc, rightX, y0, rightW, h, { fill: this.SURFACE });
-    const rowHeight = h / rows.length;
-    const labelW = rightW * 0.5;
-    const valueW = rightW - labelW - this.PAD_X * 2;
-    for (let i = 0; i < rows.length; i++) {
-      const ry = y0 + i * rowHeight;
-      if (i > 0) this.hLine(doc, rightX, rightX + rightW, ry);
-      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-      doc.text(rows[i].k, rightX + this.PAD_X, ry + rowHeight / 2 - 4, {
-        width: labelW - this.PAD_X,
-        lineBreak: false
-      });
-      doc.font(this.FONT_BOLD).fontSize(7.6).fillColor(this.INK);
-      const v = this.truncateToWidth(doc, rows[i].v, valueW);
-      doc.text(v, rightX + labelW, ry + rowHeight / 2 - 4, {
-        width: valueW,
-        align: "right",
-        lineBreak: false
-      });
-    }
-    doc.y = y0 + h + 10;
   }
-  // ======================================================================
-  // ITEMS TABLE
-  // ======================================================================
-  static drawItemsTable(doc, data) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    doc.font(this.FONT_BOLD).fontSize(9.2).fillColor(this.INK);
-    doc.text("Description of Goods / Services", x, doc.y);
-    doc.y += 6;
-    const headerH = 22;
-    const minRowH = 20;
-    const sl = 24;
-    const qty = 40;
-    const unit = 40;
-    const rate = 72;
-    const amt = 86;
-    const desc3 = w - (sl + qty + unit + rate + amt);
-    const cx = {
-      sl: x,
-      desc: x + sl,
-      qty: x + sl + desc3,
-      unit: x + sl + desc3 + qty,
-      rate: x + sl + desc3 + qty + unit,
-      amt: x + sl + desc3 + qty + unit + rate,
-      right: x + w
+  /**
+   * Get custom report data
+   */
+  async getCustomReport(params) {
+    try {
+      let quotes2 = await storage.getAllQuotes();
+      const clients2 = await storage.getAllClients();
+      if (params.startDate) {
+        quotes2 = quotes2.filter((q) => new Date(q.createdAt) >= params.startDate);
+      }
+      if (params.endDate) {
+        quotes2 = quotes2.filter((q) => new Date(q.createdAt) <= params.endDate);
+      }
+      if (params.status) {
+        quotes2 = quotes2.filter((q) => q.status === params.status);
+      }
+      if (params.minAmount) {
+        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) >= params.minAmount);
+      }
+      if (params.maxAmount) {
+        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) <= params.maxAmount);
+      }
+      return quotes2.map((q) => {
+        const client = clients2.find((c) => c.id === q.clientId);
+        return {
+          quoteNumber: q.quoteNumber,
+          clientName: client?.name || "Unknown",
+          totalAmount: this.roundAmount(parseFloat(q.total.toString())),
+          status: q.status,
+          createdDate: q.createdAt
+        };
+      });
+    } catch (error) {
+      console.error("Error getting custom report:", error);
+      return [];
+    }
+  }
+  /**
+   * Get sales pipeline data
+   */
+  async getSalesPipeline() {
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const stages = ["draft", "sent", "approved", "rejected", "invoiced"];
+      const pipeline = stages.map((stage) => {
+        const stageQuotes = allQuotes.filter((q) => q.status === stage);
+        const totalValue = stageQuotes.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
+        const avgDealValue = stageQuotes.length > 0 ? totalValue / stageQuotes.length : 0;
+        return {
+          stage,
+          count: stageQuotes.length,
+          totalValue: this.roundAmount(totalValue),
+          avgDealValue: this.roundAmount(avgDealValue)
+        };
+      });
+      return pipeline;
+    } catch (error) {
+      console.error("Error getting sales pipeline:", error);
+      return [];
+    }
+  }
+  /**
+   * Get client lifetime value
+   */
+  async getClientLifetimeValue(clientId) {
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const clientQuotes = allQuotes.filter((q) => q.clientId === clientId);
+      const allInvoices = await storage.getAllInvoices();
+      const clientInvoices = allInvoices.filter((i) => {
+        const quote = clientQuotes.find((q) => q.id === i.quoteId);
+        return !!quote;
+      });
+      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
+      const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
+      const conversionRate = clientQuotes.length > 0 ? clientInvoices.length / clientQuotes.length * 100 : 0;
+      return {
+        totalQuotes: clientQuotes.length,
+        totalInvoices: clientInvoices.length,
+        totalRevenue: this.roundAmount(totalRevenue),
+        averageDealSize: this.roundAmount(avgDealSize),
+        conversionRate: parseFloat(conversionRate.toFixed(2))
+      };
+    } catch (error) {
+      console.error("Error getting client lifetime value:", error);
+      return {
+        totalQuotes: 0,
+        totalInvoices: 0,
+        totalRevenue: 0,
+        averageDealSize: 0,
+        conversionRate: 0
+      };
+    }
+  }
+  /**
+   * Get competitor analysis insights
+   */
+  async getCompetitorInsights() {
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const allInvoices = await storage.getAllInvoices();
+      if (allQuotes.length === 0) {
+        return {
+          avgQuoteValue: 0,
+          medianQuoteValue: 0,
+          quoteFrequency: 0,
+          conversionTrend: 0
+        };
+      }
+      const values = allQuotes.map((q) => parseFloat(q.total.toString())).sort((a, b) => a - b);
+      const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
+      const medianValue = values.length % 2 === 0 ? (values[values.length / 2 - 1] + values[values.length / 2]) / 2 : values[Math.floor(values.length / 2)];
+      const weekAgo = /* @__PURE__ */ new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const recentQuotes = allQuotes.filter((q) => new Date(q.createdAt) >= weekAgo);
+      const quoteFrequency = recentQuotes.length;
+      const conversionCount = allInvoices.length;
+      const conversionTrend = allQuotes.length > 0 ? conversionCount / allQuotes.length * 100 : 0;
+      return {
+        avgQuoteValue: this.roundAmount(avgValue),
+        medianQuoteValue: this.roundAmount(medianValue),
+        quoteFrequency,
+        conversionTrend: parseFloat(conversionTrend.toFixed(2))
+      };
+    } catch (error) {
+      console.error("Error getting competitor insights:", error);
+      return {
+        avgQuoteValue: 0,
+        medianQuoteValue: 0,
+        quoteFrequency: 0,
+        conversionTrend: 0
+      };
+    }
+  }
+  roundAmount(amount) {
+    return Math.round(amount * 100) / 100;
+  }
+};
+var analyticsService = new AnalyticsService();
+
+// server/services/pricing.service.ts
+init_storage();
+import { Decimal } from "decimal.js";
+var PricingService = class {
+  /**
+   * Calculate discount based on quote amount and applicable pricing tier
+   */
+  async calculateDiscount(subtotal) {
+    try {
+      const tier = await storage.getPricingTierByAmount(subtotal);
+      if (!tier) {
+        return {
+          discountPercent: 0,
+          discountAmount: 0,
+          finalAmount: subtotal
+        };
+      }
+      const discountPercent = parseFloat(tier.discountPercent.toString());
+      const discountAmount = subtotal * (discountPercent / 100);
+      const finalAmount = subtotal - discountAmount;
+      return {
+        discountPercent,
+        discountAmount,
+        finalAmount
+      };
+    } catch (error) {
+      console.error("Error calculating discount:", error);
+      return {
+        discountPercent: 0,
+        discountAmount: 0,
+        finalAmount: subtotal
+      };
+    }
+  }
+  /**
+   * Get applicable tax rates for a region
+   */
+  async getTaxRatesForRegion(region) {
+    try {
+      const taxRate = await storage.getTaxRateByRegion(region);
+      if (!taxRate) {
+        return {
+          sgstRate: 0,
+          cgstRate: 0,
+          igstRate: 0
+        };
+      }
+      return {
+        sgstRate: parseFloat(taxRate.sgstRate.toString()),
+        cgstRate: parseFloat(taxRate.cgstRate.toString()),
+        igstRate: parseFloat(taxRate.igstRate.toString())
+      };
+    } catch (error) {
+      console.error("Error getting tax rates:", error);
+      return {
+        sgstRate: 0,
+        cgstRate: 0,
+        igstRate: 0
+      };
+    }
+  }
+  /**
+   * Calculate taxes on an amount
+   */
+  async calculateTaxes(amount, region, useIGST = false) {
+    const rates = await this.getTaxRatesForRegion(region);
+    if (useIGST) {
+      const igst = amount * (rates.igstRate / 100);
+      return {
+        sgst: 0,
+        cgst: 0,
+        igst,
+        totalTax: igst
+      };
+    } else {
+      const sgst = amount * (rates.sgstRate / 100);
+      const cgst = amount * (rates.cgstRate / 100);
+      return {
+        sgst,
+        cgst,
+        igst: 0,
+        totalTax: sgst + cgst
+      };
+    }
+  }
+  /**
+   * Convert amount between currencies
+   */
+  async convertCurrency(amount, fromCurrency, toCurrency) {
+    if (fromCurrency === toCurrency) {
+      return amount;
+    }
+    try {
+      const currencySettings2 = await storage.getCurrencySettings();
+      if (!currencySettings2 || !currencySettings2.exchangeRates) {
+        return amount;
+      }
+      const rates = JSON.parse(currencySettings2.exchangeRates);
+      const fromRate = rates[fromCurrency] || 1;
+      const toRate = rates[toCurrency] || 1;
+      return amount / fromRate * toRate;
+    } catch (error) {
+      console.error("Error converting currency:", error);
+      return amount;
+    }
+  }
+  /**
+   * Apply rounding rules to a monetary amount
+   */
+  roundAmount(amount, roundingRule = "nearest") {
+    const decimal2 = new Decimal(amount);
+    switch (roundingRule) {
+      case "up":
+        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_UP).toString());
+      case "down":
+        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_DOWN).toString());
+      case "nearest":
+      default:
+        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString());
+    }
+  }
+  /**
+   * Calculate final quote total with all adjustments
+   */
+  async calculateQuoteTotal(params) {
+    let discount = params.customDiscount || 0;
+    if (!params.customDiscount) {
+      const discountCalc = await this.calculateDiscount(params.subtotal);
+      discount = discountCalc.discountAmount;
+    }
+    const discountedSubtotal = params.subtotal - discount;
+    const shipping = params.shippingCharges || 0;
+    const subtotalWithShipping = discountedSubtotal + shipping;
+    const taxes = await this.calculateTaxes(subtotalWithShipping, params.region, params.useIGST);
+    const total = this.roundAmount(subtotalWithShipping + taxes.totalTax);
+    return {
+      subtotal: this.roundAmount(params.subtotal),
+      discount: this.roundAmount(discount),
+      discountedSubtotal: this.roundAmount(discountedSubtotal),
+      shipping: this.roundAmount(shipping),
+      subtotalWithShipping: this.roundAmount(subtotalWithShipping),
+      sgst: this.roundAmount(taxes.sgst),
+      cgst: this.roundAmount(taxes.cgst),
+      igst: this.roundAmount(taxes.igst),
+      total
     };
-    const drawHeader = (yy) => {
-      this.box(doc, x, yy, w, headerH, { fill: this.SOFT, stroke: this.LINE, lineWidth: 0.9 });
-      doc.save();
-      doc.strokeColor(this.LINE).lineWidth(0.8);
-      [cx.desc, cx.qty, cx.unit, cx.rate, cx.amt].forEach((vx) => {
-        doc.moveTo(vx, yy).lineTo(vx, yy + headerH).stroke();
-      });
-      doc.restore();
-      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
-      doc.text("SL", cx.sl, yy + 7, { width: sl, align: "center", characterSpacing: 0.6, lineBreak: false });
-      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc3 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
-      doc.text("QTY", cx.qty, yy + 7, { width: qty, align: "center", characterSpacing: 0.6, lineBreak: false });
-      doc.text("UNIT", cx.unit, yy + 7, { width: unit, align: "center", characterSpacing: 0.6, lineBreak: false });
-      doc.text("RATE", cx.rate, yy + 7, { width: rate - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
-      doc.text("AMOUNT", cx.amt, yy + 7, { width: amt - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
-    };
-    this.ensureSpace(doc, data, headerH + minRowH + 10);
-    let y = doc.y;
-    drawHeader(y);
-    y += headerH;
-    const items = data.items || [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const descText = this.clean(it.description || "-");
-      const qtyVal = Number(it.quantity ?? 0) || 0;
-      const unitText = this.clean(it.unit || it.uom || it.unitName || "pcs");
-      const rateVal = Number(it.unitPrice ?? 0) || 0;
-      const amtVal = Number(it.subtotal ?? qtyVal * rateVal) || 0;
-      doc.save();
-      doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      const descLines = this.wrapLines(doc, descText, desc3 - 8, 30);
-      doc.restore();
-      const rowH = Math.max(minRowH, 8 + descLines.length * 11);
-      if (y + rowH > this.bottomY() - 6) {
-        doc.addPage();
-        this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
-        doc.font(this.FONT_BOLD).fontSize(9.2).fillColor(this.INK);
-        doc.text("Description of Goods / Services (cont.)", x, doc.y);
-        doc.y += 6;
-        this.ensureSpace(doc, data, headerH + minRowH + 10);
-        y = doc.y;
-        drawHeader(y);
-        y += headerH;
+  }
+};
+var pricingService = new PricingService();
+
+// server/middleware.ts
+init_storage();
+import { ZodError } from "zod";
+import { fromZodError } from "zod-validation-error";
+import jwt from "jsonwebtoken";
+function getJWTSecret() {
+  if (!process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET environment variable is required");
+  }
+  return process.env.SESSION_SECRET;
+}
+async function authMiddleware(req, res, next) {
+  try {
+    const token = req.cookies?.token;
+    if (!token) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const decoded = jwt.verify(token, getJWTSecret());
+    const user = await storage.getUser(decoded.id);
+    if (!user || user.status !== "active") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    req.user = { id: user.id, email: user.email, role: user.role };
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+function validateRequest(schema) {
+  return async (req, res, next) => {
+    try {
+      req.body = await schema.parseAsync(req.body);
+      next();
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ error: validationError.message, details: error.errors });
       }
-      this.box(doc, x, y, w, rowH, { fill: this.SURFACE });
-      doc.save();
-      doc.strokeColor(this.LINE).lineWidth(0.8);
-      [cx.desc, cx.qty, cx.unit, cx.rate, cx.amt].forEach((vx) => {
-        doc.moveTo(vx, y).lineTo(vx, y + rowH).stroke();
-      });
-      doc.restore();
-      doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      doc.text(String(i + 1), cx.sl, y + 6, { width: sl, align: "center", lineBreak: false });
-      let dy = y + 6;
-      for (const ln of descLines) {
-        doc.text(ln, cx.desc + 4, dy, { width: desc3 - 8, lineBreak: false });
-        dy += 11;
-      }
-      const midY = y + 6;
-      doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      doc.text(String(qtyVal), cx.qty, midY, { width: qty, align: "center", lineBreak: false });
-      doc.text(unitText, cx.unit, midY, { width: unit, align: "center", lineBreak: false });
-      doc.font(this.FONT_BOLD).fontSize(8).fillColor(this.INK);
-      doc.text(this.currency(rateVal), cx.rate, midY, { width: rate - 8, align: "right", lineBreak: false });
-      doc.text(this.currency(amtVal), cx.amt, midY, { width: amt - 8, align: "right", lineBreak: false });
-      y += rowH;
+      return res.status(500).json({ error: "Internal validation error" });
     }
-    doc.y = y + 8;
+  };
+}
+
+// server/analytics-routes.ts
+init_storage();
+init_db();
+import { Router } from "express";
+import { sql as sql3 } from "drizzle-orm";
+import ExcelJS from "exceljs";
+
+// server/utils/financial.ts
+import Decimal2 from "decimal.js";
+Decimal2.set({
+  precision: 20,
+  // Maximum significant digits
+  rounding: Decimal2.ROUND_HALF_UP,
+  // Standard banking rounding
+  toExpNeg: -7,
+  // Never use exponential notation for small numbers
+  toExpPos: 20
+  // Only use exponential for very large numbers
+});
+function toDecimal(value) {
+  if (value === null || value === void 0 || value === "") {
+    return new Decimal2(0);
   }
-  // ======================================================================
-  // WORDS + TERMS (left) + TOTALS (right)
-  // ======================================================================
-  static drawWordsTermsTotalsRow(doc, data) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    const gap = 10;
-    const leftW = w * 0.58;
-    const rightW = w - leftW - gap;
-    const q = data.quote;
-    const total = Number(q.total) || 0;
-    const amountWords = this.amountToINRWords(total);
-    const termsInline = this.termsToInlineBullets(this.clean(q.termsAndConditions || "")) || "\u2014";
-    doc.font(this.FONT_REG).fontSize(7.2);
-    const termsLines = this.wrapLines(doc, termsInline, leftW - this.PAD_X * 2, 12);
-    doc.font(this.FONT_BOLD).fontSize(7.8);
-    const wordLines = this.wrapLines(doc, amountWords, leftW - this.PAD_X * 2, 3);
-    const leftH = 6 + 12 + wordLines.length * 10 + 8 + 12 + termsLines.length * 10 + 10;
-    const subtotal = Number(q.subtotal) || 0;
-    const shipping = Number(q.shippingCharges) || 0;
-    const cgst = Number(q.cgst) || 0;
-    const sgst = Number(q.sgst) || 0;
-    const igst = Number(q.igst) || 0;
-    const rowList = [];
-    rowList.push({ k: "Subtotal", v: subtotal });
-    if (shipping > 0) rowList.push({ k: "Shipping", v: shipping });
-    if (cgst > 0) rowList.push({ k: "CGST", v: cgst });
-    if (sgst > 0) rowList.push({ k: "SGST", v: sgst });
-    if (igst > 0 && cgst === 0 && sgst === 0) rowList.push({ k: "IGST", v: igst });
-    rowList.push({ k: "TOTAL", v: total, bold: true });
-    const rightH = 22 + rowList.length * 14 + 12;
-    const h = Math.max(leftH, rightH, 122);
-    this.ensureSpace(doc, data, h + 12);
-    const y0 = doc.y;
-    this.box(doc, x, y0, leftW, h, { fill: this.SURFACE });
-    this.label(doc, "Amount Chargeable (in words)", x + this.PAD_X, y0 + 6);
-    doc.font(this.FONT_BOLD).fontSize(7.8).fillColor(this.INK);
-    let wy = y0 + 20;
-    for (const wl of wordLines) {
-      doc.text(wl, x + this.PAD_X, wy, { width: leftW - this.PAD_X * 2 });
-      wy += 10;
-    }
-    const termsLabelY = wy + 6;
-    this.label(doc, "Terms & Conditions", x + this.PAD_X, termsLabelY);
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    let ty = termsLabelY + 12;
-    for (const ln of termsLines) {
-      doc.text(ln, x + this.PAD_X, ty, { width: leftW - this.PAD_X * 2, lineBreak: false });
-      ty += 10;
-    }
-    const xr = x + leftW + gap;
-    this.box(doc, xr, y0, rightW, h, { fill: this.SURFACE });
-    this.label(doc, "Totals", xr + this.PAD_X, y0 + 6);
-    let ry = y0 + 22;
-    const rowH = 14;
-    const labelW = rightW * 0.55;
-    const valueW = rightW - labelW - this.PAD_X * 2;
-    for (const r of rowList) {
-      doc.font(this.FONT_BOLD).fontSize(r.bold ? 8.6 : 7.6).fillColor(this.INK);
-      doc.text(r.k, xr + this.PAD_X, ry, { width: labelW - this.PAD_X, lineBreak: false });
-      const moneyStr = this.currency(r.v);
-      doc.font(this.FONT_BOLD).fontSize(r.bold ? 9 : 8).fillColor(r.danger ? this.DANGER : this.INK);
-      doc.text(moneyStr, xr + labelW, ry, {
-        width: valueW,
-        align: "right",
-        lineBreak: false
-      });
-      ry += rowH;
-    }
-    doc.y = y0 + h + 12;
+  if (value instanceof Decimal2) {
+    return value;
   }
-  // ======================================================================
-  // DECLARATION + BANK
-  // ======================================================================
-  static drawDeclarationBankRow(doc, data) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    const gap = 10;
-    const colW = Math.floor((w - gap) / 2);
-    const declaration = this.clean(data.declarationText) || "We declare that this proposal shows the actual price of the goods/services described and that all particulars are true and correct.";
-    doc.font(this.FONT_REG).fontSize(7.2);
-    const declLines = this.wrapLines(doc, declaration, colW - this.PAD_X * 2, 10);
-    const declH = 20 + declLines.length * 9 + 10;
-    const bd = data.bankDetails || {};
-    const bankLines = [];
-    if (bd.accountName) bankLines.push(`A/c Name: ${bd.accountName}`);
-    if (bd.bankName) bankLines.push(`Bank: ${bd.bankName}`);
-    if (bd.accountNumber) bankLines.push(`A/c No: ${bd.accountNumber}`);
-    if (bd.ifsc) bankLines.push(`IFSC: ${bd.ifsc}`);
-    if (bd.branch) bankLines.push(`Branch: ${bd.branch}`);
-    if (bd.swift) bankLines.push(`SWIFT: ${bd.swift}`);
-    if (bd.upi) bankLines.push(`UPI: ${bd.upi}`);
-    const bankText = bankLines.length ? bankLines.join("  |  ") : "\u2014";
-    doc.font(this.FONT_BOLD).fontSize(7.2);
-    const bankLines2 = this.wrapLines(doc, bankText, colW - this.PAD_X * 2, 10);
-    const bankH = 20 + bankLines2.length * 9 + 10;
-    const h = Math.max(declH, bankH, 76);
-    this.ensureSpace(doc, data, h + 12);
-    const y0 = doc.y;
-    this.box(doc, x, y0, colW, h, { fill: this.SURFACE });
-    this.label(doc, "Declaration", x + this.PAD_X, y0 + 6);
-    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
-    let dy = y0 + 20;
-    for (const ln of declLines) {
-      doc.text(ln, x + this.PAD_X, dy, { width: colW - this.PAD_X * 2, lineBreak: false });
-      dy += 9;
+  return new Decimal2(value);
+}
+function add(...values) {
+  return values.reduce((sum, val) => sum.plus(toDecimal(val)), new Decimal2(0));
+}
+function subtract(a, b) {
+  return toDecimal(a).minus(toDecimal(b));
+}
+function multiply(a, b) {
+  return toDecimal(a).times(toDecimal(b));
+}
+function divide(a, b) {
+  const divisor = toDecimal(b);
+  if (divisor.isZero()) {
+    throw new Error("Division by zero");
+  }
+  return toDecimal(a).dividedBy(divisor);
+}
+function calculateLineSubtotal(quantity, unitPrice) {
+  return multiply(quantity, unitPrice);
+}
+function calculateSubtotal(items) {
+  return items.reduce((total, item) => {
+    return total.plus(calculateLineSubtotal(item.quantity, item.unitPrice));
+  }, new Decimal2(0));
+}
+function calculateTotal(params) {
+  const subtotal = toDecimal(params.subtotal);
+  const discount = toDecimal(params.discount);
+  const shipping = toDecimal(params.shippingCharges);
+  const cgst = toDecimal(params.cgst);
+  const sgst = toDecimal(params.sgst);
+  const igst = toDecimal(params.igst);
+  return subtotal.minus(discount).plus(shipping).plus(cgst).plus(sgst).plus(igst);
+}
+function toMoneyString(value) {
+  return toDecimal(value).toFixed(2);
+}
+function moneyGte(a, b) {
+  return toDecimal(a).gte(toDecimal(b));
+}
+function moneyGt(a, b) {
+  return toDecimal(a).gt(toDecimal(b));
+}
+
+// server/utils/logger.ts
+var isDev = process.env.NODE_ENV !== "production";
+var logger = {
+  /**
+   * Debug level log - only in development
+   */
+  debug: (...args) => {
+    if (isDev) {
+      console.log("[DEBUG]", ...args);
     }
-    const xr = x + colW + gap;
-    this.box(doc, xr, y0, colW, h, { fill: this.SURFACE });
-    this.label(doc, "Company Bank Details for Payment", xr + this.PAD_X, y0 + 6);
-    doc.font(this.FONT_BOLD).fontSize(7.2).fillColor(this.INK);
-    let by = y0 + 20;
-    for (const ln of bankLines2) {
-      doc.text(ln, xr + this.PAD_X, by, { width: colW - this.PAD_X * 2, lineBreak: false });
-      by += 9;
+  },
+  /**
+   * Info level log - only in development
+   */
+  info: (...args) => {
+    if (isDev) {
+      console.log("[INFO]", ...args);
     }
-    doc.y = y0 + h + 12;
-  }
-  // ======================================================================
-  // SIGNATURES
-  // ======================================================================
-  static drawSignaturesRow(doc, data) {
-    const x = this.MARGIN_LEFT;
-    const w = this.CONTENT_WIDTH;
-    const gap = 10;
-    const colW = Math.floor((w - gap) / 2);
-    const h = 74;
-    this.ensureSpace(doc, data, h + 10);
-    const y0 = doc.y;
-    this.box(doc, x, y0, colW, h, { fill: this.SURFACE });
-    this.label(doc, "Client Acceptance", x + this.PAD_X, y0 + 6);
-    doc.font(this.FONT_REG).fontSize(8.8).fillColor(this.SUBTLE);
-    doc.text(this.clean(data.clientAcceptanceLabel || "Customer Seal & Signature"), x + this.PAD_X, y0 + 20, {
-      width: colW - this.PAD_X * 2
-    });
-    this.hLine(doc, x + this.PAD_X, x + colW - this.PAD_X, y0 + h - 24);
-    doc.font(this.FONT_REG).fontSize(8.2).fillColor(this.SUBTLE);
-    doc.text("Date:", x + this.PAD_X, y0 + h - 16, { width: colW - this.PAD_X * 2, lineBreak: false });
-    const xr = x + colW + gap;
-    this.box(doc, xr, y0, colW, h, { fill: this.SURFACE });
-    this.label(doc, "For Company", xr + this.PAD_X, y0 + 6);
-    const company = this.clean(data.companyName || "AICERA");
-    doc.font(this.FONT_REG).fontSize(8.8).fillColor(this.SUBTLE);
-    doc.text(`For ${company}`, xr + this.PAD_X, y0 + 20, { width: colW - this.PAD_X * 2 });
-    this.hLine(doc, xr + this.PAD_X, xr + colW - this.PAD_X, y0 + h - 24);
-    doc.font(this.FONT_REG).fontSize(8.2).fillColor(this.SUBTLE);
-    doc.text("Authorised Signatory", xr + this.PAD_X, y0 + h - 16, { width: colW - this.PAD_X * 2, lineBreak: false });
-    doc.y = y0 + h + 10;
-  }
-  // ======================================================================
-  // FOOTER
-  // ======================================================================
-  static drawFooter(doc, page, total) {
-    const footerTop = this.FOOTER_TOP;
-    const prevBottom = doc.page.margins.bottom;
-    doc.page.margins.bottom = 0;
-    doc.save();
-    doc.strokeColor(this.LINE).lineWidth(this.STROKE_W);
-    doc.moveTo(this.MARGIN_LEFT, footerTop).lineTo(this.PAGE_WIDTH - this.MARGIN_RIGHT, footerTop).stroke();
-    doc.font(this.FONT_REG).fontSize(8).fillColor(this.FAINT);
-    doc.text("This is a Computer Generated Document", 0, footerTop + 7, {
-      width: this.PAGE_WIDTH,
-      align: "center",
-      lineBreak: false
-    });
-    doc.text(`Page ${page} of ${total}`, 0, footerTop + 19, {
-      width: this.PAGE_WIDTH,
-      align: "center",
-      lineBreak: false
-    });
-    doc.restore();
-    doc.page.margins.bottom = prevBottom;
-  }
-  // ======================================================================
-  // AMOUNT IN WORDS (INR)
-  // ======================================================================
-  static amountToINRWords(amount) {
-    const rupees = Math.floor(Math.abs(amount));
-    const paise = Math.round((Math.abs(amount) - rupees) * 100);
-    const r = this.numberToIndianWords(rupees);
-    const p = paise > 0 ? ` and ${this.numberToIndianWords(paise)} Paise` : "";
-    const sign = amount < 0 ? "Minus " : "";
-    return `${sign}INR ${r}${p} Only`;
-  }
-  static numberToIndianWords(n) {
-    if (!Number.isFinite(n) || n === 0) return "Zero";
-    const ones = [
-      "",
-      "One",
-      "Two",
-      "Three",
-      "Four",
-      "Five",
-      "Six",
-      "Seven",
-      "Eight",
-      "Nine",
-      "Ten",
-      "Eleven",
-      "Twelve",
-      "Thirteen",
-      "Fourteen",
-      "Fifteen",
-      "Sixteen",
-      "Seventeen",
-      "Eighteen",
-      "Nineteen"
-    ];
-    const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-    const two = (x) => {
-      if (x < 20) return ones[x];
-      const t = Math.floor(x / 10);
-      const o = x % 10;
-      return `${tens[t]}${o ? " " + ones[o] : ""}`.trim();
-    };
-    const three = (x) => {
-      const h = Math.floor(x / 100);
-      const r = x % 100;
-      const head = h ? `${ones[h]} Hundred` : "";
-      const tail = r ? `${head ? " " : ""}${two(r)}` : "";
-      return `${head}${tail}`.trim();
-    };
-    const parts = [];
-    let num = Math.floor(n);
-    const crore = Math.floor(num / 1e7);
-    num %= 1e7;
-    const lakh = Math.floor(num / 1e5);
-    num %= 1e5;
-    const thousand = Math.floor(num / 1e3);
-    num %= 1e3;
-    const rest = num;
-    if (crore) parts.push(`${three(crore)} Crore`);
-    if (lakh) parts.push(`${three(lakh)} Lakh`);
-    if (thousand) parts.push(`${three(thousand)} Thousand`);
-    if (rest) parts.push(three(rest));
-    return parts.join(" ").replace(/\s+/g, " ").trim();
-  }
-  // ======================================================================
-  // TERMS INLINE (fix orphan lines + dedupe)
-  // ======================================================================
-  static termsToInlineBullets(raw) {
-    const t = this.clean(raw);
-    if (!t) return "";
-    const src = t.split(/\r?\n/g).map((l) => l.trim()).filter(Boolean);
-    const bullets = [];
-    for (const original of src) {
-      const stripped = original.replace(/^\s*(?:[-*•]+|\d+[.)\]])\s*/g, "").trim();
-      if (!stripped) continue;
-      const looksLikeNewItem = /^\s*(?:[-*•]+|\d+[.)\]])\s+/.test(original) || /:\s*/.test(stripped);
-      if (!bullets.length) {
-        bullets.push(stripped);
-        continue;
-      }
-      if (!looksLikeNewItem) bullets[bullets.length - 1] += " " + stripped;
-      else bullets.push(stripped);
+  },
+  /**
+   * Warning level log - always
+   */
+  warn: (...args) => {
+    console.warn("[WARN]", ...args);
+  },
+  /**
+   * Error level log - always
+   */
+  error: (...args) => {
+    console.error("[ERROR]", ...args);
+  },
+  /**
+   * Stock operation logs - only in development
+   */
+  stock: (message) => {
+    if (isDev) {
+      console.log(message);
     }
-    const seen = /* @__PURE__ */ new Set();
-    const out = [];
-    for (const b of bullets) {
-      const norm = b.replace(/\s+/g, " ").trim();
-      const key = norm.toLowerCase();
-      if (!norm || seen.has(key)) continue;
-      seen.add(key);
-      out.push(norm);
-    }
-    return out.join(" \u2022 ");
   }
 };
 
+// server/analytics-routes.ts
+var router = Router();
+router.get("/analytics", async (req, res) => {
+  try {
+    const allQuotes = await storage.getAllQuotes();
+    const allClients = await storage.getAllClients();
+    const allInvoices = await storage.getAllInvoices();
+    const totalQuotes = allQuotes.length;
+    const totalRevenueVal = allInvoices.reduce((sum, inv) => {
+      if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
+        return add(sum, inv.paidAmount);
+      }
+      return sum;
+    }, toDecimal(0));
+    const totalQuoteValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
+    const avgQuoteValue = allQuotes.length > 0 ? divide(totalQuoteValue, allQuotes.length) : toDecimal(0);
+    const convertedQuotes = allQuotes.filter((q) => q.status === "invoiced" || q.status === "closed_paid").length;
+    const conversionRate = allQuotes.length > 0 ? convertedQuotes / allQuotes.length * 100 : 0;
+    const overview = {
+      totalQuotes,
+      totalRevenue: Math.round(totalRevenueVal.toNumber()).toLocaleString(),
+      avgQuoteValue: Math.round(avgQuoteValue.toNumber()).toLocaleString(),
+      conversionRate: conversionRate.toFixed(1)
+    };
+    const monthlyDataMap = /* @__PURE__ */ new Map();
+    const now = /* @__PURE__ */ new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toLocaleString("default", { month: "short" });
+      monthlyDataMap.set(key, { quotes: 0, revenue: 0, conversions: 0 });
+    }
+    allQuotes.forEach((q) => {
+      const d = new Date(q.createdAt);
+      const key = d.toLocaleString("default", { month: "short" });
+      if (monthlyDataMap.has(key)) {
+        const entry = monthlyDataMap.get(key);
+        entry.quotes++;
+        if (q.status === "invoiced" || q.status === "closed_paid") {
+          entry.conversions++;
+        }
+      }
+    });
+    allInvoices.forEach((inv) => {
+      const d = new Date(inv.createdAt);
+      const key = d.toLocaleString("default", { month: "short" });
+      if (monthlyDataMap.has(key)) {
+        const entry = monthlyDataMap.get(key);
+        if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
+          entry.revenue = add(entry.revenue, inv.paidAmount).toNumber();
+        }
+      }
+    });
+    const monthlyData = Array.from(monthlyDataMap.entries()).map(([month, data]) => ({
+      month,
+      quotes: data.quotes,
+      revenue: Math.round(data.revenue),
+      conversions: data.conversions
+    }));
+    const clientRevenue = /* @__PURE__ */ new Map();
+    const clientQuotes = /* @__PURE__ */ new Map();
+    allQuotes.forEach((q) => {
+      const curr = clientQuotes.get(q.clientId) || 0;
+      clientQuotes.set(q.clientId, curr + 1);
+    });
+    const clientDealValue = /* @__PURE__ */ new Map();
+    allQuotes.forEach((q) => {
+      const val = toDecimal(q.total);
+      const curr = toDecimal(clientDealValue.get(q.clientId) || 0);
+      clientDealValue.set(q.clientId, add(curr, val).toNumber());
+    });
+    const topClients = Array.from(clientDealValue.entries()).map(([clientId, val]) => {
+      const client = allClients.find((c) => c.id === clientId);
+      return {
+        name: client?.name || "Unknown",
+        totalRevenue: Math.round(val).toLocaleString(),
+        quoteCount: clientQuotes.get(clientId) || 0
+      };
+    }).sort((a, b) => parseFloat(b.totalRevenue.replace(/,/g, "")) - parseFloat(a.totalRevenue.replace(/,/g, ""))).slice(0, 5);
+    const statusMap = /* @__PURE__ */ new Map();
+    allQuotes.forEach((q) => {
+      const status = q.status;
+      const val = toDecimal(q.total);
+      const entry = statusMap.get(status) || { count: 0, value: 0 };
+      entry.count++;
+      entry.value = add(entry.value, val).toNumber();
+      statusMap.set(status, entry);
+    });
+    const statusBreakdown = Array.from(statusMap.entries()).map(([status, data]) => ({
+      status: status.charAt(0).toUpperCase() + status.slice(1),
+      count: data.count,
+      value: Math.round(data.value)
+    }));
+    res.json({
+      overview,
+      monthlyData,
+      topClients,
+      statusBreakdown
+    });
+  } catch (error) {
+    logger.error("Error fetching analytics overview:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router.get("/analytics/forecast", async (req, res) => {
+  const data = await analyticsService.getRevenueForecast();
+  res.json(data);
+});
+router.get("/analytics/deal-distribution", async (req, res) => {
+  const data = await analyticsService.getDealDistribution();
+  res.json(data);
+});
+router.get("/analytics/regional", async (req, res) => {
+  const data = await analyticsService.getRegionalDistribution();
+  res.json(data);
+});
+router.get("/analytics/pipeline", async (req, res) => {
+  const data = await analyticsService.getSalesPipeline();
+  res.json(data);
+});
+router.get("/analytics/competitor-insights", async (req, res) => {
+  const data = await analyticsService.getCompetitorInsights();
+  res.json(data);
+});
+router.get("/analytics/export", async (req, res) => {
+  try {
+    const timeRange = req.query.timeRange || "12";
+    let startDate;
+    let endDate = /* @__PURE__ */ new Date();
+    if (timeRange !== "all") {
+      const months = parseInt(timeRange);
+      if (!isNaN(months)) {
+        startDate = /* @__PURE__ */ new Date();
+        startDate.setMonth(startDate.getMonth() - months);
+      }
+    }
+    const quotesList = await analyticsService.getCustomReport({ startDate, endDate });
+    const pipelineData = await analyticsService.getSalesPipeline();
+    const regionalData = await analyticsService.getRegionalDistribution();
+    const totalQuotes = quotesList.length;
+    const totalRevenue = quotesList.reduce((sum, q) => sum + q.totalAmount, 0);
+    const avgDealSize = totalQuotes > 0 ? totalRevenue / totalQuotes : 0;
+    const statusCounts = {};
+    quotesList.forEach((q) => {
+      statusCounts[q.status] = (statusCounts[q.status] || 0) + 1;
+    });
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "T-Quoting Tool";
+    workbook.created = /* @__PURE__ */ new Date();
+    const summarySheet = workbook.addWorksheet("Overview");
+    summarySheet.columns = [
+      { header: "Metric", key: "metric", width: 25 },
+      { header: "Value", key: "value", width: 25, style: { numFmt: "#,##0.00" } }
+      // Use generic number format or dynamic currency
+    ];
+    summarySheet.addRows([
+      { metric: "Report Date", value: (/* @__PURE__ */ new Date()).toLocaleDateString() },
+      { metric: "Time Range", value: timeRange === "all" ? "All Time" : `Last ${timeRange} Months` },
+      {},
+      // Empty row
+      { metric: "Total Quotes", value: totalQuotes },
+      { metric: "Total Revenue", value: totalRevenue },
+      { metric: "Average Deal Size", value: avgDealSize }
+    ]);
+    summarySheet.getRow(2).getCell("value").numFmt = "@";
+    summarySheet.getRow(3).getCell("value").numFmt = "@";
+    summarySheet.getRow(5).getCell("value").numFmt = "#,##0";
+    summarySheet.getRow(6).getCell("value").numFmt = "#,##0.00";
+    summarySheet.getRow(7).getCell("value").numFmt = "#,##0.00";
+    summarySheet.getRow(1).font = { bold: true, size: 14 };
+    summarySheet.getCell("A9").value = "Pipeline Stage";
+    summarySheet.getCell("B9").value = "Count";
+    summarySheet.getCell("C9").value = "Value";
+    summarySheet.getCell("A9").font = { bold: true };
+    summarySheet.getCell("B9").font = { bold: true };
+    summarySheet.getCell("C9").font = { bold: true };
+    let currentRow = 10;
+    pipelineData.forEach((stage) => {
+      summarySheet.getCell(`A${currentRow}`).value = stage.stage;
+      summarySheet.getCell(`B${currentRow}`).value = stage.count;
+      summarySheet.getCell(`C${currentRow}`).value = stage.totalValue;
+      summarySheet.getCell(`C${currentRow}`).numFmt = "#,##0.00";
+      currentRow++;
+    });
+    const regionSheet = workbook.addWorksheet("Regional Performance");
+    regionSheet.columns = [
+      { header: "Region", key: "region", width: 20 },
+      { header: "Quotes", key: "count", width: 15, style: { numFmt: "#,##0" } },
+      { header: "Revenue", key: "revenue", width: 20, style: { numFmt: "#,##0.00" } },
+      { header: "Share (%)", key: "share", width: 15, style: { numFmt: '0.0"%"' } }
+    ];
+    regionSheet.getRow(1).font = { bold: true };
+    regionalData.forEach((r) => {
+      regionSheet.addRow({
+        region: r.region,
+        count: r.quoteCount,
+        revenue: r.totalRevenue,
+        share: r.percentage.toFixed(1)
+      });
+    });
+    const quotesSheet = workbook.addWorksheet("Quote Details");
+    quotesSheet.columns = [
+      { header: "Quote Number", key: "quoteNumber", width: 20 },
+      { header: "Client", key: "clientName", width: 30 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Amount", key: "totalAmount", width: 20, style: { numFmt: "#,##0.00" } },
+      { header: "Date", key: "createdDate", width: 20 }
+    ];
+    quotesSheet.getRow(1).font = { bold: true };
+    quotesList.forEach((q) => {
+      quotesSheet.addRow({
+        quoteNumber: q.quoteNumber,
+        clientName: q.clientName,
+        status: q.status,
+        totalAmount: q.totalAmount,
+        createdDate: new Date(q.createdDate).toLocaleDateString()
+      });
+    });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Analytics_Report_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    logger.error("Error exporting analytics report:", error);
+    res.status(500).json({ error: "Failed to export report" });
+  }
+});
+router.get("/analytics/vendor-spend", async (req, res) => {
+  try {
+    const timeRange = req.query.timeRange || "12";
+    const allPOs = await db.execute(sql3`
+      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
+    `);
+    const allVendors = await storage.getAllVendors();
+    let totalSpend = 0;
+    let totalPOs = 0;
+    let fulfilledPOs = 0;
+    let delayedPOs = 0;
+    const vendorStats = /* @__PURE__ */ new Map();
+    allPOs.rows.forEach((po) => {
+      const val = toDecimal(po.total || po.total_amount);
+      totalSpend = add(totalSpend, val).toNumber();
+      totalPOs++;
+      if (po.status === "fulfilled") fulfilledPOs++;
+      if (po.actual_delivery_date && po.expected_delivery_date) {
+        if (new Date(po.actual_delivery_date) > new Date(po.expected_delivery_date)) delayedPOs++;
+      }
+      const stats = vendorStats.get(po.vendor_id) || { spend: 0, count: 0, fulfilled: 0 };
+      stats.spend = add(stats.spend, val).toNumber();
+      stats.count++;
+      if (po.status === "fulfilled") stats.fulfilled++;
+      vendorStats.set(po.vendor_id, stats);
+    });
+    const avgPoValue = totalPOs > 0 ? totalSpend / totalPOs : 0;
+    const topVendors = Array.from(vendorStats.entries()).map(([vid, stat]) => {
+      const v = allVendors.find((vend) => vend.id === vid);
+      return {
+        vendorName: v?.name || "Unknown",
+        totalSpend: Math.round(stat.spend).toLocaleString(),
+        poCount: stat.count,
+        avgPoValue: stat.count > 0 ? Math.round(stat.spend / stat.count).toLocaleString() : "0"
+      };
+    }).sort((a, b) => parseFloat(b.totalSpend.replace(/,/g, "")) - parseFloat(a.totalSpend.replace(/,/g, ""))).slice(0, 5);
+    const vendorPerformance = Array.from(vendorStats.entries()).map(([vid, stat]) => {
+      const v = allVendors.find((vend) => vend.id === vid);
+      return {
+        vendorName: v?.name || "Unknown",
+        totalPOs: stat.count,
+        fulfilledPOs: stat.fulfilled,
+        onTimeDeliveryRate: "95%",
+        // Placeholder - needs actual logic
+        totalSpend: Math.round(stat.spend).toLocaleString()
+      };
+    }).slice(0, 10);
+    const data = {
+      overview: {
+        totalSpend: Math.round(totalSpend).toLocaleString(),
+        totalPOs,
+        activeVendors: vendorStats.size,
+        delayedPOs,
+        avgPoValue: Math.round(avgPoValue).toLocaleString()
+      },
+      topVendors,
+      vendorPerformance,
+      procurementDelays: {
+        count: delayedPOs,
+        percentage: totalPOs > 0 ? (delayedPOs / totalPOs * 100).toFixed(1) : "0.0"
+      }
+    };
+    res.json(data);
+  } catch (error) {
+    logger.error("Error fetching vendor analytics:", error);
+    res.status(500).json({ error: "Failed to fetch vendor analytics" });
+  }
+});
+router.get("/analytics/sales-quotes", async (req, res) => {
+  try {
+    const allQuotes = await storage.getAllQuotes();
+    const allClients = await storage.getAllClients();
+    const quotesByStatus = {
+      draft: 0,
+      sent: 0,
+      approved: 0,
+      rejected: 0,
+      invoiced: 0
+    };
+    const valueByStatus = {
+      draft: 0,
+      sent: 0,
+      approved: 0,
+      rejected: 0,
+      invoiced: 0
+    };
+    allQuotes.forEach((quote) => {
+      const status = quote.status;
+      if (quotesByStatus.hasOwnProperty(status)) {
+        quotesByStatus[status]++;
+        valueByStatus[status] = add(valueByStatus[status], quote.total).toNumber();
+      }
+    });
+    const sentQuotes = quotesByStatus.sent + quotesByStatus.approved + quotesByStatus.rejected;
+    const conversionRate = sentQuotes > 0 ? quotesByStatus.approved / sentQuotes * 100 : 0;
+    const totalValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
+    const averageQuoteValue = allQuotes.length > 0 ? divide(totalValue, allQuotes.length).toNumber() : 0;
+    const customerQuotes = /* @__PURE__ */ new Map();
+    allQuotes.forEach((quote) => {
+      const existing = customerQuotes.get(quote.clientId);
+      const value = toDecimal(quote.total);
+      if (existing) {
+        existing.count++;
+        existing.value = add(existing.value, value).toNumber();
+      } else {
+        const client = allClients.find((c) => c.id === quote.clientId);
+        if (client) {
+          customerQuotes.set(quote.clientId, {
+            name: client.name,
+            count: 1,
+            value: value.toNumber()
+          });
+        }
+      }
+    });
+    const topCustomers = Array.from(customerQuotes.entries()).map(([id, data]) => ({
+      id,
+      name: data.name,
+      quoteCount: data.count,
+      totalValue: data.value
+    })).sort((a, b) => b.totalValue - a.totalValue).slice(0, 10);
+    const monthlyData = /* @__PURE__ */ new Map();
+    allQuotes.forEach((quote) => {
+      const date = new Date(quote.createdAt);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const existing = monthlyData.get(monthKey);
+      if (existing) {
+        existing.quotes++;
+        existing.value = add(existing.value, quote.total).toNumber();
+        if (quote.status === "approved") existing.approved++;
+      } else {
+        monthlyData.set(monthKey, {
+          quotes: 1,
+          value: toDecimal(quote.total).toNumber(),
+          approved: quote.status === "approved" ? 1 : 0
+        });
+      }
+    });
+    const monthlyTrend = Array.from(monthlyData.entries()).map(([month, data]) => ({ month, ...data })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+    res.json({
+      quotesByStatus,
+      valueByStatus,
+      conversionRate,
+      averageQuoteValue: Math.round(averageQuoteValue),
+      totalQuoteValue: Math.round(totalValue.toNumber()),
+      topCustomers,
+      monthlyTrend
+    });
+  } catch (error) {
+    logger.error("Error fetching sales analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router.get("/analytics/vendor-po", async (req, res) => {
+  try {
+    const allPOs = await db.execute(sql3`
+      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
+    `);
+    const allVendors = await storage.getAllVendors();
+    const posByStatus = {
+      draft: 0,
+      sent: 0,
+      acknowledged: 0,
+      fulfilled: 0,
+      cancelled: 0
+    };
+    let totalPOValue = 0;
+    allPOs.rows.forEach((po) => {
+      const status = po.status;
+      if (posByStatus.hasOwnProperty(status)) {
+        posByStatus[status]++;
+      }
+      totalPOValue += parseFloat(po.total_amount || 0);
+    });
+    const averagePOValue = allPOs.rows.length > 0 ? totalPOValue / allPOs.rows.length : 0;
+    const fulfillmentRate = allPOs.rows.length > 0 ? posByStatus.fulfilled / allPOs.rows.length * 100 : 0;
+    const vendorSpend = /* @__PURE__ */ new Map();
+    allPOs.rows.forEach((po) => {
+      const existing = vendorSpend.get(po.vendor_id);
+      const amount = toDecimal(po.total_amount);
+      if (existing) {
+        existing.spend = add(existing.spend, amount).toNumber();
+        existing.count++;
+      } else {
+        const vendor = allVendors.find((v) => v.id === po.vendor_id);
+        if (vendor) {
+          vendorSpend.set(po.vendor_id, {
+            name: vendor.name,
+            spend: amount.toNumber(),
+            count: 1
+          });
+        }
+      }
+    });
+    const spendByVendor = Array.from(vendorSpend.entries()).map(([vendorId, data]) => ({
+      vendorId,
+      vendorName: data.name,
+      totalSpend: Math.round(data.spend),
+      poCount: data.count
+    })).sort((a, b) => b.totalSpend - a.totalSpend);
+    const monthlySpendMap = /* @__PURE__ */ new Map();
+    allPOs.rows.forEach((po) => {
+      const date = new Date(po.created_at);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const existing = monthlySpendMap.get(monthKey);
+      const amount = toDecimal(po.total_amount);
+      if (existing) {
+        existing.spend = add(existing.spend, amount).toNumber();
+        existing.count++;
+      } else {
+        monthlySpendMap.set(monthKey, { spend: amount.toNumber(), count: 1 });
+      }
+    });
+    const monthlySpend = Array.from(monthlySpendMap.entries()).map(([month, data]) => ({ month, spend: Math.round(data.spend), poCount: data.count })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+    const poVsGrnVariance = [];
+    res.json({
+      posByStatus,
+      totalPOValue: Math.round(totalPOValue),
+      averagePOValue: Math.round(averagePOValue),
+      spendByVendor,
+      monthlySpend,
+      poVsGrnVariance,
+      fulfillmentRate
+    });
+  } catch (error) {
+    logger.error("Error fetching PO analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router.get("/analytics/invoice-collections", async (req, res) => {
+  try {
+    const allInvoices = await storage.getAllInvoices();
+    const allClients = await storage.getAllClients();
+    const invoicesByStatus = {
+      draft: 0,
+      sent: 0,
+      partial: 0,
+      paid: 0,
+      overdue: 0
+    };
+    let totalOutstanding = 0;
+    let totalPaid = 0;
+    let overdueAmount = 0;
+    let totalCollectionDays = 0;
+    let paidInvoicesCount = 0;
+    const now = /* @__PURE__ */ new Date();
+    allInvoices.forEach((invoice) => {
+      const paidAmt = toDecimal(invoice.paidAmount);
+      const totalAmt = toDecimal(invoice.total);
+      const remaining = subtract(totalAmt, paidAmt).toNumber();
+      const totalAmtVal = totalAmt.toNumber();
+      if (invoice.paymentStatus === "paid") {
+        invoicesByStatus.paid++;
+        totalPaid = add(totalPaid, totalAmt).toNumber();
+        const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
+        const paidDate = invoice.lastPaymentDate ? new Date(invoice.lastPaymentDate) : new Date(invoice.updatedAt);
+        const days = Math.floor((paidDate.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        if (days >= 0) {
+          totalCollectionDays += days;
+          paidInvoicesCount++;
+        }
+      } else if (invoice.paymentStatus === "partial") {
+        invoicesByStatus.partial++;
+        totalOutstanding += remaining;
+      } else if (invoice.paymentStatus === "overdue") {
+        invoicesByStatus.overdue++;
+        totalOutstanding += remaining;
+        overdueAmount += remaining;
+      } else if (invoice.paymentStatus === "pending") {
+        const invoiceDate = new Date(invoice.createdAt);
+        const daysSince = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        if (daysSince > 30) {
+          invoicesByStatus.overdue++;
+          overdueAmount += remaining;
+        } else {
+          invoicesByStatus.sent++;
+        }
+        totalOutstanding += remaining;
+      }
+      if (!invoice.isMaster) {
+      }
+    });
+    const averageCollectionDays = paidInvoicesCount > 0 ? Math.round(totalCollectionDays / paidInvoicesCount) : 0;
+    const ageingBuckets = [
+      { bucket: "0-30 days", count: 0, amount: 0 },
+      { bucket: "31-60 days", count: 0, amount: 0 },
+      { bucket: "61-90 days", count: 0, amount: 0 },
+      { bucket: "90+ days", count: 0, amount: 0 }
+    ];
+    allInvoices.forEach((invoice) => {
+      if (invoice.paymentStatus !== "paid") {
+        const invoiceDate = new Date(invoice.createdAt);
+        const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        const remaining = subtract(invoice.total, invoice.paidAmount).toNumber();
+        if (days <= 30) {
+          ageingBuckets[0].count++;
+          ageingBuckets[0].amount += remaining;
+        } else if (days <= 60) {
+          ageingBuckets[1].count++;
+          ageingBuckets[1].amount += remaining;
+        } else if (days <= 90) {
+          ageingBuckets[2].count++;
+          ageingBuckets[2].amount += remaining;
+        } else {
+          ageingBuckets[3].count++;
+          ageingBuckets[3].amount += remaining;
+        }
+      }
+    });
+    ageingBuckets.forEach((bucket) => {
+      bucket.amount = Math.round(bucket.amount);
+    });
+    const monthlyMap = /* @__PURE__ */ new Map();
+    allInvoices.forEach((invoice) => {
+      const date = new Date(invoice.createdAt);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const existing = monthlyMap.get(monthKey);
+      const totalAmt = toDecimal(invoice.total).toNumber();
+      const paidAmt = toDecimal(invoice.paidAmount).toNumber();
+      if (existing) {
+        existing.invoiced += totalAmt;
+        existing.collected += paidAmt;
+      } else {
+        monthlyMap.set(monthKey, {
+          invoiced: totalAmt,
+          collected: paidAmt
+        });
+      }
+    });
+    const monthlyCollections = Array.from(monthlyMap.entries()).map(([month, data]) => ({
+      month,
+      invoiced: Math.round(data.invoiced),
+      collected: Math.round(data.collected)
+    })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+    const debtorMap = /* @__PURE__ */ new Map();
+    allInvoices.forEach((invoice) => {
+      const remaining = toDecimal(invoice.remainingAmount);
+      const calcRemaining = subtract(invoice.total, invoice.paidAmount);
+      const outstanding = Math.max(remaining.toNumber(), calcRemaining.toNumber());
+      if (outstanding > 0 && invoice.clientId) {
+        const existing = debtorMap.get(invoice.clientId);
+        const invoiceDate = new Date(invoice.createdAt);
+        const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        if (existing) {
+          existing.outstanding += outstanding;
+          existing.count++;
+          existing.oldestDays = Math.max(existing.oldestDays, days);
+        } else {
+          const client = allClients.find((c) => c.id === invoice.clientId);
+          debtorMap.set(invoice.clientId, {
+            name: client?.name || "Unknown Client",
+            outstanding,
+            count: 1,
+            oldestDays: days
+          });
+        }
+      }
+    });
+    const topDebtors = Array.from(debtorMap.entries()).map(([clientId, data]) => ({
+      clientId,
+      clientName: data.name,
+      outstandingAmount: Math.round(data.outstanding),
+      invoiceCount: data.count,
+      oldestInvoiceDays: data.oldestDays
+    })).sort((a, b) => b.outstandingAmount - a.outstandingAmount).slice(0, 20);
+    res.json({
+      invoicesByStatus,
+      totalOutstanding: Math.round(totalOutstanding),
+      totalPaid: Math.round(totalPaid),
+      overdueAmount: Math.round(overdueAmount),
+      averageCollectionDays,
+      ageingBuckets,
+      monthlyCollections,
+      topDebtors
+    });
+  } catch (error) {
+    logger.error("Error fetching invoice analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router.get("/analytics/serial-tracking", async (req, res) => {
+  try {
+    const serialNumbers2 = await db.execute(sql3`
+      SELECT * FROM serial_numbers ORDER BY created_at DESC
+    `);
+    const totalSerials = serialNumbers2.rows.length;
+    const serialsByStatus = {
+      delivered: 0,
+      in_stock: 0,
+      returned: 0,
+      defective: 0
+    };
+    serialNumbers2.rows.forEach((serial2) => {
+      const status = serial2.status;
+      if (serialsByStatus.hasOwnProperty(status)) {
+        serialsByStatus[status]++;
+      }
+    });
+    const serialsByProduct = [];
+    const now = /* @__PURE__ */ new Date();
+    const warrantyExpiring = serialNumbers2.rows.filter((serial2) => serial2.warranty_end_date).map((serial2) => {
+      const endDate = new Date(serial2.warranty_end_date);
+      const daysRemaining = Math.floor((endDate.getTime() - now.getTime()) / (1e3 * 60 * 60 * 24));
+      return {
+        serialNumber: serial2.serial_number,
+        productName: "Product",
+        // Would need actual product lookup
+        customerName: "Customer",
+        // Would need actual customer lookup
+        warrantyEndDate: serial2.warranty_end_date,
+        daysRemaining
+      };
+    }).filter((item) => item.daysRemaining > 0 && item.daysRemaining <= 90).sort((a, b) => a.daysRemaining - b.daysRemaining);
+    res.json({
+      totalSerials,
+      serialsByProduct,
+      warrantyExpiring,
+      serialsByStatus
+    });
+  } catch (error) {
+    logger.error("Error fetching serial tracking analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+var analytics_routes_default = router;
+
+// server/quote-workflow-routes.ts
+init_storage();
+init_db();
+init_schema();
+import { Router as Router2 } from "express";
+import { eq as eq2, sql as sql5 } from "drizzle-orm";
+
+// server/permissions-middleware.ts
+init_permissions_service();
+init_storage();
+function requirePermission(resource, action) {
+  return async (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const hasAccess = hasPermission(user.role, resource, action);
+      if (!hasAccess) {
+        await storage.createActivityLog({
+          userId: user.id,
+          action: `unauthorized_${action}_${resource}`,
+          entityType: resource,
+          entityId: null
+        });
+        return res.status(403).json({
+          error: "Forbidden",
+          message: `You don't have permission to ${action} ${resource}`,
+          requiredPermission: { resource, action }
+        });
+      }
+      next();
+    } catch (error) {
+      console.error("Permission check error:", error);
+      return res.status(500).json({ error: "Permission check failed" });
+    }
+  };
+}
+
+// server/quote-workflow-routes.ts
+init_permissions_service();
+
+// server/feature-flags-middleware.ts
+init_feature_flags();
+function requireFeature(feature) {
+  return (req, res, next) => {
+    if (!isFeatureEnabled(feature)) {
+      return res.status(404).json({
+        error: "Feature not available",
+        message: `The ${feature} feature is currently disabled`
+      });
+    }
+    next();
+  };
+}
+
+// server/quote-workflow-routes.ts
+init_feature_flags();
+init_numbering_service();
+import ExcelJS2 from "exceljs";
+
 // server/services/invoice-pdf.service.ts
-import PDFDocument2 from "pdfkit";
-import path2 from "path";
-import fs2 from "fs";
+import PDFDocument from "pdfkit";
+import path from "path";
+import fs from "fs";
 var InvoicePDFService = class _InvoicePDFService {
   // A4 points
   static PAGE_WIDTH = 595.28;
@@ -3824,7 +4180,7 @@ var InvoicePDFService = class _InvoicePDFService {
   // Public API
   // ---------------------------
   static async generateInvoicePDF(data, res) {
-    const doc = new PDFDocument2({
+    const doc = new PDFDocument({
       size: "A4",
       margins: {
         top: this.MARGIN_TOP,
@@ -3864,14 +4220,14 @@ var InvoicePDFService = class _InvoicePDFService {
     if (data.companyLogo) {
       logoToUse = data.companyLogo;
     } else {
-      const p1 = path2.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      const p2 = path2.join(process.cwd(), "client", "public", "logo.png");
+      const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+      const p2 = path.join(process.cwd(), "client", "public", "logo.png");
       try {
-        await fs2.promises.access(p1, fs2.constants.F_OK);
+        await fs.promises.access(p1, fs.constants.F_OK);
         logoToUse = p1;
       } catch {
         try {
-          await fs2.promises.access(p2, fs2.constants.F_OK);
+          await fs.promises.access(p2, fs.constants.F_OK);
           logoToUse = p2;
         } catch {
         }
@@ -4215,7 +4571,7 @@ var InvoicePDFService = class _InvoicePDFService {
     const due = this.safeDate(data.dueDate);
     const invDate = this.safeDate(data.invoiceDate ?? data.quote?.quoteDate);
     const preparedBy = String(data.preparedBy || "-");
-    const deliveryNotesStr = String(data.deliveryNotes || "").trim();
+    const deliveryNotesStr = String(data.deliveryNotes || "").split("\n").filter((line) => !line.includes("[SHORTAGE]")).join("\n").trim();
     row(0, "Invoice Date", invDate);
     row(1, "Due Date", due);
     row(2, "PO No.", quoteNo);
@@ -4787,1560 +5143,11 @@ var InvoicePDFService = class _InvoicePDFService {
   }
 };
 
-// server/services/email.service.ts
-import nodemailer from "nodemailer";
-import { Resend } from "resend";
-var EmailService = class {
-  static transporter = null;
-  static resend = null;
-  static useResend = false;
-  static initialize(config) {
-    this.transporter = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: {
-        user: config.auth.user,
-        pass: config.auth.pass
-      }
-    });
-  }
-  static initializeResend(apiKey) {
-    this.resend = new Resend(apiKey);
-    this.useResend = true;
-  }
-  static async getTransporter() {
-    if (!this.transporter) {
-      if (process.env.NODE_ENV !== "production") {
-        const testAccount = await nodemailer.createTestAccount();
-        this.transporter = nodemailer.createTransport({
-          host: "smtp.ethereal.email",
-          port: 587,
-          secure: false,
-          auth: {
-            user: testAccount.user,
-            pass: testAccount.pass
-          }
-        });
-      } else {
-        throw new Error("Email service not initialized");
-      }
-    }
-    return this.transporter;
-  }
-  static getResend() {
-    if (!this.resend) {
-      throw new Error("Resend service not initialized");
-    }
-    return this.resend;
-  }
-  static async sendPasswordResetEmail(email, resetLink) {
-    const htmlContent = `
-      <h2>Password Reset Request</h2>
-      <p>You requested a password reset. Click the link below to reset your password:</p>
-      <p>
-        <a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #0046FF; color: white; text-decoration: none; border-radius: 5px;">
-          Reset Password
-        </a>
-      </p>
-      <p>This link will expire in 1 hour.</p>
-      <p>If you didn't request this, you can safely ignore this email.</p>
-    `;
-    try {
-      if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: "Password Reset Request",
-          html: htmlContent
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
-          to: email,
-          subject: "Password Reset Request",
-          html: htmlContent,
-          text: `Password Reset Request
-
-Click the link below to reset your password:
-${resetLink}
-
-This link will expire in 1 hour.`
-        });
-      }
-    } catch (error) {
-      console.error("Failed to send password reset email:", error);
-      throw error;
-    }
-  }
-  static async sendQuoteEmail(email, emailSubject, emailBody, pdfBuffer) {
-    const lines = emailBody.split("\n");
-    const formattedLines = [];
-    let previousWasEmpty = false;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed === "") {
-        if (!previousWasEmpty) {
-          formattedLines.push("<br/>");
-          previousWasEmpty = true;
-        }
-      } else {
-        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
-        previousWasEmpty = false;
-      }
-    }
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
-        ${formattedLines.join("")}
-      </div>
-    `;
-    const quoteNumberMatch = emailSubject.match(/Quote\s+([A-Z0-9-]+)/i);
-    const quoteNumber = quoteNumberMatch ? quoteNumberMatch[1] : `Quote_${Date.now()}`;
-    try {
-      let emailSent = false;
-      if (this.useResend && this.resend) {
-        try {
-          const base64Pdf = pdfBuffer.toString("base64");
-          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-          if (fromEmail.includes("@gmail.com")) {
-            console.warn(`[Resend] Gmail domain not supported by Resend, will try fallback`);
-          } else {
-            const response = await this.resend.emails.send({
-              from: fromEmail,
-              to: email,
-              subject: emailSubject,
-              html: htmlContent,
-              attachments: [
-                {
-                  filename: `${quoteNumber}.pdf`,
-                  content: base64Pdf
-                }
-              ]
-            });
-            if (response.error) {
-              console.warn(`[Resend] Error sending quote email, falling back to SMTP:`, response.error);
-            } else {
-              console.log(`[Resend] Quote email sent successfully to ${email}`);
-              emailSent = true;
-            }
-          }
-        } catch (resendError) {
-          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
-        }
-      }
-      if (!emailSent) {
-        try {
-          const transporter = await this.getTransporter();
-          await transporter.sendMail({
-            from: process.env.EMAIL_FROM || "quotes@quoteprogen.com",
-            to: email,
-            subject: emailSubject,
-            html: htmlContent,
-            text: emailBody,
-            attachments: [
-              {
-                filename: `${quoteNumber}.pdf`,
-                content: pdfBuffer,
-                contentType: "application/pdf"
-              }
-            ]
-          });
-          console.log(`[SMTP] Quote email sent successfully to ${email}`);
-          emailSent = true;
-        } catch (smtpError) {
-          console.error("[SMTP] Failed to send quote email:", smtpError);
-          throw smtpError;
-        }
-      }
-      if (!emailSent) {
-        throw new Error("Failed to send email via both Resend and SMTP");
-      }
-    } catch (error) {
-      console.error("Failed to send quote email:", error);
-      throw error;
-    }
-  }
-  static async sendSalesOrderEmail(email, emailSubject, emailBody, pdfBuffer) {
-    const lines = emailBody.split("\n");
-    const formattedLines = [];
-    let previousWasEmpty = false;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed === "") {
-        if (!previousWasEmpty) {
-          formattedLines.push("<br/>");
-          previousWasEmpty = true;
-        }
-      } else {
-        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
-        previousWasEmpty = false;
-      }
-    }
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
-        ${formattedLines.join("")}
-      </div>
-    `;
-    const orderNumberMatch = emailSubject.match(/Order\s+([A-Z0-9-]+)/i);
-    const orderNumber = orderNumberMatch ? orderNumberMatch[1] : `Order_${Date.now()}`;
-    try {
-      if (this.useResend && this.resend) {
-        const base64Pdf = pdfBuffer.toString("base64");
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          attachments: [
-            {
-              filename: `${orderNumber}.pdf`,
-              content: base64Pdf
-            }
-          ]
-        });
-        if (response.error) {
-          console.error(`[Resend] Error sending sales order email:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
-        }
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody,
-          attachments: [
-            {
-              filename: `${orderNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf"
-            }
-          ]
-        });
-      }
-    } catch (error) {
-      console.error("Failed to send sales order email:", error);
-      throw error;
-    }
-  }
-  static async sendInvoiceEmail(email, emailSubject, emailBody, pdfBuffer) {
-    const lines = emailBody.split("\n");
-    const formattedLines = [];
-    let previousWasEmpty = false;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed === "") {
-        if (!previousWasEmpty) {
-          formattedLines.push("<br/>");
-          previousWasEmpty = true;
-        }
-      } else {
-        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
-        previousWasEmpty = false;
-      }
-    }
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
-        ${formattedLines.join("")}
-      </div>
-    `;
-    const invoiceNumberMatch = emailSubject.match(/Invoice\s+([A-Z0-9-]+)/i);
-    const invoiceNumber = invoiceNumberMatch ? invoiceNumberMatch[1] : `Invoice_${Date.now()}`;
-    try {
-      if (this.useResend && this.resend) {
-        const base64Pdf = pdfBuffer.toString("base64");
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          attachments: [
-            {
-              filename: `${invoiceNumber}.pdf`,
-              content: base64Pdf
-            }
-          ]
-        });
-        if (response.error) {
-          console.error(`[Resend] Error sending invoice email:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
-        }
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "invoices@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody,
-          attachments: [
-            {
-              filename: `${invoiceNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf"
-            }
-          ]
-        });
-      }
-    } catch (error) {
-      console.error("Failed to send invoice email:", error);
-      throw error;
-    }
-  }
-  static async sendPaymentReminderEmail(email, emailSubject, emailBody) {
-    const lines = emailBody.split("\n");
-    const formattedLines = [];
-    let previousWasEmpty = false;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed === "") {
-        if (!previousWasEmpty) {
-          formattedLines.push("<br/>");
-          previousWasEmpty = true;
-        }
-      } else {
-        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
-        previousWasEmpty = false;
-      }
-    }
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
-        ${formattedLines.join("")}
-      </div>
-    `;
-    try {
-      if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent
-        });
-        if (response.error) {
-          console.error(`[Resend] Error sending payment reminder:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
-        }
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody
-        });
-      }
-    } catch (error) {
-      console.error("Failed to send payment reminder email:", error);
-      throw error;
-    }
-  }
-  static async sendWelcomeEmail(email, name) {
-    const htmlContent = `
-      <h2>Welcome to QuoteProGen!</h2>
-      <p>Hi ${name},</p>
-      <p>Your account has been successfully created. You can now login and start creating professional quotes.</p>
-      <p>Visit our platform to get started: <a href="${process.env.APP_URL || "http://localhost:5000"}/login">Login</a></p>
-      <p>If you have any questions, please don't hesitate to contact us.</p>
-      <p>Best regards,<br/>QuoteProGen Team</p>
-    `;
-    try {
-      if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: "Welcome to QuoteProGen!",
-          html: htmlContent
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "welcome@quoteprogen.com",
-          to: email,
-          subject: "Welcome to QuoteProGen!",
-          html: htmlContent
-        });
-      }
-    } catch (error) {
-      console.error("Failed to send welcome email:", error);
-    }
-  }
-};
-
-// server/services/analytics.service.ts
-init_storage();
-var AnalyticsService = class {
-  /**
-   * Get revenue forecast based on historical data
-   */
-  async getRevenueForecast(monthsAhead = 3) {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
-      const now = /* @__PURE__ */ new Date();
-      const monthlyRevenue = {};
-      for (let i = 0; i < 12; i++) {
-        const date = new Date(now);
-        date.setMonth(date.getMonth() - i);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        monthlyRevenue[monthKey] = 0;
-      }
-      allInvoices.forEach((invoice) => {
-        const date = new Date(invoice.createdAt);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        if (monthlyRevenue.hasOwnProperty(monthKey)) {
-          monthlyRevenue[monthKey] += parseFloat((invoice.paidAmount || 0).toString());
-        }
-      });
-      const revenues = Object.values(monthlyRevenue).filter((v) => v > 0);
-      const avgRevenue = revenues.length > 0 ? revenues.reduce((a, b) => a + b, 0) / revenues.length : 0;
-      const forecast = [];
-      for (let i = 1; i <= monthsAhead; i++) {
-        const date = new Date(now);
-        date.setMonth(date.getMonth() + i);
-        const monthStr = date.toLocaleString("default", { month: "short", year: "numeric" });
-        forecast.push({
-          month: monthStr,
-          forecastedRevenue: this.roundAmount(avgRevenue * (1 + (Math.random() - 0.5) * 0.2)),
-          confidence: 0.75 + Math.random() * 0.15
-          // 75-90% confidence
-        });
-      }
-      return forecast;
-    } catch (error) {
-      console.error("Error getting revenue forecast:", error);
-      return [];
-    }
-  }
-  /**
-   * Get deal distribution by value ranges
-   */
-  async getDealDistribution() {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const ranges = [
-        { label: "0-10K", min: 0, max: 1e4 },
-        { label: "10K-50K", min: 1e4, max: 5e4 },
-        { label: "50K-100K", min: 5e4, max: 1e5 },
-        { label: "100K-500K", min: 1e5, max: 5e5 },
-        { label: "500K+", min: 5e5, max: Infinity }
-      ];
-      const distribution = ranges.map((range) => {
-        const quotesInRange = allQuotes.filter((q) => {
-          const total = parseFloat(q.total.toString());
-          return total >= range.min && total < range.max;
-        });
-        const totalValue = quotesInRange.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
-        return {
-          range: range.label,
-          count: quotesInRange.length,
-          totalValue: this.roundAmount(totalValue),
-          percentage: 0
-          // Will calculate after
-        };
-      });
-      const totalQuotes = distribution.reduce((sum, d) => sum + d.count, 0);
-      return distribution.map((d) => ({
-        ...d,
-        percentage: totalQuotes > 0 ? d.count / totalQuotes * 100 : 0
-      }));
-    } catch (error) {
-      console.error("Error getting deal distribution:", error);
-      return [];
-    }
-  }
-  /**
-   * Get regional sales distribution
-   */
-  async getRegionalDistribution() {
-    try {
-      const allClients = await storage.getAllClients();
-      const allQuotes = await storage.getAllQuotes();
-      const regionData = {};
-      for (const quote of allQuotes) {
-        const client = allClients.find((c) => c.id === quote.clientId);
-        const rawAddress = client?.billingAddress || client?.shippingAddress || "";
-        const addressParts = rawAddress.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.length > 0);
-        let region = "Unknown";
-        if (addressParts.length > 0) {
-          const last = addressParts[addressParts.length - 1];
-          if (/^[\d-]+$/.test(last) && addressParts.length > 1) {
-            region = addressParts[addressParts.length - 2];
-          } else {
-            region = last;
-          }
-        }
-        if ((region === "Unknown" || region.length < 3) && client?.gstin && client.gstin.length >= 2) {
-          const stateCode = client.gstin.substring(0, 2);
-          const stateMap = {
-            "01": "Jammu & Kashmir",
-            "02": "Himachal Pradesh",
-            "03": "Punjab",
-            "04": "Chandigarh",
-            "05": "Uttarakhand",
-            "06": "Haryana",
-            "07": "Delhi",
-            "08": "Rajasthan",
-            "09": "Uttar Pradesh",
-            "10": "Bihar",
-            "11": "Sikkim",
-            "12": "Arunachal Pradesh",
-            "13": "Nagaland",
-            "14": "Manipur",
-            "15": "Mizoram",
-            "16": "Tripura",
-            "17": "Meghalaya",
-            "18": "Assam",
-            "19": "West Bengal",
-            "20": "Jharkhand",
-            "21": "Odisha",
-            "22": "Chattisgarh",
-            "23": "Madhya Pradesh",
-            "24": "Gujarat",
-            "27": "Maharashtra",
-            "29": "Karnataka",
-            "30": "Goa",
-            "31": "Lakshadweep",
-            "32": "Kerala",
-            "33": "Tamil Nadu",
-            "34": "Puducherry",
-            "35": "Andaman & Nicobar",
-            "36": "Telangana",
-            "37": "Andhra Pradesh",
-            "38": "Ladakh"
-          };
-          if (stateMap[stateCode]) {
-            region = stateMap[stateCode];
-          }
-        }
-        if (!regionData[region]) {
-          regionData[region] = { count: 0, revenue: 0 };
-        }
-        regionData[region].count++;
-        regionData[region].revenue += parseFloat(quote.total.toString());
-      }
-      const totalQuotes = Object.values(regionData).reduce((sum, r) => sum + r.count, 0);
-      return Object.entries(regionData).map(([region, data]) => ({
-        region,
-        quoteCount: data.count,
-        totalRevenue: this.roundAmount(data.revenue),
-        percentage: totalQuotes > 0 ? data.count / totalQuotes * 100 : 0
-      }));
-    } catch (error) {
-      console.error("Error getting regional distribution:", error);
-      return [];
-    }
-  }
-  /**
-   * Get custom report data
-   */
-  async getCustomReport(params) {
-    try {
-      let quotes2 = await storage.getAllQuotes();
-      const clients2 = await storage.getAllClients();
-      if (params.startDate) {
-        quotes2 = quotes2.filter((q) => new Date(q.createdAt) >= params.startDate);
-      }
-      if (params.endDate) {
-        quotes2 = quotes2.filter((q) => new Date(q.createdAt) <= params.endDate);
-      }
-      if (params.status) {
-        quotes2 = quotes2.filter((q) => q.status === params.status);
-      }
-      if (params.minAmount) {
-        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) >= params.minAmount);
-      }
-      if (params.maxAmount) {
-        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) <= params.maxAmount);
-      }
-      return quotes2.map((q) => {
-        const client = clients2.find((c) => c.id === q.clientId);
-        return {
-          quoteNumber: q.quoteNumber,
-          clientName: client?.name || "Unknown",
-          totalAmount: this.roundAmount(parseFloat(q.total.toString())),
-          status: q.status,
-          createdDate: q.createdAt
-        };
-      });
-    } catch (error) {
-      console.error("Error getting custom report:", error);
-      return [];
-    }
-  }
-  /**
-   * Get sales pipeline data
-   */
-  async getSalesPipeline() {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const stages = ["draft", "sent", "approved", "rejected", "invoiced"];
-      const pipeline = stages.map((stage) => {
-        const stageQuotes = allQuotes.filter((q) => q.status === stage);
-        const totalValue = stageQuotes.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
-        const avgDealValue = stageQuotes.length > 0 ? totalValue / stageQuotes.length : 0;
-        return {
-          stage,
-          count: stageQuotes.length,
-          totalValue: this.roundAmount(totalValue),
-          avgDealValue: this.roundAmount(avgDealValue)
-        };
-      });
-      return pipeline;
-    } catch (error) {
-      console.error("Error getting sales pipeline:", error);
-      return [];
-    }
-  }
-  /**
-   * Get client lifetime value
-   */
-  async getClientLifetimeValue(clientId) {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const clientQuotes = allQuotes.filter((q) => q.clientId === clientId);
-      const allInvoices = await storage.getAllInvoices();
-      const clientInvoices = allInvoices.filter((i) => {
-        const quote = clientQuotes.find((q) => q.id === i.quoteId);
-        return !!quote;
-      });
-      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
-      const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
-      const conversionRate = clientQuotes.length > 0 ? clientInvoices.length / clientQuotes.length * 100 : 0;
-      return {
-        totalQuotes: clientQuotes.length,
-        totalInvoices: clientInvoices.length,
-        totalRevenue: this.roundAmount(totalRevenue),
-        averageDealSize: this.roundAmount(avgDealSize),
-        conversionRate: parseFloat(conversionRate.toFixed(2))
-      };
-    } catch (error) {
-      console.error("Error getting client lifetime value:", error);
-      return {
-        totalQuotes: 0,
-        totalInvoices: 0,
-        totalRevenue: 0,
-        averageDealSize: 0,
-        conversionRate: 0
-      };
-    }
-  }
-  /**
-   * Get competitor analysis insights
-   */
-  async getCompetitorInsights() {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
-      if (allQuotes.length === 0) {
-        return {
-          avgQuoteValue: 0,
-          medianQuoteValue: 0,
-          quoteFrequency: 0,
-          conversionTrend: 0
-        };
-      }
-      const values = allQuotes.map((q) => parseFloat(q.total.toString())).sort((a, b) => a - b);
-      const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
-      const medianValue = values.length % 2 === 0 ? (values[values.length / 2 - 1] + values[values.length / 2]) / 2 : values[Math.floor(values.length / 2)];
-      const weekAgo = /* @__PURE__ */ new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const recentQuotes = allQuotes.filter((q) => new Date(q.createdAt) >= weekAgo);
-      const quoteFrequency = recentQuotes.length;
-      const conversionCount = allInvoices.length;
-      const conversionTrend = allQuotes.length > 0 ? conversionCount / allQuotes.length * 100 : 0;
-      return {
-        avgQuoteValue: this.roundAmount(avgValue),
-        medianQuoteValue: this.roundAmount(medianValue),
-        quoteFrequency,
-        conversionTrend: parseFloat(conversionTrend.toFixed(2))
-      };
-    } catch (error) {
-      console.error("Error getting competitor insights:", error);
-      return {
-        avgQuoteValue: 0,
-        medianQuoteValue: 0,
-        quoteFrequency: 0,
-        conversionTrend: 0
-      };
-    }
-  }
-  roundAmount(amount) {
-    return Math.round(amount * 100) / 100;
-  }
-};
-var analyticsService = new AnalyticsService();
-
-// server/services/pricing.service.ts
-init_storage();
-import { Decimal } from "decimal.js";
-var PricingService = class {
-  /**
-   * Calculate discount based on quote amount and applicable pricing tier
-   */
-  async calculateDiscount(subtotal) {
-    try {
-      const tier = await storage.getPricingTierByAmount(subtotal);
-      if (!tier) {
-        return {
-          discountPercent: 0,
-          discountAmount: 0,
-          finalAmount: subtotal
-        };
-      }
-      const discountPercent = parseFloat(tier.discountPercent.toString());
-      const discountAmount = subtotal * (discountPercent / 100);
-      const finalAmount = subtotal - discountAmount;
-      return {
-        discountPercent,
-        discountAmount,
-        finalAmount
-      };
-    } catch (error) {
-      console.error("Error calculating discount:", error);
-      return {
-        discountPercent: 0,
-        discountAmount: 0,
-        finalAmount: subtotal
-      };
-    }
-  }
-  /**
-   * Get applicable tax rates for a region
-   */
-  async getTaxRatesForRegion(region) {
-    try {
-      const taxRate = await storage.getTaxRateByRegion(region);
-      if (!taxRate) {
-        return {
-          sgstRate: 0,
-          cgstRate: 0,
-          igstRate: 0
-        };
-      }
-      return {
-        sgstRate: parseFloat(taxRate.sgstRate.toString()),
-        cgstRate: parseFloat(taxRate.cgstRate.toString()),
-        igstRate: parseFloat(taxRate.igstRate.toString())
-      };
-    } catch (error) {
-      console.error("Error getting tax rates:", error);
-      return {
-        sgstRate: 0,
-        cgstRate: 0,
-        igstRate: 0
-      };
-    }
-  }
-  /**
-   * Calculate taxes on an amount
-   */
-  async calculateTaxes(amount, region, useIGST = false) {
-    const rates = await this.getTaxRatesForRegion(region);
-    if (useIGST) {
-      const igst = amount * (rates.igstRate / 100);
-      return {
-        sgst: 0,
-        cgst: 0,
-        igst,
-        totalTax: igst
-      };
-    } else {
-      const sgst = amount * (rates.sgstRate / 100);
-      const cgst = amount * (rates.cgstRate / 100);
-      return {
-        sgst,
-        cgst,
-        igst: 0,
-        totalTax: sgst + cgst
-      };
-    }
-  }
-  /**
-   * Convert amount between currencies
-   */
-  async convertCurrency(amount, fromCurrency, toCurrency) {
-    if (fromCurrency === toCurrency) {
-      return amount;
-    }
-    try {
-      const currencySettings2 = await storage.getCurrencySettings();
-      if (!currencySettings2 || !currencySettings2.exchangeRates) {
-        return amount;
-      }
-      const rates = JSON.parse(currencySettings2.exchangeRates);
-      const fromRate = rates[fromCurrency] || 1;
-      const toRate = rates[toCurrency] || 1;
-      return amount / fromRate * toRate;
-    } catch (error) {
-      console.error("Error converting currency:", error);
-      return amount;
-    }
-  }
-  /**
-   * Apply rounding rules to a monetary amount
-   */
-  roundAmount(amount, roundingRule = "nearest") {
-    const decimal2 = new Decimal(amount);
-    switch (roundingRule) {
-      case "up":
-        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_UP).toString());
-      case "down":
-        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_DOWN).toString());
-      case "nearest":
-      default:
-        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString());
-    }
-  }
-  /**
-   * Calculate final quote total with all adjustments
-   */
-  async calculateQuoteTotal(params) {
-    let discount = params.customDiscount || 0;
-    if (!params.customDiscount) {
-      const discountCalc = await this.calculateDiscount(params.subtotal);
-      discount = discountCalc.discountAmount;
-    }
-    const discountedSubtotal = params.subtotal - discount;
-    const shipping = params.shippingCharges || 0;
-    const subtotalWithShipping = discountedSubtotal + shipping;
-    const taxes = await this.calculateTaxes(subtotalWithShipping, params.region, params.useIGST);
-    const total = this.roundAmount(subtotalWithShipping + taxes.totalTax);
-    return {
-      subtotal: this.roundAmount(params.subtotal),
-      discount: this.roundAmount(discount),
-      discountedSubtotal: this.roundAmount(discountedSubtotal),
-      shipping: this.roundAmount(shipping),
-      subtotalWithShipping: this.roundAmount(subtotalWithShipping),
-      sgst: this.roundAmount(taxes.sgst),
-      cgst: this.roundAmount(taxes.cgst),
-      igst: this.roundAmount(taxes.igst),
-      total
-    };
-  }
-};
-var pricingService = new PricingService();
-
-// server/routes.ts
-init_numbering_service();
-
-// server/permissions-middleware.ts
-init_permissions_service();
-init_storage();
-function requirePermission(resource, action) {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-      if (!user) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-      const hasAccess = hasPermission(user.role, resource, action);
-      if (!hasAccess) {
-        await storage.createActivityLog({
-          userId: user.id,
-          action: `unauthorized_${action}_${resource}`,
-          entityType: resource,
-          entityId: null
-        });
-        return res.status(403).json({
-          error: "Forbidden",
-          message: `You don't have permission to ${action} ${resource}`,
-          requiredPermission: { resource, action }
-        });
-      }
-      next();
-    } catch (error) {
-      console.error("Permission check error:", error);
-      return res.status(500).json({ error: "Permission check failed" });
-    }
-  };
-}
-
-// server/feature-flags-middleware.ts
-init_feature_flags();
-function requireFeature(feature) {
-  return (req, res, next) => {
-    if (!isFeatureEnabled(feature)) {
-      return res.status(404).json({
-        error: "Feature not available",
-        message: `The ${feature} feature is currently disabled`
-      });
-    }
-    next();
-  };
-}
-
-// server/analytics-routes.ts
-init_storage();
-init_db();
-import { Router } from "express";
-import { sql as sql2 } from "drizzle-orm";
-import ExcelJS from "exceljs";
-var router = Router();
-router.get("/analytics", async (req, res) => {
-  try {
-    const allQuotes = await storage.getAllQuotes();
-    const allClients = await storage.getAllClients();
-    const allInvoices = await storage.getAllInvoices();
-    const totalQuotes = allQuotes.length;
-    const totalRevenueVal = allInvoices.reduce((sum, inv) => {
-      if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
-        return sum + parseFloat((inv.paidAmount || 0).toString());
-      }
-      return sum;
-    }, 0);
-    const totalQuoteValue = allQuotes.reduce((sum, q) => sum + parseFloat((q.total || 0).toString()), 0);
-    const avgQuoteValue = allQuotes.length > 0 ? totalQuoteValue / allQuotes.length : 0;
-    const convertedQuotes = allQuotes.filter((q) => q.status === "invoiced" || q.status === "closed_paid").length;
-    const conversionRate = allQuotes.length > 0 ? convertedQuotes / allQuotes.length * 100 : 0;
-    const overview = {
-      totalQuotes,
-      totalRevenue: Math.round(totalRevenueVal).toLocaleString(),
-      avgQuoteValue: Math.round(avgQuoteValue).toLocaleString(),
-      conversionRate: conversionRate.toFixed(1)
-    };
-    const monthlyDataMap = /* @__PURE__ */ new Map();
-    const now = /* @__PURE__ */ new Date();
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.toLocaleString("default", { month: "short" });
-      monthlyDataMap.set(key, { quotes: 0, revenue: 0, conversions: 0 });
-    }
-    allQuotes.forEach((q) => {
-      const d = new Date(q.createdAt);
-      const key = d.toLocaleString("default", { month: "short" });
-      if (monthlyDataMap.has(key)) {
-        const entry = monthlyDataMap.get(key);
-        entry.quotes++;
-        if (q.status === "invoiced" || q.status === "closed_paid") {
-          entry.conversions++;
-        }
-      }
-    });
-    allInvoices.forEach((inv) => {
-      const d = new Date(inv.createdAt);
-      const key = d.toLocaleString("default", { month: "short" });
-      if (monthlyDataMap.has(key)) {
-        const entry = monthlyDataMap.get(key);
-        if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
-          entry.revenue += parseFloat((inv.paidAmount || 0).toString());
-        }
-      }
-    });
-    const monthlyData = Array.from(monthlyDataMap.entries()).map(([month, data]) => ({
-      month,
-      quotes: data.quotes,
-      revenue: Math.round(data.revenue),
-      conversions: data.conversions
-    }));
-    const clientRevenue = /* @__PURE__ */ new Map();
-    const clientQuotes = /* @__PURE__ */ new Map();
-    allQuotes.forEach((q) => {
-      const curr = clientQuotes.get(q.clientId) || 0;
-      clientQuotes.set(q.clientId, curr + 1);
-    });
-    const clientDealValue = /* @__PURE__ */ new Map();
-    allQuotes.forEach((q) => {
-      const val = parseFloat((q.total || 0).toString());
-      const curr = clientDealValue.get(q.clientId) || 0;
-      clientDealValue.set(q.clientId, curr + val);
-    });
-    const topClients = Array.from(clientDealValue.entries()).map(([clientId, val]) => {
-      const client = allClients.find((c) => c.id === clientId);
-      return {
-        name: client?.name || "Unknown",
-        totalRevenue: Math.round(val).toLocaleString(),
-        quoteCount: clientQuotes.get(clientId) || 0
-      };
-    }).sort((a, b) => parseFloat(b.totalRevenue.replace(/,/g, "")) - parseFloat(a.totalRevenue.replace(/,/g, ""))).slice(0, 5);
-    const statusMap = /* @__PURE__ */ new Map();
-    allQuotes.forEach((q) => {
-      const status = q.status;
-      const val = parseFloat((q.total || 0).toString());
-      const entry = statusMap.get(status) || { count: 0, value: 0 };
-      entry.count++;
-      entry.value += val;
-      statusMap.set(status, entry);
-    });
-    const statusBreakdown = Array.from(statusMap.entries()).map(([status, data]) => ({
-      status: status.charAt(0).toUpperCase() + status.slice(1),
-      count: data.count,
-      value: Math.round(data.value)
-    }));
-    res.json({
-      overview,
-      monthlyData,
-      topClients,
-      statusBreakdown
-    });
-  } catch (error) {
-    console.error("Error fetching analytics overview:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/forecast", async (req, res) => {
-  const data = await analyticsService.getRevenueForecast();
-  res.json(data);
-});
-router.get("/analytics/deal-distribution", async (req, res) => {
-  const data = await analyticsService.getDealDistribution();
-  res.json(data);
-});
-router.get("/analytics/regional", async (req, res) => {
-  const data = await analyticsService.getRegionalDistribution();
-  res.json(data);
-});
-router.get("/analytics/pipeline", async (req, res) => {
-  const data = await analyticsService.getSalesPipeline();
-  res.json(data);
-});
-router.get("/analytics/competitor-insights", async (req, res) => {
-  const data = await analyticsService.getCompetitorInsights();
-  res.json(data);
-});
-router.get("/analytics/export", async (req, res) => {
-  try {
-    const timeRange = req.query.timeRange || "12";
-    let startDate;
-    let endDate = /* @__PURE__ */ new Date();
-    if (timeRange !== "all") {
-      const months = parseInt(timeRange);
-      if (!isNaN(months)) {
-        startDate = /* @__PURE__ */ new Date();
-        startDate.setMonth(startDate.getMonth() - months);
-      }
-    }
-    const quotesList = await analyticsService.getCustomReport({ startDate, endDate });
-    const pipelineData = await analyticsService.getSalesPipeline();
-    const regionalData = await analyticsService.getRegionalDistribution();
-    const totalQuotes = quotesList.length;
-    const totalRevenue = quotesList.reduce((sum, q) => sum + q.totalAmount, 0);
-    const avgDealSize = totalQuotes > 0 ? totalRevenue / totalQuotes : 0;
-    const statusCounts = {};
-    quotesList.forEach((q) => {
-      statusCounts[q.status] = (statusCounts[q.status] || 0) + 1;
-    });
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "T-Quoting Tool";
-    workbook.created = /* @__PURE__ */ new Date();
-    const summarySheet = workbook.addWorksheet("Overview");
-    summarySheet.columns = [
-      { header: "Metric", key: "metric", width: 25 },
-      { header: "Value", key: "value", width: 25, style: { numFmt: '"\u20B9"#,##0' } }
-      // Default currency, will override for non-currency rows manually or just let it be?
-    ];
-    summarySheet.addRows([
-      { metric: "Report Date", value: (/* @__PURE__ */ new Date()).toLocaleDateString() },
-      { metric: "Time Range", value: timeRange === "all" ? "All Time" : `Last ${timeRange} Months` },
-      {},
-      // Empty row
-      { metric: "Total Quotes", value: totalQuotes },
-      { metric: "Total Revenue", value: totalRevenue },
-      { metric: "Average Deal Size", value: avgDealSize }
-    ]);
-    summarySheet.getRow(2).getCell("value").numFmt = "@";
-    summarySheet.getRow(3).getCell("value").numFmt = "@";
-    summarySheet.getRow(5).getCell("value").numFmt = "#,##0";
-    summarySheet.getRow(6).getCell("value").numFmt = '"\u20B9"#,##0';
-    summarySheet.getRow(7).getCell("value").numFmt = '"\u20B9"#,##0';
-    summarySheet.getRow(1).font = { bold: true, size: 14 };
-    summarySheet.getCell("A9").value = "Pipeline Stage";
-    summarySheet.getCell("B9").value = "Count";
-    summarySheet.getCell("C9").value = "Value";
-    summarySheet.getCell("A9").font = { bold: true };
-    summarySheet.getCell("B9").font = { bold: true };
-    summarySheet.getCell("C9").font = { bold: true };
-    let currentRow = 10;
-    pipelineData.forEach((stage) => {
-      summarySheet.getCell(`A${currentRow}`).value = stage.stage;
-      summarySheet.getCell(`B${currentRow}`).value = stage.count;
-      summarySheet.getCell(`C${currentRow}`).value = stage.totalValue;
-      summarySheet.getCell(`C${currentRow}`).numFmt = '"\u20B9"#,##0';
-      currentRow++;
-    });
-    const regionSheet = workbook.addWorksheet("Regional Performance");
-    regionSheet.columns = [
-      { header: "Region", key: "region", width: 20 },
-      { header: "Quotes", key: "count", width: 15, style: { numFmt: "#,##0" } },
-      { header: "Revenue", key: "revenue", width: 20, style: { numFmt: '"\u20B9"#,##0' } },
-      { header: "Share (%)", key: "share", width: 15, style: { numFmt: '0.0"%"' } }
-    ];
-    regionSheet.getRow(1).font = { bold: true };
-    regionalData.forEach((r) => {
-      regionSheet.addRow({
-        region: r.region,
-        count: r.quoteCount,
-        revenue: r.totalRevenue,
-        share: r.percentage.toFixed(1)
-      });
-    });
-    const quotesSheet = workbook.addWorksheet("Quote Details");
-    quotesSheet.columns = [
-      { header: "Quote Number", key: "quoteNumber", width: 20 },
-      { header: "Client", key: "clientName", width: 30 },
-      { header: "Status", key: "status", width: 15 },
-      { header: "Amount", key: "totalAmount", width: 20, style: { numFmt: '"\u20B9"#,##0' } },
-      { header: "Date", key: "createdDate", width: 20 }
-    ];
-    quotesSheet.getRow(1).font = { bold: true };
-    quotesList.forEach((q) => {
-      quotesSheet.addRow({
-        quoteNumber: q.quoteNumber,
-        clientName: q.clientName,
-        status: q.status,
-        totalAmount: q.totalAmount,
-        createdDate: new Date(q.createdDate).toLocaleDateString()
-      });
-    });
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="Analytics_Report_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.xlsx"`);
-    await workbook.xlsx.write(res);
-    res.end();
-  } catch (error) {
-    console.error("Error exporting analytics report:", error);
-    res.status(500).json({ error: "Failed to export report" });
-  }
-});
-router.get("/analytics/vendor-spend", async (req, res) => {
-  try {
-    const timeRange = req.query.timeRange || "12";
-    const allPOs = await db.execute(sql2`
-      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
-    `);
-    const allVendors = await storage.getAllVendors();
-    let totalSpend = 0;
-    let totalPOs = 0;
-    let fulfilledPOs = 0;
-    let delayedPOs = 0;
-    const vendorStats = /* @__PURE__ */ new Map();
-    allPOs.rows.forEach((po) => {
-      const val = parseFloat(po.total || po.total_amount || 0);
-      totalSpend += val;
-      totalPOs++;
-      if (po.status === "fulfilled") fulfilledPOs++;
-      if (po.actual_delivery_date && po.expected_delivery_date) {
-        if (new Date(po.actual_delivery_date) > new Date(po.expected_delivery_date)) delayedPOs++;
-      }
-      const stats = vendorStats.get(po.vendor_id) || { spend: 0, count: 0, fulfilled: 0 };
-      stats.spend += val;
-      stats.count++;
-      if (po.status === "fulfilled") stats.fulfilled++;
-      vendorStats.set(po.vendor_id, stats);
-    });
-    const avgPoValue = totalPOs > 0 ? totalSpend / totalPOs : 0;
-    const topVendors = Array.from(vendorStats.entries()).map(([vid, stat]) => {
-      const v = allVendors.find((vend) => vend.id === vid);
-      return {
-        vendorName: v?.name || "Unknown",
-        totalSpend: Math.round(stat.spend).toLocaleString(),
-        poCount: stat.count,
-        avgPoValue: stat.count > 0 ? Math.round(stat.spend / stat.count).toLocaleString() : "0"
-      };
-    }).sort((a, b) => parseFloat(b.totalSpend.replace(/,/g, "")) - parseFloat(a.totalSpend.replace(/,/g, ""))).slice(0, 5);
-    const vendorPerformance = Array.from(vendorStats.entries()).map(([vid, stat]) => {
-      const v = allVendors.find((vend) => vend.id === vid);
-      return {
-        vendorName: v?.name || "Unknown",
-        totalPOs: stat.count,
-        fulfilledPOs: stat.fulfilled,
-        onTimeDeliveryRate: "95%",
-        // Placeholder - needs actual logic
-        totalSpend: Math.round(stat.spend).toLocaleString()
-      };
-    }).slice(0, 10);
-    const data = {
-      overview: {
-        totalSpend: Math.round(totalSpend).toLocaleString(),
-        totalPOs,
-        activeVendors: vendorStats.size,
-        delayedPOs,
-        avgPoValue: Math.round(avgPoValue).toLocaleString()
-      },
-      topVendors,
-      vendorPerformance,
-      procurementDelays: {
-        count: delayedPOs,
-        percentage: totalPOs > 0 ? (delayedPOs / totalPOs * 100).toFixed(1) : "0.0"
-      }
-    };
-    res.json(data);
-  } catch (error) {
-    console.error("Error fetching vendor analytics:", error);
-    res.status(500).json({ error: "Failed to fetch vendor analytics" });
-  }
-});
-router.get("/analytics/sales-quotes", async (req, res) => {
-  try {
-    const allQuotes = await storage.getAllQuotes();
-    const allClients = await storage.getAllClients();
-    const quotesByStatus = {
-      draft: 0,
-      sent: 0,
-      approved: 0,
-      rejected: 0,
-      invoiced: 0
-    };
-    const valueByStatus = {
-      draft: 0,
-      sent: 0,
-      approved: 0,
-      rejected: 0,
-      invoiced: 0
-    };
-    allQuotes.forEach((quote) => {
-      const status = quote.status;
-      if (quotesByStatus.hasOwnProperty(status)) {
-        quotesByStatus[status]++;
-        valueByStatus[status] += parseFloat((quote.total || 0).toString());
-      }
-    });
-    const sentQuotes = quotesByStatus.sent + quotesByStatus.approved + quotesByStatus.rejected;
-    const conversionRate = sentQuotes > 0 ? quotesByStatus.approved / sentQuotes * 100 : 0;
-    const totalValue = allQuotes.reduce((sum, q) => sum + parseFloat((q.total || 0).toString()), 0);
-    const averageQuoteValue = allQuotes.length > 0 ? totalValue / allQuotes.length : 0;
-    const customerQuotes = /* @__PURE__ */ new Map();
-    allQuotes.forEach((quote) => {
-      const existing = customerQuotes.get(quote.clientId);
-      const value = parseFloat((quote.total || 0).toString());
-      if (existing) {
-        existing.count++;
-        existing.value += value;
-      } else {
-        const client = allClients.find((c) => c.id === quote.clientId);
-        if (client) {
-          customerQuotes.set(quote.clientId, {
-            name: client.name,
-            count: 1,
-            value
-          });
-        }
-      }
-    });
-    const topCustomers = Array.from(customerQuotes.entries()).map(([id, data]) => ({
-      id,
-      name: data.name,
-      quoteCount: data.count,
-      totalValue: data.value
-    })).sort((a, b) => b.totalValue - a.totalValue).slice(0, 10);
-    const monthlyData = /* @__PURE__ */ new Map();
-    allQuotes.forEach((quote) => {
-      const date = new Date(quote.createdAt);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const existing = monthlyData.get(monthKey);
-      if (existing) {
-        existing.quotes++;
-        existing.value += parseFloat((quote.total || 0).toString());
-        if (quote.status === "approved") existing.approved++;
-      } else {
-        monthlyData.set(monthKey, {
-          quotes: 1,
-          value: parseFloat((quote.total || 0).toString()),
-          approved: quote.status === "approved" ? 1 : 0
-        });
-      }
-    });
-    const monthlyTrend = Array.from(monthlyData.entries()).map(([month, data]) => ({ month, ...data })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-    res.json({
-      quotesByStatus,
-      valueByStatus,
-      conversionRate,
-      averageQuoteValue: Math.round(averageQuoteValue),
-      totalQuoteValue: Math.round(totalValue),
-      topCustomers,
-      monthlyTrend
-    });
-  } catch (error) {
-    console.error("Error fetching sales analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/vendor-po", async (req, res) => {
-  try {
-    const allPOs = await db.execute(sql2`
-      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
-    `);
-    const allVendors = await storage.getAllVendors();
-    const posByStatus = {
-      draft: 0,
-      sent: 0,
-      acknowledged: 0,
-      fulfilled: 0,
-      cancelled: 0
-    };
-    let totalPOValue = 0;
-    allPOs.rows.forEach((po) => {
-      const status = po.status;
-      if (posByStatus.hasOwnProperty(status)) {
-        posByStatus[status]++;
-      }
-      totalPOValue += parseFloat(po.total_amount || 0);
-    });
-    const averagePOValue = allPOs.rows.length > 0 ? totalPOValue / allPOs.rows.length : 0;
-    const fulfillmentRate = allPOs.rows.length > 0 ? posByStatus.fulfilled / allPOs.rows.length * 100 : 0;
-    const vendorSpend = /* @__PURE__ */ new Map();
-    allPOs.rows.forEach((po) => {
-      const existing = vendorSpend.get(po.vendor_id);
-      const amount = parseFloat(po.total_amount || 0);
-      if (existing) {
-        existing.spend += amount;
-        existing.count++;
-      } else {
-        const vendor = allVendors.find((v) => v.id === po.vendor_id);
-        if (vendor) {
-          vendorSpend.set(po.vendor_id, {
-            name: vendor.name,
-            spend: amount,
-            count: 1
-          });
-        }
-      }
-    });
-    const spendByVendor = Array.from(vendorSpend.entries()).map(([vendorId, data]) => ({
-      vendorId,
-      vendorName: data.name,
-      totalSpend: Math.round(data.spend),
-      poCount: data.count
-    })).sort((a, b) => b.totalSpend - a.totalSpend);
-    const monthlySpendMap = /* @__PURE__ */ new Map();
-    allPOs.rows.forEach((po) => {
-      const date = new Date(po.created_at);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const existing = monthlySpendMap.get(monthKey);
-      const amount = parseFloat(po.total_amount || 0);
-      if (existing) {
-        existing.spend += amount;
-        existing.count++;
-      } else {
-        monthlySpendMap.set(monthKey, { spend: amount, count: 1 });
-      }
-    });
-    const monthlySpend = Array.from(monthlySpendMap.entries()).map(([month, data]) => ({ month, spend: Math.round(data.spend), poCount: data.count })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-    const poVsGrnVariance = [];
-    res.json({
-      posByStatus,
-      totalPOValue: Math.round(totalPOValue),
-      averagePOValue: Math.round(averagePOValue),
-      spendByVendor,
-      monthlySpend,
-      poVsGrnVariance,
-      fulfillmentRate
-    });
-  } catch (error) {
-    console.error("Error fetching PO analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/invoice-collections", async (req, res) => {
-  try {
-    const allInvoices = await storage.getAllInvoices();
-    const allClients = await storage.getAllClients();
-    const invoicesByStatus = {
-      draft: 0,
-      sent: 0,
-      partial: 0,
-      paid: 0,
-      overdue: 0
-    };
-    let totalOutstanding = 0;
-    let totalPaid = 0;
-    let overdueAmount = 0;
-    let totalCollectionDays = 0;
-    let paidInvoicesCount = 0;
-    const now = /* @__PURE__ */ new Date();
-    allInvoices.forEach((invoice) => {
-      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
-      const totalAmt = parseFloat((invoice.total || 0).toString());
-      const remaining = totalAmt - paidAmt;
-      if (invoice.paymentStatus === "paid") {
-        invoicesByStatus.paid++;
-        totalPaid += totalAmt;
-        const invoiceDate = new Date(invoice.createdAt);
-        const paidDate = new Date(invoice.updatedAt);
-        const days = Math.floor((paidDate.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        totalCollectionDays += days;
-        paidInvoicesCount++;
-      } else if (invoice.paymentStatus === "partial") {
-        invoicesByStatus.partial++;
-        totalOutstanding += remaining;
-      } else if (invoice.paymentStatus === "overdue") {
-        invoicesByStatus.overdue++;
-        totalOutstanding += remaining;
-        overdueAmount += remaining;
-      } else if (invoice.paymentStatus === "pending") {
-        const invoiceDate = new Date(invoice.createdAt);
-        const daysSince = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        if (daysSince > 30) {
-          invoicesByStatus.overdue++;
-          overdueAmount += remaining;
-        } else {
-          invoicesByStatus.sent++;
-        }
-        totalOutstanding += remaining;
-      }
-      if (!invoice.isMaster) {
-      }
-    });
-    const averageCollectionDays = paidInvoicesCount > 0 ? Math.round(totalCollectionDays / paidInvoicesCount) : 0;
-    const ageingBuckets = [
-      { bucket: "0-30 days", count: 0, amount: 0 },
-      { bucket: "31-60 days", count: 0, amount: 0 },
-      { bucket: "61-90 days", count: 0, amount: 0 },
-      { bucket: "90+ days", count: 0, amount: 0 }
-    ];
-    allInvoices.forEach((invoice) => {
-      if (invoice.paymentStatus !== "paid") {
-        const invoiceDate = new Date(invoice.createdAt);
-        const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        const remaining = parseFloat((invoice.total || 0).toString()) - parseFloat((invoice.paidAmount || 0).toString());
-        if (days <= 30) {
-          ageingBuckets[0].count++;
-          ageingBuckets[0].amount += remaining;
-        } else if (days <= 60) {
-          ageingBuckets[1].count++;
-          ageingBuckets[1].amount += remaining;
-        } else if (days <= 90) {
-          ageingBuckets[2].count++;
-          ageingBuckets[2].amount += remaining;
-        } else {
-          ageingBuckets[3].count++;
-          ageingBuckets[3].amount += remaining;
-        }
-      }
-    });
-    ageingBuckets.forEach((bucket) => {
-      bucket.amount = Math.round(bucket.amount);
-    });
-    const monthlyMap = /* @__PURE__ */ new Map();
-    allInvoices.forEach((invoice) => {
-      const date = new Date(invoice.createdAt);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const existing = monthlyMap.get(monthKey);
-      const totalAmt = parseFloat((invoice.total || 0).toString());
-      const paidAmt = parseFloat((invoice.paidAmount || 0).toString());
-      if (existing) {
-        existing.invoiced += totalAmt;
-        existing.collected += paidAmt;
-      } else {
-        monthlyMap.set(monthKey, {
-          invoiced: totalAmt,
-          collected: paidAmt
-        });
-      }
-    });
-    const monthlyCollections = Array.from(monthlyMap.entries()).map(([month, data]) => ({
-      month,
-      invoiced: Math.round(data.invoiced),
-      collected: Math.round(data.collected)
-    })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-    const debtorMap = /* @__PURE__ */ new Map();
-    const topDebtors = Array.from(debtorMap.entries()).map(([clientId, data]) => ({
-      clientId,
-      clientName: data.name,
-      outstandingAmount: Math.round(data.outstanding),
-      invoiceCount: data.count,
-      oldestInvoiceDays: data.oldestDays
-    })).sort((a, b) => b.outstandingAmount - a.outstandingAmount).slice(0, 20);
-    res.json({
-      invoicesByStatus,
-      totalOutstanding: Math.round(totalOutstanding),
-      totalPaid: Math.round(totalPaid),
-      overdueAmount: Math.round(overdueAmount),
-      averageCollectionDays,
-      ageingBuckets,
-      monthlyCollections,
-      topDebtors: []
-      // Simplified for now
-    });
-  } catch (error) {
-    console.error("Error fetching invoice analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/serial-tracking", async (req, res) => {
-  try {
-    const serialNumbers2 = await db.execute(sql2`
-      SELECT * FROM serial_numbers ORDER BY created_at DESC
-    `);
-    const totalSerials = serialNumbers2.rows.length;
-    const serialsByStatus = {
-      delivered: 0,
-      in_stock: 0,
-      returned: 0,
-      defective: 0
-    };
-    serialNumbers2.rows.forEach((serial) => {
-      const status = serial.status;
-      if (serialsByStatus.hasOwnProperty(status)) {
-        serialsByStatus[status]++;
-      }
-    });
-    const serialsByProduct = [];
-    const now = /* @__PURE__ */ new Date();
-    const warrantyExpiring = serialNumbers2.rows.filter((serial) => serial.warranty_end_date).map((serial) => {
-      const endDate = new Date(serial.warranty_end_date);
-      const daysRemaining = Math.floor((endDate.getTime() - now.getTime()) / (1e3 * 60 * 60 * 24));
-      return {
-        serialNumber: serial.serial_number,
-        productName: "Product",
-        // Would need actual product lookup
-        customerName: "Customer",
-        // Would need actual customer lookup
-        warrantyEndDate: serial.warranty_end_date,
-        daysRemaining
-      };
-    }).filter((item) => item.daysRemaining > 0 && item.daysRemaining <= 90).sort((a, b) => a.daysRemaining - b.daysRemaining);
-    res.json({
-      totalSerials,
-      serialsByProduct,
-      warrantyExpiring,
-      serialsByStatus
-    });
-  } catch (error) {
-    console.error("Error fetching serial tracking analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-var analytics_routes_default = router;
-
-// server/quote-workflow-routes.ts
-init_storage();
-import { Router as Router2 } from "express";
-init_permissions_service();
-init_numbering_service();
-import ExcelJS2 from "exceljs";
-
 // server/services/sales-order-pdf.service.ts
 init_feature_flags();
-import PDFDocument3 from "pdfkit";
-import path3 from "path";
-import fs3 from "fs";
+import PDFDocument2 from "pdfkit";
+import path2 from "path";
+import fs2 from "fs";
 var SalesOrderPDFService = class _SalesOrderPDFService {
   // A4 points
   static PAGE_WIDTH = 595.28;
@@ -6368,7 +5175,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     if (!isFeatureEnabled("sales_orders_module")) {
       throw new Error("Sales Orders module is disabled");
     }
-    const doc = new PDFDocument3({
+    const doc = new PDFDocument2({
       size: "A4",
       margin: 0,
       bufferPages: true
@@ -6402,14 +5209,14 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     if (data.companyLogo) {
       logoToUse = data.companyLogo;
     } else {
-      const p1 = path3.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      const p2 = path3.join(process.cwd(), "client", "public", "logo.png");
+      const p1 = path2.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+      const p2 = path2.join(process.cwd(), "client", "public", "logo.png");
       try {
-        await fs3.promises.access(p1, fs3.constants.F_OK);
+        await fs2.promises.access(p1, fs2.constants.F_OK);
         logoToUse = p1;
       } catch {
         try {
-          await fs3.promises.access(p2, fs3.constants.F_OK);
+          await fs2.promises.access(p2, fs2.constants.F_OK);
           logoToUse = p2;
         } catch {
         }
@@ -7298,6 +6105,413 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
   }
 };
 
+// server/services/email.service.ts
+import nodemailer from "nodemailer";
+import { Resend } from "resend";
+var EmailService = class {
+  static transporter = null;
+  static resend = null;
+  static useResend = false;
+  static initialize(config) {
+    this.transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: {
+        user: config.auth.user,
+        pass: config.auth.pass
+      }
+    });
+  }
+  static initializeResend(apiKey) {
+    this.resend = new Resend(apiKey);
+    this.useResend = true;
+  }
+  static async getTransporter() {
+    if (!this.transporter) {
+      if (process.env.NODE_ENV !== "production") {
+        const testAccount = await nodemailer.createTestAccount();
+        this.transporter = nodemailer.createTransport({
+          host: "smtp.ethereal.email",
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass
+          }
+        });
+      } else {
+        throw new Error("Email service not initialized");
+      }
+    }
+    return this.transporter;
+  }
+  static getResend() {
+    if (!this.resend) {
+      throw new Error("Resend service not initialized");
+    }
+    return this.resend;
+  }
+  static async sendPasswordResetEmail(email, resetLink) {
+    const htmlContent = `
+      <h2>Password Reset Request</h2>
+      <p>You requested a password reset. Click the link below to reset your password:</p>
+      <p>
+        <a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #0046FF; color: white; text-decoration: none; border-radius: 5px;">
+          Reset Password
+        </a>
+      </p>
+      <p>This link will expire in 1 hour.</p>
+      <p>If you didn't request this, you can safely ignore this email.</p>
+    `;
+    try {
+      if (this.useResend && this.resend) {
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+          fromEmail = "onboarding@resend.dev";
+        }
+        await this.resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: "Password Reset Request",
+          html: htmlContent
+        });
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
+          to: email,
+          subject: "Password Reset Request",
+          html: htmlContent,
+          text: `Password Reset Request
+
+Click the link below to reset your password:
+${resetLink}
+
+This link will expire in 1 hour.`
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send password reset email:", error);
+      throw error;
+    }
+  }
+  static async sendQuoteEmail(email, emailSubject, emailBody, pdfBuffer) {
+    const lines = emailBody.split("\n");
+    const formattedLines = [];
+    let previousWasEmpty = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        if (!previousWasEmpty) {
+          formattedLines.push("<br/>");
+          previousWasEmpty = true;
+        }
+      } else {
+        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
+        previousWasEmpty = false;
+      }
+    }
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
+        ${formattedLines.join("")}
+      </div>
+    `;
+    const quoteNumberMatch = emailSubject.match(/Quote\s+([A-Z0-9-]+)/i);
+    const quoteNumber = quoteNumberMatch ? quoteNumberMatch[1] : `Quote_${Date.now()}`;
+    try {
+      let emailSent = false;
+      if (this.useResend && this.resend) {
+        try {
+          const base64Pdf = pdfBuffer.toString("base64");
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, will try fallback`);
+          } else {
+            const response = await this.resend.emails.send({
+              from: fromEmail,
+              to: email,
+              subject: emailSubject,
+              html: htmlContent,
+              attachments: [
+                {
+                  filename: `${quoteNumber}.pdf`,
+                  content: base64Pdf
+                }
+              ]
+            });
+            if (response.error) {
+              console.warn(`[Resend] Error sending quote email, falling back to SMTP:`, response.error);
+            } else {
+              console.log(`[Resend] Quote email sent successfully to ${email}`);
+              emailSent = true;
+            }
+          }
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
+        }
+      }
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "quotes@quoteprogen.com",
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            text: emailBody,
+            attachments: [
+              {
+                filename: `${quoteNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: "application/pdf"
+              }
+            ]
+          });
+          console.log(`[SMTP] Quote email sent successfully to ${email}`);
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send quote email:", smtpError);
+          throw smtpError;
+        }
+      }
+      if (!emailSent) {
+        throw new Error("Failed to send email via both Resend and SMTP");
+      }
+    } catch (error) {
+      console.error("Failed to send quote email:", error);
+      throw error;
+    }
+  }
+  static async sendSalesOrderEmail(email, emailSubject, emailBody, pdfBuffer) {
+    const lines = emailBody.split("\n");
+    const formattedLines = [];
+    let previousWasEmpty = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        if (!previousWasEmpty) {
+          formattedLines.push("<br/>");
+          previousWasEmpty = true;
+        }
+      } else {
+        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
+        previousWasEmpty = false;
+      }
+    }
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
+        ${formattedLines.join("")}
+      </div>
+    `;
+    const orderNumberMatch = emailSubject.match(/Order\s+([A-Z0-9-]+)/i);
+    const orderNumber = orderNumberMatch ? orderNumberMatch[1] : `Order_${Date.now()}`;
+    try {
+      if (this.useResend && this.resend) {
+        const base64Pdf = pdfBuffer.toString("base64");
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+          fromEmail = "onboarding@resend.dev";
+        }
+        const response = await this.resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          attachments: [
+            {
+              filename: `${orderNumber}.pdf`,
+              content: base64Pdf
+            }
+          ]
+        });
+        if (response.error) {
+          console.error(`[Resend] Error sending sales order email:`, response.error);
+          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+        }
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          text: emailBody,
+          attachments: [
+            {
+              filename: `${orderNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf"
+            }
+          ]
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send sales order email:", error);
+      throw error;
+    }
+  }
+  static async sendInvoiceEmail(email, emailSubject, emailBody, pdfBuffer) {
+    const lines = emailBody.split("\n");
+    const formattedLines = [];
+    let previousWasEmpty = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        if (!previousWasEmpty) {
+          formattedLines.push("<br/>");
+          previousWasEmpty = true;
+        }
+      } else {
+        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
+        previousWasEmpty = false;
+      }
+    }
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
+        ${formattedLines.join("")}
+      </div>
+    `;
+    const invoiceNumberMatch = emailSubject.match(/Invoice\s+([A-Z0-9-]+)/i);
+    const invoiceNumber = invoiceNumberMatch ? invoiceNumberMatch[1] : `Invoice_${Date.now()}`;
+    try {
+      if (this.useResend && this.resend) {
+        const base64Pdf = pdfBuffer.toString("base64");
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+          fromEmail = "onboarding@resend.dev";
+        }
+        const response = await this.resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          attachments: [
+            {
+              filename: `${invoiceNumber}.pdf`,
+              content: base64Pdf
+            }
+          ]
+        });
+        if (response.error) {
+          console.error(`[Resend] Error sending invoice email:`, response.error);
+          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+        }
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "invoices@quoteprogen.com",
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          text: emailBody,
+          attachments: [
+            {
+              filename: `${invoiceNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf"
+            }
+          ]
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send invoice email:", error);
+      throw error;
+    }
+  }
+  static async sendPaymentReminderEmail(email, emailSubject, emailBody) {
+    const lines = emailBody.split("\n");
+    const formattedLines = [];
+    let previousWasEmpty = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        if (!previousWasEmpty) {
+          formattedLines.push("<br/>");
+          previousWasEmpty = true;
+        }
+      } else {
+        formattedLines.push(`<p style="margin: 4px 0;">${line}</p>`);
+        previousWasEmpty = false;
+      }
+    }
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;">
+        ${formattedLines.join("")}
+      </div>
+    `;
+    try {
+      if (this.useResend && this.resend) {
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+          fromEmail = "onboarding@resend.dev";
+        }
+        const response = await this.resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: emailSubject,
+          html: htmlContent
+        });
+        if (response.error) {
+          console.error(`[Resend] Error sending payment reminder:`, response.error);
+          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+        }
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
+          to: email,
+          subject: emailSubject,
+          html: htmlContent,
+          text: emailBody
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send payment reminder email:", error);
+      throw error;
+    }
+  }
+  static async sendWelcomeEmail(email, name) {
+    const htmlContent = `
+      <h2>Welcome to QuoteProGen!</h2>
+      <p>Hi ${name},</p>
+      <p>Your account has been successfully created. You can now login and start creating professional quotes.</p>
+      <p>Visit our platform to get started: <a href="${process.env.APP_URL || "http://localhost:5000"}/login">Login</a></p>
+      <p>If you have any questions, please don't hesitate to contact us.</p>
+      <p>Best regards,<br/>QuoteProGen Team</p>
+    `;
+    try {
+      if (this.useResend && this.resend) {
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+          fromEmail = "onboarding@resend.dev";
+        }
+        await this.resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: "Welcome to QuoteProGen!",
+          html: htmlContent
+        });
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "welcome@quoteprogen.com",
+          to: email,
+          subject: "Welcome to QuoteProGen!",
+          html: htmlContent
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send welcome email:", error);
+    }
+  }
+};
+
 // server/quote-workflow-routes.ts
 async function streamToBuffer(stream) {
   const chunks = [];
@@ -7359,7 +6573,7 @@ router2.post(
       });
       return res.json(updatedQuote);
     } catch (error) {
-      console.error("Revise quote error:", error);
+      logger.error("Revise quote error:", error);
       return res.status(500).json({ error: error.message || "Failed to revise quote" });
     }
   }
@@ -7407,7 +6621,7 @@ router2.post(
       });
       return res.json(version);
     } catch (error) {
-      console.error("Create quote version error:", error);
+      logger.error("Create quote version error:", error);
       return res.status(500).json({ error: error.message || "Failed to create quote version" });
     }
   }
@@ -7480,6 +6694,7 @@ router2.post(
       for (const item of items) {
         await storage.createQuoteItem({
           quoteId: newQuote.id,
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice.toString(),
@@ -7496,7 +6711,7 @@ router2.post(
       });
       return res.json(newQuote);
     } catch (error) {
-      console.error("Clone quote error:", error);
+      logger.error("Clone quote error:", error);
       return res.status(500).json({ error: error.message || "Failed to clone quote" });
     }
   }
@@ -7507,64 +6722,110 @@ router2.post(
   requirePermission("sales_orders", "create"),
   async (req, res) => {
     try {
-      const { quoteId } = req.body;
-      if (!quoteId) {
-        return res.status(400).json({ error: "Quote ID is required" });
-      }
-      const quote = await storage.getQuote(quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      if (quote.status !== "approved") {
-        return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
-      }
-      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
-      if (existingOrder) {
-        return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
-      }
-      const orderNumber = await NumberingService.generateSalesOrderNumber();
-      const orderData = {
-        orderNumber,
-        quoteId: quote.id,
-        clientId: quote.clientId,
-        status: "draft",
-        orderDate: /* @__PURE__ */ new Date(),
-        subtotal: quote.subtotal.toString(),
-        discount: quote.discount.toString(),
-        cgst: quote.cgst.toString(),
-        sgst: quote.sgst.toString(),
-        igst: quote.igst.toString(),
-        shippingCharges: quote.shippingCharges.toString(),
-        total: quote.total.toString(),
-        notes: quote.notes,
-        termsAndConditions: quote.termsAndConditions,
-        createdBy: req.user.id
-      };
-      console.log(`[CREATE SO] Financials Check: Discount=${orderData.discount}, Tax=${orderData.cgst}/${orderData.sgst}/${orderData.igst}, Total=${orderData.total}`);
-      const salesOrder = await storage.createSalesOrder(orderData);
-      const quoteItems2 = await storage.getQuoteItems(quoteId);
-      for (const item of quoteItems2) {
-        await storage.createSalesOrderItem({
-          salesOrderId: salesOrder.id,
+      const { quoteId, clientId, items, subtotal, total, ...otherFields } = req.body;
+      let baseOrderData = {};
+      let orderItems = [];
+      if (quoteId) {
+        const quote = await storage.getQuote(quoteId);
+        if (!quote) {
+          return res.status(404).json({ error: "Quote not found" });
+        }
+        if (quote.status !== "approved") {
+          return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
+        }
+        const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+        if (existingOrder) {
+          return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
+        }
+        baseOrderData = {
+          quoteId: quote.id,
+          clientId: quote.clientId,
+          subtotal: quote.subtotal.toString(),
+          discount: quote.discount.toString(),
+          cgst: quote.cgst.toString(),
+          sgst: quote.sgst.toString(),
+          igst: quote.igst.toString(),
+          shippingCharges: quote.shippingCharges.toString(),
+          total: quote.total.toString(),
+          notes: quote.notes,
+          termsAndConditions: quote.termsAndConditions
+        };
+        const existingItems = await storage.getQuoteItems(quoteId);
+        orderItems = existingItems.map((item) => ({
+          productId: item.productId || null,
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice.toString(),
           subtotal: item.subtotal.toString(),
           hsnSac: item.hsnSac,
-          sortOrder: item.sortOrder,
-          status: "pending",
-          fulfilledQuantity: 0
-        });
+          sortOrder: item.sortOrder
+        }));
+      } else {
+        if (!clientId) {
+          return res.status(400).json({ error: "Client ID is required for standalone Sales Orders" });
+        }
+        if (!items || !Array.isArray(items) || items.length === 0) {
+          return res.status(400).json({ error: "Items are required for standalone Sales Orders" });
+        }
+        baseOrderData = {
+          quoteId: null,
+          clientId,
+          subtotal: subtotal ? String(subtotal) : "0",
+          total: total ? String(total) : "0",
+          // Allow other fields or defaults
+          notes: otherFields.notes || "",
+          termsAndConditions: otherFields.termsAndConditions || "",
+          shippingCharges: "0",
+          discount: "0",
+          cgst: "0",
+          sgst: "0",
+          igst: "0"
+        };
+        orderItems = items.map((item) => ({
+          productId: item.productId || null,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: String(item.unitPrice || 0),
+          subtotal: String(item.subtotal || 0),
+          hsnSac: item.hsnSac || "",
+          sortOrder: item.sortOrder || 0
+        }));
       }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create",
-        entityType: "sales_orders",
-        entityId: salesOrder.id
+      const orderNumber = await NumberingService.generateSalesOrderNumber();
+      const salesOrder = await db.transaction(async (tx) => {
+        const [order] = await tx.insert(salesOrders).values({
+          orderNumber,
+          status: "draft",
+          orderDate: /* @__PURE__ */ new Date(),
+          ...baseOrderData,
+          createdBy: req.user.id
+        }).returning();
+        for (const item of orderItems) {
+          await tx.insert(salesOrderItems).values({
+            salesOrderId: order.id,
+            productId: item.productId,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+            hsnSac: item.hsnSac,
+            sortOrder: item.sortOrder,
+            status: "pending",
+            fulfilledQuantity: 0
+          });
+        }
+        await tx.insert(activityLogs).values({
+          userId: req.user.id,
+          action: "create",
+          entityType: "sales_orders",
+          entityId: order.id,
+          timestamp: /* @__PURE__ */ new Date()
+        });
+        return order;
       });
       return res.json(salesOrder);
     } catch (error) {
-      console.error("Create sales order error:", error);
+      logger.error("Create sales order error:", error);
       return res.status(500).json({ error: error.message || "Failed to create sales order" });
     }
   }
@@ -7586,11 +6847,12 @@ router2.get(
       }
       const ordersWithData = await Promise.all(orders.map(async (order) => {
         const client = await storage.getClient(order.clientId);
-        const quote = await storage.getQuote(order.quoteId);
+        const quote = order.quoteId ? await storage.getQuote(order.quoteId) : void 0;
         return {
           ...order,
           clientName: client?.name || "Unknown",
-          quoteNumber: quote?.quoteNumber || "Unknown"
+          quoteNumber: quote?.quoteNumber || ""
+          // Return empty if no quote
         };
       }));
       return res.json(ordersWithData);
@@ -7606,16 +6868,22 @@ router2.get(
     try {
       const order = await storage.getSalesOrder(req.params.id);
       if (order) {
-        console.log(`[GET SO] ID: ${order.id}, Subtotal: ${order.subtotal}, Discount: ${order.discount}, Tax: ${order.cgst}/${order.sgst}/${order.igst}, Total: ${order.total}`);
+        logger.info(`[GET SO] ID: ${order.id}, Subtotal: ${order.subtotal}, Discount: ${order.discount}, Tax: ${order.cgst}/${order.sgst}/${order.igst}, Total: ${order.total}`);
       }
       if (!order) {
         return res.status(404).json({ error: "Sales Order not found" });
       }
       const items = await storage.getSalesOrderItems(order.id);
       const client = await storage.getClient(order.clientId);
-      const quote = await storage.getQuote(order.quoteId);
-      const quoteItems2 = await storage.getQuoteItems(order.quoteId);
+      let quote = void 0;
+      let quoteItems2 = [];
+      if (order.quoteId) {
+        quote = await storage.getQuote(order.quoteId);
+        quoteItems2 = await storage.getQuoteItems(order.quoteId);
+      }
       const creator = await storage.getUser(order.createdBy);
+      const invoices2 = await storage.getInvoicesBySalesOrder(order.id);
+      const linkedInvoice = invoices2[0];
       return res.json({
         ...order,
         client,
@@ -7624,7 +6892,8 @@ router2.get(
           ...quote,
           items: quoteItems2
         },
-        createdByName: creator?.name || "Unknown"
+        createdByName: creator?.name || "Unknown",
+        invoiceId: linkedInvoice?.id
       });
     } catch (error) {
       return res.status(500).json({ error: "Failed to fetch sales order" });
@@ -7636,7 +6905,8 @@ router2.patch(
   requirePermission("sales_orders", "edit"),
   async (req, res) => {
     try {
-      const currentOrder = await storage.getSalesOrder(req.params.id);
+      const orderId = req.params.id;
+      const currentOrder = await storage.getSalesOrder(orderId);
       if (!currentOrder) return res.status(404).json({ error: "Order not found" });
       if (req.body.status && req.body.status !== currentOrder.status) {
         const newStatus = req.body.status;
@@ -7654,59 +6924,101 @@ router2.patch(
           return res.status(400).json({ error: "Only confirmed orders can be fulfilled" });
         }
       }
-      const items = req.body.items;
-      console.log(`[PATCH SO] Body updates:`, {
-        subtotal: req.body.subtotal,
-        discount: req.body.discount,
-        shipping: req.body.shippingCharges,
-        tax: `${req.body.cgst}/${req.body.sgst}/${req.body.igst}`,
-        total: req.body.total
-      });
-      console.log(`[PATCH SO] Items length: ${items?.length}`);
-      delete req.body.items;
-      if (req.body.expectedDeliveryDate && typeof req.body.expectedDeliveryDate === "string") {
-        req.body.expectedDeliveryDate = new Date(req.body.expectedDeliveryDate);
-      }
-      if (req.body.actualDeliveryDate && typeof req.body.actualDeliveryDate === "string") {
-        req.body.actualDeliveryDate = new Date(req.body.actualDeliveryDate);
-      }
-      const updateData = {
-        ...req.body,
-        // Ensure decimal fields are strings
-        subtotal: req.body.subtotal?.toString(),
-        discount: req.body.discount?.toString(),
-        cgst: req.body.cgst?.toString(),
-        sgst: req.body.sgst?.toString(),
-        igst: req.body.igst?.toString(),
-        shippingCharges: req.body.shippingCharges?.toString(),
-        total: req.body.total?.toString()
-      };
-      const order = await storage.updateSalesOrder(req.params.id, updateData);
-      if (!order) return res.status(404).json({ error: "Order not found" });
-      if (items && Array.isArray(items)) {
-        await storage.deleteSalesOrderItems(req.params.id);
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          await storage.createSalesOrderItem({
-            salesOrderId: req.params.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            hsnSac: item.hsnSac || null,
-            sortOrder: i
-          });
+      const result = await db.transaction(async (tx) => {
+        const items = req.body.items;
+        const updateData = { ...req.body };
+        delete updateData.items;
+        if (updateData.expectedDeliveryDate === "") {
+          updateData.expectedDeliveryDate = null;
+        } else if (updateData.expectedDeliveryDate) {
+          updateData.expectedDeliveryDate = new Date(updateData.expectedDeliveryDate);
         }
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "edit",
-        entityType: "sales_orders",
-        entityId: order.id
+        if (updateData.actualDeliveryDate === "") {
+          updateData.actualDeliveryDate = null;
+        } else if (updateData.actualDeliveryDate) {
+          updateData.actualDeliveryDate = new Date(updateData.actualDeliveryDate);
+        }
+        let subtotal = toDecimal(currentOrder.subtotal);
+        const getVal = (val, current) => val !== void 0 ? val : current;
+        if (items && Array.isArray(items)) {
+          subtotal = calculateSubtotal(items.map((item) => ({
+            quantity: item.quantity,
+            unitPrice: item.unitPrice
+          })));
+          updateData.subtotal = toMoneyString(subtotal);
+        }
+        const total = calculateTotal({
+          subtotal,
+          discount: getVal(updateData.discount, currentOrder.discount),
+          shippingCharges: getVal(updateData.shippingCharges, currentOrder.shippingCharges),
+          cgst: getVal(updateData.cgst, currentOrder.cgst),
+          sgst: getVal(updateData.sgst, currentOrder.sgst),
+          igst: getVal(updateData.igst, currentOrder.igst)
+        });
+        updateData.total = toMoneyString(total);
+        const [updatedOrder] = await tx.update(salesOrders).set(updateData).where(eq2(salesOrders.id, orderId)).returning();
+        if (!updatedOrder) throw new Error("Failed to update sales order");
+        if (items && Array.isArray(items)) {
+          await tx.delete(salesOrderItems).where(eq2(salesOrderItems.salesOrderId, orderId));
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            await tx.insert(salesOrderItems).values({
+              salesOrderId: orderId,
+              productId: item.productId || null,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal,
+              hsnSac: item.hsnSac || null,
+              sortOrder: i,
+              status: "pending"
+            });
+          }
+        }
+        if (req.body.status && req.body.status !== currentOrder.status) {
+          const orderItems = items && Array.isArray(items) ? items : await storage.getSalesOrderItems(orderId);
+          const productQuantities = {};
+          for (const item of orderItems) {
+            if (item.productId) {
+              productQuantities[item.productId] = (productQuantities[item.productId] || 0) + (item.quantity || 0);
+            }
+          }
+          if (req.body.status === "confirmed" && currentOrder.status === "draft") {
+            if (isFeatureEnabled("products_stock_tracking") && isFeatureEnabled("products_reserve_on_order")) {
+              for (const [productId, quantity] of Object.entries(productQuantities)) {
+                await tx.update(products).set({
+                  reservedQuantity: sql5`${products.reservedQuantity} + ${quantity}`,
+                  availableQuantity: sql5`${products.availableQuantity} - ${quantity}`,
+                  updatedAt: /* @__PURE__ */ new Date()
+                }).where(eq2(products.id, productId));
+              }
+              logger.stock(`[Stock Reserve] Reserved stock inside transaction for SO ${orderId}`);
+            }
+          } else if (req.body.status === "cancelled" && currentOrder.status === "confirmed") {
+            if (isFeatureEnabled("products_stock_tracking") && isFeatureEnabled("products_reserve_on_order")) {
+              for (const [productId, quantity] of Object.entries(productQuantities)) {
+                await tx.update(products).set({
+                  reservedQuantity: sql5`GREATEST(0, ${products.reservedQuantity} - ${quantity})`,
+                  availableQuantity: sql5`${products.availableQuantity} + ${quantity}`,
+                  updatedAt: /* @__PURE__ */ new Date()
+                }).where(eq2(products.id, productId));
+              }
+              logger.stock(`[Stock Release] Released stock inside transaction for SO ${orderId}`);
+            }
+          }
+        }
+        await tx.insert(activityLogs).values({
+          userId: req.user.id,
+          action: "edit",
+          entityType: "sales_orders",
+          entityId: updatedOrder.id,
+          timestamp: /* @__PURE__ */ new Date()
+        });
+        return updatedOrder;
       });
-      return res.json(order);
+      return res.json(result);
     } catch (error) {
-      console.error("Error updating sales order:", error);
+      logger.error("Error updating sales order:", error);
       return res.status(500).json({ error: error.message });
     }
   }
@@ -7722,158 +7034,208 @@ router2.post(
       if (!order) {
         return res.status(404).json({ error: "Sales order not found" });
       }
-      if (order.status !== "fulfilled") {
+      if (order.status !== "fulfilled" && order.status !== "confirmed") {
         return res.status(400).json({
-          error: "Only fulfilled sales orders can be converted to an invoice"
+          error: "Sales order must be Confirmed or Fulfilled to be converted to an invoice"
         });
       }
-      const quote = await storage.getQuote(order.quoteId);
-      if (!quote || quote.status !== "approved") {
-        return res.status(400).json({
-          error: "Linked quote must be approved"
-        });
-      }
-      const existingInvoices = await storage.getInvoicesByQuote(order.quoteId);
-      const invoiceExists = existingInvoices.some((inv) => inv.salesOrderId === orderId);
-      if (invoiceExists) {
-        return res.status(409).json({
-          error: "An invoice has already been generated for this sales order"
-        });
+      if (order.quoteId) {
+        const quote = await storage.getQuote(order.quoteId);
+        if (!quote || quote.status !== "approved") {
+          return res.status(400).json({
+            error: "Linked quote must be approved"
+          });
+        }
       }
       let items = await storage.getSalesOrderItems(orderId);
-      if (!items || items.length === 0) {
+      if ((!items || items.length === 0) && order.quoteId) {
         items = await storage.getQuoteItems(order.quoteId);
       }
       if (!items || items.length === 0) {
-        return res.status(400).json({
-          error: "No items found to invoice"
-        });
+        return res.status(400).json({ error: "No items found to invoice" });
       }
       const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
-      const invoice = await storage.createInvoice({
-        invoiceNumber,
-        quoteId: order.quoteId,
-        salesOrderId: orderId,
-        clientId: order.clientId,
-        issueDate: /* @__PURE__ */ new Date(),
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
-        // Default 30 days
-        status: "draft",
-        isMaster: false,
-        paymentStatus: "pending",
-        paidAmount: "0",
-        createdBy: req.user.id,
-        // Financials (copy from order)
-        subtotal: order.subtotal,
-        discount: order.discount,
-        cgst: order.cgst,
-        sgst: order.sgst,
-        igst: order.igst,
-        shippingCharges: order.shippingCharges,
-        total: order.total,
-        // Notes
-        notes: order.notes,
-        termsAndConditions: order.termsAndConditions,
-        deliveryNotes: `Delivery Date: ${order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : "N/A"}`
-      });
-      for (const item of items) {
-        await storage.createInvoiceItem({
-          invoiceId: invoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          subtotal: item.subtotal,
-          hsnSac: item.hsnSac || null,
-          sortOrder: item.sortOrder,
-          status: "pending",
-          fulfilledQuantity: item.quantity
-          // Fully fulfilled since order is fulfilled
-        });
-      }
-      const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
-      const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
-      const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
-      const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
-      const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const bankDetail = await storage.getActiveBankDetails();
-      const client = await storage.getClient(invoice.clientId);
-      const { PassThrough } = await import("stream");
-      const pt = new PassThrough();
-      const pdfPromise = InvoicePDFService.generateInvoicePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        companyDetails: {
-          name: companyName,
-          address: companyAddress,
-          phone: companyPhone,
-          email: companyEmail,
-          website: companyWebsite,
-          gstin: companyGSTIN
-        },
-        invoiceNumber: invoice.invoiceNumber,
-        invoiceDate: invoice.createdAt || /* @__PURE__ */ new Date(),
-        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
-        paidAmount: invoice.paidAmount || "0",
-        paymentStatus: invoice.paymentStatus || "pending",
-        isMaster: invoice.isMaster,
-        childInvoices: [],
-        deliveryNotes: invoice.deliveryNotes || void 0,
-        subtotal: invoice.subtotal || "0",
-        discount: invoice.discount || "0",
-        cgst: invoice.cgst || "0",
-        sgst: invoice.sgst || "0",
-        igst: invoice.igst || "0",
-        shippingCharges: invoice.shippingCharges || "0",
-        total: invoice.total || "0",
-        notes: invoice.notes || void 0,
-        termsAndConditions: invoice.termsAndConditions,
-        bankName: bankDetail?.bankName || "",
-        bankAccountNumber: bankDetail?.accountNumber || "",
-        bankAccountName: bankDetail?.accountName || "",
-        bankIfscCode: bankDetail?.ifscCode || ""
-      }, pt);
-      const buffer = await streamToBuffer(pt);
-      await pdfPromise;
-      await storage.createInvoiceAttachment({
-        invoiceId: invoice.id,
-        fileName: `Invoice-${invoice.invoiceNumber}.pdf`,
-        fileType: "application/pdf",
-        fileSize: buffer.length,
-        content: buffer.toString("base64")
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_invoice",
-        entityType: "invoice",
-        entityId: invoice.id,
-        metadata: { fromSalesOrder: orderId }
-      });
-      console.log(`[CONVERT-INVOICE] Updating quote ${quote.id} status to 'invoiced'. Current status: ${quote.status}`);
-      const updatedQuote = await storage.updateQuote(quote.id, { status: "invoiced" });
-      console.log(`[CONVERT-INVOICE] Update result: ${updatedQuote ? "Success" : "Failed"}. New status: ${updatedQuote?.status}`);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_status",
-        entityType: "quote",
-        entityId: quote.id,
-        metadata: {
-          newStatus: "invoiced",
-          trigger: "invoice_creation",
-          salesOrderId: orderId
+      const result = await db.transaction(async (tx) => {
+        const [invoice] = await tx.insert(invoices).values({
+          invoiceNumber,
+          quoteId: order.quoteId,
+          salesOrderId: orderId,
+          clientId: order.clientId,
+          issueDate: /* @__PURE__ */ new Date(),
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
+          status: "draft",
+          isMaster: false,
+          paymentStatus: "pending",
+          paidAmount: "0",
+          // String for decimal
+          remainingAmount: order.total,
+          // Initialize remaining amount
+          createdBy: req.user.id,
+          // Propagate currency
+          currency: order.currency || "INR",
+          subtotal: order.subtotal,
+          discount: order.discount,
+          cgst: order.cgst,
+          sgst: order.sgst,
+          igst: order.igst,
+          shippingCharges: order.shippingCharges,
+          total: order.total,
+          notes: order.notes,
+          termsAndConditions: order.termsAndConditions,
+          deliveryNotes: `Delivery Date: ${order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : "N/A"}`
+        }).returning();
+        const shortageNotes = [];
+        for (const item of items) {
+          if (item.productId && isFeatureEnabled("products_stock_tracking")) {
+            const [product] = await tx.select().from(products).where(eq2(products.id, item.productId));
+            if (product) {
+              const requiredQty = Number(item.quantity);
+              const currentStock = Number(product.stockQuantity);
+              const allowNegative = isFeatureEnabled("products_allow_negative_stock");
+              if (currentStock < requiredQty) {
+                logger.stock(`[Stock Shortage] Product ${item.description} (ID: ${item.productId}): Required ${requiredQty}, Available ${currentStock}`);
+                if (!allowNegative) {
+                  logger.warn(`[Stock Block] Shortage blocked for ${item.description}`);
+                }
+                if (isFeatureEnabled("products_stock_warnings")) {
+                  shortageNotes.push(`[SHORTAGE] ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
+                }
+              }
+              const updateQuery = {
+                stockQuantity: sql5`${products.stockQuantity} - ${requiredQty}`,
+                reservedQuantity: sql5`GREATEST(0, ${products.reservedQuantity} - ${requiredQty})`,
+                availableQuantity: sql5`(${products.stockQuantity} - ${requiredQty}) - GREATEST(0, ${products.reservedQuantity} - ${requiredQty})`
+              };
+              await tx.update(products).set(updateQuery).where(eq2(products.id, item.productId));
+            }
+          }
+          await tx.insert(invoiceItems).values({
+            invoiceId: invoice.id,
+            productId: item.productId || null,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+            hsnSac: item.hsnSac || null,
+            sortOrder: item.sortOrder,
+            status: "pending",
+            fulfilledQuantity: item.quantity
+          });
         }
+        if (isFeatureEnabled("products_stock_warnings") && shortageNotes.length > 0) {
+          const existingNotes = invoice.deliveryNotes || "";
+          const shortageText = shortageNotes.join("\n");
+          const newNotes = existingNotes ? `${existingNotes}
+
+${shortageText}` : shortageText;
+          await tx.update(invoices).set({ deliveryNotes: newNotes }).where(eq2(invoices.id, invoice.id));
+          invoice.deliveryNotes = newNotes;
+        }
+        if (order.quoteId) {
+          await tx.update(quotes).set({ status: "invoiced" }).where(eq2(quotes.id, order.quoteId));
+        }
+        await tx.insert(activityLogs).values({
+          userId: req.user.id,
+          action: "create_invoice",
+          entityType: "invoice",
+          entityId: invoice.id,
+          metadata: { fromSalesOrder: orderId },
+          timestamp: /* @__PURE__ */ new Date()
+        });
+        if (order.quoteId) {
+          await tx.insert(activityLogs).values({
+            userId: req.user.id,
+            action: "update_status",
+            entityType: "quote",
+            entityId: order.quoteId,
+            metadata: {
+              newStatus: "invoiced",
+              trigger: "invoice_creation",
+              salesOrderId: orderId
+            },
+            timestamp: /* @__PURE__ */ new Date()
+          });
+        }
+        return { invoice, items };
       });
-      return res.status(201).json(invoice);
+      try {
+        const { invoice, items: items2 } = result;
+        const settingss = await storage.getAllSettings();
+        const companyName = settingss.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
+        const companyAddress = settingss.find((s) => s.key === "company_address")?.value || "";
+        const companyPhone = settingss.find((s) => s.key === "company_phone")?.value || "";
+        const companyEmail = settingss.find((s) => s.key === "company_email")?.value || "";
+        const companyWebsite = settingss.find((s) => s.key === "company_website")?.value || "";
+        const companyGSTIN = settingss.find((s) => s.key === "company_gstin")?.value || "";
+        const bankDetail = await storage.getActiveBankDetails();
+        const client = await storage.getClient(invoice.clientId);
+        let quote = void 0;
+        if (invoice.quoteId) {
+          quote = await storage.getQuote(invoice.quoteId);
+        }
+        const { PassThrough } = await import("stream");
+        const pt = new PassThrough();
+        const pdfPromise = InvoicePDFService.generateInvoicePDF({
+          quote: quote || {},
+          client,
+          items: items2,
+          companyName,
+          companyAddress,
+          companyPhone,
+          companyEmail,
+          companyWebsite,
+          companyGSTIN,
+          companyDetails: {
+            name: companyName,
+            address: companyAddress,
+            phone: companyPhone,
+            email: companyEmail,
+            website: companyWebsite,
+            gstin: companyGSTIN
+          },
+          invoiceNumber: invoice.invoiceNumber,
+          invoiceDate: invoice.createdAt || /* @__PURE__ */ new Date(),
+          dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
+          paidAmount: invoice.paidAmount || "0",
+          paymentStatus: invoice.paymentStatus || "pending",
+          isMaster: invoice.isMaster,
+          childInvoices: [],
+          deliveryNotes: invoice.deliveryNotes || void 0,
+          subtotal: invoice.subtotal || "0",
+          discount: invoice.discount || "0",
+          cgst: invoice.cgst || "0",
+          sgst: invoice.sgst || "0",
+          igst: invoice.igst || "0",
+          shippingCharges: invoice.shippingCharges || "0",
+          total: invoice.total || "0",
+          notes: invoice.notes || void 0,
+          termsAndConditions: invoice.termsAndConditions,
+          bankName: bankDetail?.bankName || "",
+          bankAccountNumber: bankDetail?.accountNumber || "",
+          bankAccountName: bankDetail?.accountName || "",
+          bankIfscCode: bankDetail?.ifscCode || ""
+        }, pt);
+        const buffer = await streamToBuffer(pt);
+        await pdfPromise;
+        await storage.createInvoiceAttachment({
+          invoiceId: invoice.id,
+          fileName: `Invoice-${invoice.invoiceNumber}.pdf`,
+          fileType: "application/pdf",
+          fileSize: buffer.length,
+          content: buffer.toString("base64")
+        });
+      } catch (pdfError) {
+        logger.error("PDF generation failed for invoice:", result.invoice.id, pdfError);
+      }
+      return res.status(201).json(result.invoice);
     } catch (error) {
-      console.error("Error creating invoice from sales order:", error);
+      logger.error("Error creating invoice from sales order:", error);
+      if (error.message.includes("already")) {
+        return res.status(409).json({ error: error.message });
+      }
+      if (error.code === "23505") {
+        return res.status(409).json({ error: "An invoice has already been generated for this sales order" });
+      }
       return res.status(500).json({ error: error.message });
     }
   }
@@ -7924,7 +7286,7 @@ router2.post(
       });
       res.json(items);
     } catch (error) {
-      console.error("Error parsing Excel:", error);
+      logger.error("Error parsing Excel:", error);
       res.status(500).json({ message: "Failed to parse Excel file" });
     }
   }
@@ -7958,9 +7320,9 @@ router2.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), 
     const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
     const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
     const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
-    const quote = await storage.getQuote(order.quoteId);
-    if (!quote) {
-      console.warn(`Quote not found for order ${order.id}`);
+    const quote = order.quoteId ? await storage.getQuote(order.quoteId) : void 0;
+    if (!quote && order.quoteId) {
+      logger.warn(`Quote not found for order ${order.id}`);
     }
     const items = await storage.getSalesOrderItems(order.id);
     res.setHeader("Content-Type", "application/pdf");
@@ -8016,7 +7378,7 @@ router2.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), 
       // Schema update needed if this field is required
     }, res);
   } catch (error) {
-    console.error("Error generating PDF:", error);
+    logger.error("Error generating PDF:", error);
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 });
@@ -8116,7 +7478,7 @@ router2.post("/sales-orders/:id/email", requirePermission("sales_orders", "view"
     );
     res.json({ success: true, message: "Email sent successfully" });
   } catch (error) {
-    console.error("Error sending email:", error);
+    logger.error("Error sending email:", error);
     res.status(500).json({ error: "Failed to send email" });
   }
 });
@@ -8134,1513 +7496,3164 @@ router2.post(
       if (quote.status !== "approved") {
         return res.status(400).json({ message: "Only approved quotes can be converted to sales orders" });
       }
-      const existingOrder = await storage.getSalesOrderByQuote(quoteId);
-      if (existingOrder) {
-        return res.status(400).json({ message: "A Sales Order already exists for this quote", orderId: existingOrder.id });
-      }
       const orderNumber = await NumberingService.generateSalesOrderNumber();
-      const newOrder = await storage.createSalesOrder({
-        quoteId,
-        orderNumber,
-        clientId: quote.clientId,
-        status: "draft",
-        subtotal: quote.subtotal,
-        discount: quote.discount || "0",
-        cgst: quote.cgst || "0",
-        sgst: quote.sgst || "0",
-        igst: quote.igst || "0",
-        shippingCharges: quote.shippingCharges || "0",
-        total: quote.total,
-        notes: quote.notes,
-        termsAndConditions: quote.termsAndConditions,
-        createdBy: req.user.id
-      });
-      const quoteItems2 = await storage.getQuoteItems(quoteId);
-      if (quoteItems2 && quoteItems2.length > 0) {
-        let sortOrder = 0;
-        for (const item of quoteItems2) {
-          await storage.createSalesOrderItem({
-            salesOrderId: newOrder.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
-            hsnSac: item.hsnSac,
-            sortOrder: sortOrder++
-          });
+      const result = await db.transaction(async (tx) => {
+        const [existingOrder] = await tx.select().from(salesOrders).where(eq2(salesOrders.quoteId, quoteId));
+        if (existingOrder) {
+          throw new Error(`DUPLICATE_ORDER:${existingOrder.id}`);
         }
-      }
-      res.status(201).json(newOrder);
+        const [newOrder] = await tx.insert(salesOrders).values({
+          quoteId,
+          orderNumber,
+          clientId: quote.clientId,
+          status: "draft",
+          subtotal: quote.subtotal,
+          discount: quote.discount || "0",
+          cgst: quote.cgst || "0",
+          sgst: quote.sgst || "0",
+          igst: quote.igst || "0",
+          shippingCharges: quote.shippingCharges || "0",
+          total: quote.total,
+          notes: quote.notes,
+          termsAndConditions: quote.termsAndConditions,
+          createdBy: req.user.id
+        }).returning();
+        const quoteItems2 = await storage.getQuoteItems(quoteId);
+        if (quoteItems2 && quoteItems2.length > 0) {
+          let sortOrder = 0;
+          for (const item of quoteItems2) {
+            await tx.insert(salesOrderItems).values({
+              salesOrderId: newOrder.id,
+              productId: item.productId || null,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal,
+              hsnSac: item.hsnSac,
+              sortOrder: sortOrder++,
+              status: "pending",
+              fulfilledQuantity: 0
+            });
+          }
+        }
+        await tx.insert(activityLogs).values({
+          userId: req.user.id,
+          action: "create",
+          entityType: "sales_orders",
+          entityId: newOrder.id,
+          timestamp: /* @__PURE__ */ new Date()
+        });
+        return newOrder;
+      });
+      res.status(201).json(result);
     } catch (error) {
-      console.error("Failed to create sales order:", error);
+      if (error.message?.startsWith("DUPLICATE_ORDER:")) {
+        const orderId = error.message.split(":")[1];
+        return res.status(400).json({ message: "A Sales Order already exists for this quote", orderId });
+      }
+      logger.error("Failed to create sales order:", error);
       res.status(500).json({ message: error.message || "Internal server error" });
     }
   }
 );
 var quote_workflow_routes_default = router2;
 
-// server/routes.ts
-init_db();
-init_schema();
-import { eq as eq3, desc as desc2, sql as sql4 } from "drizzle-orm";
-function getJWTSecret() {
-  if (!process.env.SESSION_SECRET) {
-    throw new Error("SESSION_SECRET environment variable is required");
-  }
-  return process.env.SESSION_SECRET;
-}
+// server/routes/auth.routes.ts
+init_storage();
+import { Router as Router3 } from "express";
+import bcrypt from "bcryptjs";
+import jwt2 from "jsonwebtoken";
+import { nanoid } from "nanoid";
+var router3 = Router3();
 var JWT_EXPIRES_IN = "15m";
-async function authMiddleware(req, res, next) {
+router3.post("/signup", async (req, res) => {
   try {
-    const token = req.cookies?.token;
-    if (!token) {
-      return res.status(401).json({ error: "Unauthorized" });
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "Email, password and name are required" });
     }
-    const decoded = jwt.verify(token, getJWTSecret());
-    const user = await storage.getUser(decoded.id);
-    if (!user || user.status !== "active") {
-      return res.status(401).json({ error: "Unauthorized" });
+    if (await storage.getUserByEmail(email)) {
+      return res.status(400).json({ error: "User already exists" });
     }
-    req.user = { id: user.id, email: user.email, role: user.role };
-    next();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await storage.createUser({
+      email,
+      passwordHash: hashedPassword,
+      name,
+      role: "viewer",
+      status: "active"
+    });
+    await storage.createActivityLog({
+      userId: user.id,
+      action: "signup",
+      entityType: "user",
+      entityId: user.id
+    });
+    try {
+      await EmailService.sendWelcomeEmail(email, name);
+    } catch (error) {
+      logger.error("Failed to send welcome email:", error);
+    }
+    return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
   } catch (error) {
-    return res.status(401).json({ error: "Invalid token" });
+    logger.error("Signup error:", error);
+    return res.status(500).json({ error: error.message || "Failed to create account" });
   }
-}
-async function registerRoutes(app2) {
-  app2.post("/api/auth/signup", async (req, res) => {
-    try {
-      const { email, password, name } = req.body;
-      if (!email || !password || !name) {
-        return res.status(400).json({ error: "Email, password and name are required" });
-      }
-      if (await storage.getUserByEmail(email)) {
-        return res.status(400).json({ error: "User already exists" });
-      }
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await storage.createUser({
-        email,
-        passwordHash: hashedPassword,
-        name,
-        role: "viewer",
-        status: "active"
+});
+router3.post("/login", async (req, res) => {
+  try {
+    logger.info("Login attempt received");
+    const { email, password } = req.body;
+    if (!email || !password) {
+      logger.info("Missing email or password");
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+    logger.info("Fetching user from database");
+    const user = await storage.getUserByEmail(email);
+    if (!user) {
+      logger.info("User not found:", email);
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    logger.info("User found, checking status");
+    if (user.status !== "active") {
+      logger.info("User account is not active:", user.status);
+      return res.status(401).json({ error: "Account is inactive" });
+    }
+    logger.info("Verifying password");
+    const validPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!validPassword) {
+      logger.info("Invalid password");
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    logger.info("Generating tokens");
+    const refreshToken = nanoid(32);
+    const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3);
+    await storage.updateUser(user.id, {
+      refreshToken,
+      refreshTokenExpiry
+    });
+    const token = jwt2.sign(
+      { id: user.id, email: user.email, role: user.role },
+      getJWTSecret(),
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+    logger.info("Setting cookies");
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 15 * 60 * 1e3
+    });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1e3
+      // 7 days
+    });
+    logger.info("Creating activity log");
+    await storage.createActivityLog({
+      userId: user.id,
+      action: "login",
+      entityType: "user",
+      entityId: user.id
+    });
+    logger.info("Login successful");
+    return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
+  } catch (error) {
+    logger.error("Login error:", error);
+    logger.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    return res.status(500).json({
+      error: "Login failed",
+      details: process.env.NODE_ENV !== "production" ? error.message : void 0
+    });
+  }
+});
+router3.post("/logout", authMiddleware, async (req, res) => {
+  try {
+    if (req.user?.id) {
+      await storage.updateUser(req.user.id, {
+        refreshToken: null,
+        refreshTokenExpiry: null
       });
       await storage.createActivityLog({
-        userId: user.id,
-        action: "signup",
+        userId: req.user.id,
+        action: "logout",
         entityType: "user",
-        entityId: user.id
+        entityId: req.user.id
       });
-      try {
-        await EmailService.sendWelcomeEmail(email, name);
-      } catch (error) {
-        console.error("Failed to send welcome email:", error);
-      }
-      return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
-    } catch (error) {
-      console.error("Signup error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create account" });
     }
-  });
-  app2.post("/api/auth/login", async (req, res) => {
+    res.clearCookie("token");
+    res.clearCookie("refreshToken");
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Logout error:", error);
+    res.clearCookie("token");
+    res.clearCookie("refreshToken");
+    return res.json({ success: true });
+  }
+});
+router3.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const user = await storage.getUser(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    return res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      status: user.status
+    });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+router3.post("/reset-password", requireFeature("pages_resetPassword"), async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await storage.getUserByEmail(email);
+    if (!user || !user.backupEmail) {
+      return res.json({ success: true });
+    }
+    const resetToken = nanoid(32);
+    await storage.updateUser(user.id, {
+      resetToken,
+      resetTokenExpiry: new Date(Date.now() + 36e5)
+      // 1 hour
+    });
+    const protocol = req.header("x-forwarded-proto") || req.protocol || "http";
+    const host = req.header("x-forwarded-host") || req.header("host") || "localhost:5000";
+    const baseUrl = `${protocol}://${host}`;
+    const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
     try {
-      console.log("Login attempt received");
-      const { email, password } = req.body;
-      if (!email || !password) {
-        console.log("Missing email or password");
-        return res.status(400).json({ error: "Email and password are required" });
-      }
-      console.log("Fetching user from database");
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        console.log("User not found:", email);
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      console.log("User found, checking status");
-      if (user.status !== "active") {
-        console.log("User account is not active:", user.status);
-        return res.status(401).json({ error: "Account is inactive" });
-      }
-      console.log("Verifying password");
-      const validPassword = await bcrypt.compare(password, user.passwordHash);
-      if (!validPassword) {
-        console.log("Invalid password");
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      console.log("Generating tokens");
-      const refreshToken = nanoid(32);
-      const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1e3);
+      await EmailService.sendPasswordResetEmail(user.backupEmail, resetLink);
+    } catch (error) {
+      logger.error("Failed to send password reset email:", error);
+    }
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to process request" });
+  }
+});
+router3.post("/reset-password-confirm", requireFeature("pages_resetPassword"), async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: "Token and new password are required" });
+    }
+    const user = await storage.getUserByResetToken(token);
+    if (!user) {
+      return res.status(400).json({ error: "Invalid or expired reset token" });
+    }
+    if (!user.resetTokenExpiry || new Date(user.resetTokenExpiry) < /* @__PURE__ */ new Date()) {
       await storage.updateUser(user.id, {
-        refreshToken,
-        refreshTokenExpiry
-      });
-      const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        getJWTSecret(),
-        { expiresIn: JWT_EXPIRES_IN }
-      );
-      console.log("Setting cookies");
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 15 * 60 * 1e3
-      });
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1e3
-        // 7 days
-      });
-      console.log("Creating activity log");
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "login",
-        entityType: "user",
-        entityId: user.id
-      });
-      console.log("Login successful");
-      return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
-    } catch (error) {
-      console.error("Login error:", error);
-      console.error("Error details:", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      return res.status(500).json({
-        error: "Login failed",
-        details: process.env.NODE_ENV !== "production" ? error.message : void 0
-      });
-    }
-  });
-  app2.post("/api/auth/logout", authMiddleware, async (req, res) => {
-    try {
-      if (req.user?.id) {
-        await storage.updateUser(req.user.id, {
-          refreshToken: null,
-          refreshTokenExpiry: null
-        });
-        await storage.createActivityLog({
-          userId: req.user.id,
-          action: "logout",
-          entityType: "user",
-          entityId: req.user.id
-        });
-      }
-      res.clearCookie("token");
-      res.clearCookie("refreshToken");
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Logout error:", error);
-      res.clearCookie("token");
-      res.clearCookie("refreshToken");
-      return res.json({ success: true });
-    }
-  });
-  app2.get("/api/auth/me", authMiddleware, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.user.id);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      return res.json({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        status: user.status
-      });
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch user" });
-    }
-  });
-  app2.post("/api/auth/reset-password", requireFeature("pages_resetPassword"), async (req, res) => {
-    try {
-      const { email } = req.body;
-      const user = await storage.getUserByEmail(email);
-      if (!user || !user.backupEmail) {
-        return res.json({ success: true });
-      }
-      const resetToken = nanoid(32);
-      await storage.updateUser(user.id, {
-        resetToken,
-        resetTokenExpiry: new Date(Date.now() + 36e5)
-        // 1 hour
-      });
-      const protocol = req.header("x-forwarded-proto") || req.protocol || "http";
-      const host = req.header("x-forwarded-host") || req.header("host") || "localhost:5000";
-      const baseUrl = `${protocol}://${host}`;
-      const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
-      try {
-        await EmailService.sendPasswordResetEmail(user.backupEmail, resetLink);
-      } catch (error) {
-        console.error("Failed to send password reset email:", error);
-      }
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to process request" });
-    }
-  });
-  app2.post("/api/auth/reset-password-confirm", requireFeature("pages_resetPassword"), async (req, res) => {
-    try {
-      const { token, newPassword } = req.body;
-      if (!token || !newPassword) {
-        return res.status(400).json({ error: "Token and new password are required" });
-      }
-      const users_list = await storage.getAllUsers();
-      const user = users_list.find((u) => u.resetToken !== null && u.resetToken === token);
-      if (!user) {
-        return res.status(400).json({ error: "Invalid or expired reset token" });
-      }
-      if (!user.resetTokenExpiry || new Date(user.resetTokenExpiry) < /* @__PURE__ */ new Date()) {
-        await storage.updateUser(user.id, {
-          resetToken: null,
-          resetTokenExpiry: null
-        });
-        return res.status(400).json({ error: "Reset token has expired" });
-      }
-      if (newPassword.length < 8) {
-        return res.status(400).json({ error: "Password must be at least 8 characters" });
-      }
-      if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
-        return res.status(400).json({ error: "Password must contain uppercase, lowercase, number, and special character" });
-      }
-      const passwordHash = await bcrypt.hash(newPassword, 10);
-      const updatedUser = await storage.updateUserWithTokenCheck(user.id, token, {
-        passwordHash,
         resetToken: null,
         resetTokenExpiry: null
       });
-      if (!updatedUser) {
-        console.warn(`Reset token already used or invalidated for user ${user.id}`);
-        return res.status(400).json({ error: "Invalid or expired reset token" });
-      }
-      console.log(`Password reset successful for user ${user.id}, token cleared`);
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "reset_password",
-        entityType: "user",
-        entityId: user.id
-      });
-      return res.json({ success: true, message: "Password reset successfully" });
-    } catch (error) {
-      console.error("Reset password confirm error:", error);
-      return res.status(500).json({ error: "Failed to reset password" });
+      return res.status(400).json({ error: "Reset token has expired" });
     }
-  });
-  app2.post("/api/auth/refresh", async (req, res) => {
-    try {
-      const refreshToken = req.cookies?.refreshToken;
-      if (!refreshToken) {
-        return res.status(401).json({ error: "No refresh token" });
-      }
-      const users_list = await storage.getAllUsers();
-      const user = users_list.find((u) => u.refreshToken === refreshToken);
-      if (!user) {
-        res.clearCookie("refreshToken");
-        res.clearCookie("token");
-        return res.status(401).json({ error: "Invalid refresh token" });
-      }
-      if (user.refreshTokenExpiry && new Date(user.refreshTokenExpiry) < /* @__PURE__ */ new Date()) {
-        await storage.updateUser(user.id, {
-          refreshToken: null,
-          refreshTokenExpiry: null
-        });
-        res.clearCookie("refreshToken");
-        res.clearCookie("token");
-        return res.status(401).json({ error: "Refresh token expired" });
-      }
-      if (user.status !== "active") {
-        res.clearCookie("refreshToken");
-        res.clearCookie("token");
-        return res.status(401).json({ error: "Account is inactive" });
-      }
-      const newToken = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        getJWTSecret(),
-        { expiresIn: JWT_EXPIRES_IN }
-      );
-      res.cookie("token", newToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 15 * 60 * 1e3
-      });
-      return res.json({
-        success: true,
-        user: { id: user.id, email: user.email, name: user.name, role: user.role }
-      });
-    } catch (error) {
-      console.error("Refresh token error:", error);
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: "Password must contain uppercase, lowercase, number, and special character" });
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const updatedUser = await storage.updateUserWithTokenCheck(user.id, token, {
+      passwordHash,
+      resetToken: null,
+      resetTokenExpiry: null
+    });
+    if (!updatedUser) {
+      logger.warn(`Reset token already used or invalidated for user ${user.id}`);
+      return res.status(400).json({ error: "Invalid or expired reset token" });
+    }
+    logger.info(`Password reset successful for user ${user.id}, token cleared`);
+    await storage.createActivityLog({
+      userId: user.id,
+      action: "reset_password",
+      entityType: "user",
+      entityId: user.id
+    });
+    return res.json({ success: true, message: "Password reset successfully" });
+  } catch (error) {
+    logger.error("Reset password confirm error:", error);
+    return res.status(500).json({ error: "Failed to reset password" });
+  }
+});
+router3.post("/refresh", async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ error: "No refresh token" });
+    }
+    const user = await storage.getUserByRefreshToken(refreshToken);
+    if (!user) {
       res.clearCookie("refreshToken");
       res.clearCookie("token");
-      return res.status(500).json({ error: "Failed to refresh token" });
+      return res.status(401).json({ error: "Invalid refresh token" });
     }
-  });
-  app2.use("/api", authMiddleware, analytics_routes_default);
-  app2.use("/api", authMiddleware, quote_workflow_routes_default);
-  app2.get("/api/users", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const users2 = await storage.getAllUsers();
-      return res.json(users2.map((u) => ({
-        id: u.id,
-        email: u.email,
-        backupEmail: u.backupEmail,
-        name: u.name,
-        role: u.role,
-        status: u.status,
-        createdAt: u.createdAt
-      })));
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch users" });
+    if (user.refreshTokenExpiry && new Date(user.refreshTokenExpiry) < /* @__PURE__ */ new Date()) {
+      await storage.updateUser(user.id, {
+        refreshToken: null,
+        refreshTokenExpiry: null
+      });
+      res.clearCookie("refreshToken");
+      res.clearCookie("token");
+      return res.status(401).json({ error: "Refresh token expired" });
     }
-  });
-  app2.post("/api/users", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const { email, backupEmail, password, name, role, status } = req.body;
-      const existing = await storage.getUserByEmail(email);
-      if (existing) {
+    if (user.status !== "active") {
+      res.clearCookie("refreshToken");
+      res.clearCookie("token");
+      return res.status(401).json({ error: "Account is inactive" });
+    }
+    const newToken = jwt2.sign(
+      { id: user.id, email: user.email, role: user.role },
+      getJWTSecret(),
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+    res.cookie("token", newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 15 * 60 * 1e3
+    });
+    return res.json({
+      success: true,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role }
+    });
+  } catch (error) {
+    logger.error("Refresh token error:", error);
+    res.clearCookie("refreshToken");
+    res.clearCookie("token");
+    return res.status(500).json({ error: "Failed to refresh token" });
+  }
+});
+var auth_routes_default = router3;
+
+// server/routes/users.routes.ts
+init_storage();
+import { Router as Router4 } from "express";
+import bcrypt2 from "bcryptjs";
+var router4 = Router4();
+router4.get("/", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const users2 = await storage.getAllUsers();
+    return res.json(users2.map((u) => ({
+      id: u.id,
+      email: u.email,
+      backupEmail: u.backupEmail,
+      name: u.name,
+      role: u.role,
+      status: u.status,
+      createdAt: u.createdAt
+    })));
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+router4.post("/", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const { email, backupEmail, password, name, role, status } = req.body;
+    const existing = await storage.getUserByEmail(email);
+    if (existing) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+    const passwordHash = await bcrypt2.hash(password, 10);
+    const user = await storage.createUser({
+      email,
+      backupEmail,
+      passwordHash,
+      name,
+      role: role || "viewer",
+      status: status || "active"
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_user",
+      entityType: "user",
+      entityId: user.id
+    });
+    return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create user" });
+  }
+});
+router4.put("/:id", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const { name, email, backupEmail, role, status, password } = req.body;
+    const userId = req.params.id;
+    if (email) {
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser && existingUser.id !== userId) {
         return res.status(400).json({ error: "Email already exists" });
       }
-      const passwordHash = await bcrypt.hash(password, 10);
-      const user = await storage.createUser({
-        email,
-        backupEmail,
-        passwordHash,
-        name,
-        role: role || "user",
-        status: status || "active"
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_user",
-        entityType: "user",
-        entityId: user.id
-      });
-      return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to create user" });
     }
-  });
-  app2.put("/api/users/:id", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (backupEmail !== void 0) updateData.backupEmail = backupEmail;
+    if (role) updateData.role = role;
+    if (status) updateData.status = status;
+    if (password) {
+      updateData.passwordHash = await bcrypt2.hash(password, 10);
+    }
+    const updatedUser = await storage.updateUser(userId, updateData);
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_user",
+      entityType: "user",
+      entityId: userId
+    });
+    const safeUser = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      role: updatedUser.role,
+      status: updatedUser.status,
+      createdAt: updatedUser.createdAt,
+      updatedAt: updatedUser.updatedAt,
+      backupEmail: updatedUser.backupEmail
+    };
+    return res.json(safeUser);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update user" });
+  }
+});
+router4.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: "Cannot delete your own account" });
+    }
+    await storage.deleteUser(req.params.id);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_user",
+      entityType: "user",
+      entityId: req.params.id
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Delete user error:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete user" });
+  }
+});
+var users_routes_default = router4;
+
+// server/routes/clients.routes.ts
+init_storage();
+import { Router as Router5 } from "express";
+init_schema();
+var router5 = Router5();
+router5.get("/", requireFeature("clients_module"), authMiddleware, async (req, res) => {
+  try {
+    const clients2 = await storage.getAllClients();
+    res.json(clients2);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch clients" });
+  }
+});
+router5.get("/:id", requireFeature("clients_module"), authMiddleware, async (req, res) => {
+  try {
+    const client = await storage.getClient(req.params.id);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    return res.json(client);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch client" });
+  }
+});
+router5.post("/", requireFeature("clients_create"), authMiddleware, requirePermission("clients", "create"), validateRequest(insertClientSchema), async (req, res) => {
+  try {
+    const client = await storage.createClient({
+      ...req.body,
+      createdBy: req.user.id
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_client",
+      entityType: "client",
+      entityId: client.id
+    });
+    return res.json(client);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create client" });
+  }
+});
+router5.put("/:id", requireFeature("clients_edit"), authMiddleware, requirePermission("clients", "edit"), async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: "Client name and email are required" });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+    const client = await storage.updateClient(req.params.id, req.body);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_client",
+      entityType: "client",
+      entityId: client.id
+    });
+    return res.json(client);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update client" });
+  }
+});
+router5.delete("/:id", requireFeature("clients_delete"), authMiddleware, requirePermission("clients", "delete"), async (req, res) => {
+  try {
+    await storage.deleteClient(req.params.id);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_client",
+      entityType: "client",
+      entityId: req.params.id
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to delete client" });
+  }
+});
+var clients_routes_default = router5;
+
+// server/routes/quotes.routes.ts
+init_storage();
+import { Router as Router6 } from "express";
+init_numbering_service();
+
+// server/services/pdf.service.ts
+import PDFDocument3 from "pdfkit";
+import path3 from "path";
+import fs3 from "fs";
+
+// server/services/pdf-themes.ts
+var professionalTheme = {
+  name: "professional",
+  displayName: "Professional",
+  description: "Classic corporate design with navy blue accents (original theme)",
+  colors: {
+    primary: "#0f172a",
+    // Original default PRIMARY
+    primaryLight: "#1e293b",
+    // Original default PRIMARY_LIGHT
+    accent: "#3b82f6",
+    // Original default ACCENT
+    accentLight: "#60a5fa",
+    // Original default ACCENT_LIGHT
+    text: "#1e293b",
+    // Original default TEXT
+    muted: "#64748b",
+    // Original default MUTED
+    border: "#e2e8f0",
+    // Original default BORDER
+    bgSoft: "#f8fafc",
+    // Original default BG_SOFT
+    bgAlt: "#f1f5f9",
+    // Original default BG_ALT
+    success: "#10b981",
+    // Original default SUCCESS
+    warning: "#f59e0b"
+    // Original default WARNING
+  },
+  fonts: {
+    heading: "Helvetica-Bold",
+    body: "Helvetica",
+    bold: "Helvetica-Bold"
+  },
+  styles: {
+    headerStyle: "wave",
+    borderRadius: 0,
+    shadowIntensity: "light",
+    spacing: "normal"
+  }
+};
+var modernTheme = {
+  name: "modern",
+  displayName: "Modern",
+  description: "Contemporary design with vibrant colors and clean lines",
+  colors: {
+    primary: "#6366f1",
+    primaryLight: "#818cf8",
+    accent: "#ec4899",
+    accentLight: "#f472b6",
+    text: "#111827",
+    muted: "#6b7280",
+    border: "#e5e7eb",
+    bgSoft: "#faf5ff",
+    bgAlt: "#f3f4f6",
+    success: "#34d399",
+    warning: "#fbbf24"
+  },
+  fonts: {
+    heading: "Helvetica-Bold",
+    body: "Helvetica",
+    bold: "Helvetica-Bold"
+  },
+  styles: {
+    headerStyle: "gradient",
+    borderRadius: 4,
+    shadowIntensity: "medium",
+    spacing: "spacious"
+  }
+};
+var minimalTheme = {
+  name: "minimal",
+  displayName: "Minimal",
+  description: "Clean and simple design with focus on content",
+  colors: {
+    primary: "#18181b",
+    primaryLight: "#27272a",
+    accent: "#71717a",
+    accentLight: "#a1a1aa",
+    text: "#09090b",
+    muted: "#71717a",
+    border: "#e4e4e7",
+    bgSoft: "#fafafa",
+    bgAlt: "#f4f4f5",
+    success: "#22c55e",
+    warning: "#eab308"
+  },
+  fonts: {
+    heading: "Helvetica-Bold",
+    body: "Helvetica",
+    bold: "Helvetica-Bold"
+  },
+  styles: {
+    headerStyle: "minimal",
+    borderRadius: 0,
+    shadowIntensity: "none",
+    spacing: "spacious"
+  }
+};
+var creativeTheme = {
+  name: "creative",
+  displayName: "Creative",
+  description: "Bold and colorful design for creative industries",
+  colors: {
+    primary: "#7c3aed",
+    primaryLight: "#8b5cf6",
+    accent: "#f59e0b",
+    accentLight: "#fbbf24",
+    text: "#1f2937",
+    muted: "#6b7280",
+    border: "#d1d5db",
+    bgSoft: "#fef3c7",
+    bgAlt: "#fef9c3",
+    success: "#10b981",
+    warning: "#ef4444"
+  },
+  fonts: {
+    heading: "Helvetica-Bold",
+    body: "Helvetica",
+    bold: "Helvetica-Bold"
+  },
+  styles: {
+    headerStyle: "modern",
+    borderRadius: 8,
+    shadowIntensity: "strong",
+    spacing: "normal"
+  }
+};
+var premiumTheme = {
+  name: "premium",
+  displayName: "Premium",
+  description: "Luxurious design with gold accents for premium clients",
+  colors: {
+    primary: "#1e1b4b",
+    primaryLight: "#312e81",
+    accent: "#d97706",
+    accentLight: "#f59e0b",
+    text: "#0f172a",
+    muted: "#475569",
+    border: "#cbd5e1",
+    bgSoft: "#fef9c3",
+    bgAlt: "#fefce8",
+    success: "#059669",
+    warning: "#dc2626"
+  },
+  fonts: {
+    heading: "Helvetica-Bold",
+    body: "Helvetica",
+    bold: "Helvetica-Bold"
+  },
+  styles: {
+    headerStyle: "corporate",
+    borderRadius: 2,
+    shadowIntensity: "strong",
+    spacing: "spacious"
+  }
+};
+var governmentTheme = {
+  name: "government",
+  displayName: "Government",
+  description: "Formal and structured design for government entities",
+  colors: {
+    primary: "#1e3a8a",
+    primaryLight: "#1e40af",
+    accent: "#0369a1",
+    accentLight: "#0284c7",
+    text: "#1e293b",
+    muted: "#64748b",
+    border: "#cbd5e1",
+    bgSoft: "#f8fafc",
+    bgAlt: "#f1f5f9",
+    success: "#16a34a",
+    warning: "#ea580c"
+  },
+  fonts: {
+    heading: "Helvetica-Bold",
+    body: "Helvetica",
+    bold: "Helvetica-Bold"
+  },
+  styles: {
+    headerStyle: "corporate",
+    borderRadius: 0,
+    shadowIntensity: "none",
+    spacing: "compact"
+  }
+};
+var educationTheme = {
+  name: "education",
+  displayName: "Education",
+  description: "Friendly and approachable design for education sector",
+  colors: {
+    primary: "#0891b2",
+    primaryLight: "#06b6d4",
+    accent: "#14b8a6",
+    accentLight: "#2dd4bf",
+    text: "#0f172a",
+    muted: "#64748b",
+    border: "#cbd5e1",
+    bgSoft: "#f0fdfa",
+    bgAlt: "#ccfbf1",
+    success: "#10b981",
+    warning: "#f97316"
+  },
+  fonts: {
+    heading: "Helvetica-Bold",
+    body: "Helvetica",
+    bold: "Helvetica-Bold"
+  },
+  styles: {
+    headerStyle: "modern",
+    borderRadius: 4,
+    shadowIntensity: "light",
+    spacing: "normal"
+  }
+};
+var themeRegistry = {
+  professional: professionalTheme,
+  modern: modernTheme,
+  minimal: minimalTheme,
+  creative: creativeTheme,
+  premium: premiumTheme,
+  government: governmentTheme,
+  education: educationTheme
+};
+var segmentThemeMapping = {
+  enterprise: "premium",
+  corporate: "professional",
+  startup: "modern",
+  government: "government",
+  education: "education",
+  creative: "creative"
+};
+function getTheme(themeName) {
+  if (!themeName) return professionalTheme;
+  return themeRegistry[themeName] || professionalTheme;
+}
+function getSuggestedTheme(segment) {
+  if (!segment) return professionalTheme;
+  const themeName = segmentThemeMapping[segment] || "professional";
+  return getTheme(themeName);
+}
+
+// server/services/pdf.service.ts
+var PDFService = class _PDFService {
+  // ===== A4 =====
+  static PAGE_WIDTH = 595.28;
+  static PAGE_HEIGHT = 841.89;
+  // ===== Compact margins =====
+  static MARGIN_LEFT = 28;
+  static MARGIN_RIGHT = 28;
+  static MARGIN_TOP = 22;
+  static MARGIN_BOTTOM = 32;
+  static CONTENT_WIDTH = _PDFService.PAGE_WIDTH - _PDFService.MARGIN_LEFT - _PDFService.MARGIN_RIGHT;
+  // ===== Footer safety (prevents content overlapping footer line/text) =====
+  static FOOTER_TOP = _PDFService.PAGE_HEIGHT - 34;
+  // matches drawFooter()
+  static FOOTER_SAFE_GAP = 10;
+  // extra breathing room
+  static HEADER_H = 70;
+  // fixed header block height
+  // ===== Palette =====
+  static INK = "#111827";
+  static SUBTLE = "#4B5563";
+  static FAINT = "#9CA3AF";
+  static LINE = "#D1D5DB";
+  static SOFT = "#F3F4F6";
+  static SURFACE = "#FFFFFF";
+  static ACCENT = "#111827";
+  static SUCCESS = "#16A34A";
+  static WARNING = "#F59E0B";
+  static DANGER = "#B91C1C";
+  static activeTheme = null;
+  // ===== Fonts =====
+  static FONT_REG = "Helvetica";
+  static FONT_BOLD = "Helvetica-Bold";
+  // ===== Stroke & padding =====
+  static STROKE_W = 0.9;
+  static PAD_X = 8;
+  // ======================================================================
+  // PUBLIC
+  // ======================================================================
+  static async generateQuotePDF(data, res) {
+    let selectedTheme;
+    if (data.theme) selectedTheme = getTheme(data.theme);
+    else if (data.client.preferredTheme)
+      selectedTheme = getTheme(data.client.preferredTheme);
+    else if (data.client.segment)
+      selectedTheme = getSuggestedTheme(data.client.segment);
+    else selectedTheme = getTheme("professional");
+    this.applyTheme(selectedTheme);
+    const doc = new PDFDocument3({
+      size: "A4",
+      margins: {
+        top: this.MARGIN_TOP,
+        bottom: this.MARGIN_BOTTOM,
+        left: this.MARGIN_LEFT,
+        right: this.MARGIN_RIGHT
+      },
+      bufferPages: true,
+      info: {
+        Title: `Quote ${data.quote.quoteNumber}`,
+        // Assuming quoteNumber is on data.quote
+        Author: data.companyName || "AICERA"
       }
-      const { name, email, backupEmail, role, status, password } = req.body;
-      const userId = req.params.id;
-      if (email) {
-        const existingUser = await storage.getUserByEmail(email);
-        if (existingUser && existingUser.id !== userId) {
-          return res.status(400).json({ error: "Email already exists" });
+    });
+    doc.pipe(res);
+    await this.prepareAssets(doc, data);
+    doc.lineGap(2);
+    if (this.clean(data.abstract)) {
+      this.drawCover(doc, data);
+      doc.addPage();
+    }
+    this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
+    this.drawFromBox(doc, data);
+    this.drawShipBillAndMetaRow(doc, data);
+    this.drawItemsTable(doc, data);
+    this.drawWordsTermsTotalsRow(doc, data);
+    this.drawDeclarationBankRow(doc, data);
+    this.drawSignaturesRow(doc, data);
+    const range = doc.bufferedPageRange();
+    const total = range.count;
+    for (let i = 0; i < total; i++) {
+      doc.switchToPage(i);
+      this.drawFooter(doc, i + 1, total);
+    }
+    doc.end();
+  }
+  // Optimize: Check assets async
+  static async prepareAssets(doc, data) {
+    const fontsDir = path3.join(process.cwd(), "server", "pdf", "fonts");
+    const tryFont = async (filename) => {
+      try {
+        const p = path3.join(fontsDir, filename);
+        await fs3.promises.access(p, fs3.constants.F_OK);
+        return p;
+      } catch {
+        return null;
+      }
+    };
+    const [regPath, boldPath] = await Promise.all([
+      tryFont("Inter-Regular.ttf"),
+      tryFont("Inter-Bold.ttf")
+    ]);
+    if (regPath && boldPath) {
+      doc.registerFont("Inter", regPath);
+      doc.registerFont("Inter-Bold", boldPath);
+      this.FONT_REG = "Inter";
+      this.FONT_BOLD = "Inter-Bold";
+    } else {
+      this.FONT_REG = "Helvetica";
+      this.FONT_BOLD = "Helvetica-Bold";
+    }
+    let logoToUse = "";
+    if (data.companyLogo) {
+      logoToUse = data.companyLogo;
+    } else {
+      const p1 = path3.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+      const p2 = path3.join(process.cwd(), "client", "public", "logo.png");
+      try {
+        await fs3.promises.access(p1, fs3.constants.F_OK);
+        logoToUse = p1;
+      } catch {
+        try {
+          await fs3.promises.access(p2, fs3.constants.F_OK);
+          logoToUse = p2;
+        } catch {
         }
       }
-      const updateData = {};
-      if (name) updateData.name = name;
-      if (email) updateData.email = email;
-      if (backupEmail !== void 0) updateData.backupEmail = backupEmail;
-      if (role) updateData.role = role;
-      if (status) updateData.status = status;
-      if (password) {
-        updateData.passwordHash = await bcrypt.hash(password, 10);
+    }
+    data.resolvedLogo = logoToUse;
+  }
+  // ======================================================================
+  // THEME + FONTS
+  // ======================================================================
+  static applyTheme(theme) {
+    this.activeTheme = theme;
+    this.ACCENT = theme.colors?.accent || "#111827";
+    this.INK = "#111827";
+    this.SUBTLE = "#4B5563";
+    this.FAINT = "#9CA3AF";
+    this.LINE = "#D1D5DB";
+    this.SOFT = "#F3F4F6";
+    this.SURFACE = "#FFFFFF";
+    this.SUCCESS = theme.colors?.success || "#16A34A";
+    this.WARNING = theme.colors?.warning || "#F59E0B";
+  }
+  // No-op or deprecated
+  static setupFonts(doc) {
+  }
+  // ======================================================================
+  // HELPERS
+  // ======================================================================
+  static bottomY() {
+    return this.FOOTER_TOP - this.FOOTER_SAFE_GAP;
+  }
+  static ensureSpace(doc, data, needed) {
+    if (doc.y + needed <= this.bottomY()) return;
+    doc.addPage();
+    this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
+  }
+  static clean(v) {
+    return String(v ?? "").trim();
+  }
+  static safeDate(d) {
+    try {
+      if (!d) return "-";
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return "-";
+      return dt.toLocaleDateString("en-IN");
+    } catch {
+      return "-";
+    }
+  }
+  static currency(v) {
+    const n = Number(v) || 0;
+    return `Rs. ${n.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  }
+  static normalizeAddress(addr, maxLines = 3) {
+    if (!addr) return "";
+    const rawParts = String(addr).split(/[\n,]/g).map((s) => s.trim()).filter(Boolean);
+    const seen = /* @__PURE__ */ new Set();
+    const parts = [];
+    for (const p of rawParts) {
+      const key = p.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      parts.push(p);
+    }
+    return parts.slice(0, Math.max(3, maxLines * 2)).join(", ");
+  }
+  // ===== Invoice-style box drawing =====
+  static box(doc, x, y, w, h, opts) {
+    doc.save();
+    if (opts?.fill) doc.fillColor(opts.fill).rect(x, y, w, h).fill();
+    doc.strokeColor(opts?.stroke ?? this.LINE).lineWidth(opts?.lineWidth ?? this.STROKE_W).rect(x, y, w, h).stroke();
+    doc.restore();
+  }
+  static hLine(doc, x1, x2, y) {
+    doc.save();
+    doc.strokeColor(this.LINE).lineWidth(0.8);
+    doc.moveTo(x1, y).lineTo(x2, y).stroke();
+    doc.restore();
+  }
+  static label(doc, txt, x, y) {
+    doc.save();
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(String(txt).toUpperCase(), x, y, {
+      characterSpacing: 0.6,
+      lineBreak: false
+    });
+    doc.restore();
+  }
+  static truncateToWidth(doc, text2, width, suffix = "\u2026") {
+    const t = this.clean(text2);
+    if (!t) return "";
+    if (doc.widthOfString(t) <= width) return t;
+    let lo = 0;
+    let hi = t.length;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const cand = t.slice(0, mid) + suffix;
+      if (doc.widthOfString(cand) <= width) lo = mid + 1;
+      else hi = mid;
+    }
+    const cut = Math.max(0, lo - 1);
+    return t.slice(0, cut) + suffix;
+  }
+  static wrapLines(doc, text2, width, maxLines) {
+    const t = this.clean(text2).replace(/\s+/g, " ");
+    if (!t) return [];
+    const height = doc.heightOfString(t, { width });
+    if (doc.widthOfString(t) <= width) return [t];
+    const words = t.split(" ");
+    const lines = [];
+    let line = "";
+    for (const w of words) {
+      const cand = line ? `${line} ${w}` : w;
+      if (doc.widthOfString(cand) <= width) {
+        line = cand;
+      } else {
+        if (line) lines.push(line);
+        line = w;
+        if (lines.length >= maxLines) break;
       }
-      const updatedUser = await storage.updateUser(userId, updateData);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_user",
-        entityType: "user",
-        entityId: userId
+    }
+    if (line && lines.length < maxLines) lines.push(line);
+    return lines.slice(0, maxLines);
+  }
+  // ======================================================================
+  // COVER (optional)
+  // ======================================================================
+  static drawCover(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    doc.font(this.FONT_BOLD).fontSize(18).fillColor(this.INK);
+    doc.text("COMMERCIAL PROPOSAL", x, 120, { width: w });
+    doc.font(this.FONT_REG).fontSize(10).fillColor(this.SUBTLE);
+    doc.text(`Quote No: ${this.clean(data.quote.quoteNumber || "-")}`, x, 148, { width: w });
+    doc.y = 176;
+    this.hLine(doc, x, x + w, doc.y);
+    doc.y += 18;
+    this.label(doc, "Abstract", x, doc.y);
+    doc.y += 12;
+    doc.font(this.FONT_REG).fontSize(10).fillColor(this.INK);
+    doc.text(this.clean(data.abstract), x, doc.y, { width: w, lineGap: 3 });
+  }
+  // ======================================================================
+  // HEADER (fixed-height, deterministic)
+  // ======================================================================
+  static drawHeader(doc, data, title) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const topY = doc.page.margins.top;
+    const logoSize = 26;
+    let logoPrinted = false;
+    const logoPath = data.resolvedLogo;
+    if (logoPath) {
+      try {
+        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
+        logoPrinted = true;
+      } catch {
+      }
+    }
+    doc.font(this.FONT_BOLD).fontSize(11).fillColor(this.INK);
+    doc.text(title, x, topY - 2, { width: w, align: "center", lineBreak: false });
+    const leftX = logoPrinted ? x + logoSize + 8 : x;
+    const leftW = 320;
+    const company = this.clean(data.companyName || "AICERA");
+    const contactBits = [];
+    if (data.companyEmail) contactBits.push(this.clean(data.companyEmail));
+    if (data.companyPhone) contactBits.push(this.clean(data.companyPhone));
+    if (data.companyGSTIN) contactBits.push(`GSTIN: ${this.clean(data.companyGSTIN).toUpperCase()}`);
+    const contactLine = contactBits.join("  |  ");
+    doc.font(this.FONT_BOLD).fontSize(10).fillColor(this.INK);
+    doc.text(company, leftX, topY + 12, { width: leftW, lineBreak: false });
+    if (contactLine) {
+      doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+      doc.text(this.truncateToWidth(doc, contactLine, leftW), leftX, topY + 24, {
+        width: leftW,
+        lineBreak: false
       });
-      return res.json(updatedUser);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update user" });
     }
-  });
-  app2.delete("/api/users/:id", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      if (req.params.id === req.user.id) {
-        return res.status(400).json({ error: "Cannot delete your own account" });
-      }
-      await storage.deleteUser(req.params.id);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_user",
-        entityType: "user",
-        entityId: req.params.id
+    const addr = this.normalizeAddress(data.companyAddress, 2);
+    if (addr) {
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      doc.text(addr, leftX, topY + 34, { width: leftW });
+    }
+    const rightW = 210;
+    const rightX = x + w - rightW;
+    const quoteNo = this.clean(data.quote.quoteNumber || "-");
+    const date = this.safeDate(data.quote.quoteDate);
+    doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+    doc.text("Quote No.", rightX, topY + 12, { width: rightW, align: "right", lineBreak: false });
+    doc.font(this.FONT_BOLD).fontSize(9.6).fillColor(this.INK);
+    doc.text(quoteNo, rightX, topY + 22, { width: rightW, align: "right", lineBreak: false });
+    doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+    doc.text("Date", rightX, topY + 34, { width: rightW, align: "right", lineBreak: false });
+    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
+    doc.text(date, rightX, topY + 44, { width: rightW, align: "right", lineBreak: false });
+    const headerBottom = topY + this.HEADER_H;
+    this.hLine(doc, x, x + w, headerBottom - 10);
+    doc.y = headerBottom;
+  }
+  // ======================================================================
+  // FROM
+  // ======================================================================
+  static drawFromBox(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const name = this.clean(data.companyName || "AICERA");
+    const addr = this.normalizeAddress(data.companyAddress, 10) || "-";
+    doc.font(this.FONT_BOLD).fontSize(8.6);
+    const nameH = doc.heightOfString(name, { width: w - this.PAD_X * 2 });
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const addrH = doc.heightOfString(addr, { width: w - this.PAD_X * 2 });
+    const contactBits = [];
+    if (data.companyPhone) contactBits.push(`Ph: ${this.clean(data.companyPhone)}`);
+    if (data.companyGSTIN) contactBits.push(`GSTIN: ${this.clean(data.companyGSTIN).toUpperCase()}`);
+    if (data.preparedByEmail) contactBits.push(`Email: ${this.clean(data.preparedByEmail)}`);
+    doc.font(this.FONT_REG).fontSize(7);
+    const contactText = contactBits.join("  |  ");
+    const contactH = contactBits.length ? doc.heightOfString(contactText, { width: w - this.PAD_X * 2 }) : 0;
+    const contentH = 6 + 10 + nameH + 2 + addrH + (contactH ? 8 + contactH : 0) + 6;
+    const h = Math.max(contentH, 58);
+    this.ensureSpace(doc, data, h + 10);
+    const y0 = doc.y;
+    this.box(doc, x, y0, w, h, { fill: this.SURFACE });
+    this.label(doc, "From", x + this.PAD_X, y0 + 6);
+    let cy = y0 + 18;
+    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
+    doc.text(name, x + this.PAD_X, cy, { width: w - this.PAD_X * 2 });
+    cy += nameH + 2;
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(addr, x + this.PAD_X, cy, { width: w - this.PAD_X * 2 });
+    if (contactBits.length) {
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      const contactY = y0 + h - contactH - 6;
+      doc.text(contactText, x + this.PAD_X, contactY, {
+        width: w - this.PAD_X * 2
       });
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Delete user error:", error);
-      return res.status(500).json({ error: error.message || "Failed to delete user" });
     }
-  });
-  app2.get("/api/clients", requireFeature("clients_module"), authMiddleware, async (req, res) => {
-    try {
-      const clients2 = await storage.getAllClients();
-      res.json(clients2);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch clients" });
-    }
-  });
-  app2.get("/api/clients/:id", requireFeature("clients_module"), authMiddleware, async (req, res) => {
-    try {
-      const client = await storage.getClient(req.params.id);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      return res.json(client);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch client" });
-    }
-  });
-  app2.post("/api/clients", requireFeature("clients_create"), authMiddleware, requirePermission("clients", "create"), async (req, res) => {
-    try {
-      const { name, email, phone } = req.body;
-      if (!name || !email) {
-        return res.status(400).json({ error: "Client name and email are required" });
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({ error: "Invalid email format" });
-      }
-      const client = await storage.createClient({
-        ...req.body,
-        createdBy: req.user.id
+    doc.y = y0 + h + 10;
+  }
+  // ======================================================================
+  // SHIP/BILL + META
+  // ======================================================================
+  static drawShipBillAndMetaRow(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const gap = 10;
+    const leftW = w * 0.56;
+    const rightW = w - leftW - gap;
+    const clientName = this.clean(data.client.name || "-");
+    const shipAddr = this.normalizeAddress(data.client.shippingAddress || data.client.billingAddress, 10) || "-";
+    const billAddr = this.normalizeAddress(data.client.billingAddress, 10) || "-";
+    const phone = this.clean(data.client.phone);
+    const email = this.clean(data.client.email);
+    const contact = [phone ? `Ph: ${phone}` : "", email ? `Email: ${email}` : ""].filter(Boolean).join("  |  ");
+    doc.font(this.FONT_BOLD).fontSize(8.6);
+    const cNameH = doc.heightOfString(clientName, { width: leftW - this.PAD_X * 2 });
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const shipAddrH = doc.heightOfString(shipAddr, { width: leftW - this.PAD_X * 2 });
+    const shipH = 6 + 10 + cNameH + 2 + shipAddrH + 6;
+    const billAddrH = doc.heightOfString(billAddr, { width: leftW - this.PAD_X * 2 });
+    doc.font(this.FONT_REG).fontSize(7);
+    const contactH = contact ? doc.heightOfString(contact, { width: leftW - this.PAD_X * 2 }) : 0;
+    const billH = 6 + 10 + cNameH + 2 + billAddrH + (contactH ? 8 + contactH : 0) + 6;
+    const leftTotalH = shipH + 8 + billH;
+    const q = data.quote;
+    const rows = [
+      { k: "Quote Date", v: this.safeDate(q.quoteDate) },
+      { k: "Validity", v: q.validUntil ? `Until ${this.safeDate(q.validUntil)}` : `${Number(q.validityDays || 30)} days` },
+      { k: "Reference", v: this.clean(q.referenceNumber || "-") },
+      { k: "Prepared By", v: this.clean(data.preparedBy || "-") }
+    ];
+    const h = Math.max(leftTotalH, 130);
+    this.ensureSpace(doc, data, h + 10);
+    const y0 = doc.y;
+    const leftX = x;
+    const rightX = x + leftW + gap;
+    this.box(doc, leftX, y0, leftW, h, { fill: this.SURFACE });
+    const minBillSpace = 48;
+    const idealSplitY = y0 + shipH + 8;
+    const splitY = Math.min(idealSplitY, y0 + h - minBillSpace);
+    this.hLine(doc, leftX, leftX + leftW, splitY);
+    this.label(doc, "Consignee (Ship To)", leftX + this.PAD_X, y0 + 6);
+    let cy = y0 + 18;
+    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
+    doc.text(clientName, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    cy += cNameH + 2;
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(shipAddr, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    this.label(doc, "Buyer (Bill To)", leftX + this.PAD_X, splitY + 6);
+    cy = splitY + 18;
+    doc.font(this.FONT_BOLD).fontSize(8.6).fillColor(this.INK);
+    doc.text(clientName, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    cy += cNameH + 2;
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    doc.text(billAddr, leftX + this.PAD_X, cy, { width: leftW - this.PAD_X * 2 });
+    if (contact) {
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      const contactY = y0 + h - contactH - 6;
+      doc.text(contact, leftX + this.PAD_X, contactY, {
+        width: leftW - this.PAD_X * 2
       });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_client",
-        entityType: "client",
-        entityId: client.id
+    }
+    this.box(doc, rightX, y0, rightW, h, { fill: this.SURFACE });
+    const rowHeight = h / rows.length;
+    const labelW = rightW * 0.5;
+    const valueW = rightW - labelW - this.PAD_X * 2;
+    for (let i = 0; i < rows.length; i++) {
+      const ry = y0 + i * rowHeight;
+      if (i > 0) this.hLine(doc, rightX, rightX + rightW, ry);
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      doc.text(rows[i].k, rightX + this.PAD_X, ry + rowHeight / 2 - 4, {
+        width: labelW - this.PAD_X,
+        lineBreak: false
       });
-      return res.json(client);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to create client" });
-    }
-  });
-  app2.put("/api/clients/:id", requireFeature("clients_edit"), authMiddleware, requirePermission("clients", "edit"), async (req, res) => {
-    try {
-      const { name, email } = req.body;
-      if (!name || !email) {
-        return res.status(400).json({ error: "Client name and email are required" });
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({ error: "Invalid email format" });
-      }
-      const client = await storage.updateClient(req.params.id, req.body);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_client",
-        entityType: "client",
-        entityId: client.id
+      doc.font(this.FONT_BOLD).fontSize(7.6).fillColor(this.INK);
+      const v = this.truncateToWidth(doc, rows[i].v, valueW);
+      doc.text(v, rightX + labelW, ry + rowHeight / 2 - 4, {
+        width: valueW,
+        align: "right",
+        lineBreak: false
       });
-      return res.json(client);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update client" });
     }
-  });
-  app2.delete("/api/clients/:id", requireFeature("clients_delete"), authMiddleware, requirePermission("clients", "delete"), async (req, res) => {
-    try {
-      await storage.deleteClient(req.params.id);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_client",
-        entityType: "client",
-        entityId: req.params.id
+    doc.y = y0 + h + 10;
+  }
+  // ======================================================================
+  // ITEMS TABLE
+  // ======================================================================
+  static drawItemsTable(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    doc.font(this.FONT_BOLD).fontSize(9.2).fillColor(this.INK);
+    doc.text("Description of Goods / Services", x, doc.y);
+    doc.y += 6;
+    const headerH = 22;
+    const minRowH = 20;
+    const sl = 24;
+    const qty = 40;
+    const unit = 40;
+    const rate = 72;
+    const amt = 86;
+    const desc3 = w - (sl + qty + unit + rate + amt);
+    const cx = {
+      sl: x,
+      desc: x + sl,
+      qty: x + sl + desc3,
+      unit: x + sl + desc3 + qty,
+      rate: x + sl + desc3 + qty + unit,
+      amt: x + sl + desc3 + qty + unit + rate,
+      right: x + w
+    };
+    const drawHeader = (yy) => {
+      this.box(doc, x, yy, w, headerH, { fill: this.SOFT, stroke: this.LINE, lineWidth: 0.9 });
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.qty, cx.unit, cx.rate, cx.amt].forEach((vx) => {
+        doc.moveTo(vx, yy).lineTo(vx, yy + headerH).stroke();
       });
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to delete client" });
-    }
-  });
-  app2.get("/api/quotes", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
-    try {
-      const quotes2 = await storage.getAllQuotes();
-      const quotesWithClients = await Promise.all(
-        quotes2.map(async (quote) => {
-          const client = await storage.getClient(quote.clientId);
-          return {
-            ...quote,
-            clientName: client?.name || "Unknown",
-            clientEmail: client?.email || ""
-          };
-        })
-      );
-      res.json(quotesWithClients);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch quotes" });
-    }
-  });
-  app2.get("/api/quotes/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
-    try {
-      const quote = await storage.getQuote(req.params.id);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
+      doc.restore();
+      doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
+      doc.text("SL", cx.sl, yy + 7, { width: sl, align: "center", characterSpacing: 0.6, lineBreak: false });
+      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc3 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
+      doc.text("QTY", cx.qty, yy + 7, { width: qty, align: "center", characterSpacing: 0.6, lineBreak: false });
+      doc.text("UNIT", cx.unit, yy + 7, { width: unit, align: "center", characterSpacing: 0.6, lineBreak: false });
+      doc.text("RATE", cx.rate, yy + 7, { width: rate - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
+      doc.text("AMOUNT", cx.amt, yy + 7, { width: amt - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
+    };
+    this.ensureSpace(doc, data, headerH + minRowH + 10);
+    let y = doc.y;
+    drawHeader(y);
+    y += headerH;
+    const items = data.items || [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const descText = this.clean(it.description || "-");
+      const qtyVal = Number(it.quantity ?? 0) || 0;
+      const unitText = this.clean(it.unit || it.uom || it.unitName || "pcs");
+      const rateVal = Number(it.unitPrice ?? 0) || 0;
+      const amtVal = Number(it.subtotal ?? qtyVal * rateVal) || 0;
+      doc.save();
+      doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
+      const descLines = this.wrapLines(doc, descText, desc3 - 8, 30);
+      doc.restore();
+      const rowH = Math.max(minRowH, 8 + descLines.length * 11);
+      if (y + rowH > this.bottomY() - 6) {
+        doc.addPage();
+        this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
+        doc.font(this.FONT_BOLD).fontSize(9.2).fillColor(this.INK);
+        doc.text("Description of Goods / Services (cont.)", x, doc.y);
+        doc.y += 6;
+        this.ensureSpace(doc, data, headerH + minRowH + 10);
+        y = doc.y;
+        drawHeader(y);
+        y += headerH;
       }
-      const client = await storage.getClient(quote.clientId);
-      const items = await storage.getQuoteItems(quote.id);
-      const creator = await storage.getUser(quote.createdBy);
-      res.json({
-        ...quote,
-        client,
-        items,
-        createdByName: creator?.name || "Unknown"
+      this.box(doc, x, y, w, rowH, { fill: this.SURFACE });
+      doc.save();
+      doc.strokeColor(this.LINE).lineWidth(0.8);
+      [cx.desc, cx.qty, cx.unit, cx.rate, cx.amt].forEach((vx) => {
+        doc.moveTo(vx, y).lineTo(vx, y + rowH).stroke();
       });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch quote" });
+      doc.restore();
+      doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
+      doc.text(String(i + 1), cx.sl, y + 6, { width: sl, align: "center", lineBreak: false });
+      let dy = y + 6;
+      for (const ln of descLines) {
+        doc.text(ln, cx.desc + 4, dy, { width: desc3 - 8, lineBreak: false });
+        dy += 11;
+      }
+      const midY = y + 6;
+      doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
+      doc.text(String(qtyVal), cx.qty, midY, { width: qty, align: "center", lineBreak: false });
+      doc.text(unitText, cx.unit, midY, { width: unit, align: "center", lineBreak: false });
+      doc.font(this.FONT_BOLD).fontSize(8).fillColor(this.INK);
+      doc.text(this.currency(rateVal), cx.rate, midY, { width: rate - 8, align: "right", lineBreak: false });
+      doc.text(this.currency(amtVal), cx.amt, midY, { width: amt - 8, align: "right", lineBreak: false });
+      y += rowH;
     }
-  });
-  app2.post("/api/quotes", requireFeature("quotes_create"), authMiddleware, requirePermission("quotes", "create"), async (req, res) => {
-    try {
-      const { items, ...quoteData } = req.body;
-      if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
-        const parsed = new Date(quoteData.quoteDate);
-        if (!isNaN(parsed.getTime())) {
-          quoteData.quoteDate = parsed;
-        } else {
-          delete quoteData.quoteDate;
+    doc.y = y + 8;
+  }
+  // ======================================================================
+  // WORDS + TERMS (left) + TOTALS (right)
+  // ======================================================================
+  static drawWordsTermsTotalsRow(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const gap = 10;
+    const leftW = w * 0.58;
+    const rightW = w - leftW - gap;
+    const q = data.quote;
+    const total = Number(q.total) || 0;
+    const amountWords = this.amountToINRWords(total);
+    const termsInline = this.termsToInlineBullets(this.clean(q.termsAndConditions || "")) || "\u2014";
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const termsLines = this.wrapLines(doc, termsInline, leftW - this.PAD_X * 2, 12);
+    doc.font(this.FONT_BOLD).fontSize(7.8);
+    const wordLines = this.wrapLines(doc, amountWords, leftW - this.PAD_X * 2, 3);
+    const leftH = 6 + 12 + wordLines.length * 10 + 8 + 12 + termsLines.length * 10 + 10;
+    const subtotal = Number(q.subtotal) || 0;
+    const shipping = Number(q.shippingCharges) || 0;
+    const cgst = Number(q.cgst) || 0;
+    const sgst = Number(q.sgst) || 0;
+    const igst = Number(q.igst) || 0;
+    const rowList = [];
+    rowList.push({ k: "Subtotal", v: subtotal });
+    if (shipping > 0) rowList.push({ k: "Shipping", v: shipping });
+    if (cgst > 0) rowList.push({ k: "CGST", v: cgst });
+    if (sgst > 0) rowList.push({ k: "SGST", v: sgst });
+    if (igst > 0 && cgst === 0 && sgst === 0) rowList.push({ k: "IGST", v: igst });
+    rowList.push({ k: "TOTAL", v: total, bold: true });
+    const rightH = 22 + rowList.length * 14 + 12;
+    const h = Math.max(leftH, rightH, 122);
+    this.ensureSpace(doc, data, h + 12);
+    const y0 = doc.y;
+    this.box(doc, x, y0, leftW, h, { fill: this.SURFACE });
+    this.label(doc, "Amount Chargeable (in words)", x + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_BOLD).fontSize(7.8).fillColor(this.INK);
+    let wy = y0 + 20;
+    for (const wl of wordLines) {
+      doc.text(wl, x + this.PAD_X, wy, { width: leftW - this.PAD_X * 2 });
+      wy += 10;
+    }
+    const termsLabelY = wy + 6;
+    this.label(doc, "Terms & Conditions", x + this.PAD_X, termsLabelY);
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    let ty = termsLabelY + 12;
+    for (const ln of termsLines) {
+      doc.text(ln, x + this.PAD_X, ty, { width: leftW - this.PAD_X * 2, lineBreak: false });
+      ty += 10;
+    }
+    const xr = x + leftW + gap;
+    this.box(doc, xr, y0, rightW, h, { fill: this.SURFACE });
+    this.label(doc, "Totals", xr + this.PAD_X, y0 + 6);
+    let ry = y0 + 22;
+    const rowH = 14;
+    const labelW = rightW * 0.55;
+    const valueW = rightW - labelW - this.PAD_X * 2;
+    for (const r of rowList) {
+      doc.font(this.FONT_BOLD).fontSize(r.bold ? 8.6 : 7.6).fillColor(this.INK);
+      doc.text(r.k, xr + this.PAD_X, ry, { width: labelW - this.PAD_X, lineBreak: false });
+      const moneyStr = this.currency(r.v);
+      doc.font(this.FONT_BOLD).fontSize(r.bold ? 9 : 8).fillColor(r.danger ? this.DANGER : this.INK);
+      doc.text(moneyStr, xr + labelW, ry, {
+        width: valueW,
+        align: "right",
+        lineBreak: false
+      });
+      ry += rowH;
+    }
+    doc.y = y0 + h + 12;
+  }
+  // ======================================================================
+  // DECLARATION + BANK
+  // ======================================================================
+  static drawDeclarationBankRow(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const gap = 10;
+    const colW = Math.floor((w - gap) / 2);
+    const declaration = this.clean(data.declarationText) || "We declare that this proposal shows the actual price of the goods/services described and that all particulars are true and correct.";
+    doc.font(this.FONT_REG).fontSize(7.2);
+    const declLines = this.wrapLines(doc, declaration, colW - this.PAD_X * 2, 10);
+    const declH = 20 + declLines.length * 9 + 10;
+    const bd = data.bankDetails || {};
+    const bankLines = [];
+    if (bd.accountName) bankLines.push(`A/c Name: ${bd.accountName}`);
+    if (bd.bankName) bankLines.push(`Bank: ${bd.bankName}`);
+    if (bd.accountNumber) bankLines.push(`A/c No: ${bd.accountNumber}`);
+    if (bd.ifsc) bankLines.push(`IFSC: ${bd.ifsc}`);
+    if (bd.branch) bankLines.push(`Branch: ${bd.branch}`);
+    if (bd.swift) bankLines.push(`SWIFT: ${bd.swift}`);
+    if (bd.upi) bankLines.push(`UPI: ${bd.upi}`);
+    const bankText = bankLines.length ? bankLines.join("  |  ") : "\u2014";
+    doc.font(this.FONT_BOLD).fontSize(7.2);
+    const bankLines2 = this.wrapLines(doc, bankText, colW - this.PAD_X * 2, 10);
+    const bankH = 20 + bankLines2.length * 9 + 10;
+    const h = Math.max(declH, bankH, 76);
+    this.ensureSpace(doc, data, h + 12);
+    const y0 = doc.y;
+    this.box(doc, x, y0, colW, h, { fill: this.SURFACE });
+    this.label(doc, "Declaration", x + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_REG).fontSize(7.2).fillColor(this.SUBTLE);
+    let dy = y0 + 20;
+    for (const ln of declLines) {
+      doc.text(ln, x + this.PAD_X, dy, { width: colW - this.PAD_X * 2, lineBreak: false });
+      dy += 9;
+    }
+    const xr = x + colW + gap;
+    this.box(doc, xr, y0, colW, h, { fill: this.SURFACE });
+    this.label(doc, "Company Bank Details for Payment", xr + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_BOLD).fontSize(7.2).fillColor(this.INK);
+    let by = y0 + 20;
+    for (const ln of bankLines2) {
+      doc.text(ln, xr + this.PAD_X, by, { width: colW - this.PAD_X * 2, lineBreak: false });
+      by += 9;
+    }
+    doc.y = y0 + h + 12;
+  }
+  // ======================================================================
+  // SIGNATURES
+  // ======================================================================
+  static drawSignaturesRow(doc, data) {
+    const x = this.MARGIN_LEFT;
+    const w = this.CONTENT_WIDTH;
+    const gap = 10;
+    const colW = Math.floor((w - gap) / 2);
+    const h = 74;
+    this.ensureSpace(doc, data, h + 10);
+    const y0 = doc.y;
+    this.box(doc, x, y0, colW, h, { fill: this.SURFACE });
+    this.label(doc, "Client Acceptance", x + this.PAD_X, y0 + 6);
+    doc.font(this.FONT_REG).fontSize(8.8).fillColor(this.SUBTLE);
+    doc.text(this.clean(data.clientAcceptanceLabel || "Customer Seal & Signature"), x + this.PAD_X, y0 + 20, {
+      width: colW - this.PAD_X * 2
+    });
+    this.hLine(doc, x + this.PAD_X, x + colW - this.PAD_X, y0 + h - 24);
+    doc.font(this.FONT_REG).fontSize(8.2).fillColor(this.SUBTLE);
+    doc.text("Date:", x + this.PAD_X, y0 + h - 16, { width: colW - this.PAD_X * 2, lineBreak: false });
+    const xr = x + colW + gap;
+    this.box(doc, xr, y0, colW, h, { fill: this.SURFACE });
+    this.label(doc, "For Company", xr + this.PAD_X, y0 + 6);
+    const company = this.clean(data.companyName || "AICERA");
+    doc.font(this.FONT_REG).fontSize(8.8).fillColor(this.SUBTLE);
+    doc.text(`For ${company}`, xr + this.PAD_X, y0 + 20, { width: colW - this.PAD_X * 2 });
+    this.hLine(doc, xr + this.PAD_X, xr + colW - this.PAD_X, y0 + h - 24);
+    doc.font(this.FONT_REG).fontSize(8.2).fillColor(this.SUBTLE);
+    doc.text("Authorised Signatory", xr + this.PAD_X, y0 + h - 16, { width: colW - this.PAD_X * 2, lineBreak: false });
+    doc.y = y0 + h + 10;
+  }
+  // ======================================================================
+  // FOOTER
+  // ======================================================================
+  static drawFooter(doc, page, total) {
+    const footerTop = this.FOOTER_TOP;
+    const prevBottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+    doc.save();
+    doc.strokeColor(this.LINE).lineWidth(this.STROKE_W);
+    doc.moveTo(this.MARGIN_LEFT, footerTop).lineTo(this.PAGE_WIDTH - this.MARGIN_RIGHT, footerTop).stroke();
+    doc.font(this.FONT_REG).fontSize(8).fillColor(this.FAINT);
+    doc.text("This is a Computer Generated Document", 0, footerTop + 7, {
+      width: this.PAGE_WIDTH,
+      align: "center",
+      lineBreak: false
+    });
+    doc.text(`Page ${page} of ${total}`, 0, footerTop + 19, {
+      width: this.PAGE_WIDTH,
+      align: "center",
+      lineBreak: false
+    });
+    doc.restore();
+    doc.page.margins.bottom = prevBottom;
+  }
+  // ======================================================================
+  // AMOUNT IN WORDS (INR)
+  // ======================================================================
+  static amountToINRWords(amount) {
+    const rupees = Math.floor(Math.abs(amount));
+    const paise = Math.round((Math.abs(amount) - rupees) * 100);
+    const r = this.numberToIndianWords(rupees);
+    const p = paise > 0 ? ` and ${this.numberToIndianWords(paise)} Paise` : "";
+    const sign = amount < 0 ? "Minus " : "";
+    return `${sign}INR ${r}${p} Only`;
+  }
+  static numberToIndianWords(n) {
+    if (!Number.isFinite(n) || n === 0) return "Zero";
+    const ones = [
+      "",
+      "One",
+      "Two",
+      "Three",
+      "Four",
+      "Five",
+      "Six",
+      "Seven",
+      "Eight",
+      "Nine",
+      "Ten",
+      "Eleven",
+      "Twelve",
+      "Thirteen",
+      "Fourteen",
+      "Fifteen",
+      "Sixteen",
+      "Seventeen",
+      "Eighteen",
+      "Nineteen"
+    ];
+    const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    const two = (x) => {
+      if (x < 20) return ones[x];
+      const t = Math.floor(x / 10);
+      const o = x % 10;
+      return `${tens[t]}${o ? " " + ones[o] : ""}`.trim();
+    };
+    const three = (x) => {
+      const h = Math.floor(x / 100);
+      const r = x % 100;
+      const head = h ? `${ones[h]} Hundred` : "";
+      const tail = r ? `${head ? " " : ""}${two(r)}` : "";
+      return `${head}${tail}`.trim();
+    };
+    const parts = [];
+    let num = Math.floor(n);
+    const crore = Math.floor(num / 1e7);
+    num %= 1e7;
+    const lakh = Math.floor(num / 1e5);
+    num %= 1e5;
+    const thousand = Math.floor(num / 1e3);
+    num %= 1e3;
+    const rest = num;
+    if (crore) parts.push(`${three(crore)} Crore`);
+    if (lakh) parts.push(`${three(lakh)} Lakh`);
+    if (thousand) parts.push(`${three(thousand)} Thousand`);
+    if (rest) parts.push(three(rest));
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+  // ======================================================================
+  // TERMS INLINE (fix orphan lines + dedupe)
+  // ======================================================================
+  static termsToInlineBullets(raw) {
+    const t = this.clean(raw);
+    if (!t) return "";
+    const src = t.split(/\r?\n/g).map((l) => l.trim()).filter(Boolean);
+    const bullets = [];
+    for (const original of src) {
+      const stripped = original.replace(/^\s*(?:[-*•]+|\d+[.)\]])\s*/g, "").trim();
+      if (!stripped) continue;
+      const looksLikeNewItem = /^\s*(?:[-*•]+|\d+[.)\]])\s+/.test(original) || /:\s*/.test(stripped);
+      if (!bullets.length) {
+        bullets.push(stripped);
+        continue;
+      }
+      if (!looksLikeNewItem) bullets[bullets.length - 1] += " " + stripped;
+      else bullets.push(stripped);
+    }
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const b of bullets) {
+      const norm = b.replace(/\s+/g, " ").trim();
+      const key = norm.toLowerCase();
+      if (!norm || seen.has(key)) continue;
+      seen.add(key);
+      out.push(norm);
+    }
+    return out.join(" \u2022 ");
+  }
+};
+
+// server/routes/quotes.routes.ts
+var router6 = Router6();
+router6.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+  try {
+    const quotes2 = await storage.getAllQuotes();
+    const quotesWithClients = await Promise.all(
+      quotes2.map(async (quote) => {
+        const client = await storage.getClient(quote.clientId);
+        return {
+          ...quote,
+          clientName: client?.name || "Unknown",
+          clientEmail: client?.email || ""
+        };
+      })
+    );
+    res.json(quotesWithClients);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch quotes" });
+  }
+});
+router6.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    const client = await storage.getClient(quote.clientId);
+    const items = await storage.getQuoteItems(quote.id);
+    const creator = await storage.getUser(quote.createdBy);
+    res.json({
+      ...quote,
+      client,
+      items,
+      createdByName: creator?.name || "Unknown"
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch quote" });
+  }
+});
+router6.post("/", requireFeature("quotes_create"), authMiddleware, requirePermission("quotes", "create"), async (req, res) => {
+  try {
+    const { items, ...quoteData } = req.body;
+    if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
+      const parsed = new Date(quoteData.quoteDate);
+      if (!isNaN(parsed.getTime())) {
+        quoteData.quoteDate = parsed;
+      } else {
+        delete quoteData.quoteDate;
+      }
+    }
+    const prefixSetting = await storage.getSetting("quotePrefix");
+    const prefix = prefixSetting?.value || "QT";
+    const quoteNumber = await NumberingService.generateQuoteNumber();
+    const quoteItemsData = (items || []).map((item, i) => ({
+      quoteId: "",
+      productId: item.productId || null,
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: String(item.unitPrice),
+      subtotal: String(item.quantity * item.unitPrice),
+      sortOrder: i,
+      hsnSac: item.hsnSac || null
+    }));
+    const subtotal = calculateSubtotal(quoteItemsData);
+    const discount = quoteData.discount || 0;
+    const shippingCharges = quoteData.shippingCharges || 0;
+    const cgst = quoteData.cgst || 0;
+    const sgst = quoteData.sgst || 0;
+    const igst = quoteData.igst || 0;
+    const total = calculateTotal({
+      subtotal,
+      discount,
+      shippingCharges,
+      cgst,
+      sgst,
+      igst
+    });
+    const finalQuoteData = {
+      ...quoteData,
+      quoteNumber,
+      createdBy: req.user.id,
+      subtotal: toMoneyString(subtotal),
+      discount: toMoneyString(discount),
+      shippingCharges: toMoneyString(shippingCharges),
+      cgst: toMoneyString(cgst),
+      sgst: toMoneyString(sgst),
+      igst: toMoneyString(igst),
+      total: toMoneyString(total)
+    };
+    const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_quote",
+      entityType: "quote",
+      entityId: quote.id
+    });
+    return res.json(quote);
+  } catch (error) {
+    logger.error("Create quote error:", error);
+    return res.status(500).json({ error: error.message || "Failed to create quote" });
+  }
+});
+router6.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+  try {
+    const existingQuote = await storage.getQuote(req.params.id);
+    if (!existingQuote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    if (existingQuote.status === "invoiced") {
+      return res.status(400).json({ error: "Cannot edit an invoiced quote" });
+    }
+    const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+    if (existingSalesOrder) {
+      return res.status(400).json({
+        error: "Cannot edit a quote that has been converted to a Sales Order."
+      });
+    }
+    if (["sent", "approved", "rejected", "closed_paid", "closed_cancelled"].includes(existingQuote.status)) {
+      const keys = Object.keys(req.body);
+      const allowedKeys = ["status", "closureNotes", "closedBy", "closedAt"];
+      const hasContentUpdates = keys.some((key) => !allowedKeys.includes(key));
+      if (hasContentUpdates) {
+        return res.status(400).json({
+          error: `Quote is in '${existingQuote.status}' state and cannot be edited. Please use the 'Revise' option to create a new version.`
+        });
+      }
+    }
+    const toDate = (v) => {
+      if (!v) return void 0;
+      if (v instanceof Date) return v;
+      if (typeof v === "string") {
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? void 0 : d;
+      }
+      return void 0;
+    };
+    const { items, ...updateFields } = req.body;
+    const updateData = { ...updateFields };
+    if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
+    if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
+    let quote;
+    if (items && Array.isArray(items)) {
+      const quoteItemsData = items.map((item, i) => ({
+        quoteId: req.params.id,
+        productId: item.productId || null,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: String(item.unitPrice),
+        subtotal: String(item.quantity * item.unitPrice),
+        sortOrder: i,
+        hsnSac: item.hsnSac || null
+      }));
+      quote = await storage.updateQuoteTransaction(req.params.id, updateData, quoteItemsData);
+    } else {
+      quote = await storage.updateQuote(req.params.id, updateData);
+    }
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_quote",
+      entityType: "quote",
+      entityId: quote.id
+    });
+    return res.json(quote);
+  } catch (error) {
+    logger.error("Update quote error:", error);
+    res.status(500).json({ error: "Failed to update quote" });
+  }
+});
+router6.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    if (quote.status === "invoiced") {
+      return res.status(400).json({ error: "Quote is already invoiced" });
+    }
+    const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+    if (existingSalesOrder) {
+      return res.status(400).json({
+        error: "Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.",
+        salesOrderId: existingSalesOrder.id,
+        salesOrderNumber: existingSalesOrder.orderNumber
+      });
+    }
+    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+    const invoice = await storage.createInvoice({
+      invoiceNumber,
+      quoteId: quote.id,
+      clientId: quote.clientId,
+      isMaster: true,
+      masterInvoiceStatus: "draft",
+      paymentStatus: "pending",
+      dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1e3),
+      // Default due date based on validity
+      paidAmount: "0",
+      subtotal: quote.subtotal,
+      discount: quote.discount,
+      cgst: quote.cgst,
+      sgst: quote.sgst,
+      igst: quote.igst,
+      shippingCharges: quote.shippingCharges,
+      total: quote.total,
+      notes: quote.notes,
+      termsAndConditions: quote.termsAndConditions,
+      createdBy: req.user.id
+    });
+    const quoteItems2 = await storage.getQuoteItems(quote.id);
+    for (const item of quoteItems2) {
+      await storage.createInvoiceItem({
+        invoiceId: invoice.id,
+        productId: item.productId || null,
+        description: item.description,
+        quantity: item.quantity,
+        fulfilledQuantity: 0,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+        status: "pending",
+        sortOrder: item.sortOrder,
+        hsnSac: item.hsnSac
+      });
+    }
+    await storage.updateQuote(quote.id, { status: "invoiced" });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "convert_quote_to_invoice",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    return res.json(invoice);
+  } catch (error) {
+    logger.error("Convert quote error:", error);
+    return res.status(500).json({ error: error.message || "Failed to convert quote" });
+  }
+});
+router6.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req, res) => {
+  try {
+    const { recipientEmail, message } = req.body;
+    if (!recipientEmail) {
+      return res.status(400).json({ error: "Recipient email is required" });
+    }
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    const client = await storage.getClient(quote.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    const items = await storage.getQuoteItems(quote.id);
+    const creator = await storage.getUser(quote.createdBy);
+    const settings2 = await storage.getAllSettings();
+    const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+    const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
+    const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+    const emailSubjectTemplate = settings2.find((s) => s.key === "email_quote_subject")?.value || "Quote {QUOTE_NUMBER} from {COMPANY_NAME}";
+    const emailBodyTemplate = settings2.find((s) => s.key === "email_quote_body")?.value || "Dear {CLIENT_NAME},\\n\\nPlease find attached quote {QUOTE_NUMBER} for your review.\\n\\nTotal Amount: {TOTAL}\\nValid Until: {VALIDITY_DATE}\\n\\nBest regards,\\n{COMPANY_NAME}";
+    const quoteDate = new Date(quote.quoteDate);
+    const validityDate = new Date(quoteDate);
+    validityDate.setDate(validityDate.getDate() + (quote.validityDays || 30));
+    const variables = {
+      "{COMPANY_NAME}": companyName,
+      "{CLIENT_NAME}": client.name,
+      "{QUOTE_NUMBER}": quote.quoteNumber,
+      "{TOTAL}": `\u20B9${Number(quote.total).toLocaleString()}`,
+      "{VALIDITY_DATE}": validityDate.toLocaleDateString()
+    };
+    let emailSubject = emailSubjectTemplate;
+    let emailBody = emailBodyTemplate;
+    Object.entries(variables).forEach(([key, value]) => {
+      const escapedKey = key.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+      emailSubject = emailSubject.replace(new RegExp(escapedKey, "g"), value);
+      emailBody = emailBody.replace(new RegExp(escapedKey, "g"), value);
+    });
+    if (message) {
+      emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
+    }
+    const bankDetail = await storage.getActiveBankDetails();
+    const bankName = bankDetail?.bankName || "";
+    const bankAccountNumber = bankDetail?.accountNumber || "";
+    const bankAccountName = bankDetail?.accountName || "";
+    const bankIfscCode = bankDetail?.ifscCode || "";
+    const bankBranch = bankDetail?.branch || "";
+    const bankSwiftCode = bankDetail?.swiftCode || "";
+    const { PassThrough } = await import("stream");
+    const pdfStream = new PassThrough();
+    const pdfPromise = PDFService.generateQuotePDF({
+      quote,
+      client,
+      items,
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyLogo,
+      preparedBy: creator?.name,
+      preparedByEmail: creator?.email,
+      bankDetails: {
+        bankName,
+        accountNumber: bankAccountNumber,
+        accountName: bankAccountName,
+        ifsc: bankIfscCode,
+        branch: bankBranch,
+        swift: bankSwiftCode
+      }
+    }, pdfStream);
+    const chunks = [];
+    pdfStream.on("data", (chunk) => chunks.push(chunk));
+    await new Promise((resolve, reject) => {
+      pdfStream.on("end", resolve);
+      pdfStream.on("error", reject);
+    });
+    await pdfPromise;
+    const pdfBuffer = Buffer.concat(chunks);
+    await EmailService.sendQuoteEmail(
+      recipientEmail,
+      emailSubject,
+      emailBody,
+      pdfBuffer
+    );
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "email_quote",
+      entityType: "quote",
+      entityId: quote.id
+    });
+    return res.json({ success: true, message: "Quote sent successfully" });
+  } catch (error) {
+    logger.error("Email quote error:", error);
+    return res.status(500).json({ error: error.message || "Failed to send quote email" });
+  }
+});
+router6.get("/:id/pdf", authMiddleware, async (req, res) => {
+  logger.info(`[PDF Export START] Received request for quote: ${req.params.id}`);
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    logger.info(`[PDF Export] Found quote: ${quote?.quoteNumber}`);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    const client = await storage.getClient(quote.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    const items = await storage.getQuoteItems(quote.id);
+    const creator = await storage.getUser(quote.createdBy);
+    const settings2 = await storage.getAllSettings();
+    logger.info("Available settings keys:", settings2.map((s) => s.key));
+    const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+    const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+    const city = settings2.find((s) => s.key === "company_city")?.value || "";
+    const state = settings2.find((s) => s.key === "company_state")?.value || "";
+    const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+    const country = settings2.find((s) => s.key === "company_country")?.value || "";
+    const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+    const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+    logger.info("Company Logo found:", !!companyLogo, "Length:", companyLogo?.length);
+    const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+    const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+    const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+    const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+    const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
+    const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
+    logger.error("!!! DEBUG BANK DETAILS !!!", {
+      bankName,
+      bankAccountNumber,
+      bankAccountName,
+      bankIfscCode
+    });
+    const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Length", "");
+    res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    logger.info(`[PDF Export] Quote #${quote.quoteNumber}`);
+    logger.info(`[PDF Export] Clean filename: ${cleanFilename}`);
+    logger.info(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+    logger.info(`[PDF Export] About to generate PDF`);
+    await PDFService.generateQuotePDF({
+      quote,
+      client,
+      items,
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyLogo,
+      preparedBy: creator?.name,
+      preparedByEmail: creator?.email,
+      bankDetails: {
+        bankName,
+        accountNumber: bankAccountNumber,
+        accountName: bankAccountName,
+        ifsc: bankIfscCode,
+        branch: bankBranch,
+        swift: bankSwiftCode
+      }
+    }, res);
+    logger.info(`[PDF Export] PDF stream piped successfully`);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "export_pdf",
+      entityType: "quote",
+      entityId: quote.id
+    });
+    logger.info(`[PDF Export COMPLETE] Quote PDF exported successfully: ${quote.quoteNumber}`);
+  } catch (error) {
+    logger.error("[PDF Export ERROR]", error);
+    return res.status(500).json({ error: error.message || "Failed to generate PDF" });
+  }
+});
+router6.get("/:id/invoices", authMiddleware, async (req, res) => {
+  try {
+    const invoices2 = await storage.getInvoicesByQuote(req.params.id);
+    const enrichedInvoices = await Promise.all(
+      invoices2.map(async (invoice) => {
+        const items = await storage.getInvoiceItems(invoice.id);
+        return { ...invoice, items };
+      })
+    );
+    res.json(enrichedInvoices);
+  } catch (error) {
+    logger.error("Error fetching invoices:", error);
+    res.status(500).json({ error: "Failed to fetch invoices" });
+  }
+});
+var quotes_routes_default = router6;
+
+// server/routes/invoices.routes.ts
+init_storage();
+import { Router as Router7 } from "express";
+init_db();
+init_schema();
+init_numbering_service();
+import { eq as eq4, sql as sql7 } from "drizzle-orm";
+var router7 = Router7();
+router7.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+  try {
+    const invoices2 = await storage.getAllInvoices();
+    const invoicesWithDetails = await Promise.all(
+      invoices2.map(async (invoice) => {
+        const client = invoice.clientId ? await storage.getClient(invoice.clientId) : void 0;
+        return {
+          ...invoice,
+          clientName: client?.name || "Unknown"
+        };
+      })
+    );
+    res.json(invoicesWithDetails);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch invoices" });
+  }
+});
+router7.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const client = invoice.clientId ? await storage.getClient(invoice.clientId) : void 0;
+    const items = await storage.getInvoiceItems(invoice.id);
+    const creator = invoice.createdBy ? await storage.getUser(invoice.createdBy) : void 0;
+    let parentInvoice = void 0;
+    if (invoice.parentInvoiceId) {
+      parentInvoice = await storage.getInvoice(invoice.parentInvoiceId);
+    }
+    let childInvoices = [];
+    if (invoice.isMaster) {
+      if (invoice.quoteId) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+        childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+      } else if (invoice.salesOrderId) {
+        const allInvoices = await storage.getInvoicesBySalesOrder(invoice.salesOrderId);
+        childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+      }
+    }
+    const formattedItems = items.map((item) => ({
+      ...item,
+      productId: item.productId,
+      quantity: Number(item.quantity),
+      unitPrice: String(item.unitPrice),
+      subtotal: String(item.subtotal),
+      fulfilledQuantity: Number(item.fulfilledQuantity || 0),
+      status: item.status || "pending"
+    }));
+    res.json({
+      ...invoice,
+      client,
+      items: formattedItems,
+      createdByName: creator?.name || "Unknown",
+      parentInvoice,
+      childInvoices
+    });
+  } catch (error) {
+    logger.error("Error fetching invoice:", error);
+    res.status(500).json({ error: "Failed to fetch invoice" });
+  }
+});
+router7.put("/:id/master-status", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
+  try {
+    const { masterInvoiceStatus } = req.body;
+    if (!["draft", "confirmed", "locked"].includes(masterInvoiceStatus)) {
+      return res.status(400).json({ error: "Invalid master invoice status" });
+    }
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    if (!invoice.isMaster) {
+      return res.status(400).json({ error: "This is not a master invoice" });
+    }
+    const currentStatus = invoice.masterInvoiceStatus;
+    const validTransitions = {
+      "draft": ["confirmed"],
+      "confirmed": ["locked"],
+      "locked": []
+      // Cannot transition from locked
+    };
+    if (currentStatus && !validTransitions[currentStatus]?.includes(masterInvoiceStatus)) {
+      return res.status(400).json({
+        error: `Cannot transition from ${currentStatus} to ${masterInvoiceStatus}`
+      });
+    }
+    const updatedInvoice = await storage.updateInvoice(req.params.id, {
+      masterInvoiceStatus
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: `master_invoice_${masterInvoiceStatus}`,
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    res.json({ success: true, invoice: updatedInvoice });
+  } catch (error) {
+    logger.error("Update master invoice status error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update master invoice status" });
+  }
+});
+router7.put("/:id/master-details", authMiddleware, requirePermission("invoices", "edit"), async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const isMasterInvoice = invoice.isMaster;
+    const isChildInvoice = !!invoice.parentInvoiceId;
+    const isRegularInvoice = !isMasterInvoice && !isChildInvoice;
+    if (isMasterInvoice) {
+      if (invoice.masterInvoiceStatus === "locked") {
+        return res.status(400).json({
+          error: "Cannot edit a locked master invoice"
+        });
+      }
+    } else if (isChildInvoice || isRegularInvoice) {
+      if (invoice.paymentStatus === "paid") {
+        return res.status(400).json({
+          error: "Cannot edit a paid invoice"
+        });
+      }
+    }
+    const isDraft = isMasterInvoice ? !invoice.masterInvoiceStatus || invoice.masterInvoiceStatus === "draft" : invoice.paymentStatus !== "paid";
+    const updateData = {};
+    if (isDraft) {
+      const editableFields = [
+        "notes",
+        "termsAndConditions",
+        "deliveryNotes",
+        "milestoneDescription",
+        "dueDate",
+        "subtotal",
+        "discount",
+        "cgst",
+        "sgst",
+        "igst",
+        "shippingCharges",
+        "total",
+        "paymentStatus",
+        "paidAmount"
+      ];
+      for (const field of editableFields) {
+        if (req.body[field] !== void 0) {
+          updateData[field] = req.body[field];
         }
       }
-      const prefixSetting = await storage.getSetting("quotePrefix");
-      const prefix = prefixSetting?.value || "QT";
-      const quoteNumber = await NumberingService.generateQuoteNumber();
-      const quote = await storage.createQuote({
-        ...quoteData,
-        quoteNumber,
-        createdBy: req.user.id
-      });
-      if (items && items.length > 0) {
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          await storage.createQuoteItem({
-            quoteId: quote.id,
+      if (req.body.items && Array.isArray(req.body.items)) {
+        if (isChildInvoice && invoice.parentInvoiceId) {
+          const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
+          if (masterInvoice) {
+            const masterItems = await storage.getInvoiceItems(masterInvoice.id);
+            const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
+            const siblingInvoices = allChildInvoices.filter(
+              (inv) => inv.parentInvoiceId === masterInvoice.id && inv.id !== invoice.id
+            );
+            const invoicedQuantities = {};
+            for (const sibling of siblingInvoices) {
+              const siblingItems = await storage.getInvoiceItems(sibling.id);
+              for (const item of siblingItems) {
+                const key = item.productId || item.description;
+                invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
+              }
+            }
+            for (const newItem of req.body.items) {
+              const masterItem = masterItems.find((mi) => mi.productId && mi.productId === newItem.productId || mi.description === newItem.description);
+              if (!masterItem) {
+                return res.status(400).json({
+                  error: `Item "${newItem.description}" not found in master invoice`
+                });
+              }
+              const key = newItem.productId || newItem.description;
+              const alreadyInvoiced = invoicedQuantities[key] || 0;
+              const remaining = masterItem.quantity - alreadyInvoiced;
+              if (newItem.quantity > remaining) {
+                return res.status(400).json({
+                  error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
+                });
+              }
+            }
+          }
+        }
+        await storage.deleteInvoiceItems(invoice.id);
+        for (const item of req.body.items) {
+          await storage.createInvoiceItem({
+            invoiceId: invoice.id,
+            productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
-            unitPrice: String(item.unitPrice),
-            subtotal: String(item.quantity * item.unitPrice),
-            sortOrder: i,
+            fulfilledQuantity: item.fulfilledQuantity || 0,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
+            serialNumbers: item.serialNumbers || null,
+            status: item.status || "pending",
+            sortOrder: item.sortOrder || 0,
             hsnSac: item.hsnSac || null
           });
         }
       }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_quote",
-        entityType: "quote",
-        entityId: quote.id
-      });
-      return res.json(quote);
-    } catch (error) {
-      console.error("Create quote error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create quote" });
+    } else {
+      const allowedFields = ["notes", "termsAndConditions", "deliveryNotes", "milestoneDescription"];
+      for (const field of allowedFields) {
+        if (req.body[field] !== void 0) {
+          updateData[field] = req.body[field];
+        }
+      }
     }
-  });
-  app2.patch("/api/quotes/:id", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
-    try {
-      const existingQuote = await storage.getQuote(req.params.id);
-      if (!existingQuote) {
-        return res.status(404).json({ error: "Quote not found" });
+    if (Object.keys(updateData).length === 0 && (!isDraft || !req.body.items)) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+    let updatedInvoice;
+    if (Object.keys(updateData).length > 0) {
+      updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
+    } else {
+      updatedInvoice = invoice;
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_master_invoice",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    res.json({ success: true, invoice: updatedInvoice });
+  } catch (error) {
+    logger.error("Update master invoice error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update master invoice" });
+  }
+});
+router7.put("/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    if (invoice.paymentStatus === "paid") {
+      return res.status(400).json({ error: "Cannot finalize paid invoices" });
+    }
+    if (invoice.status === "cancelled") {
+      return res.status(400).json({ error: "Cannot finalize cancelled invoices" });
+    }
+    if (invoice.isMaster && invoice.masterInvoiceStatus !== "confirmed" && invoice.masterInvoiceStatus !== "locked") {
+      return res.status(400).json({ error: "Master invoice must be confirmed before finalizing" });
+    }
+    const updatedInvoice = await storage.updateInvoice(req.params.id, {
+      finalizedAt: /* @__PURE__ */ new Date(),
+      finalizedBy: req.user.id,
+      status: invoice.status === "draft" ? "sent" : invoice.status
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "invoice_finalized",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    res.json({ success: true, invoice: updatedInvoice });
+  } catch (error) {
+    logger.error("Finalize invoice error:", error);
+    return res.status(500).json({ error: error.message || "Failed to finalize invoice" });
+  }
+});
+router7.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req, res) => {
+  try {
+    const { isLocked } = req.body;
+    if (typeof isLocked !== "boolean") {
+      return res.status(400).json({ error: "isLocked must be a boolean" });
+    }
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    if (isLocked && !invoice.finalizedAt && invoice.paymentStatus !== "paid") {
+      return res.status(400).json({ error: "Can only lock finalized or paid invoices" });
+    }
+    const updatedInvoice = await storage.updateInvoice(req.params.id, {
+      isLocked
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: isLocked ? "invoice_locked" : "invoice_unlocked",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    res.json({ success: true, invoice: updatedInvoice });
+  } catch (error) {
+    logger.error("Lock invoice error:", error);
+    return res.status(500).json({ error: error.message || "Failed to lock/unlock invoice" });
+  }
+});
+router7.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req, res) => {
+  try {
+    const { cancellationReason } = req.body;
+    if (!cancellationReason || cancellationReason.trim().length === 0) {
+      return res.status(400).json({ error: "Cancellation reason is required" });
+    }
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    if (invoice.paymentStatus === "paid") {
+      return res.status(400).json({ error: "Cannot cancel fully paid invoices" });
+    }
+    if (invoice.status === "cancelled" || invoice.cancelledAt) {
+      return res.status(400).json({ error: "Invoice is already cancelled" });
+    }
+    let childInvoices = [];
+    if (invoice.isMaster) {
+      const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+      childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+      const paidChildren = childInvoices.filter((c) => c.paymentStatus === "paid");
+      if (paidChildren.length > 0) {
+        return res.status(400).json({ error: "Cannot cancel master invoice with paid child invoices" });
       }
-      if (existingQuote.status === "invoiced") {
-        return res.status(400).json({ error: "Cannot edit an invoiced quote" });
-      }
-      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
-      if (existingSalesOrder) {
-        return res.status(400).json({
-          error: "Cannot edit a quote that has been converted to a Sales Order."
-        });
-      }
-      if (["sent", "approved", "rejected", "closed_paid", "closed_cancelled"].includes(existingQuote.status)) {
-        const keys = Object.keys(req.body);
-        const allowedKeys = ["status", "closureNotes", "closedBy", "closedAt"];
-        const hasContentUpdates = keys.some((key) => !allowedKeys.includes(key));
-        if (hasContentUpdates) {
-          return res.status(400).json({
-            error: `Quote is in '${existingQuote.status}' state and cannot be edited. Please use the 'Revise' option to create a new version.`
-          });
+    }
+    const result = await db.transaction(async (tx) => {
+      const reverseStockForInvoice = async (invoiceId) => {
+        const restoredViaSerials = /* @__PURE__ */ new Set();
+        const serialsResult = await tx.select().from(serialNumbers).where(eq4(serialNumbers.invoiceId, invoiceId));
+        const productStockUpdatesFromSerials = {};
+        for (const serial2 of serialsResult) {
+          if (serial2.productId) {
+            productStockUpdatesFromSerials[serial2.productId] = (productStockUpdatesFromSerials[serial2.productId] || 0) + 1;
+            restoredViaSerials.add(serial2.productId);
+          }
+          await tx.update(serialNumbers).set({
+            status: "in_stock",
+            invoiceId: null,
+            invoiceItemId: null,
+            updatedAt: /* @__PURE__ */ new Date()
+          }).where(eq4(serialNumbers.id, serial2.id));
         }
-      }
-      const toDate = (v) => {
-        if (!v) return void 0;
-        if (v instanceof Date) return v;
-        if (typeof v === "string") {
-          const d = new Date(v);
-          return isNaN(d.getTime()) ? void 0 : d;
+        for (const [productId, quantityToRestore] of Object.entries(productStockUpdatesFromSerials)) {
+          await tx.update(products).set({
+            stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
+            availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
+            updatedAt: /* @__PURE__ */ new Date()
+          }).where(eq4(products.id, productId));
         }
-        return void 0;
+        const invoiceItems2 = await tx.select().from(invoiceItems).where(eq4(invoiceItems.invoiceId, invoiceId));
+        for (const item of invoiceItems2) {
+          if (item.productId && !restoredViaSerials.has(item.productId)) {
+            const quantityToRestore = Number(item.quantity) || 0;
+            if (quantityToRestore > 0) {
+              await tx.update(products).set({
+                stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
+                availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
+                updatedAt: /* @__PURE__ */ new Date()
+              }).where(eq4(products.id, item.productId));
+            }
+          }
+        }
+        const totalSerials = serialsResult.length;
+        const totalItems = invoiceItems2.filter((i) => i.productId && !restoredViaSerials.has(i.productId)).length;
+        logger.stock(`[Stock Reversal] Restored ${totalSerials} serial items and ${totalItems} regular items for invoice ${invoiceId}`);
       };
-      const { items, ...updateFields } = req.body;
-      const updateData = { ...updateFields };
-      if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
-      if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
-      const quote = await storage.updateQuote(req.params.id, updateData);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      if (items && Array.isArray(items)) {
-        await storage.deleteQuoteItems(quote.id);
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          await storage.createQuoteItem({
-            quoteId: quote.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: String(item.unitPrice),
-            subtotal: String(item.quantity * item.unitPrice),
-            sortOrder: i,
-            hsnSac: item.hsnSac || null
-          });
-        }
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_quote",
-        entityType: "quote",
-        entityId: quote.id
-      });
-      return res.json(quote);
-    } catch (error) {
-      console.error("Update quote error:", error);
-      res.status(500).json({ error: "Failed to update quote" });
-    }
-  });
-  app2.post("/api/quotes/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
-    try {
-      const quote = await storage.getQuote(req.params.id);
-      if (!quote) return res.status(404).json({ error: "Quote not found" });
-      if (quote.status === "invoiced") {
-        return res.status(400).json({ error: "Quote is already invoiced" });
-      }
-      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
-      if (existingSalesOrder) {
-        return res.status(400).json({
-          error: "Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.",
-          salesOrderId: existingSalesOrder.id,
-          salesOrderNumber: existingSalesOrder.orderNumber
-        });
-      }
-      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
-      const invoice = await storage.createInvoice({
-        invoiceNumber,
-        quoteId: quote.id,
-        isMaster: true,
-        masterInvoiceStatus: "draft",
-        paymentStatus: "pending",
-        dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1e3),
-        // Default due date based on validity
-        paidAmount: "0",
-        subtotal: quote.subtotal,
-        discount: quote.discount,
-        cgst: quote.cgst,
-        sgst: quote.sgst,
-        igst: quote.igst,
-        shippingCharges: quote.shippingCharges,
-        total: quote.total,
-        notes: quote.notes,
-        termsAndConditions: quote.termsAndConditions,
-        createdBy: req.user.id
-      });
-      const quoteItems2 = await storage.getQuoteItems(quote.id);
-      for (const item of quoteItems2) {
-        await storage.createInvoiceItem({
-          invoiceId: invoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          fulfilledQuantity: 0,
-          unitPrice: item.unitPrice,
-          subtotal: item.subtotal,
-          status: "pending",
-          sortOrder: item.sortOrder,
-          hsnSac: item.hsnSac
-        });
-      }
-      await storage.updateQuote(quote.id, { status: "invoiced" });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "convert_quote_to_invoice",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      return res.json(invoice);
-    } catch (error) {
-      console.error("Convert quote error:", error);
-      return res.status(500).json({ error: error.message || "Failed to convert quote" });
-    }
-  });
-  app2.put("/api/invoices/:id/master-status", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
-    try {
-      const { masterInvoiceStatus } = req.body;
-      if (!["draft", "confirmed", "locked"].includes(masterInvoiceStatus)) {
-        return res.status(400).json({ error: "Invalid master invoice status" });
-      }
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      if (!invoice.isMaster) {
-        return res.status(400).json({ error: "This is not a master invoice" });
-      }
-      const currentStatus = invoice.masterInvoiceStatus;
-      const validTransitions = {
-        "draft": ["confirmed"],
-        "confirmed": ["locked"],
-        "locked": []
-        // Cannot transition from locked
-      };
-      if (currentStatus && !validTransitions[currentStatus]?.includes(masterInvoiceStatus)) {
-        return res.status(400).json({
-          error: `Cannot transition from ${currentStatus} to ${masterInvoiceStatus}`
-        });
-      }
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
-        masterInvoiceStatus
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: `master_invoice_${masterInvoiceStatus}`,
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      res.json({ success: true, invoice: updatedInvoice });
-    } catch (error) {
-      console.error("Update master invoice status error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update master invoice status" });
-    }
-  });
-  app2.delete("/api/invoices/:id", authMiddleware, requirePermission("invoices", "delete"), async (req, res) => {
-    try {
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "partial") {
-        return res.status(400).json({ error: "Cannot delete invoices with payments. Please cancel instead." });
-      }
       if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
-        if (childInvoices.length > 0) {
-          return res.status(400).json({ error: "Cannot delete master invoice with child invoices" });
-        }
-      }
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
-        status: "cancelled",
-        cancelledAt: /* @__PURE__ */ new Date(),
-        cancelledBy: req.user.id,
-        cancellationReason: "Deleted by user"
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "invoice_deleted",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      res.json({ success: true, message: "Invoice deleted successfully" });
-    } catch (error) {
-      console.error("Delete invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to delete invoice" });
-    }
-  });
-  app2.put("/api/invoices/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
-    try {
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      if (invoice.paymentStatus === "paid") {
-        return res.status(400).json({ error: "Cannot finalize paid invoices" });
-      }
-      if (invoice.status === "cancelled") {
-        return res.status(400).json({ error: "Cannot finalize cancelled invoices" });
-      }
-      if (invoice.isMaster && invoice.masterInvoiceStatus !== "confirmed" && invoice.masterInvoiceStatus !== "locked") {
-        return res.status(400).json({ error: "Master invoice must be confirmed before finalizing" });
-      }
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
-        finalizedAt: /* @__PURE__ */ new Date(),
-        finalizedBy: req.user.id,
-        status: invoice.status === "draft" ? "sent" : invoice.status
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "invoice_finalized",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      res.json({ success: true, invoice: updatedInvoice });
-    } catch (error) {
-      console.error("Finalize invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to finalize invoice" });
-    }
-  });
-  app2.put("/api/invoices/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req, res) => {
-    try {
-      const { isLocked } = req.body;
-      if (typeof isLocked !== "boolean") {
-        return res.status(400).json({ error: "isLocked must be a boolean" });
-      }
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      if (isLocked && !invoice.finalizedAt && invoice.paymentStatus !== "paid") {
-        return res.status(400).json({ error: "Can only lock finalized or paid invoices" });
-      }
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
-        isLocked
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: isLocked ? "invoice_locked" : "invoice_unlocked",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      res.json({ success: true, invoice: updatedInvoice });
-    } catch (error) {
-      console.error("Lock invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to lock/unlock invoice" });
-    }
-  });
-  app2.put("/api/invoices/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req, res) => {
-    try {
-      const { cancellationReason } = req.body;
-      if (!cancellationReason || cancellationReason.trim().length === 0) {
-        return res.status(400).json({ error: "Cancellation reason is required" });
-      }
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      if (invoice.paymentStatus === "paid") {
-        return res.status(400).json({ error: "Cannot cancel fully paid invoices" });
-      }
-      if (invoice.status === "cancelled") {
-        return res.status(400).json({ error: "Invoice is already cancelled" });
-      }
-      if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
-        const paidChildren = childInvoices.filter((c) => c.paymentStatus === "paid");
-        if (paidChildren.length > 0) {
-          return res.status(400).json({ error: "Cannot cancel master invoice with paid child invoices" });
-        }
         for (const child of childInvoices) {
           if (child.paymentStatus !== "paid") {
-            await storage.updateInvoice(child.id, {
+            await reverseStockForInvoice(child.id);
+            await tx.update(invoices).set({
               status: "cancelled",
+              paymentStatus: "cancelled",
               cancelledAt: /* @__PURE__ */ new Date(),
               cancelledBy: req.user.id,
-              cancellationReason: `Parent invoice cancelled: ${cancellationReason}`
-            });
+              cancellationReason: `Parent invoice cancelled: ${cancellationReason}`,
+              updatedAt: /* @__PURE__ */ new Date()
+            }).where(eq4(invoices.id, child.id));
           }
         }
       }
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
+      await reverseStockForInvoice(req.params.id);
+      const [updatedInvoice] = await tx.update(invoices).set({
         status: "cancelled",
+        paymentStatus: "cancelled",
         cancelledAt: /* @__PURE__ */ new Date(),
         cancelledBy: req.user.id,
-        cancellationReason
-      });
-      await storage.createActivityLog({
+        cancellationReason,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq4(invoices.id, req.params.id)).returning();
+      await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "invoice_cancelled",
         entityType: "invoice",
-        entityId: invoice.id
+        entityId: invoice.id,
+        timestamp: /* @__PURE__ */ new Date()
       });
-      res.json({ success: true, invoice: updatedInvoice });
-    } catch (error) {
-      console.error("Cancel invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
+      return updatedInvoice;
+    });
+    res.json({ success: true, invoice: result });
+  } catch (error) {
+    logger.error("Cancel invoice error:", error);
+    return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
+  }
+});
+router7.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
     }
-  });
-  app2.put("/api/invoices/:id/master-details", authMiddleware, requirePermission("invoices", "edit"), async (req, res) => {
-    try {
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
+    if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "partial") {
+      return res.status(400).json({ error: "Cannot delete invoices with payments. Please cancel instead." });
+    }
+    if (invoice.isMaster) {
+      const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+      const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+      if (childInvoices.length > 0) {
+        return res.status(400).json({ error: "Cannot delete master invoice with child invoices" });
       }
-      const isMasterInvoice = invoice.isMaster;
-      const isChildInvoice = !!invoice.parentInvoiceId;
-      const isRegularInvoice = !isMasterInvoice && !isChildInvoice;
-      if (isMasterInvoice) {
-        if (invoice.masterInvoiceStatus === "locked") {
-          return res.status(400).json({
-            error: "Cannot edit a locked master invoice"
-          });
-        }
-      } else if (isChildInvoice || isRegularInvoice) {
-        if (invoice.paymentStatus === "paid") {
-          return res.status(400).json({
-            error: "Cannot edit a paid invoice"
-          });
-        }
-      }
-      const isDraft = isMasterInvoice ? !invoice.masterInvoiceStatus || invoice.masterInvoiceStatus === "draft" : invoice.paymentStatus !== "paid";
-      const updateData = {};
-      if (isDraft) {
-        const editableFields = [
-          "notes",
-          "termsAndConditions",
-          "deliveryNotes",
-          "milestoneDescription",
-          "dueDate",
-          "subtotal",
-          "discount",
-          "cgst",
-          "sgst",
-          "igst",
-          "shippingCharges",
-          "total",
-          "paymentStatus",
-          "paidAmount"
-        ];
-        for (const field of editableFields) {
-          if (req.body[field] !== void 0) {
-            updateData[field] = req.body[field];
-          }
-        }
-        if (req.body.items && Array.isArray(req.body.items)) {
-          if (isChildInvoice && invoice.parentInvoiceId) {
-            const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-            if (masterInvoice) {
-              const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-              const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-              const siblingInvoices = allChildInvoices.filter(
-                (inv) => inv.parentInvoiceId === masterInvoice.id && inv.id !== invoice.id
-              );
-              const invoicedQuantities = {};
-              for (const sibling of siblingInvoices) {
-                const siblingItems = await storage.getInvoiceItems(sibling.id);
-                for (const item of siblingItems) {
-                  const key = item.description;
-                  invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
-                }
-              }
-              for (const newItem of req.body.items) {
-                const masterItem = masterItems.find((mi) => mi.description === newItem.description);
-                if (!masterItem) {
-                  return res.status(400).json({
-                    error: `Item "${newItem.description}" not found in master invoice`
-                  });
-                }
-                const alreadyInvoiced = invoicedQuantities[newItem.description] || 0;
-                const remaining = masterItem.quantity - alreadyInvoiced;
-                if (newItem.quantity > remaining) {
-                  return res.status(400).json({
-                    error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
-                  });
-                }
-              }
-            }
-          }
-          await storage.deleteInvoiceItems(invoice.id);
-          for (const item of req.body.items) {
-            await storage.createInvoiceItem({
-              invoiceId: invoice.id,
-              description: item.description,
-              quantity: item.quantity,
-              fulfilledQuantity: item.fulfilledQuantity || 0,
-              unitPrice: item.unitPrice,
-              subtotal: item.subtotal,
-              serialNumbers: item.serialNumbers || null,
-              status: item.status || "pending",
-              sortOrder: item.sortOrder || 0,
-              hsnSac: item.hsnSac || null
-            });
-          }
-        }
-      } else {
-        const allowedFields = ["notes", "termsAndConditions", "deliveryNotes", "milestoneDescription"];
-        for (const field of allowedFields) {
-          if (req.body[field] !== void 0) {
-            updateData[field] = req.body[field];
-          }
-        }
-      }
-      if (Object.keys(updateData).length === 0 && (!isDraft || !req.body.items)) {
-        return res.status(400).json({ error: "No valid fields to update" });
-      }
-      let updatedInvoice = invoice;
-      if (Object.keys(updateData).length > 0) {
-        updatedInvoice = await storage.updateInvoice(req.params.id, updateData) || invoice;
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_master_invoice",
-        entityType: "invoice",
-        entityId: invoice.id
+    }
+    const updatedInvoice = await storage.updateInvoice(req.params.id, {
+      status: "cancelled",
+      cancelledAt: /* @__PURE__ */ new Date(),
+      cancelledBy: req.user.id,
+      cancellationReason: "Deleted by user"
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "invoice_deleted",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    res.json({ success: true, message: "Invoice deleted successfully" });
+  } catch (error) {
+    logger.error("Delete invoice error:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete invoice" });
+  }
+});
+router7.post("/:id/create-child-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
+  try {
+    const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
+    const masterInvoice = await storage.getInvoice(req.params.id);
+    if (!masterInvoice) {
+      return res.status(404).json({ error: "Master invoice not found" });
+    }
+    if (!masterInvoice.isMaster) {
+      return res.status(400).json({ error: "This is not a master invoice" });
+    }
+    if (masterInvoice.masterInvoiceStatus === "draft") {
+      return res.status(400).json({
+        error: "Master invoice must be confirmed before creating child invoices"
       });
-      return res.json(updatedInvoice);
-    } catch (error) {
-      console.error("Update master invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update master invoice" });
     }
-  });
-  app2.post("/api/invoices/:id/create-child-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
-    try {
-      const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
-      const masterInvoice = await storage.getInvoice(req.params.id);
-      if (!masterInvoice) {
-        return res.status(404).json({ error: "Master invoice not found" });
+    const masterItems = await storage.getInvoiceItems(masterInvoice.id);
+    const allChildInvoices = masterInvoice.quoteId ? await storage.getInvoicesByQuote(masterInvoice.quoteId || "") : await storage.getInvoicesBySalesOrder(masterInvoice.salesOrderId || "");
+    const siblingInvoices = allChildInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
+    const invoicedQuantities = {};
+    for (const sibling of siblingInvoices) {
+      const siblingItems = await storage.getInvoiceItems(sibling.id);
+      for (const item of siblingItems) {
+        const key = item.productId || item.description;
+        invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
       }
-      if (!masterInvoice.isMaster) {
-        return res.status(400).json({ error: "This is not a master invoice" });
-      }
-      if (masterInvoice.masterInvoiceStatus === "draft") {
+    }
+    const processedItems = [];
+    let subtotal = 0;
+    for (const rawItem of items) {
+      const newItem = { ...rawItem };
+      const masterItem = masterItems.find(
+        (mi) => newItem.itemId && mi.id === newItem.itemId || mi.productId && mi.productId === newItem.productId || mi.description === newItem.description
+      );
+      if (!masterItem) {
         return res.status(400).json({
-          error: "Master invoice must be confirmed before creating child invoices"
+          error: `Item "${newItem.description}" not found in master invoice`
         });
       }
-      const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-      const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-      const siblingInvoices = allChildInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-      const invoicedQuantities = {};
-      for (const sibling of siblingInvoices) {
-        const siblingItems = await storage.getInvoiceItems(sibling.id);
-        for (const item of siblingItems) {
-          const key = item.description;
-          invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
-        }
-      }
-      for (const newItem of items) {
-        const masterItem = masterItems.find((mi) => mi.description === newItem.description);
-        if (!masterItem) {
-          return res.status(400).json({
-            error: `Item "${newItem.description}" not found in master invoice`
-          });
-        }
-        const alreadyInvoiced = invoicedQuantities[newItem.description] || 0;
-        const remaining = masterItem.quantity - alreadyInvoiced;
-        if (newItem.quantity > remaining) {
-          return res.status(400).json({
-            error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
-          });
-        }
-      }
-      let subtotal = 0;
-      for (const item of items) {
-        subtotal += Number(item.unitPrice) * item.quantity;
-      }
-      const masterSubtotal = Number(masterInvoice.subtotal);
-      const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
-      const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
-      const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
-      const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
-      const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
-      const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
-      const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
-      const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
-      const childInvoice = await storage.createInvoice({
-        invoiceNumber,
-        parentInvoiceId: masterInvoice.id,
-        quoteId: masterInvoice.quoteId,
-        paymentStatus: "pending",
-        dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
-        paidAmount: "0",
-        subtotal: subtotal.toFixed(2),
-        discount,
-        cgst,
-        sgst,
-        igst,
-        shippingCharges,
-        total: total.toFixed(2),
-        notes: notes || masterInvoice.notes,
-        termsAndConditions: masterInvoice.termsAndConditions,
-        isMaster: false,
-        deliveryNotes: deliveryNotes || null,
-        milestoneDescription: milestoneDescription || null,
-        createdBy: req.user.id
-      });
-      for (const item of items) {
-        await storage.createInvoiceItem({
-          invoiceId: childInvoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          fulfilledQuantity: 0,
-          unitPrice: item.unitPrice,
-          subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
-          status: "pending",
-          sortOrder: item.sortOrder || 0,
-          hsnSac: item.hsnSac || null
+      if (!newItem.unitPrice) newItem.unitPrice = masterItem.unitPrice;
+      if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
+      if (!newItem.productId) newItem.productId = masterItem.productId;
+      const unitPrice = Number(newItem.unitPrice);
+      const quantity = Number(newItem.quantity);
+      if (isNaN(unitPrice)) {
+        return res.status(400).json({
+          error: `Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`
         });
       }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_child_invoice",
-        entityType: "invoice",
-        entityId: childInvoice.id
-      });
-      return res.json(childInvoice);
-    } catch (error) {
-      console.error("Create child invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create child invoice" });
+      const key = newItem.productId || newItem.description;
+      const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
+      const remaining = masterItem.quantity - alreadyInvoiced;
+      if (quantity > remaining) {
+        return res.status(400).json({
+          error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
+        });
+      }
+      subtotal += unitPrice * quantity;
+      processedItems.push(newItem);
     }
-  });
-  app2.get("/api/invoices/:id/master-summary", authMiddleware, async (req, res) => {
-    try {
-      const masterInvoice = await storage.getInvoice(req.params.id);
-      if (!masterInvoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      if (!masterInvoice.isMaster) {
-        return res.status(400).json({ error: "This is not a master invoice" });
-      }
-      const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-      const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-      const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-      const invoicedQuantities = {};
-      const invoicedAmounts = {};
-      for (const child of childInvoices) {
-        const childItems = await storage.getInvoiceItems(child.id);
-        for (const item of childItems) {
-          const key = item.description;
-          invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
-          invoicedAmounts[key] = (invoicedAmounts[key] || 0) + Number(item.subtotal);
-        }
-      }
-      const itemsSummary = masterItems.map((item) => ({
-        id: item.id,
+    const masterSubtotal = Number(masterInvoice.subtotal);
+    const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
+    const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
+    const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
+    const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
+    const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
+    const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
+    const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
+    if (isNaN(total)) {
+      return res.status(500).json({ error: "Calculation resulted in NaN. Check inputs." });
+    }
+    const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
+    const childInvoice = await storage.createInvoice({
+      invoiceNumber,
+      parentInvoiceId: masterInvoice.id,
+      quoteId: masterInvoice.quoteId,
+      clientId: masterInvoice.clientId,
+      paymentStatus: "pending",
+      dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
+      paidAmount: "0",
+      subtotal: subtotal.toFixed(2),
+      discount,
+      cgst,
+      sgst,
+      igst,
+      shippingCharges,
+      total: total.toFixed(2),
+      notes: notes || masterInvoice.notes,
+      termsAndConditions: masterInvoice.termsAndConditions,
+      isMaster: false,
+      deliveryNotes: deliveryNotes || null,
+      milestoneDescription: milestoneDescription || null,
+      createdBy: req.user.id
+    });
+    for (const item of processedItems) {
+      await storage.createInvoiceItem({
+        invoiceId: childInvoice.id,
+        productId: item.productId || null,
         description: item.description,
-        masterQuantity: item.quantity,
-        masterUnitPrice: item.unitPrice,
-        masterSubtotal: item.subtotal,
-        invoicedQuantity: invoicedQuantities[item.description] || 0,
-        invoicedAmount: invoicedAmounts[item.description] || 0,
-        remainingQuantity: item.quantity - (invoicedQuantities[item.description] || 0),
-        remainingAmount: Number(item.subtotal) - (invoicedAmounts[item.description] || 0)
-      }));
-      const totalInvoiced = childInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
-      const totalRemaining = Number(masterInvoice.total) - totalInvoiced;
-      return res.json({
-        masterInvoice: {
-          id: masterInvoice.id,
-          invoiceNumber: masterInvoice.invoiceNumber,
-          status: masterInvoice.masterInvoiceStatus || "draft",
-          total: masterInvoice.total,
-          subtotal: masterInvoice.subtotal,
-          discount: masterInvoice.discount,
-          cgst: masterInvoice.cgst,
-          sgst: masterInvoice.sgst,
-          igst: masterInvoice.igst,
-          shippingCharges: masterInvoice.shippingCharges,
-          createdAt: masterInvoice.createdAt
-        },
-        items: itemsSummary,
-        childInvoices: childInvoices.map((child) => ({
-          id: child.id,
-          invoiceNumber: child.invoiceNumber,
-          total: child.total,
-          paymentStatus: child.paymentStatus,
-          paidAmount: child.paidAmount,
-          createdAt: child.createdAt
-        })),
-        totals: {
-          masterTotal: masterInvoice.total,
-          totalInvoiced: totalInvoiced.toFixed(2),
-          totalRemaining: totalRemaining.toFixed(2),
-          invoicedPercentage: (totalInvoiced / Number(masterInvoice.total) * 100).toFixed(2)
-        }
+        quantity: item.quantity,
+        fulfilledQuantity: 0,
+        unitPrice: item.unitPrice,
+        subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
+        status: "pending",
+        sortOrder: item.sortOrder || 0,
+        hsnSac: item.hsnSac || null
       });
-    } catch (error) {
-      console.error("Get master invoice summary error:", error);
-      return res.status(500).json({ error: error.message || "Failed to get master invoice summary" });
     }
-  });
-  app2.post("/api/quotes/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req, res) => {
-    try {
-      const { recipientEmail, message } = req.body;
-      if (!recipientEmail) {
-        return res.status(400).json({ error: "Recipient email is required" });
-      }
-      const quote = await storage.getQuote(req.params.id);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      const items = await storage.getQuoteItems(quote.id);
-      const creator = await storage.getUser(quote.createdBy);
-      const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const companyAddress = settings2.find((s) => s.key === "company_address")?.value || "";
-      const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
-      const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
-      const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
-      const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
-      const emailSubjectTemplate = settings2.find((s) => s.key === "email_quote_subject")?.value || "Quote {QUOTE_NUMBER} from {COMPANY_NAME}";
-      const emailBodyTemplate = settings2.find((s) => s.key === "email_quote_body")?.value || "Dear {CLIENT_NAME},\n\nPlease find attached quote {QUOTE_NUMBER} for your review.\n\nTotal Amount: {TOTAL}\nValid Until: {VALIDITY_DATE}\n\nBest regards,\n{COMPANY_NAME}";
-      const quoteDate = new Date(quote.quoteDate);
-      const validityDate = new Date(quoteDate);
-      validityDate.setDate(validityDate.getDate() + (quote.validityDays || 30));
-      const variables = {
-        "{COMPANY_NAME}": companyName,
-        "{CLIENT_NAME}": client.name,
-        "{QUOTE_NUMBER}": quote.quoteNumber,
-        "{TOTAL}": `\u20B9${Number(quote.total).toLocaleString()}`,
-        "{VALIDITY_DATE}": validityDate.toLocaleDateString()
-      };
-      let emailSubject = emailSubjectTemplate;
-      let emailBody = emailBodyTemplate;
-      Object.entries(variables).forEach(([key, value]) => {
-        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        emailSubject = emailSubject.replace(new RegExp(escapedKey, "g"), value);
-        emailBody = emailBody.replace(new RegExp(escapedKey, "g"), value);
-      });
-      if (message) {
-        emailBody = `${emailBody}
-
----
-Additional Note:
-${message}`;
-      }
-      const bankDetail = await storage.getActiveBankDetails();
-      const bankName = bankDetail?.bankName || "";
-      const bankAccountNumber = bankDetail?.accountNumber || "";
-      const bankAccountName = bankDetail?.accountName || "";
-      const bankIfscCode = bankDetail?.ifscCode || "";
-      const bankBranch = bankDetail?.branch || "";
-      const bankSwiftCode = bankDetail?.swiftCode || "";
-      const { PassThrough } = await import("stream");
-      const pdfStream = new PassThrough();
-      const pdfPromise = PDFService.generateQuotePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        companyLogo,
-        preparedBy: creator?.name,
-        preparedByEmail: creator?.email,
-        bankDetails: {
-          bankName,
-          accountNumber: bankAccountNumber,
-          accountName: bankAccountName,
-          ifsc: bankIfscCode,
-          branch: bankBranch,
-          swift: bankSwiftCode
-        }
-      }, pdfStream);
-      const chunks = [];
-      pdfStream.on("data", (chunk) => chunks.push(chunk));
-      await new Promise((resolve, reject) => {
-        pdfStream.on("end", resolve);
-        pdfStream.on("error", reject);
-      });
-      await pdfPromise;
-      const pdfBuffer = Buffer.concat(chunks);
-      await EmailService.sendQuoteEmail(
-        recipientEmail,
-        emailSubject,
-        emailBody,
-        pdfBuffer
-      );
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "email_quote",
-        entityType: "quote",
-        entityId: quote.id
-      });
-      return res.json({ success: true, message: "Quote sent successfully" });
-    } catch (error) {
-      console.error("Email quote error:", error);
-      return res.status(500).json({ error: error.message || "Failed to send quote email" });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_child_invoice",
+      entityType: "invoice",
+      entityId: childInvoice.id
+    });
+    return res.json(childInvoice);
+  } catch (error) {
+    logger.error("Create child invoice error:", error);
+    return res.status(500).json({ error: error.message || "Failed to create child invoice" });
+  }
+});
+router7.get("/:id/master-summary", authMiddleware, async (req, res) => {
+  try {
+    const masterInvoice = await storage.getInvoice(req.params.id);
+    if (!masterInvoice) {
+      return res.status(404).json({ error: "Invoice not found" });
     }
-  });
-  app2.get("/api/invoices", requireFeature("invoices_module"), authMiddleware, async (req, res) => {
-    try {
-      const invoices2 = await storage.getAllInvoices();
-      const invoicesWithDetails = await Promise.all(
-        invoices2.map(async (invoice) => {
-          const quote = await storage.getQuote(invoice.quoteId);
-          const client = quote ? await storage.getClient(quote.clientId) : null;
-          return {
-            ...invoice,
-            quoteNumber: quote?.quoteNumber || "",
-            clientName: client?.name || "Unknown",
-            total: invoice.total,
-            // Use invoice's total, not quote's
-            isMaster: invoice.isMaster || false,
-            parentInvoiceId: invoice.parentInvoiceId || null
-          };
-        })
-      );
-      return res.json(invoicesWithDetails);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch invoices" });
+    if (!masterInvoice.isMaster) {
+      return res.status(400).json({ error: "This is not a master invoice" });
     }
-  });
-  app2.get("/api/invoices/:id", requireFeature("invoices_module"), authMiddleware, async (req, res) => {
-    try {
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
+    const masterItems = await storage.getInvoiceItems(masterInvoice.id);
+    const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
+    const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
+    const invoicedQuantities = {};
+    const invoicedAmounts = {};
+    for (const child of childInvoices) {
+      const childItems = await storage.getInvoiceItems(child.id);
+      for (const item of childItems) {
+        const key = item.description;
+        invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
+        invoicedAmounts[key] = (invoicedAmounts[key] || 0) + Number(item.subtotal);
       }
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
+    }
+    const itemsSummary = masterItems.map((item) => ({
+      id: item.id,
+      description: item.description,
+      masterQuantity: item.quantity,
+      masterUnitPrice: item.unitPrice,
+      masterSubtotal: item.subtotal,
+      invoicedQuantity: invoicedQuantities[item.description] || 0,
+      invoicedAmount: invoicedAmounts[item.description] || 0,
+      remainingQuantity: item.quantity - (invoicedQuantities[item.description] || 0),
+      remainingAmount: Number(item.subtotal) - (invoicedAmounts[item.description] || 0)
+    }));
+    const totalInvoiced = childInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
+    const totalRemaining = Number(masterInvoice.total) - totalInvoiced;
+    return res.json({
+      masterInvoice: {
+        id: masterInvoice.id,
+        invoiceNumber: masterInvoice.invoiceNumber,
+        status: masterInvoice.masterInvoiceStatus || "draft",
+        total: masterInvoice.total,
+        subtotal: masterInvoice.subtotal,
+        discount: masterInvoice.discount,
+        cgst: masterInvoice.cgst,
+        sgst: masterInvoice.sgst,
+        igst: masterInvoice.igst,
+        shippingCharges: masterInvoice.shippingCharges,
+        createdAt: masterInvoice.createdAt
+      },
+      items: itemsSummary,
+      childInvoices: childInvoices.map((child) => ({
+        id: child.id,
+        invoiceNumber: child.invoiceNumber,
+        total: child.total,
+        paymentStatus: child.paymentStatus,
+        paidAmount: child.paidAmount,
+        createdAt: child.createdAt
+      })),
+      totals: {
+        masterTotal: masterInvoice.total,
+        totalInvoiced: totalInvoiced.toFixed(2),
+        totalRemaining: totalRemaining.toFixed(2),
+        invoicedPercentage: (totalInvoiced / Number(masterInvoice.total) * 100).toFixed(2)
       }
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
+    });
+  } catch (error) {
+    logger.error("Get master invoice summary error:", error);
+    return res.status(500).json({ error: error.message || "Failed to get master invoice summary" });
+  }
+});
+router7.get("/:id/pdf", authMiddleware, async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const quote = await storage.getQuote(invoice.quoteId || "");
+    if (!quote) {
+      if (!invoice.quoteId) {
       }
-      let items = await storage.getInvoiceItems(invoice.id);
-      const isUsingQuoteItems = !items || items.length === 0;
-      if (isUsingQuoteItems) {
-        const quoteItems2 = await storage.getQuoteItems(quote.id);
-        items = quoteItems2;
-      }
-      const creator = await storage.getUser(quote.createdBy);
-      let childInvoices = [];
-      if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id).map((child) => ({
-          id: child.id,
-          invoiceNumber: child.invoiceNumber,
-          total: child.total,
-          paymentStatus: child.paymentStatus,
-          createdAt: child.createdAt
+    }
+    const client = invoice.clientId ? await storage.getClient(invoice.clientId) : void 0;
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    const items = await storage.getInvoiceItems(invoice.id);
+    const creator = invoice.createdBy ? await storage.getUser(invoice.createdBy) : void 0;
+    let parentInvoice = void 0;
+    if (invoice.parentInvoiceId) {
+      parentInvoice = await storage.getInvoice(invoice.parentInvoiceId);
+    }
+    let childInvoices = [];
+    if (invoice.isMaster) {
+      if (invoice.quoteId) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+        const children = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+        childInvoices = children.map((c) => ({
+          invoiceNumber: c.invoiceNumber,
+          total: c.total,
+          paymentStatus: c.paymentStatus,
+          createdAt: c.createdAt.toISOString()
         }));
       }
-      const invoiceDetail = {
-        ...invoice,
-        quoteNumber: quote.quoteNumber,
-        status: quote.status,
-        isMaster: invoice.isMaster || false,
-        parentInvoiceId: invoice.parentInvoiceId || null,
-        childInvoices,
-        client: {
-          name: client.name,
-          email: client.email,
-          phone: client.phone || "",
-          billingAddress: client.billingAddress || "",
-          gstin: client.gstin || ""
-        },
-        items: items.map((item) => ({
-          id: item.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          subtotal: item.subtotal,
-          fulfilledQuantity: item.fulfilledQuantity || 0,
-          serialNumbers: item.serialNumbers || null,
-          status: item.status || "pending",
-          hsnSac: item.hsnSac || item.hsn_sac || null
-        })),
-        subtotal: invoice.subtotal !== null && invoice.subtotal !== void 0 ? invoice.subtotal : quote.subtotal,
-        discount: invoice.discount !== null && invoice.discount !== void 0 ? invoice.discount : quote.discount,
-        cgst: invoice.cgst !== null && invoice.cgst !== void 0 ? invoice.cgst : quote.cgst,
-        sgst: invoice.sgst !== null && invoice.sgst !== void 0 ? invoice.sgst : quote.sgst,
-        igst: invoice.igst !== null && invoice.igst !== void 0 ? invoice.igst : quote.igst,
-        shippingCharges: invoice.shippingCharges !== null && invoice.shippingCharges !== void 0 ? invoice.shippingCharges : quote.shippingCharges,
-        total: invoice.total !== null && invoice.total !== void 0 ? invoice.total : quote.total,
-        deliveryNotes: invoice.deliveryNotes || null,
-        milestoneDescription: invoice.milestoneDescription || null,
-        createdByName: creator?.name || "Unknown"
-      };
-      return res.json(invoiceDetail);
-    } catch (error) {
-      console.error("Get invoice error:", error);
-      return res.status(500).json({ error: "Failed to fetch invoice" });
     }
-  });
-  app2.put("/api/invoices/:id/payment-status", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
-    try {
-      const { paymentStatus, paidAmount } = req.body;
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
-      }
-      const updateData = {};
-      if (paymentStatus !== void 0) {
-        updateData.paymentStatus = paymentStatus;
-      }
-      if (paidAmount !== void 0) {
-        const numPaidAmount = Number(paidAmount);
-        const totalAmount = invoice.total ? Number(invoice.total) : Number(quote.total);
-        if (numPaidAmount < 0 || numPaidAmount > totalAmount) {
-          return res.status(400).json({ error: "Invalid paid amount" });
-        }
-        updateData.paidAmount = String(numPaidAmount);
-        if (paymentStatus === void 0) {
-          if (numPaidAmount >= totalAmount) {
-            updateData.paymentStatus = "paid";
-          } else if (numPaidAmount > 0) {
-            updateData.paymentStatus = "partial";
-          } else {
-            updateData.paymentStatus = "pending";
-          }
-        }
-      }
-      const updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
-      if (invoice.parentInvoiceId) {
-        const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-        if (masterInvoice) {
-          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-          const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-            const childPaid = child.id === invoice.id ? Number(updateData.paidAmount || 0) : Number(child.paidAmount || 0);
-            return sum + childPaid;
-          }, 0);
-          const masterTotal = Number(masterInvoice.total);
-          let masterPaymentStatus = "pending";
-          if (totalChildPaidAmount >= masterTotal) {
-            masterPaymentStatus = "paid";
-          } else if (totalChildPaidAmount > 0) {
-            masterPaymentStatus = "partial";
-          }
-          await storage.updateInvoice(masterInvoice.id, {
-            paidAmount: String(totalChildPaidAmount),
-            paymentStatus: masterPaymentStatus
-          });
-          if (masterPaymentStatus === "paid") {
-            const quote2 = await storage.getQuote(masterInvoice.quoteId);
-            if (quote2 && quote2.status === "invoiced") {
-              await storage.updateQuote(quote2.id, {
-                status: "closed_paid",
-                closedAt: /* @__PURE__ */ new Date(),
-                closedBy: req.user.id,
-                closureNotes: "Auto-closed: All invoices fully paid"
-              });
-              await storage.createActivityLog({
-                userId: req.user.id,
-                action: "close_quote",
-                entityType: "quote",
-                entityId: quote2.id
-              });
+    const settings2 = await storage.getAllSettings();
+    const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+    const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+    const city = settings2.find((s) => s.key === "company_city")?.value || "";
+    const state = settings2.find((s) => s.key === "company_state")?.value || "";
+    const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+    const country = settings2.find((s) => s.key === "company_country")?.value || "";
+    const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+    const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+    const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+    const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+    const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+    const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+    const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
+    const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
+    const cleanFilename = `Invoice-${invoice.invoiceNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+    await InvoicePDFService.generateInvoicePDF({
+      quote: quote || {},
+      // Handle missing quote
+      client,
+      items,
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyLogo: companyLogo || void 0,
+      preparedBy: creator?.name,
+      userEmail: req.user?.email,
+      companyDetails: {
+        name: companyName,
+        address: companyAddress,
+        phone: companyPhone,
+        email: companyEmail,
+        website: companyWebsite,
+        gstin: companyGSTIN
+      },
+      invoiceNumber: invoice.invoiceNumber,
+      dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
+      paidAmount: invoice.paidAmount || "0",
+      paymentStatus: invoice.paymentStatus || "pending",
+      isMaster: invoice.isMaster || false,
+      // Ensure boolean
+      masterInvoiceStatus: invoice.masterInvoiceStatus || void 0,
+      parentInvoiceNumber: parentInvoice?.invoiceNumber,
+      childInvoices,
+      deliveryNotes: invoice.deliveryNotes || void 0,
+      milestoneDescription: invoice.milestoneDescription || void 0,
+      subtotal: invoice.subtotal || "0",
+      discount: invoice.discount || "0",
+      cgst: invoice.cgst || "0",
+      sgst: invoice.sgst || "0",
+      igst: invoice.igst || "0",
+      shippingCharges: invoice.shippingCharges || "0",
+      total: invoice.total || "0",
+      notes: invoice.notes || void 0,
+      termsAndConditions: invoice.termsAndConditions || void 0,
+      // Fix null vs undefined
+      bankName,
+      // Pass at top level too if required by service (it was in routes.ts)
+      bankAccountNumber,
+      bankAccountName,
+      bankIfscCode,
+      bankBranch,
+      bankSwiftCode
+    }, res);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "export_pdf",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+  } catch (error) {
+    logger.error("Generate invoice PDF error:", error);
+    res.status(500).json({ error: "Failed to generate PDF" });
+  }
+});
+router7.post("/:id/email", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
+  try {
+    const { recipientEmail, message } = req.body;
+    if (!recipientEmail) {
+      return res.status(400).json({ error: "Recipient email is required" });
+    }
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const quote = await storage.getQuote(invoice.quoteId || "");
+    if (!quote) {
+      return res.status(404).json({ error: "Related quote not found" });
+    }
+    const client = await storage.getClient(quote.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    const items = await storage.getInvoiceItems(invoice.id);
+    const creator = await storage.getUser(quote.createdBy);
+    const settings2 = await storage.getAllSettings();
+    const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+    const addr = settings2.find((s) => s.key === "company_address")?.value || "";
+    const city = settings2.find((s) => s.key === "company_city")?.value || "";
+    const state = settings2.find((s) => s.key === "company_state")?.value || "";
+    const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
+    const country = settings2.find((s) => s.key === "company_country")?.value || "";
+    const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+    const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
+    const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
+    const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
+    const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
+    const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
+    const emailSubjectTemplate = settings2.find((s) => s.key === "email_invoice_subject")?.value || "Invoice {INVOICE_NUMBER} from {COMPANY_NAME}";
+    const emailBodyTemplate = settings2.find((s) => s.key === "email_invoice_body")?.value || "Dear {CLIENT_NAME},\\n\\nPlease find attached invoice {INVOICE_NUMBER}.\\n\\nAmount Due: {TOTAL}\\nDue Date: {DUE_DATE}\\n\\nPayment Details:\\n{BANK_DETAILS}\\n\\nBest regards,\\n{COMPANY_NAME}";
+    const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
+    const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
+    const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
+    const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
+    const bankDetailsForEmail = bankName ? `Bank: ${bankName}\\nAccount: ${bankAccountName}\\nAccount Number: ${bankAccountNumber}\\nIFSC: ${bankIfscCode}` : "Contact us for payment details";
+    const variables = {
+      "{COMPANY_NAME}": companyName,
+      "{CLIENT_NAME}": client.name,
+      "{INVOICE_NUMBER}": invoice.invoiceNumber,
+      "{TOTAL}": `\u20B9${Number(invoice.total).toLocaleString()}`,
+      "{OUTSTANDING}": `\u20B9${(Number(invoice.total) - Number(invoice.paidAmount)).toLocaleString()}`,
+      "{DUE_DATE}": invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : (/* @__PURE__ */ new Date()).toLocaleDateString(),
+      "{BANK_DETAILS}": bankDetailsForEmail
+    };
+    let emailSubject = emailSubjectTemplate;
+    let emailBody = emailBodyTemplate;
+    Object.entries(variables).forEach(([key, value]) => {
+      const escapedKey = key.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+      emailSubject = emailSubject.replace(new RegExp(escapedKey, "g"), value);
+      emailBody = emailBody.replace(new RegExp(escapedKey, "g"), value);
+    });
+    if (message) {
+      emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
+    }
+    const { PassThrough } = await import("stream");
+    const pdfStream = new PassThrough();
+    const pdfPromise = InvoicePDFService.generateInvoicePDF({
+      quote,
+      client,
+      items,
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      preparedBy: creator?.name,
+      companyLogo,
+      userEmail: req.user?.email,
+      companyDetails: {
+        name: companyName,
+        address: companyAddress,
+        phone: companyPhone,
+        email: companyEmail,
+        website: companyWebsite,
+        gstin: companyGSTIN
+      },
+      invoiceNumber: invoice.invoiceNumber,
+      dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
+      paidAmount: invoice.paidAmount || "0",
+      paymentStatus: invoice.paymentStatus || "pending",
+      // Add missing invoice fields
+      isMaster: invoice.isMaster,
+      masterInvoiceStatus: invoice.masterInvoiceStatus || void 0,
+      deliveryNotes: invoice.deliveryNotes || void 0,
+      milestoneDescription: invoice.milestoneDescription || void 0,
+      // Use invoice totals (not quote totals)
+      subtotal: invoice.subtotal || "0",
+      discount: invoice.discount || "0",
+      cgst: invoice.cgst || "0",
+      sgst: invoice.sgst || "0",
+      igst: invoice.igst || "0",
+      shippingCharges: invoice.shippingCharges || "0",
+      total: invoice.total || "0",
+      notes: invoice.notes || void 0,
+      termsAndConditions: invoice.termsAndConditions,
+      // Bank details from settings
+      bankName: bankName || void 0,
+      bankAccountNumber: bankAccountNumber || void 0,
+      bankAccountName: bankAccountName || void 0,
+      bankIfscCode: bankIfscCode || void 0,
+      bankBranch: settings2.find((s) => s.key === "bank_branch")?.value || void 0,
+      bankSwiftCode: settings2.find((s) => s.key === "bank_swiftCode")?.value || void 0
+    }, pdfStream);
+    const chunks = [];
+    pdfStream.on("data", (chunk) => chunks.push(chunk));
+    await new Promise((resolve, reject) => {
+      pdfStream.on("end", resolve);
+      pdfStream.on("error", reject);
+    });
+    await pdfPromise;
+    const pdfBuffer = Buffer.concat(chunks);
+    await EmailService.sendInvoiceEmail(
+      recipientEmail,
+      emailSubject,
+      emailBody,
+      pdfBuffer
+    );
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "email_invoice",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    return res.json({ success: true, message: "Invoice sent successfully" });
+  } catch (error) {
+    logger.error("Email invoice error:", error);
+    return res.status(500).json({ error: error.message || "Failed to send invoice email" });
+  }
+});
+router7.post("/:id/payment-reminder", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
+  try {
+    const { recipientEmail, message } = req.body;
+    if (!recipientEmail) {
+      return res.status(400).json({ error: "Recipient email is required" });
+    }
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const quote = await storage.getQuote(invoice.quoteId || "");
+    if (!quote) {
+      return res.status(404).json({ error: "Related quote not found" });
+    }
+    const client = await storage.getClient(quote.clientId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+    const settings2 = await storage.getAllSettings();
+    const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
+    const emailSubjectTemplate = settings2.find((s) => s.key === "email_payment_reminder_subject")?.value || "Payment Reminder: Invoice {INVOICE_NUMBER}";
+    const emailBodyTemplate = settings2.find((s) => s.key === "email_payment_reminder_body")?.value || "Dear {CLIENT_NAME},\\n\\nThis is a friendly reminder that invoice {INVOICE_NUMBER} is due for payment.\\n\\nAmount Due: {OUTSTANDING}\\nDue Date: {DUE_DATE}\\nDays Overdue: {DAYS_OVERDUE}\\n\\nPlease arrange payment at your earliest convenience.\\n\\nBest regards,\\n{COMPANY_NAME}";
+    const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date();
+    const today = /* @__PURE__ */ new Date();
+    const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1e3 * 60 * 60 * 24));
+    const daysOverdueText = daysOverdue > 0 ? `${daysOverdue} days` : "Not overdue";
+    const outstanding = Number(invoice.total) - Number(invoice.paidAmount);
+    const variables = {
+      "{COMPANY_NAME}": companyName,
+      "{CLIENT_NAME}": client.name,
+      "{INVOICE_NUMBER}": invoice.invoiceNumber,
+      "{OUTSTANDING}": `\u20B9${outstanding.toLocaleString()}`,
+      "{TOTAL}": `\u20B9${Number(invoice.total).toLocaleString()}`,
+      "{DUE_DATE}": dueDate.toLocaleDateString(),
+      "{DAYS_OVERDUE}": daysOverdueText
+    };
+    let emailSubject = emailSubjectTemplate;
+    let emailBody = emailBodyTemplate;
+    Object.entries(variables).forEach(([key, value]) => {
+      const escapedKey = key.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+      emailSubject = emailSubject.replace(new RegExp(escapedKey, "g"), value);
+      emailBody = emailBody.replace(new RegExp(escapedKey, "g"), value);
+    });
+    if (message) {
+      emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
+    }
+    await EmailService.sendPaymentReminderEmail(
+      recipientEmail,
+      emailSubject,
+      emailBody
+    );
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "send_payment_reminder",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    return res.json({ success: true, message: "Payment reminder sent successfully" });
+  } catch (error) {
+    logger.error("Payment reminder error:", error);
+    return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
+  }
+});
+router7.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req, res) => {
+  try {
+    const { serialNumbers: serialNumbers2 } = req.body;
+    logger.info(`Updating serial numbers for item ${req.params.itemId} in invoice ${req.params.id}`);
+    logger.info(`Serial numbers count: ${serialNumbers2?.length || 0}`);
+    const invoiceItem = await storage.getInvoiceItem(req.params.itemId);
+    if (!invoiceItem) {
+      return res.status(404).json({ error: "Invoice item not found" });
+    }
+    const updated = await storage.updateInvoiceItem(req.params.itemId, {
+      serialNumbers: JSON.stringify(serialNumbers2),
+      fulfilledQuantity: serialNumbers2.length,
+      status: serialNumbers2.length > 0 ? "fulfilled" : "pending"
+    });
+    if (!updated) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+    const invoice = await storage.getInvoice(req.params.id);
+    if (invoice && invoice.parentInvoiceId) {
+      logger.info(`This is a child invoice. Parent: ${invoice.parentInvoiceId}`);
+      logger.info(`Syncing with master invoice...`);
+      const masterItems = await storage.getInvoiceItems(invoice.parentInvoiceId);
+      const masterItem = masterItems.find(
+        (mi) => mi.description === invoiceItem.description && Number(mi.unitPrice) === Number(invoiceItem.unitPrice)
+      );
+      if (masterItem) {
+        logger.info(`Found master item: ${masterItem.description} (ID: ${masterItem.id})`);
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.parentInvoiceId);
+        const allChildSerialNumbers = [];
+        for (const childInvoice of childInvoices) {
+          const childItems = await storage.getInvoiceItems(childInvoice.id);
+          const matchingChildItem = childItems.find(
+            (ci) => ci.description === masterItem.description && Number(ci.unitPrice) === Number(masterItem.unitPrice)
+          );
+          if (matchingChildItem && matchingChildItem.serialNumbers) {
+            try {
+              const serials = JSON.parse(matchingChildItem.serialNumbers);
+              allChildSerialNumbers.push(...serials);
+            } catch (e) {
+              logger.error("Error parsing serial numbers:", e);
             }
           }
         }
-      } else if (updatedInvoice?.paymentStatus === "paid") {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        const allPaid = allInvoices.every((inv) => inv.paymentStatus === "paid");
-        if (allPaid) {
-          const quote2 = await storage.getQuote(invoice.quoteId);
+        await storage.updateInvoiceItem(masterItem.id, {
+          serialNumbers: allChildSerialNumbers.length > 0 ? JSON.stringify(allChildSerialNumbers) : null,
+          status: masterItem.fulfilledQuantity >= masterItem.quantity ? "fulfilled" : "pending"
+        });
+      }
+    }
+    res.json(updated);
+  } catch (error) {
+    logger.error("Error updating serial numbers:", error);
+    res.status(500).json({ error: "Failed to update serial numbers" });
+  }
+});
+router7.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermission("serial_numbers", "view"), async (req, res) => {
+  try {
+    const { validateSerialNumbers: validateSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
+    const { serials, expectedQuantity } = req.body;
+    const { id: invoiceId, itemId } = req.params;
+    if (!serials || !Array.isArray(serials)) {
+      return res.status(400).json({ error: "Invalid serials array" });
+    }
+    if (typeof expectedQuantity !== "number") {
+      return res.status(400).json({ error: "Expected quantity must be a number" });
+    }
+    const validation = await validateSerialNumbers2(
+      invoiceId,
+      itemId,
+      serials,
+      expectedQuantity,
+      {
+        checkInvoiceScope: true,
+        checkQuoteScope: true,
+        checkSystemWide: true
+      }
+    );
+    return res.json(validation);
+  } catch (error) {
+    logger.error("Error validating serial numbers:", error);
+    return res.status(500).json({ error: error.message || "Failed to validate serial numbers" });
+  }
+});
+router7.get("/:id/serials/permissions", authMiddleware, async (req, res) => {
+  try {
+    const { canEditSerialNumbers: canEditSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
+    const { id: invoiceId } = req.params;
+    const permissions = await canEditSerialNumbers2(req.user.id, invoiceId);
+    return res.json(permissions);
+  } catch (error) {
+    logger.error("Error checking serial edit permissions:", error);
+    return res.status(500).json({ error: error.message || "Failed to check permissions" });
+  }
+});
+var invoices_routes_default = router7;
+
+// server/routes/payments.routes.ts
+init_storage();
+import { Router as Router8 } from "express";
+init_db();
+init_schema();
+import { eq as eq5 } from "drizzle-orm";
+var router8 = Router8();
+router8.put("/invoices/:id/payment-status", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
+  try {
+    const { paymentStatus, paidAmount } = req.body;
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const quote = await storage.getQuote(invoice.quoteId || "");
+    if (!quote) {
+      return res.status(404).json({ error: "Related quote not found" });
+    }
+    const updateData = {};
+    if (paymentStatus !== void 0) {
+      updateData.paymentStatus = paymentStatus;
+    }
+    if (paidAmount !== void 0) {
+      const numPaidAmount = Number(paidAmount);
+      const totalAmount = invoice.total ? Number(invoice.total) : Number(quote.total);
+      if (numPaidAmount < 0 || numPaidAmount > totalAmount) {
+        return res.status(400).json({ error: "Invalid paid amount" });
+      }
+      updateData.paidAmount = String(numPaidAmount);
+      if (paymentStatus === void 0) {
+        if (numPaidAmount >= totalAmount) {
+          updateData.paymentStatus = "paid";
+        } else if (numPaidAmount > 0) {
+          updateData.paymentStatus = "partial";
+        } else {
+          updateData.paymentStatus = "pending";
+        }
+      }
+    }
+    const updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
+    if (invoice.parentInvoiceId) {
+      const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
+      if (masterInvoice) {
+        const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
+        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
+        const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
+          const childPaid = child.id === invoice.id ? Number(updateData.paidAmount || 0) : Number(child.paidAmount || 0);
+          return sum + childPaid;
+        }, 0);
+        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
+        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+        const masterTotal = Number(masterInvoice.total);
+        let masterPaymentStatus = "pending";
+        if (finalMasterPaidAmount >= masterTotal) {
+          masterPaymentStatus = "paid";
+        } else if (finalMasterPaidAmount > 0) {
+          masterPaymentStatus = "partial";
+        }
+        await storage.updateInvoice(masterInvoice.id, {
+          paidAmount: String(finalMasterPaidAmount),
+          paymentStatus: masterPaymentStatus
+        });
+        if (masterPaymentStatus === "paid") {
+          const quote2 = await storage.getQuote(masterInvoice.quoteId || "");
           if (quote2 && quote2.status === "invoiced") {
             await storage.updateQuote(quote2.id, {
               status: "closed_paid",
@@ -9657,667 +10670,1707 @@ ${message}`;
           }
         }
       }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_payment_status",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      return res.json(updatedInvoice);
-    } catch (error) {
-      console.error("Update payment status error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update payment status" });
-    }
-  });
-  app2.post("/api/invoices/:id/payment", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
-    try {
-      const { amount, paymentMethod, transactionId, notes, paymentDate } = req.body;
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ error: "Valid payment amount is required" });
-      }
-      if (!paymentMethod) {
-        return res.status(400).json({ error: "Payment method is required" });
-      }
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
-      }
-      await storage.createPaymentHistory({
-        invoiceId: req.params.id,
-        amount: String(amount),
-        paymentMethod,
-        transactionId: transactionId || void 0,
-        notes: notes || void 0,
-        paymentDate: paymentDate ? new Date(paymentDate) : /* @__PURE__ */ new Date(),
-        recordedBy: req.user.id
-      });
-      const newPaidAmount = Number(invoice.paidAmount) + Number(amount);
-      const totalAmount = Number(invoice.total || quote.total);
-      let newPaymentStatus = invoice.paymentStatus;
-      if (newPaidAmount >= totalAmount) {
-        newPaymentStatus = "paid";
-      } else if (newPaidAmount > 0) {
-        newPaymentStatus = "partial";
-      }
-      const updatedInvoice = await storage.updateInvoice(req.params.id, {
-        paidAmount: String(newPaidAmount),
-        paymentStatus: newPaymentStatus,
-        lastPaymentDate: /* @__PURE__ */ new Date()
-      });
-      if (invoice.parentInvoiceId) {
-        const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-        if (masterInvoice) {
-          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-          const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-            const childPaid = child.id === invoice.id ? newPaidAmount : Number(child.paidAmount || 0);
-            return sum + childPaid;
-          }, 0);
-          const masterTotal = Number(masterInvoice.total);
-          let masterPaymentStatus = "pending";
-          if (totalChildPaidAmount >= masterTotal) {
-            masterPaymentStatus = "paid";
-          } else if (totalChildPaidAmount > 0) {
-            masterPaymentStatus = "partial";
-          }
-          await storage.updateInvoice(masterInvoice.id, {
-            paidAmount: String(totalChildPaidAmount),
-            paymentStatus: masterPaymentStatus,
-            lastPaymentDate: /* @__PURE__ */ new Date()
-          });
-        }
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "record_payment",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      const updatedQuote = await storage.getQuote(invoice.quoteId);
-      if (updatedQuote && updatedQuote.status === "invoiced") {
-        const allInvoicesForQuote = await storage.getInvoicesByQuote(invoice.quoteId);
-        const relevantInvoices = allInvoicesForQuote.filter((inv) => !inv.parentInvoiceId);
-        const allPaid = relevantInvoices.every((inv) => inv.paymentStatus === "paid");
-        if (allPaid && relevantInvoices.length > 0) {
-          await storage.updateQuote(invoice.quoteId, {
+    } else if (updatedInvoice?.paymentStatus === "paid") {
+      const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+      const allPaid = allInvoices.every((inv) => inv.paymentStatus === "paid");
+      if (allPaid) {
+        const quote2 = await storage.getQuote(invoice.quoteId || "");
+        if (quote2 && quote2.status === "invoiced") {
+          await storage.updateQuote(quote2.id, {
             status: "closed_paid",
             closedAt: /* @__PURE__ */ new Date(),
-            closedBy: req.user.id
+            closedBy: req.user.id,
+            closureNotes: "Auto-closed: All invoices fully paid"
           });
           await storage.createActivityLog({
             userId: req.user.id,
             action: "close_quote",
             entityType: "quote",
-            entityId: updatedQuote.id
+            entityId: quote2.id
           });
         }
       }
-      return res.json(updatedInvoice);
-    } catch (error) {
-      console.error("Record payment error:", error);
-      return res.status(500).json({ error: error.message || "Failed to record payment" });
     }
-  });
-  app2.get("/api/invoices/:id/payment-history-detailed", authMiddleware, async (req, res) => {
-    try {
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      console.log(`[Payment History] Fetching for invoice ${req.params.id}, isMaster: ${invoice.isMaster}`);
-      let payments;
-      if (invoice.isMaster) {
-        console.log(`[Payment History] Master invoice detected, aggregating child payments`);
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
-        console.log(`[Payment History] Found ${childInvoices.length} child invoices:`, childInvoices.map((c) => c.id));
-        const childPayments = await Promise.all(
-          childInvoices.map((child) => storage.getPaymentHistory(child.id))
-        );
-        payments = childPayments.flat().sort(
-          (a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()
-        );
-        console.log(`[Payment History] Aggregated ${payments.length} payments from children`);
-      } else {
-        payments = await storage.getPaymentHistory(req.params.id);
-        console.log(`[Payment History] Regular/child invoice, found ${payments.length} payments`);
-      }
-      const enrichedPayments = await Promise.all(
-        payments.map(async (payment) => {
-          const user = await storage.getUser(payment.recordedBy);
-          return {
-            ...payment,
-            recordedByName: user?.name || "Unknown"
-          };
-        })
-      );
-      console.log(`[Payment History] Returning ${enrichedPayments.length} enriched payments`);
-      return res.json(enrichedPayments);
-    } catch (error) {
-      console.error("Fetch payment history error:", error);
-      return res.status(500).json({ error: "Failed to fetch payment history" });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_payment_status",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    return res.json(updatedInvoice);
+  } catch (error) {
+    logger.error("Update payment status error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update payment status" });
+  }
+});
+router8.post("/invoices/:id/payment", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
+  try {
+    const { amount, paymentMethod, transactionId, notes, paymentDate } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Valid payment amount is required" });
     }
-  });
-  app2.get("/api/invoices/:id/payment-history", authMiddleware, async (req, res) => {
-    try {
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
+    if (!paymentMethod) {
+      return res.status(400).json({ error: "Payment method is required" });
+    }
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const quote = await storage.getQuote(invoice.quoteId || "");
+    if (!quote) {
+      return res.status(404).json({ error: "Related quote not found" });
+    }
+    const result = await db.transaction(async (tx) => {
+      const [paymentRecord] = await tx.insert(paymentHistory).values({
+        invoiceId: req.params.id,
+        amount: String(amount),
+        paymentMethod,
+        transactionId: transactionId || null,
+        notes: notes || null,
+        paymentDate: paymentDate ? new Date(paymentDate) : /* @__PURE__ */ new Date(),
+        recordedBy: req.user.id
+      }).returning();
+      const newPaidAmount = add(invoice.paidAmount, amount);
+      const totalAmount = toDecimal(invoice.total || quote.total);
+      console.log(`[DEBUG_PAYMENT] paidAmount=${invoice.paidAmount}, amount=${amount}, newPaid=${newPaidAmount.toString()}, total=${totalAmount.toString()}`);
+      if (moneyGt(newPaidAmount, totalAmount)) {
+        console.log(`[DEBUG_PAYMENT] FAIL: newPaid > total`);
+        throw new Error("Payment amount exceeds total invoice amount");
       }
-      const history = [];
-      if (invoice.paymentNotes) {
-        const entries = invoice.paymentNotes.split("\n").filter((e) => e.trim());
-        for (const entry of entries) {
-          const match = entry.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z): (.+)$/);
-          if (match) {
-            history.push({
-              date: match[1],
-              note: match[2]
+      const newRemainingAmount = subtract(totalAmount, newPaidAmount);
+      let newPaymentStatus = invoice.paymentStatus || "pending";
+      if (moneyGte(newPaidAmount, totalAmount)) {
+        newPaymentStatus = "paid";
+      } else if (moneyGt(newPaidAmount, 0)) {
+        newPaymentStatus = "partial";
+      }
+      const [updatedInvoice] = await tx.update(invoices).set({
+        paidAmount: toMoneyString(newPaidAmount),
+        remainingAmount: toMoneyString(newRemainingAmount),
+        paymentStatus: newPaymentStatus,
+        lastPaymentDate: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq5(invoices.id, req.params.id)).returning();
+      if (invoice.parentInvoiceId) {
+        const [masterInvoice] = await tx.select().from(invoices).where(eq5(invoices.id, invoice.parentInvoiceId));
+        if (masterInvoice) {
+          const childInvoices = await tx.select().from(invoices).where(eq5(invoices.parentInvoiceId, masterInvoice.id));
+          let totalChildPaidAmount = toDecimal(0);
+          for (const child of childInvoices) {
+            const childPaid = child.id === invoice.id ? newPaidAmount : toDecimal(child.paidAmount);
+            totalChildPaidAmount = totalChildPaidAmount.plus(childPaid);
+          }
+          const masterDirectPayments = await tx.select().from(paymentHistory).where(eq5(paymentHistory.invoiceId, masterInvoice.id));
+          let totalMasterDirect = toDecimal(0);
+          for (const p of masterDirectPayments) {
+            totalMasterDirect = totalMasterDirect.plus(toDecimal(p.amount));
+          }
+          const finalMasterPaidAmount = totalChildPaidAmount.plus(totalMasterDirect);
+          const masterTotal = toDecimal(masterInvoice.total);
+          let masterPaymentStatus = "pending";
+          if (moneyGte(finalMasterPaidAmount, masterTotal)) {
+            masterPaymentStatus = "paid";
+          } else if (moneyGt(finalMasterPaidAmount, 0)) {
+            masterPaymentStatus = "partial";
+          }
+          await tx.update(invoices).set({
+            paidAmount: toMoneyString(finalMasterPaidAmount),
+            paymentStatus: masterPaymentStatus,
+            lastPaymentDate: /* @__PURE__ */ new Date(),
+            updatedAt: /* @__PURE__ */ new Date()
+          }).where(eq5(invoices.id, masterInvoice.id));
+        }
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "record_payment",
+        entityType: "invoice",
+        entityId: invoice.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      if (invoice.quoteId) {
+        const [currentQuote] = await tx.select().from(quotes).where(eq5(quotes.id, invoice.quoteId));
+        if (currentQuote && currentQuote.status === "invoiced") {
+          const allInvoicesForQuote = await tx.select().from(invoices).where(eq5(invoices.quoteId, invoice.quoteId));
+          const relevantInvoices = allInvoicesForQuote.filter((inv) => !inv.parentInvoiceId);
+          const allPaid = relevantInvoices.every((inv) => inv.paymentStatus === "paid");
+          if (allPaid && relevantInvoices.length > 0) {
+            await tx.update(quotes).set({
+              status: "closed_paid",
+              closedAt: /* @__PURE__ */ new Date(),
+              closedBy: req.user.id,
+              updatedAt: /* @__PURE__ */ new Date()
+            }).where(eq5(quotes.id, invoice.quoteId));
+            await tx.insert(activityLogs).values({
+              userId: req.user.id,
+              action: "close_quote",
+              entityType: "quote",
+              entityId: currentQuote.id,
+              timestamp: /* @__PURE__ */ new Date()
             });
           }
         }
       }
-      return res.json({
-        invoiceId: invoice.id,
-        paidAmount: invoice.paidAmount,
-        lastPaymentDate: invoice.lastPaymentDate,
-        history
-      });
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch payment history" });
+      return updatedInvoice;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Record payment error:", error);
+    return res.status(500).json({ error: error.message || "Failed to record payment" });
+  }
+});
+router8.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
     }
-  });
-  app2.delete("/api/payment-history/:id", authMiddleware, async (req, res) => {
-    try {
-      const payment = await storage.getPaymentById(req.params.id);
-      if (!payment) {
-        return res.status(404).json({ error: "Payment record not found" });
+    logger.info(`[Payment History] Fetching for invoice ${req.params.id}, isMaster: ${invoice.isMaster}`);
+    let payments;
+    if (invoice.isMaster) {
+      let childInvoices = [];
+      if (invoice.quoteId) {
+        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+        childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
+      } else if (invoice.salesOrderId) {
+        const allInvoices = await storage.getInvoicesBySalesOrder(invoice.salesOrderId);
+        childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id);
       }
-      const invoice = await storage.getInvoice(payment.invoiceId);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
-      }
-      await storage.deletePaymentHistory(req.params.id);
-      const allPayments = await storage.getPaymentHistory(payment.invoiceId);
-      const newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-      const totalAmount = Number(invoice.total || quote.total);
-      let newPaymentStatus = "pending";
-      if (newPaidAmount >= totalAmount) {
-        newPaymentStatus = "paid";
-      } else if (newPaidAmount > 0) {
-        newPaymentStatus = "partial";
-      }
-      const lastPayment = allPayments[0];
-      await storage.updateInvoice(payment.invoiceId, {
-        paidAmount: String(newPaidAmount),
-        paymentStatus: newPaymentStatus,
-        lastPaymentDate: lastPayment?.paymentDate || null
-      });
-      if (invoice.parentInvoiceId) {
-        const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-        if (masterInvoice) {
-          const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-          const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-            const childPaid = child.id === invoice.id ? newPaidAmount : Number(child.paidAmount || 0);
-            return sum + childPaid;
-          }, 0);
-          const masterTotal = Number(masterInvoice.total);
-          let masterPaymentStatus = "pending";
-          if (totalChildPaidAmount >= masterTotal) {
-            masterPaymentStatus = "paid";
-          } else if (totalChildPaidAmount > 0) {
-            masterPaymentStatus = "partial";
-          }
-          await storage.updateInvoice(masterInvoice.id, {
-            paidAmount: String(totalChildPaidAmount),
-            paymentStatus: masterPaymentStatus,
-            lastPaymentDate: totalChildPaidAmount > 0 ? /* @__PURE__ */ new Date() : null
+      logger.info(`[Payment History] Found ${childInvoices.length} child invoices:`, childInvoices.map((c) => c.id));
+      const childPayments = await Promise.all(
+        childInvoices.map((child) => storage.getPaymentHistory(child.id))
+      );
+      const masterDirectPayments = await storage.getPaymentHistory(invoice.id);
+      payments = [...masterDirectPayments, ...childPayments.flat()].sort(
+        (a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()
+      );
+      logger.info(`[Payment History] Aggregated ${payments.length} payments from children and master directly`);
+    } else {
+      payments = await storage.getPaymentHistory(req.params.id);
+      logger.info(`[Payment History] Regular/child invoice, found ${payments.length} payments`);
+    }
+    const enrichedPayments = await Promise.all(
+      payments.map(async (payment) => {
+        const user = await storage.getUser(payment.recordedBy);
+        return {
+          ...payment,
+          recordedByName: user?.name || "Unknown"
+        };
+      })
+    );
+    logger.info(`[Payment History] Returning ${enrichedPayments.length} enriched payments`);
+    return res.json(enrichedPayments);
+  } catch (error) {
+    logger.error("Fetch payment history error:", error);
+    return res.status(500).json({ error: "Failed to fetch payment history" });
+  }
+});
+router8.get("/invoices/:id/payment-history", authMiddleware, async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const history = [];
+    if (invoice.paymentNotes) {
+      const entries = invoice.paymentNotes.split("\n").filter((e) => e.trim());
+      for (const entry of entries) {
+        const match = entry.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z): (.+)$/);
+        if (match) {
+          history.push({
+            date: match[1],
+            note: match[2]
           });
         }
       }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_payment",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Delete payment error:", error);
-      return res.status(500).json({ error: error.message || "Failed to delete payment" });
     }
-  });
-  app2.get("/api/quotes/:id/pdf", authMiddleware, async (req, res) => {
-    console.log(`[PDF Export START] Received request for quote: ${req.params.id}`);
-    try {
-      const quote = await storage.getQuote(req.params.id);
-      console.log(`[PDF Export] Found quote: ${quote?.quoteNumber}`);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      const items = await storage.getQuoteItems(quote.id);
-      const creator = await storage.getUser(quote.createdBy);
-      const settings2 = await storage.getAllSettings();
-      console.log("Available settings keys:", settings2.map((s) => s.key));
-      const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
-      const addr = settings2.find((s) => s.key === "company_address")?.value || "";
-      const city = settings2.find((s) => s.key === "company_city")?.value || "";
-      const state = settings2.find((s) => s.key === "company_state")?.value || "";
-      const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
-      const country = settings2.find((s) => s.key === "company_country")?.value || "";
-      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
-      const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
-      const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
-      const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
-      const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
-      console.log("Company Logo found:", !!companyLogo, "Length:", companyLogo?.length);
-      const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
-      const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
-      const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
-      const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
-      const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
-      const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
-      console.error("!!! DEBUG BANK DETAILS !!!", {
-        bankName,
-        bankAccountNumber,
-        bankAccountName,
-        bankIfscCode
-      });
-      const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Length", "");
-      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      console.log(`[PDF Export] Quote #${quote.quoteNumber}`);
-      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
-      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      console.log(`[PDF Export] About to generate PDF`);
-      await PDFService.generateQuotePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        companyLogo,
-        preparedBy: creator?.name,
-        preparedByEmail: creator?.email,
-        bankDetails: {
-          bankName,
-          accountNumber: bankAccountNumber,
-          accountName: bankAccountName,
-          ifsc: bankIfscCode,
-          branch: bankBranch,
-          swift: bankSwiftCode
-        }
-      }, res);
-      console.log(`[PDF Export] PDF stream piped successfully`);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "export_pdf",
-        entityType: "quote",
-        entityId: quote.id
-      });
-      console.log(`[PDF Export COMPLETE] Quote PDF exported successfully: ${quote.quoteNumber}`);
-    } catch (error) {
-      console.error("[PDF Export ERROR]", error);
-      return res.status(500).json({ error: error.message || "Failed to generate PDF" });
+    return res.json({
+      invoiceId: invoice.id,
+      paidAmount: invoice.paidAmount,
+      lastPaymentDate: invoice.lastPaymentDate,
+      history
+    });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch payment history" });
+  }
+});
+router8.delete("/payment-history/:id", authMiddleware, async (req, res) => {
+  try {
+    const payment = await storage.getPaymentById(req.params.id);
+    if (!payment) {
+      return res.status(404).json({ error: "Payment record not found" });
     }
-  });
-  app2.get("/api/invoices/:id/pdf", authMiddleware, async (req, res) => {
-    try {
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
-      }
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      let items = await storage.getInvoiceItems(invoice.id);
-      if (!items || items.length === 0) {
-        const quoteItems2 = await storage.getQuoteItems(quote.id);
-        items = quoteItems2;
-      }
-      const creator = await storage.getUser(quote.createdBy);
-      let parentInvoice = null;
-      if (invoice.parentInvoiceId) {
-        parentInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-      }
+    const invoice = await storage.getInvoice(payment.invoiceId);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const quote = await storage.getQuote(invoice.quoteId || "");
+    if (!quote) {
+      return res.status(404).json({ error: "Related quote not found" });
+    }
+    await storage.deletePaymentHistory(req.params.id);
+    const allPayments = await storage.getPaymentHistory(payment.invoiceId);
+    let newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    if (invoice.isMaster) {
       let childInvoices = [];
-      if (invoice.isMaster) {
-        const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-        childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.id).map((child) => ({
-          invoiceNumber: child.invoiceNumber,
-          total: child.total,
-          paymentStatus: child.paymentStatus,
-          createdAt: child.createdAt
-        }));
+      if (invoice.quoteId) {
+        const allInv = await storage.getInvoicesByQuote(invoice.quoteId);
+        childInvoices = allInv.filter((inv) => inv.parentInvoiceId === invoice.id);
+      } else if (invoice.salesOrderId) {
+        const allInv = await storage.getInvoicesBySalesOrder(invoice.salesOrderId);
+        childInvoices = allInv.filter((inv) => inv.parentInvoiceId === invoice.id);
       }
-      const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
-      const addr = settings2.find((s) => s.key === "company_address")?.value || "";
-      const city = settings2.find((s) => s.key === "company_city")?.value || "";
-      const state = settings2.find((s) => s.key === "company_state")?.value || "";
-      const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
-      const country = settings2.find((s) => s.key === "company_country")?.value || "";
-      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
-      const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
-      const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
-      const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
-      const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
-      const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
-      const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
-      const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
-      const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
-      const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
-      const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
-      const cleanFilename = `Invoice-${invoice.invoiceNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Length", "");
-      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      console.log(`[PDF Export] Invoice #${invoice.invoiceNumber}`);
-      console.log(`[PDF Export] Clean filename: ${cleanFilename}`);
-      console.log(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-      await InvoicePDFService.generateInvoicePDF({
-        quote,
-        client,
-        items,
-        // Type cast to handle both invoice items and quote items
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        preparedBy: creator?.name,
-        companyLogo,
-        userEmail: req.user?.email,
-        companyDetails: {
-          name: companyName,
-          address: companyAddress,
-          phone: companyPhone,
-          email: companyEmail,
-          website: companyWebsite,
-          gstin: companyGSTIN
-        },
-        invoiceNumber: invoice.invoiceNumber,
-        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
-        paidAmount: invoice.paidAmount || "0",
-        paymentStatus: invoice.paymentStatus || "pending",
-        // Master/Child invoice specific fields
-        isMaster: invoice.isMaster,
-        masterInvoiceStatus: invoice.masterInvoiceStatus || void 0,
-        parentInvoiceNumber: parentInvoice?.invoiceNumber,
-        childInvoices,
-        deliveryNotes: invoice.deliveryNotes || void 0,
-        milestoneDescription: invoice.milestoneDescription || void 0,
-        // Use invoice totals (not quote totals)
-        subtotal: invoice.subtotal || "0",
-        discount: invoice.discount || "0",
-        cgst: invoice.cgst || "0",
-        sgst: invoice.sgst || "0",
-        igst: invoice.igst || "0",
-        shippingCharges: invoice.shippingCharges || "0",
-        total: invoice.total || "0",
-        notes: invoice.notes || void 0,
-        termsAndConditions: invoice.termsAndConditions,
-        // Bank details
-        bankName,
-        bankAccountNumber,
-        bankAccountName,
-        bankIfscCode,
-        bankBranch,
-        bankSwiftCode
-      }, res);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "export_pdf",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-    } catch (error) {
-      console.error("PDF export error:", error);
-      return res.status(500).json({ error: error.message || "Failed to generate PDF" });
+      const childTotal = childInvoices.reduce((sum, c) => sum + Number(c.paidAmount || 0), 0);
+      newPaidAmount += childTotal;
     }
-  });
-  app2.post("/api/invoices/:id/email", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
-    try {
-      const { recipientEmail, message } = req.body;
-      if (!recipientEmail) {
-        return res.status(400).json({ error: "Recipient email is required" });
+    const totalAmount = Number(invoice.total || quote.total);
+    let newPaymentStatus = "pending";
+    if (newPaidAmount >= totalAmount) {
+      newPaymentStatus = "paid";
+    } else if (newPaidAmount > 0) {
+      newPaymentStatus = "partial";
+    }
+    const lastPayment = allPayments[0];
+    await storage.updateInvoice(payment.invoiceId, {
+      paidAmount: String(newPaidAmount),
+      paymentStatus: newPaymentStatus,
+      lastPaymentDate: lastPayment?.paymentDate || null
+    });
+    if (invoice.parentInvoiceId) {
+      const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
+      if (masterInvoice) {
+        const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
+        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
+        const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
+          const childPaid = child.id === invoice.id ? newPaidAmount : Number(child.paidAmount || 0);
+          return sum + childPaid;
+        }, 0);
+        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
+        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+        const masterTotal = Number(masterInvoice.total);
+        let masterPaymentStatus = "pending";
+        if (finalMasterPaidAmount >= masterTotal) {
+          masterPaymentStatus = "paid";
+        } else if (finalMasterPaidAmount > 0) {
+          masterPaymentStatus = "partial";
+        }
+        await storage.updateInvoice(masterInvoice.id, {
+          paidAmount: String(finalMasterPaidAmount),
+          paymentStatus: masterPaymentStatus,
+          lastPaymentDate: finalMasterPaidAmount > 0 ? /* @__PURE__ */ new Date() : null
+        });
       }
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
-      }
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      const items = await storage.getQuoteItems(quote.id);
-      const creator = await storage.getUser(quote.createdBy);
-      const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
-      const addr = settings2.find((s) => s.key === "company_address")?.value || "";
-      const city = settings2.find((s) => s.key === "company_city")?.value || "";
-      const state = settings2.find((s) => s.key === "company_state")?.value || "";
-      const zip = settings2.find((s) => s.key === "company_zipCode")?.value || "";
-      const country = settings2.find((s) => s.key === "company_country")?.value || "";
-      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
-      const companyPhone = settings2.find((s) => s.key === "company_phone")?.value || "";
-      const companyEmail = settings2.find((s) => s.key === "company_email")?.value || "";
-      const companyWebsite = settings2.find((s) => s.key === "company_website")?.value || "";
-      const companyGSTIN = settings2.find((s) => s.key === "company_gstin")?.value || "";
-      const companyLogo = settings2.find((s) => s.key === "company_logo")?.value;
-      const emailSubjectTemplate = settings2.find((s) => s.key === "email_invoice_subject")?.value || "Invoice {INVOICE_NUMBER} from {COMPANY_NAME}";
-      const emailBodyTemplate = settings2.find((s) => s.key === "email_invoice_body")?.value || "Dear {CLIENT_NAME},\n\nPlease find attached invoice {INVOICE_NUMBER}.\n\nAmount Due: {TOTAL}\nDue Date: {DUE_DATE}\n\nPayment Details:\n{BANK_DETAILS}\n\nBest regards,\n{COMPANY_NAME}";
-      const bankName = settings2.find((s) => s.key === "bank_bankName")?.value || "";
-      const bankAccountNumber = settings2.find((s) => s.key === "bank_accountNumber")?.value || "";
-      const bankAccountName = settings2.find((s) => s.key === "bank_accountName")?.value || "";
-      const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
-      const bankDetailsForEmail = bankName ? `Bank: ${bankName}
-Account: ${bankAccountName}
-Account Number: ${bankAccountNumber}
-IFSC: ${bankIfscCode}` : "Contact us for payment details";
-      const variables = {
-        "{COMPANY_NAME}": companyName,
-        "{CLIENT_NAME}": client.name,
-        "{INVOICE_NUMBER}": invoice.invoiceNumber,
-        "{TOTAL}": `\u20B9${Number(invoice.total).toLocaleString()}`,
-        "{OUTSTANDING}": `\u20B9${(Number(invoice.total) - Number(invoice.paidAmount)).toLocaleString()}`,
-        "{DUE_DATE}": invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : (/* @__PURE__ */ new Date()).toLocaleDateString(),
-        "{BANK_DETAILS}": bankDetailsForEmail
-      };
-      let emailSubject = emailSubjectTemplate;
-      let emailBody = emailBodyTemplate;
-      Object.entries(variables).forEach(([key, value]) => {
-        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        emailSubject = emailSubject.replace(new RegExp(escapedKey, "g"), value);
-        emailBody = emailBody.replace(new RegExp(escapedKey, "g"), value);
-      });
-      if (message) {
-        emailBody = `${emailBody}
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_payment",
+      entityType: "invoice",
+      entityId: invoice.id
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Delete payment error:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete payment" });
+  }
+});
+var payments_routes_default = router8;
 
----
-Additional Note:
-${message}`;
-      }
-      const { PassThrough } = await import("stream");
-      const pdfStream = new PassThrough();
-      const pdfPromise = InvoicePDFService.generateInvoicePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        preparedBy: creator?.name,
-        companyLogo,
-        userEmail: req.user?.email,
-        companyDetails: {
-          name: companyName,
-          address: companyAddress,
-          phone: companyPhone,
-          email: companyEmail,
-          website: companyWebsite,
-          gstin: companyGSTIN
-        },
-        invoiceNumber: invoice.invoiceNumber,
-        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date(),
-        paidAmount: invoice.paidAmount || "0",
-        paymentStatus: invoice.paymentStatus || "pending",
-        // Add missing invoice fields
-        isMaster: invoice.isMaster,
-        masterInvoiceStatus: invoice.masterInvoiceStatus || void 0,
-        deliveryNotes: invoice.deliveryNotes || void 0,
-        milestoneDescription: invoice.milestoneDescription || void 0,
-        // Use invoice totals (not quote totals)
-        subtotal: invoice.subtotal || "0",
-        discount: invoice.discount || "0",
-        cgst: invoice.cgst || "0",
-        sgst: invoice.sgst || "0",
-        igst: invoice.igst || "0",
-        shippingCharges: invoice.shippingCharges || "0",
-        total: invoice.total || "0",
-        notes: invoice.notes || void 0,
-        termsAndConditions: invoice.termsAndConditions,
-        // Bank details from dedicated table
-        // Bank details from settings
-        bankName: bankName || void 0,
-        bankAccountNumber: bankAccountNumber || void 0,
-        bankAccountName: bankAccountName || void 0,
-        bankIfscCode: bankIfscCode || void 0,
-        bankBranch: settings2.find((s) => s.key === "bank_branch")?.value || void 0,
-        bankSwiftCode: settings2.find((s) => s.key === "bank_swiftCode")?.value || void 0
-      }, pdfStream);
-      const chunks = [];
-      pdfStream.on("data", (chunk) => chunks.push(chunk));
-      await new Promise((resolve, reject) => {
-        pdfStream.on("end", resolve);
-        pdfStream.on("error", reject);
-      });
-      await pdfPromise;
-      const pdfBuffer = Buffer.concat(chunks);
-      await EmailService.sendInvoiceEmail(
-        recipientEmail,
-        emailSubject,
-        emailBody,
-        pdfBuffer
-      );
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "email_invoice",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      return res.json({ success: true, message: "Invoice sent successfully" });
-    } catch (error) {
-      console.error("Email invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to send invoice email" });
+// server/routes/products.routes.ts
+import { Router as Router9 } from "express";
+init_db();
+init_schema();
+import { eq as eq6 } from "drizzle-orm";
+var router9 = Router9();
+router9.get("/", authMiddleware, async (req, res) => {
+  try {
+    const products2 = await db.select().from(products).orderBy(products.name);
+    res.json(products2);
+  } catch (error) {
+    logger.error("Error fetching products:", error);
+    res.status(500).json({ error: "Failed to fetch products" });
+  }
+});
+router9.get("/:id", authMiddleware, async (req, res) => {
+  try {
+    const [product] = await db.select().from(products).where(eq6(products.id, req.params.id));
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
     }
-  });
-  app2.post("/api/invoices/:id/payment-reminder", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
-    try {
-      const { recipientEmail, message } = req.body;
-      if (!recipientEmail) {
-        return res.status(400).json({ error: "Recipient email is required" });
-      }
-      const invoice = await storage.getInvoice(req.params.id);
-      if (!invoice) {
-        return res.status(404).json({ error: "Invoice not found" });
-      }
-      const quote = await storage.getQuote(invoice.quoteId);
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
-      }
-      const client = await storage.getClient(quote.clientId);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      const settings2 = await storage.getAllSettings();
-      const companyName = settings2.find((s) => s.key === "company_name")?.value || "OPTIVALUE TEK";
-      const emailSubjectTemplate = settings2.find((s) => s.key === "email_payment_reminder_subject")?.value || "Payment Reminder: Invoice {INVOICE_NUMBER}";
-      const emailBodyTemplate = settings2.find((s) => s.key === "email_payment_reminder_body")?.value || "Dear {CLIENT_NAME},\n\nThis is a friendly reminder that invoice {INVOICE_NUMBER} is due for payment.\n\nAmount Due: {OUTSTANDING}\nDue Date: {DUE_DATE}\nDays Overdue: {DAYS_OVERDUE}\n\nPlease arrange payment at your earliest convenience.\n\nBest regards,\n{COMPANY_NAME}";
-      const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : /* @__PURE__ */ new Date();
-      const today = /* @__PURE__ */ new Date();
-      const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1e3 * 60 * 60 * 24));
-      const daysOverdueText = daysOverdue > 0 ? `${daysOverdue} days` : "Not overdue";
-      const outstanding = Number(invoice.total) - Number(invoice.paidAmount);
-      const variables = {
-        "{COMPANY_NAME}": companyName,
-        "{CLIENT_NAME}": client.name,
-        "{INVOICE_NUMBER}": invoice.invoiceNumber,
-        "{OUTSTANDING}": `\u20B9${outstanding.toLocaleString()}`,
-        "{TOTAL}": `\u20B9${Number(invoice.total).toLocaleString()}`,
-        "{DUE_DATE}": dueDate.toLocaleDateString(),
-        "{DAYS_OVERDUE}": daysOverdueText
-      };
-      let emailSubject = emailSubjectTemplate;
-      let emailBody = emailBodyTemplate;
-      Object.entries(variables).forEach(([key, value]) => {
-        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        emailSubject = emailSubject.replace(new RegExp(escapedKey, "g"), value);
-        emailBody = emailBody.replace(new RegExp(escapedKey, "g"), value);
-      });
-      if (message) {
-        emailBody = `${emailBody}
+    res.json(product);
+  } catch (error) {
+    logger.error("Error fetching product:", error);
+    res.status(500).json({ error: "Failed to fetch product" });
+  }
+});
+router9.post("/", authMiddleware, async (req, res) => {
+  try {
+    if (req.body && typeof req.body.unitPrice === "number") {
+      req.body.unitPrice = String(req.body.unitPrice);
+    }
+    const parseResult = insertProductSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: parseResult.error.errors });
+    }
+    const validatedData = parseResult.data;
+    const stockQuantity = validatedData.stockQuantity || 0;
+    const initialAvailable = validatedData.availableQuantity !== void 0 ? validatedData.availableQuantity : stockQuantity;
+    const [product] = await db.insert(products).values({
+      ...validatedData,
+      stockQuantity,
+      availableQuantity: initialAvailable,
+      createdBy: req.user.id
+    }).returning();
+    res.json(product);
+  } catch (error) {
+    logger.error("Error creating product:", error);
+    res.status(500).json({ error: "Failed to create product" });
+  }
+});
+router9.patch("/:id", authMiddleware, async (req, res) => {
+  try {
+    const [updated] = await db.update(products).set({ ...req.body, updatedAt: /* @__PURE__ */ new Date() }).where(eq6(products.id, req.params.id)).returning();
+    if (!updated) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    res.json(updated);
+  } catch (error) {
+    logger.error("Error updating product:", error);
+    res.status(500).json({ error: "Failed to update product" });
+  }
+});
+var products_routes_default = router9;
 
----
-Additional Note:
-${message}`;
+// server/routes/vendors.routes.ts
+import { Router as Router10 } from "express";
+init_storage();
+init_db();
+init_schema();
+init_numbering_service();
+init_feature_flags();
+import { eq as eq7, sql as sql9, desc as desc2 } from "drizzle-orm";
+var router10 = Router10();
+router10.get("/vendors", authMiddleware, async (req, res) => {
+  try {
+    const vendors2 = await storage.getAllVendors();
+    res.json(vendors2);
+  } catch (error) {
+    logger.error("Error fetching vendors:", error);
+    res.status(500).json({ error: "Failed to fetch vendors" });
+  }
+});
+router10.get("/vendors/:id", authMiddleware, async (req, res) => {
+  try {
+    const vendor = await storage.getVendor(req.params.id);
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+    res.json(vendor);
+  } catch (error) {
+    logger.error("Error fetching vendor:", error);
+    res.status(500).json({ error: "Failed to fetch vendor" });
+  }
+});
+router10.post("/vendors", authMiddleware, requirePermission("vendors", "create"), async (req, res) => {
+  try {
+    const vendor = await storage.createVendor({
+      ...req.body,
+      createdBy: req.user.id
+    });
+    res.json(vendor);
+  } catch (error) {
+    logger.error("Error creating vendor:", error);
+    res.status(500).json({ error: "Failed to create vendor" });
+  }
+});
+router10.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edit"), async (req, res) => {
+  try {
+    const updated = await storage.updateVendor(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+    res.json(updated);
+  } catch (error) {
+    logger.error("Error updating vendor:", error);
+    res.status(500).json({ error: "Failed to update vendor" });
+  }
+});
+router10.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "delete"), async (req, res) => {
+  try {
+    await storage.deleteVendor(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("Error deleting vendor:", error);
+    res.status(500).json({ error: "Failed to delete vendor" });
+  }
+});
+router10.get("/vendor-pos", authMiddleware, async (req, res) => {
+  try {
+    const quoteId = req.query.quoteId;
+    let pos;
+    if (quoteId) {
+      pos = await storage.getVendorPosByQuote(quoteId);
+    } else {
+      pos = await storage.getAllVendorPos();
+    }
+    const enrichedPos = await Promise.all(
+      pos.map(async (po) => {
+        const vendor = await storage.getVendor(po.vendorId);
+        const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
+        return {
+          ...po,
+          vendorName: vendor?.name || "Unknown",
+          quoteNumber: quote?.quoteNumber || "N/A"
+        };
+      })
+    );
+    res.json(enrichedPos);
+  } catch (error) {
+    logger.error("Error fetching vendor POs:", error);
+    res.status(500).json({ error: "Failed to fetch vendor POs" });
+  }
+});
+router10.get("/vendor-pos/:id", authMiddleware, async (req, res) => {
+  try {
+    const po = await storage.getVendorPo(req.params.id);
+    if (!po) {
+      return res.status(404).json({ error: "Vendor PO not found" });
+    }
+    const vendor = await storage.getVendor(po.vendorId);
+    const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
+    const items = await storage.getVendorPoItems(po.id);
+    res.json({
+      ...po,
+      vendor: vendor || {},
+      quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber } : void 0,
+      items
+    });
+  } catch (error) {
+    logger.error("Error fetching vendor PO:", error);
+    res.status(500).json({ error: "Failed to fetch vendor PO" });
+  }
+});
+router10.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    const quoteItems2 = await storage.getQuoteItems(quote.id);
+    const poNumber = await NumberingService.generateVendorPoNumber();
+    const po = await storage.createVendorPo({
+      poNumber,
+      quoteId: quote.id,
+      vendorId: req.body.vendorId,
+      status: "draft",
+      orderDate: /* @__PURE__ */ new Date(),
+      expectedDeliveryDate: req.body.expectedDeliveryDate ? new Date(req.body.expectedDeliveryDate) : null,
+      subtotal: quote.subtotal,
+      discount: quote.discount,
+      cgst: quote.cgst,
+      sgst: quote.sgst,
+      igst: quote.igst,
+      shippingCharges: quote.shippingCharges,
+      total: quote.total,
+      notes: req.body.notes || null,
+      termsAndConditions: quote.termsAndConditions,
+      createdBy: req.user.id
+    });
+    for (const item of quoteItems2) {
+      await storage.createVendorPoItem({
+        vendorPoId: po.id,
+        productId: item.productId || null,
+        description: item.description,
+        quantity: item.quantity,
+        receivedQuantity: 0,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+        sortOrder: item.sortOrder
+      });
+    }
+    res.json(po);
+  } catch (error) {
+    logger.error("Error creating vendor PO:", error);
+    res.status(500).json({ error: "Failed to create vendor PO" });
+  }
+});
+router10.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
+  try {
+    const {
+      vendorId,
+      expectedDeliveryDate,
+      items,
+      subtotal,
+      discount,
+      cgst,
+      sgst,
+      igst,
+      shippingCharges,
+      total,
+      notes,
+      termsAndConditions
+    } = req.body;
+    if (!vendorId) {
+      return res.status(400).json({ error: "Vendor ID is required" });
+    }
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: "At least one item is required" });
+    }
+    const poNumber = await NumberingService.generateVendorPoNumber();
+    const po = await storage.createVendorPo({
+      poNumber,
+      quoteId: null,
+      // Standalone PO
+      vendorId,
+      status: "draft",
+      orderDate: /* @__PURE__ */ new Date(),
+      expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+      subtotal: subtotal.toString(),
+      discount: discount.toString(),
+      cgst: cgst.toString(),
+      sgst: sgst.toString(),
+      igst: igst.toString(),
+      shippingCharges: shippingCharges.toString(),
+      total: total.toString(),
+      notes: notes || null,
+      termsAndConditions: termsAndConditions || null,
+      createdBy: req.user.id
+    });
+    let sortOrder = 0;
+    for (const item of items) {
+      await storage.createVendorPoItem({
+        vendorPoId: po.id,
+        productId: item.productId || null,
+        description: item.description,
+        quantity: item.quantity,
+        receivedQuantity: 0,
+        unitPrice: item.unitPrice.toString(),
+        subtotal: item.subtotal.toString(),
+        sortOrder: sortOrder++
+      });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_vendor_po",
+      entityType: "vendor_po",
+      entityId: po.id
+    });
+    res.json(po);
+  } catch (error) {
+    logger.error("Error creating vendor PO:", error);
+    res.status(500).json({ error: error.message || "Failed to create vendor PO" });
+  }
+});
+router10.patch("/vendor-pos/:id", authMiddleware, async (req, res) => {
+  try {
+    const updated = await storage.updateVendorPo(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: "Vendor PO not found" });
+    }
+    res.json(updated);
+  } catch (error) {
+    logger.error("Error updating vendor PO:", error);
+    res.status(500).json({ error: "Failed to update vendor PO" });
+  }
+});
+router10.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, async (req, res) => {
+  try {
+    const { serialNumbers: serialNumbers2 } = req.body;
+    const updated = await storage.updateVendorPoItem(req.params.itemId, {
+      serialNumbers: JSON.stringify(serialNumbers2),
+      receivedQuantity: serialNumbers2.length
+    });
+    if (!updated) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+    res.json(updated);
+  } catch (error) {
+    logger.error("Error updating serial numbers:", error);
+    res.status(500).json({ error: "Failed to update serial numbers" });
+  }
+});
+router10.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+  try {
+    const grns = await db.select({
+      id: goodsReceivedNotes.id,
+      grnNumber: goodsReceivedNotes.grnNumber,
+      vendorPoId: goodsReceivedNotes.vendorPoId,
+      receivedDate: goodsReceivedNotes.receivedDate,
+      quantityOrdered: goodsReceivedNotes.quantityOrdered,
+      quantityReceived: goodsReceivedNotes.quantityReceived,
+      quantityRejected: goodsReceivedNotes.quantityRejected,
+      inspectionStatus: goodsReceivedNotes.inspectionStatus,
+      deliveryNoteNumber: goodsReceivedNotes.deliveryNoteNumber,
+      batchNumber: goodsReceivedNotes.batchNumber,
+      poNumber: vendorPurchaseOrders.poNumber,
+      vendorName: vendors.name
+    }).from(goodsReceivedNotes).leftJoin(
+      vendorPurchaseOrders,
+      eq7(goodsReceivedNotes.vendorPoId, vendorPurchaseOrders.id)
+    ).leftJoin(
+      vendors,
+      eq7(vendorPurchaseOrders.vendorId, vendors.id)
+    ).orderBy(desc2(goodsReceivedNotes.receivedDate));
+    res.json(grns);
+  } catch (error) {
+    logger.error("Error fetching GRNs:", error);
+    res.status(500).json({ error: "Failed to fetch GRNs" });
+  }
+});
+router10.get("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+  try {
+    const [grn] = await db.select().from(goodsReceivedNotes).where(eq7(goodsReceivedNotes.id, req.params.id));
+    if (!grn) {
+      return res.status(404).json({ error: "GRN not found" });
+    }
+    const [po] = await db.select().from(vendorPurchaseOrders).where(eq7(vendorPurchaseOrders.id, grn.vendorPoId));
+    const [vendor] = await db.select().from(vendors).where(eq7(vendors.id, po.vendorId));
+    const [poItem] = await db.select().from(vendorPoItems).where(eq7(vendorPoItems.id, grn.vendorPoItemId));
+    let inspector = null;
+    if (grn.inspectedBy) {
+      [inspector] = await db.select({ id: users.id, name: users.name }).from(users).where(eq7(users.id, grn.inspectedBy));
+    }
+    res.json({
+      ...grn,
+      vendorPo: {
+        id: po.id,
+        poNumber: po.poNumber,
+        vendor: {
+          name: vendor.name,
+          email: vendor.email,
+          phone: vendor.phone
+        }
+      },
+      vendorPoItem: poItem,
+      inspectedBy: inspector
+    });
+  } catch (error) {
+    logger.error("Error fetching GRN:", error);
+    res.status(500).json({ error: "Failed to fetch GRN" });
+  }
+});
+router10.post("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+  try {
+    const {
+      vendorPoId,
+      vendorPoItemId,
+      quantityOrdered,
+      quantityReceived,
+      quantityRejected,
+      inspectionStatus,
+      inspectionNotes,
+      deliveryNoteNumber,
+      batchNumber,
+      serialNumbers: serialNumbers2
+    } = req.body;
+    const grnNumber = await NumberingService.generateGrnNumber();
+    const [grn] = await db.insert(goodsReceivedNotes).values({
+      grnNumber,
+      vendorPoId,
+      vendorPoItemId,
+      quantityOrdered,
+      quantityReceived,
+      quantityRejected: quantityRejected || 0,
+      inspectionStatus: inspectionStatus || "pending",
+      inspectionNotes,
+      deliveryNoteNumber,
+      batchNumber,
+      createdBy: req.user.id
+    }).returning();
+    const [poItem] = await db.select().from(vendorPoItems).where(eq7(vendorPoItems.id, vendorPoItemId));
+    await db.update(vendorPoItems).set({
+      receivedQuantity: (poItem.receivedQuantity || 0) + quantityReceived,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where(eq7(vendorPoItems.id, vendorPoItemId));
+    if (poItem.productId && isFeatureEnabled("products_stock_tracking")) {
+      const quantityAccepted = quantityReceived - (quantityRejected || 0);
+      if (quantityAccepted > 0) {
+        await db.update(products).set({
+          stockQuantity: sql9`${products.stockQuantity} + ${quantityAccepted}`,
+          availableQuantity: sql9`${products.availableQuantity} + ${quantityAccepted}`,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq7(products.id, poItem.productId));
+        logger.info(`[GRN] Updated product ${poItem.productId} stock: +${quantityAccepted}`);
       }
-      await EmailService.sendPaymentReminderEmail(
-        recipientEmail,
-        emailSubject,
-        emailBody
-      );
+    } else if (poItem.productId && !isFeatureEnabled("products_stock_tracking")) {
+      logger.info(`[GRN] Stock update skipped for product ${poItem.productId}: Stock tracking is disabled`);
+    }
+    if (serialNumbers2 && Array.isArray(serialNumbers2) && serialNumbers2.length > 0) {
+      const serialRecords = serialNumbers2.map((sn) => ({
+        serialNumber: sn,
+        productId: poItem.productId || null,
+        // Link serial to product
+        vendorPoId,
+        vendorPoItemId,
+        grnId: grn.id,
+        status: "in_stock",
+        createdBy: req.user.id
+      }));
+      await db.insert(serialNumbers).values(serialRecords);
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_grn",
+      entityType: "grn",
+      entityId: grn.id
+    });
+    res.json(grn);
+  } catch (error) {
+    logger.error("Error creating GRN:", error);
+    res.status(500).json({ error: error.message || "Failed to create GRN" });
+  }
+});
+router10.patch("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+  try {
+    const {
+      quantityReceived,
+      quantityRejected,
+      inspectionStatus,
+      inspectionNotes,
+      deliveryNoteNumber,
+      batchNumber
+    } = req.body;
+    const [grn] = await db.update(goodsReceivedNotes).set({
+      quantityReceived,
+      quantityRejected: quantityRejected || 0,
+      inspectionStatus,
+      inspectedBy: req.user.id,
+      inspectionNotes,
+      deliveryNoteNumber,
+      batchNumber,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where(eq7(goodsReceivedNotes.id, req.params.id)).returning();
+    if (!grn) {
+      return res.status(404).json({ error: "GRN not found" });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_grn",
+      entityType: "grn",
+      entityId: grn.id
+    });
+    res.json(grn);
+  } catch (error) {
+    logger.error("Error updating GRN:", error);
+    res.status(500).json({ error: error.message || "Failed to update GRN" });
+  }
+});
+var vendors_routes_default = router10;
+
+// server/routes/settings.routes.ts
+import { Router as Router11 } from "express";
+init_storage();
+init_db();
+init_schema();
+init_numbering_service();
+import { eq as eq8 } from "drizzle-orm";
+var router11 = Router11();
+router11.get("/settings", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can access settings" });
+    }
+    const settingsArray = await storage.getAllSettings();
+    const settingsObject = settingsArray.reduce((acc, setting) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {});
+    return res.json(settingsObject);
+  } catch (error) {
+    logger.error("Error fetching settings:", error);
+    return res.status(500).json({ error: "Failed to fetch settings" });
+  }
+});
+router11.post("/settings", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can update settings" });
+    }
+    const body = req.body;
+    const ALLOWED_SETTINGS_KEYS = [
+      // Company info
+      "companyName",
+      "companyAddress",
+      "companyPhone",
+      "companyEmail",
+      "companyWebsite",
+      "gstin",
+      "pan",
+      "cin",
+      "logo",
+      "companyLogo",
+      // Bank details
+      "bankName",
+      "bankAccountNumber",
+      "bankAccountName",
+      "bankIfscCode",
+      "bankBranch",
+      "bankSwiftCode",
+      // Document prefixes
+      "quotePrefix",
+      "invoicePrefix",
+      "childInvoicePrefix",
+      "salesOrderPrefix",
+      "vendorPoPrefix",
+      "grnPrefix",
+      // Document formats
+      "quoteFormat",
+      "invoiceFormat",
+      "childInvoiceFormat",
+      "salesOrderFormat",
+      "vendorPoFormat",
+      "grnFormat",
+      // Date format
+      "dateFormat",
+      "fiscalYearStart",
+      // Feature-related settings
+      "defaultCurrency",
+      "defaultTaxRate",
+      "defaultPaymentTerms",
+      // Email settings
+      "emailFrom",
+      "emailReplyTo",
+      "emailFooter",
+      // Terms and conditions
+      "defaultTermsAndConditions",
+      "defaultNotes"
+    ];
+    const validateSettingKey = (key) => {
+      return ALLOWED_SETTINGS_KEYS.includes(key) || key.startsWith("custom_");
+    };
+    if (body.key && body.value !== void 0) {
+      if (!validateSettingKey(body.key)) {
+        return res.status(400).json({ error: `Invalid setting key: ${body.key}` });
+      }
+      const setting = await storage.upsertSetting({
+        key: body.key,
+        value: body.value,
+        updatedBy: req.user.id
+      });
       await storage.createActivityLog({
         userId: req.user.id,
-        action: "send_payment_reminder",
-        entityType: "invoice",
-        entityId: invoice.id
+        action: "update_setting",
+        entityType: "setting",
+        entityId: body.key
       });
-      return res.json({ success: true, message: "Payment reminder sent successfully" });
-    } catch (error) {
-      console.error("Payment reminder error:", error);
-      return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
+      return res.json(setting);
+    } else {
+      const results = [];
+      const invalidKeys = [];
+      for (const [key, value] of Object.entries(body)) {
+        if (!validateSettingKey(key)) {
+          invalidKeys.push(key);
+          continue;
+        }
+        if (value !== void 0 && value !== null) {
+          const setting = await storage.upsertSetting({
+            key,
+            value: String(value),
+            updatedBy: req.user.id
+          });
+          results.push(setting);
+        }
+      }
+      if (invalidKeys.length > 0) {
+        logger.warn(`[Settings] Ignored invalid keys: ${invalidKeys.join(", ")}`);
+      }
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "update_settings",
+        entityType: "settings",
+        entityId: "bulk"
+      });
+      return res.json(results);
     }
-  });
+  } catch (error) {
+    logger.error("Error updating settings:", error);
+    return res.status(500).json({ error: error.message || "Failed to update setting" });
+  }
+});
+router11.get("/bank-details", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can access bank details" });
+    }
+    const details = await storage.getAllBankDetails();
+    return res.json(details);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch bank details" });
+  }
+});
+router11.get("/bank-details/active", authMiddleware, async (req, res) => {
+  try {
+    const detail = await storage.getActiveBankDetails();
+    return res.json(detail || null);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch active bank details" });
+  }
+});
+router11.post("/bank-details", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can create bank details" });
+    }
+    const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode } = req.body;
+    if (!bankName || !accountNumber || !accountName || !ifscCode) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    const detail = await storage.createBankDetails({
+      bankName,
+      accountNumber,
+      accountName,
+      ifscCode,
+      branch: branch || null,
+      swiftCode: swiftCode || null,
+      isActive: true,
+      updatedBy: req.user.id
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_bank_details",
+      entityType: "bank_details",
+      entityId: detail.id
+    });
+    return res.json(detail);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create bank details" });
+  }
+});
+router11.put("/bank-details/:id", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can update bank details" });
+    }
+    const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode, isActive } = req.body;
+    const detail = await storage.updateBankDetails(
+      req.params.id,
+      {
+        ...bankName && { bankName },
+        ...accountNumber && { accountNumber },
+        ...accountName && { accountName },
+        ...ifscCode && { ifscCode },
+        ...branch !== void 0 && { branch },
+        ...swiftCode !== void 0 && { swiftCode },
+        ...isActive !== void 0 && { isActive },
+        updatedBy: req.user.id
+      }
+    );
+    if (!detail) {
+      return res.status(404).json({ error: "Bank details not found" });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_bank_details",
+      entityType: "bank_details",
+      entityId: detail.id
+    });
+    return res.json(detail);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update bank details" });
+  }
+});
+router11.delete("/bank-details/:id", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can delete bank details" });
+    }
+    await storage.deleteBankDetails(req.params.id);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_bank_details",
+      entityType: "bank_details",
+      entityId: req.params.id
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to delete bank details" });
+  }
+});
+router11.post("/settings/migrate-document-numbers", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can migrate document numbers" });
+    }
+    const { DocumentNumberMigrationService: DocumentNumberMigrationService2 } = await Promise.resolve().then(() => (init_document_number_migration_service(), document_number_migration_service_exports));
+    const options = {
+      migrateQuotes: req.body.migrateQuotes !== false,
+      migrateVendorPos: req.body.migrateVendorPos !== false,
+      migrateMasterInvoices: req.body.migrateMasterInvoices !== false,
+      migrateChildInvoices: req.body.migrateChildInvoices !== false,
+      migrateGrns: req.body.migrateGrns !== false
+    };
+    const result = await DocumentNumberMigrationService2.migrateAllDocumentNumbers(options);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "migrate_document_numbers",
+      entityType: "settings",
+      entityId: "document_numbering"
+    });
+    return res.json({
+      success: result.success,
+      message: result.success ? "Document numbers migrated successfully" : "Some migrations failed",
+      migrated: result.migrated,
+      errors: result.errors
+    });
+  } catch (error) {
+    logger.error("Document number migration error:", error);
+    return res.status(500).json({
+      error: error.message || "Failed to migrate document numbers",
+      success: false
+    });
+  }
+});
+router11.get("/numbering/counters", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can access counter values" });
+    }
+    const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
+    const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
+    const year = (/* @__PURE__ */ new Date()).getFullYear();
+    const counters = { year };
+    if (featureFlags2.quotes_module) {
+      counters.quote = await NumberingService2.getCounter("quote", year);
+    }
+    if (featureFlags2.vendorPO_module) {
+      counters.vendor_po = await NumberingService2.getCounter("vendor_po", year);
+    }
+    if (featureFlags2.invoices_module) {
+      counters.invoice = await NumberingService2.getCounter("invoice", year);
+    }
+    if (featureFlags2.grn_module) {
+      counters.grn = await NumberingService2.getCounter("grn", year);
+    }
+    if (featureFlags2.sales_orders_module) {
+      counters.sales_order = await NumberingService2.getCounter("sales_order", year);
+    }
+    return res.json(counters);
+  } catch (error) {
+    logger.error("Get counters error:", error);
+    return res.status(500).json({ error: error.message || "Failed to get counters" });
+  }
+});
+router11.post("/numbering/reset-counter", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can reset counters" });
+    }
+    const { type, year } = req.body;
+    if (!type) {
+      return res.status(400).json({ error: "Counter type is required" });
+    }
+    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: "Invalid counter type" });
+    }
+    const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
+    const featureMap = {
+      quote: featureFlags2.quotes_module,
+      vendor_po: featureFlags2.vendorPO_module,
+      invoice: featureFlags2.invoices_module,
+      grn: featureFlags2.grn_module,
+      sales_order: featureFlags2.sales_orders_module
+    };
+    if (!featureMap[type]) {
+      return res.status(403).json({ error: `Feature for ${type} is not enabled` });
+    }
+    const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
+    const targetYear = year || (/* @__PURE__ */ new Date()).getFullYear();
+    await NumberingService2.resetCounter(type, targetYear);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "reset_counter",
+      entityType: "numbering",
+      entityId: `${type}_${targetYear}`
+    });
+    return res.json({
+      success: true,
+      message: `Counter for ${type} (${targetYear}) reset to 0`,
+      currentValue: 0
+    });
+  } catch (error) {
+    logger.error("Reset counter error:", error);
+    return res.status(500).json({ error: error.message || "Failed to reset counter" });
+  }
+});
+router11.post("/numbering/set-counter", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can set counters" });
+    }
+    const { type, year, value } = req.body;
+    if (!type || value === void 0) {
+      return res.status(400).json({ error: "Counter type and value are required" });
+    }
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) || numValue < 0) {
+      return res.status(400).json({ error: "Value must be a non-negative integer" });
+    }
+    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: "Invalid counter type" });
+    }
+    const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
+    const featureMap = {
+      quote: featureFlags2.quotes_module,
+      vendor_po: featureFlags2.vendorPO_module,
+      invoice: featureFlags2.invoices_module,
+      grn: featureFlags2.grn_module,
+      sales_order: featureFlags2.sales_orders_module
+    };
+    if (!featureMap[type]) {
+      return res.status(403).json({ error: `Feature for ${type} is not enabled` });
+    }
+    const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
+    const targetYear = year || (/* @__PURE__ */ new Date()).getFullYear();
+    await NumberingService2.setCounter(type, targetYear, numValue);
+    const nextValue = numValue + 1;
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "set_counter",
+      entityType: "numbering",
+      entityId: `${type}_${targetYear}`
+    });
+    return res.json({
+      success: true,
+      message: `Counter for ${type} (${targetYear}) set to ${numValue}`,
+      currentValue: numValue,
+      nextNumber: String(nextValue).padStart(4, "0")
+    });
+  } catch (error) {
+    logger.error("Set counter error:", error);
+    return res.status(500).json({ error: error.message || "Failed to set counter" });
+  }
+});
+router11.get("/tax-rates", authMiddleware, async (req, res) => {
+  try {
+    const rates = await db.select().from(taxRates).where(eq8(taxRates.isActive, true));
+    const simplifiedRates = rates.map((rate) => ({
+      id: rate.id,
+      name: `${rate.taxType} ${rate.region}`,
+      percentage: parseFloat(rate.igstRate),
+      // Use IGST as the main rate
+      sgstRate: parseFloat(rate.sgstRate),
+      cgstRate: parseFloat(rate.cgstRate),
+      igstRate: parseFloat(rate.igstRate),
+      region: rate.region,
+      taxType: rate.taxType,
+      isActive: rate.isActive,
+      effectiveFrom: rate.effectiveFrom,
+      effectiveTo: rate.effectiveTo
+    }));
+    return res.json(simplifiedRates);
+  } catch (error) {
+    logger.error("Error fetching tax rates:", error);
+    return res.status(500).json({ error: "Failed to fetch tax rates" });
+  }
+});
+router11.post("/tax-rates", authMiddleware, async (req, res) => {
+  try {
+    if (!["admin", "finance_accounts"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
+    }
+    const { region, taxType, sgstRate, cgstRate, igstRate, description } = req.body;
+    if (!region || !taxType) {
+      return res.status(400).json({ error: "Region and taxType are required" });
+    }
+    const sgst = sgstRate !== void 0 && sgstRate !== null ? String(sgstRate) : "0";
+    const cgst = cgstRate !== void 0 && cgstRate !== null ? String(cgstRate) : "0";
+    const igst = igstRate !== void 0 && igstRate !== null ? String(igstRate) : "0";
+    const newRate = await db.insert(taxRates).values({
+      region,
+      taxType,
+      sgstRate: sgst,
+      cgstRate: cgst,
+      igstRate: igst
+    }).returning();
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_tax_rate",
+      entityType: "tax_rate",
+      entityId: newRate[0].id
+    });
+    return res.json({
+      id: newRate[0].id,
+      region,
+      region_name: region,
+      // Ensure compatibility
+      taxType,
+      sgstRate: parseFloat(sgst),
+      cgstRate: parseFloat(cgst),
+      igstRate: parseFloat(igst)
+    });
+  } catch (error) {
+    logger.error("Error creating tax rate:", error);
+    return res.status(500).json({ error: error.message || "Failed to create tax rate" });
+  }
+});
+router11.delete("/tax-rates/:id", authMiddleware, async (req, res) => {
+  try {
+    if (!["admin", "finance_accounts"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
+    }
+    await db.delete(taxRates).where(eq8(taxRates.id, req.params.id));
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_tax_rate",
+      entityType: "tax_rate",
+      entityId: req.params.id
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Error deleting tax rate:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
+  }
+});
+router11.get("/payment-terms", authMiddleware, async (req, res) => {
+  try {
+    const terms = await db.select().from(paymentTerms).where(eq8(paymentTerms.isActive, true));
+    return res.json(terms);
+  } catch (error) {
+    logger.error("Error fetching payment terms:", error);
+    return res.status(500).json({ error: "Failed to fetch payment terms" });
+  }
+});
+router11.post("/payment-terms", authMiddleware, async (req, res) => {
+  try {
+    if (!["admin", "finance_accounts"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
+    }
+    const { name, days, description, isDefault } = req.body;
+    if (!name || days === void 0) {
+      return res.status(400).json({ error: "Name and days are required" });
+    }
+    if (isDefault) {
+      await db.update(paymentTerms).set({ isDefault: false }).where(eq8(paymentTerms.isDefault, true));
+    }
+    const newTerm = await db.insert(paymentTerms).values({
+      name,
+      days,
+      description: description || null,
+      isDefault: isDefault || false,
+      createdBy: req.user.id
+    }).returning();
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_payment_term",
+      entityType: "payment_term",
+      entityId: newTerm[0].id
+    });
+    return res.json(newTerm[0]);
+  } catch (error) {
+    logger.error("Error creating payment term:", error);
+    return res.status(500).json({ error: error.message || "Failed to create payment term" });
+  }
+});
+router11.delete("/payment-terms/:id", authMiddleware, async (req, res) => {
+  try {
+    if (!["admin", "finance_accounts"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
+    }
+    await db.delete(paymentTerms).where(eq8(paymentTerms.id, req.params.id));
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_payment_term",
+      entityType: "payment_term",
+      entityId: req.params.id
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Error deleting payment term:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete payment term" });
+  }
+});
+router11.get("/currency-settings", authMiddleware, async (req, res) => {
+  try {
+    const settings2 = await storage.getCurrencySettings();
+    if (!settings2) {
+      return res.json({ baseCurrency: "INR", supportedCurrencies: "[]", exchangeRates: "{}" });
+    }
+    return res.json(settings2);
+  } catch (error) {
+    logger.error("Get currency settings error:", error);
+    return res.status(500).json({ error: "Failed to fetch currency settings" });
+  }
+});
+router11.post("/currency-settings", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const { baseCurrency, supportedCurrencies, exchangeRates } = req.body;
+    const settings2 = await storage.upsertCurrencySettings({
+      baseCurrency: baseCurrency || "INR",
+      supportedCurrencies: typeof supportedCurrencies === "string" ? supportedCurrencies : JSON.stringify(supportedCurrencies),
+      exchangeRates: typeof exchangeRates === "string" ? exchangeRates : JSON.stringify(exchangeRates)
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_currency_settings",
+      entityType: "settings"
+    });
+    return res.json(settings2);
+  } catch (error) {
+    logger.error("Update currency settings error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update currency settings" });
+  }
+});
+router11.get("/admin/settings", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const settings2 = await storage.getAllSettings();
+    const settingsMap = {};
+    settings2.forEach((s) => {
+      settingsMap[s.key] = s.value;
+    });
+    const categories = {
+      company: {
+        companyName: settingsMap["companyName"] || "",
+        companyEmail: settingsMap["companyEmail"] || "",
+        companyPhone: settingsMap["companyPhone"] || "",
+        companyWebsite: settingsMap["companyWebsite"] || "",
+        companyAddress: settingsMap["companyAddress"] || "",
+        companyLogo: settingsMap["companyLogo"] || ""
+      },
+      taxation: {
+        gstin: settingsMap["gstin"] || "",
+        taxType: settingsMap["taxType"] || "GST",
+        // GST, VAT, etc.
+        defaultTaxRate: settingsMap["defaultTaxRate"] || "18",
+        enableIGST: settingsMap["enableIGST"] === "true",
+        enableCGST: settingsMap["enableCGST"] === "true",
+        enableSGST: settingsMap["enableSGST"] === "true"
+      },
+      documents: {
+        quotePrefix: settingsMap["quotePrefix"] || "QT",
+        invoicePrefix: settingsMap["invoicePrefix"] || "INV",
+        nextQuoteNumber: settingsMap["nextQuoteNumber"] || "1001",
+        nextInvoiceNumber: settingsMap["nextInvoiceNumber"] || "1001"
+      },
+      email: {
+        smtpHost: settingsMap["smtpHost"] || "",
+        smtpPort: settingsMap["smtpPort"] || "",
+        smtpEmail: settingsMap["smtpEmail"] || "",
+        emailTemplateQuote: settingsMap["emailTemplateQuote"] || "",
+        emailTemplateInvoice: settingsMap["emailTemplateInvoice"] || "",
+        emailTemplatePaymentReminder: settingsMap["emailTemplatePaymentReminder"] || ""
+      },
+      general: {
+        quotaValidityDays: settingsMap["quotaValidityDays"] || "30",
+        invoiceDueDays: settingsMap["invoiceDueDays"] || "30",
+        enableAutoReminders: settingsMap["enableAutoReminders"] === "true",
+        reminderDaysBeforeDue: settingsMap["reminderDaysBeforeDue"] || "3"
+      }
+    };
+    return res.json(categories);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch admin settings" });
+  }
+});
+router11.post("/admin/settings/company", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const companySettings = req.body;
+    for (const [key, value] of Object.entries(companySettings)) {
+      await storage.upsertSetting({
+        key,
+        value: String(value),
+        updatedBy: req.user.id
+      });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_company_settings",
+      entityType: "settings"
+    });
+    return res.json({ success: true, message: "Company settings updated" });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update company settings" });
+  }
+});
+router11.post("/admin/settings/taxation", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const taxSettings = req.body;
+    for (const [key, value] of Object.entries(taxSettings)) {
+      await storage.upsertSetting({
+        key,
+        value: String(value),
+        updatedBy: req.user.id
+      });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_tax_settings",
+      entityType: "settings"
+    });
+    return res.json({ success: true, message: "Tax settings updated" });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update tax settings" });
+  }
+});
+router11.post("/admin/settings/email", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const emailSettings = req.body;
+    for (const [key, value] of Object.entries(emailSettings)) {
+      await storage.upsertSetting({
+        key,
+        value: String(value),
+        updatedBy: req.user.id
+      });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_email_settings",
+      entityType: "settings"
+    });
+    if (emailSettings.smtpHost) {
+      EmailService.initialize({
+        host: emailSettings.smtpHost,
+        port: Number(emailSettings.smtpPort),
+        secure: emailSettings.smtpSecure === "true",
+        auth: {
+          user: emailSettings.smtpEmail,
+          pass: process.env.SMTP_PASSWORD || ""
+        },
+        from: emailSettings.smtpEmail || "noreply@quoteprogen.com"
+      });
+    }
+    return res.json({ success: true, message: "Email settings updated" });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update email settings" });
+  }
+});
+router11.get("/debug/counters", async (req, res) => {
+  try {
+    const year = (/* @__PURE__ */ new Date()).getFullYear();
+    const types = ["quote", "master_invoice", "child_invoice", "vendor_po", "grn"];
+    const counters = {};
+    for (const type of types) {
+      const counterKey = `${type}_counter_${year}`;
+      const setting = await storage.getSetting(counterKey);
+      const currentValue = setting?.value || "0";
+      const nextValue = parseInt(String(currentValue), 10) + 1;
+      counters[counterKey] = {
+        current: currentValue,
+        next: String(nextValue).padStart(4, "0"),
+        exists: !!setting
+      };
+    }
+    return res.json({
+      year,
+      counters,
+      message: "Next value shows what will be generated next"
+    });
+  } catch (error) {
+    logger.error("Error fetching counters:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch counters" });
+  }
+});
+router11.post("/debug/reset-counter/:type", async (req, res) => {
+  try {
+    const { type } = req.params;
+    const year = (/* @__PURE__ */ new Date()).getFullYear();
+    logger.info(`[DEBUG] Resetting counter for ${type} in year ${year}`);
+    await NumberingService.resetCounter(type, year);
+    return res.json({
+      success: true,
+      message: `Counter ${type}_counter_${year} has been reset to 0`,
+      nextNumber: "0001"
+    });
+  } catch (error) {
+    logger.error("Error resetting counter:", error);
+    return res.status(500).json({ error: error.message || "Failed to reset counter" });
+  }
+});
+router11.post("/debug/set-counter/:type/:value", async (req, res) => {
+  try {
+    const { type, value } = req.params;
+    const year = (/* @__PURE__ */ new Date()).getFullYear();
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) || numValue < 0) {
+      return res.status(400).json({ error: "Value must be a non-negative integer" });
+    }
+    logger.info(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
+    await NumberingService.setCounter(type, year, numValue);
+    const nextValue = numValue + 1;
+    return res.json({
+      success: true,
+      message: `Counter ${type}_counter_${year} set to ${numValue}`,
+      nextNumber: String(nextValue).padStart(4, "0")
+    });
+  } catch (error) {
+    logger.error("Error setting counter:", error);
+    return res.status(500).json({ error: error.message || "Failed to set counter" });
+  }
+});
+var settings_routes_default = router11;
+
+// server/routes/serial-numbers.routes.ts
+init_storage();
+import { Router as Router12 } from "express";
+init_db();
+init_schema();
+import { eq as eq9, sql as sql10 } from "drizzle-orm";
+var router12 = Router12();
+router12.get("/search", authMiddleware, async (req, res) => {
+  try {
+    const { getSerialTraceability: getSerialTraceability2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
+    const serialNumber = req.query.q;
+    if (!serialNumber || serialNumber.trim().length === 0) {
+      return res.status(400).json({ error: "Serial number query is required" });
+    }
+    const traceability = await getSerialTraceability2(serialNumber.trim());
+    if (!traceability) {
+      return res.status(404).json({ error: "Serial number not found" });
+    }
+    return res.json(traceability);
+  } catch (error) {
+    logger.error("Error searching serial number:", error);
+    return res.status(500).json({ error: error.message || "Failed to search serial number" });
+  }
+});
+router12.post("/batch-validate", authMiddleware, async (req, res) => {
+  try {
+    const { getSerialTraceability: getSerialTraceability2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
+    const { serials } = req.body;
+    if (!serials || !Array.isArray(serials)) {
+      return res.status(400).json({ error: "Invalid serials array" });
+    }
+    const results = await Promise.all(
+      serials.map(async (serial2) => {
+        const traceability = await getSerialTraceability2(serial2);
+        return {
+          serial: serial2,
+          exists: !!traceability,
+          info: traceability
+        };
+      })
+    );
+    return res.json({ results });
+  } catch (error) {
+    logger.error("Error batch validating serials:", error);
+    return res.status(500).json({ error: error.message || "Failed to validate serials" });
+  }
+});
+router12.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
+  try {
+    const {
+      serialNumbers: serialNumbers2,
+      invoiceItemId,
+      productId,
+      vendorPoItemId,
+      grnId
+    } = req.body;
+    if (!Array.isArray(serialNumbers2) || serialNumbers2.length === 0) {
+      return res.status(400).json({ error: "Serial numbers array is required" });
+    }
+    const existing = await db.select().from(serialNumbers).where(sql10`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
+    if (existing.length > 0) {
+      return res.status(400).json({
+        error: "Duplicate serial numbers found",
+        duplicates: existing.map((s) => s.serialNumber)
+      });
+    }
+    const records = serialNumbers2.map((sn) => ({
+      serialNumber: sn,
+      productId: productId || null,
+      vendorPoItemId: vendorPoItemId || null,
+      grnId: grnId || null,
+      invoiceItemId: invoiceItemId || null,
+      status: invoiceItemId ? "reserved" : "in_stock",
+      createdBy: req.user.id
+    }));
+    const created = await db.insert(serialNumbers).values(records).returning();
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "bulk_import_serials",
+      entityType: "serial_numbers",
+      entityId: created[0].id
+    });
+    return res.json({ count: created.length, serialNumbers: created });
+  } catch (error) {
+    logger.error("Error importing serial numbers:", error);
+    return res.status(500).json({ error: error.message || "Failed to import serial numbers" });
+  }
+});
+router12.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
+  try {
+    const [serial2] = await db.select().from(serialNumbers).where(eq9(serialNumbers.serialNumber, req.params.serialNumber));
+    if (!serial2) {
+      return res.status(404).json({ error: "Serial number not found" });
+    }
+    let product = null;
+    if (serial2.productId) {
+      [product] = await db.select({ id: products.id, name: products.name, sku: products.sku }).from(products).where(eq9(products.id, serial2.productId));
+    }
+    let vendor = null;
+    if (serial2.vendorId) {
+      [vendor] = await db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq9(vendors.id, serial2.vendorId));
+    }
+    let vendorPo = null;
+    if (serial2.vendorPoId) {
+      [vendorPo] = await db.select({
+        id: vendorPurchaseOrders.id,
+        poNumber: vendorPurchaseOrders.poNumber,
+        orderDate: vendorPurchaseOrders.orderDate
+      }).from(vendorPurchaseOrders).where(eq9(vendorPurchaseOrders.id, serial2.vendorPoId));
+    }
+    let grn = null;
+    if (serial2.grnId) {
+      [grn] = await db.select({
+        id: goodsReceivedNotes.id,
+        grnNumber: goodsReceivedNotes.grnNumber,
+        receivedDate: goodsReceivedNotes.receivedDate,
+        inspectionStatus: goodsReceivedNotes.inspectionStatus
+      }).from(goodsReceivedNotes).where(eq9(goodsReceivedNotes.id, serial2.grnId));
+    }
+    let invoice = null;
+    if (serial2.invoiceId) {
+      [invoice] = await db.select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        createdAt: invoices.createdAt
+      }).from(invoices).where(eq9(invoices.id, serial2.invoiceId));
+    }
+    return res.json({
+      ...serial2,
+      product,
+      vendor,
+      vendorPo,
+      grn,
+      invoice
+    });
+  } catch (error) {
+    logger.error("Error fetching serial number:", error);
+    return res.status(500).json({ error: "Failed to fetch serial number" });
+  }
+});
+var serial_numbers_routes_default = router12;
+
+// server/routes.ts
+async function registerRoutes(app2) {
+  app2.use("/api/auth", auth_routes_default);
+  app2.use("/api", authMiddleware, analytics_routes_default);
+  app2.use("/api", authMiddleware, quote_workflow_routes_default);
+  app2.use("/api/users", authMiddleware, users_routes_default);
+  app2.use("/api/clients", authMiddleware, clients_routes_default);
+  app2.use("/api/quotes", authMiddleware, quotes_routes_default);
+  app2.use("/api/invoices", authMiddleware, invoices_routes_default);
+  app2.use("/api", authMiddleware, payments_routes_default);
+  app2.use("/api/products", authMiddleware, products_routes_default);
+  app2.use("/api", authMiddleware, vendors_routes_default);
+  app2.use("/api", authMiddleware, settings_routes_default);
+  app2.use("/api/serial-numbers", authMiddleware, serial_numbers_routes_default);
   app2.get("/api/templates", authMiddleware, async (req, res) => {
     try {
       const type = req.query.type;
@@ -10379,7 +12432,7 @@ ${message}`;
       });
       return res.json(template);
     } catch (error) {
-      console.error("Create template error:", error);
+      logger.error("Create template error:", error);
       return res.status(500).json({ error: error.message || "Failed to create template" });
     }
   });
@@ -10397,7 +12450,7 @@ ${message}`;
       });
       return res.json(template);
     } catch (error) {
-      console.error("Update template error:", error);
+      logger.error("Update template error:", error);
       return res.status(500).json({ error: error.message || "Failed to update template" });
     }
   });
@@ -10415,1535 +12468,6 @@ ${message}`;
       return res.status(500).json({ error: "Failed to delete template" });
     }
   });
-  app2.get("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can access settings" });
-      }
-      const settingsArray = await storage.getAllSettings();
-      const settingsObject = settingsArray.reduce((acc, setting) => {
-        acc[setting.key] = setting.value;
-        return acc;
-      }, {});
-      return res.json(settingsObject);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch settings" });
-    }
-  });
-  app2.post("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can update settings" });
-      }
-      const body = req.body;
-      if (body.key && body.value !== void 0) {
-        const setting = await storage.upsertSetting({
-          key: body.key,
-          value: body.value,
-          updatedBy: req.user.id
-        });
-        await storage.createActivityLog({
-          userId: req.user.id,
-          action: "update_setting",
-          entityType: "setting",
-          entityId: body.key
-        });
-        return res.json(setting);
-      } else {
-        const results = [];
-        for (const [key, value] of Object.entries(body)) {
-          if (value !== void 0 && value !== null) {
-            const setting = await storage.upsertSetting({
-              key,
-              value: String(value),
-              updatedBy: req.user.id
-            });
-            results.push(setting);
-          }
-        }
-        await storage.createActivityLog({
-          userId: req.user.id,
-          action: "update_settings",
-          entityType: "settings",
-          entityId: "bulk"
-        });
-        return res.json(results);
-      }
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update setting" });
-    }
-  });
-  app2.post("/api/settings/migrate-document-numbers", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can migrate document numbers" });
-      }
-      const { DocumentNumberMigrationService: DocumentNumberMigrationService2 } = await Promise.resolve().then(() => (init_document_number_migration_service(), document_number_migration_service_exports));
-      const options = {
-        migrateQuotes: req.body.migrateQuotes !== false,
-        migrateVendorPos: req.body.migrateVendorPos !== false,
-        migrateMasterInvoices: req.body.migrateMasterInvoices !== false,
-        migrateChildInvoices: req.body.migrateChildInvoices !== false,
-        migrateGrns: req.body.migrateGrns !== false
-      };
-      const result = await DocumentNumberMigrationService2.migrateAllDocumentNumbers(options);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "migrate_document_numbers",
-        entityType: "settings",
-        entityId: "document_numbering"
-      });
-      return res.json({
-        success: result.success,
-        message: result.success ? "Document numbers migrated successfully" : "Some migrations failed",
-        migrated: result.migrated,
-        errors: result.errors
-      });
-    } catch (error) {
-      console.error("Document number migration error:", error);
-      return res.status(500).json({
-        error: error.message || "Failed to migrate document numbers",
-        success: false
-      });
-    }
-  });
-  app2.get("/api/numbering/counters", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can access counter values" });
-      }
-      const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
-      const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
-      const year = (/* @__PURE__ */ new Date()).getFullYear();
-      const counters = { year };
-      if (featureFlags2.quotes_module) {
-        counters.quote = await NumberingService2.getCounter("quote", year);
-      }
-      if (featureFlags2.vendorPO_module) {
-        counters.vendor_po = await NumberingService2.getCounter("vendor_po", year);
-      }
-      if (featureFlags2.invoices_module) {
-        counters.invoice = await NumberingService2.getCounter("invoice", year);
-      }
-      if (featureFlags2.grn_module) {
-        counters.grn = await NumberingService2.getCounter("grn", year);
-      }
-      if (featureFlags2.sales_orders_module) {
-        counters.sales_order = await NumberingService2.getCounter("sales_order", year);
-      }
-      return res.json(counters);
-    } catch (error) {
-      console.error("Get counters error:", error);
-      return res.status(500).json({ error: error.message || "Failed to get counters" });
-    }
-  });
-  app2.post("/api/numbering/reset-counter", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can reset counters" });
-      }
-      const { type, year } = req.body;
-      if (!type) {
-        return res.status(400).json({ error: "Counter type is required" });
-      }
-      const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
-      if (!validTypes.includes(type)) {
-        return res.status(400).json({ error: "Invalid counter type" });
-      }
-      const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
-      const featureMap = {
-        quote: featureFlags2.quotes_module,
-        vendor_po: featureFlags2.vendorPO_module,
-        invoice: featureFlags2.invoices_module,
-        grn: featureFlags2.grn_module,
-        sales_order: featureFlags2.sales_orders_module
-      };
-      if (!featureMap[type]) {
-        return res.status(403).json({ error: `Feature for ${type} is not enabled` });
-      }
-      const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
-      const targetYear = year || (/* @__PURE__ */ new Date()).getFullYear();
-      await NumberingService2.resetCounter(type, targetYear);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "reset_counter",
-        entityType: "numbering",
-        entityId: `${type}_${targetYear}`
-      });
-      return res.json({
-        success: true,
-        message: `Counter for ${type} (${targetYear}) reset to 0`,
-        currentValue: 0
-      });
-    } catch (error) {
-      console.error("Reset counter error:", error);
-      return res.status(500).json({ error: error.message || "Failed to reset counter" });
-    }
-  });
-  app2.post("/api/numbering/set-counter", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can set counters" });
-      }
-      const { type, year, value } = req.body;
-      if (!type || value === void 0) {
-        return res.status(400).json({ error: "Counter type and value are required" });
-      }
-      const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
-      if (!validTypes.includes(type)) {
-        return res.status(400).json({ error: "Invalid counter type" });
-      }
-      const numericValue = parseInt(value, 10);
-      if (isNaN(numericValue) || numericValue < 0) {
-        return res.status(400).json({ error: "Value must be a non-negative number" });
-      }
-      const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
-      const featureMap = {
-        quote: featureFlags2.quotes_module,
-        vendor_po: featureFlags2.vendorPO_module,
-        invoice: featureFlags2.invoices_module,
-        grn: featureFlags2.grn_module,
-        sales_order: featureFlags2.sales_orders_module
-      };
-      if (!featureMap[type]) {
-        return res.status(403).json({ error: `Feature for ${type} is not enabled` });
-      }
-      const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
-      const targetYear = year || (/* @__PURE__ */ new Date()).getFullYear();
-      await NumberingService2.setCounter(type, targetYear, numericValue);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "set_counter",
-        entityType: "numbering",
-        entityId: `${type}_${targetYear}`
-      });
-      return res.json({
-        success: true,
-        message: `Counter for ${type} (${targetYear}) set to ${numericValue}`,
-        currentValue: numericValue
-      });
-    } catch (error) {
-      console.error("Set counter error:", error);
-      return res.status(500).json({ error: error.message || "Failed to set counter" });
-    }
-  });
-  app2.get("/api/bank-details", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can access bank details" });
-      }
-      const details = await storage.getAllBankDetails();
-      return res.json(details);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch bank details" });
-    }
-  });
-  app2.get("/api/bank-details/active", authMiddleware, async (req, res) => {
-    try {
-      const detail = await storage.getActiveBankDetails();
-      return res.json(detail || null);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch active bank details" });
-    }
-  });
-  app2.post("/api/bank-details", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can create bank details" });
-      }
-      const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode } = req.body;
-      if (!bankName || !accountNumber || !accountName || !ifscCode) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-      const detail = await storage.createBankDetails({
-        bankName,
-        accountNumber,
-        accountName,
-        ifscCode,
-        branch: branch || null,
-        swiftCode: swiftCode || null,
-        isActive: true,
-        updatedBy: req.user.id
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_bank_details",
-        entityType: "bank_details",
-        entityId: detail.id
-      });
-      return res.json(detail);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to create bank details" });
-    }
-  });
-  app2.put("/api/bank-details/:id", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can update bank details" });
-      }
-      const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode, isActive } = req.body;
-      const detail = await storage.updateBankDetails(
-        req.params.id,
-        {
-          ...bankName && { bankName },
-          ...accountNumber && { accountNumber },
-          ...accountName && { accountName },
-          ...ifscCode && { ifscCode },
-          ...branch !== void 0 && { branch },
-          ...swiftCode !== void 0 && { swiftCode },
-          ...isActive !== void 0 && { isActive },
-          updatedBy: req.user.id
-        }
-      );
-      if (!detail) {
-        return res.status(404).json({ error: "Bank details not found" });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_bank_details",
-        entityType: "bank_details",
-        entityId: detail.id
-      });
-      return res.json(detail);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update bank details" });
-    }
-  });
-  app2.delete("/api/bank-details/:id", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can delete bank details" });
-      }
-      await storage.deleteBankDetails(req.params.id);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_bank_details",
-        entityType: "bank_details",
-        entityId: req.params.id
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to delete bank details" });
-    }
-  });
-  app2.get("/api/vendors", authMiddleware, async (req, res) => {
-    try {
-      const vendors2 = await storage.getAllVendors();
-      res.json(vendors2);
-    } catch (error) {
-      console.error("Error fetching vendors:", error);
-      res.status(500).json({ error: "Failed to fetch vendors" });
-    }
-  });
-  app2.get("/api/vendors/:id", authMiddleware, async (req, res) => {
-    try {
-      const vendor = await storage.getVendor(req.params.id);
-      if (!vendor) {
-        return res.status(404).json({ error: "Vendor not found" });
-      }
-      res.json(vendor);
-    } catch (error) {
-      console.error("Error fetching vendor:", error);
-      res.status(500).json({ error: "Failed to fetch vendor" });
-    }
-  });
-  app2.post("/api/vendors", authMiddleware, requirePermission("vendors", "create"), async (req, res) => {
-    try {
-      const vendor = await storage.createVendor({
-        ...req.body,
-        createdBy: req.user.id
-      });
-      res.json(vendor);
-    } catch (error) {
-      console.error("Error creating vendor:", error);
-      res.status(500).json({ error: "Failed to create vendor" });
-    }
-  });
-  app2.patch("/api/vendors/:id", authMiddleware, requirePermission("vendors", "edit"), async (req, res) => {
-    try {
-      const updated = await storage.updateVendor(req.params.id, req.body);
-      if (!updated) {
-        return res.status(404).json({ error: "Vendor not found" });
-      }
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating vendor:", error);
-      res.status(500).json({ error: "Failed to update vendor" });
-    }
-  });
-  app2.delete("/api/vendors/:id", authMiddleware, requirePermission("vendors", "delete"), async (req, res) => {
-    try {
-      await storage.deleteVendor(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting vendor:", error);
-      res.status(500).json({ error: "Failed to delete vendor" });
-    }
-  });
-  app2.get("/api/vendor-pos", authMiddleware, async (req, res) => {
-    try {
-      const pos = await storage.getAllVendorPos();
-      const enrichedPos = await Promise.all(
-        pos.map(async (po) => {
-          const vendor = await storage.getVendor(po.vendorId);
-          const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
-          return {
-            ...po,
-            vendorName: vendor?.name || "Unknown",
-            quoteNumber: quote?.quoteNumber || "N/A"
-          };
-        })
-      );
-      res.json(enrichedPos);
-    } catch (error) {
-      console.error("Error fetching vendor POs:", error);
-      res.status(500).json({ error: "Failed to fetch vendor POs" });
-    }
-  });
-  app2.get("/api/vendor-pos/:id", authMiddleware, async (req, res) => {
-    try {
-      const po = await storage.getVendorPo(req.params.id);
-      if (!po) {
-        return res.status(404).json({ error: "Vendor PO not found" });
-      }
-      const vendor = await storage.getVendor(po.vendorId);
-      const quote = po.quoteId ? await storage.getQuote(po.quoteId) : null;
-      const items = await storage.getVendorPoItems(po.id);
-      res.json({
-        ...po,
-        vendor: vendor || {},
-        quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber } : void 0,
-        items
-      });
-    } catch (error) {
-      console.error("Error fetching vendor PO:", error);
-      res.status(500).json({ error: "Failed to fetch vendor PO" });
-    }
-  });
-  app2.post("/api/quotes/:id/create-vendor-po", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
-    try {
-      const quote = await storage.getQuote(req.params.id);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      const quoteItems2 = await storage.getQuoteItems(quote.id);
-      const poNumber = await NumberingService.generateVendorPoNumber();
-      const po = await storage.createVendorPo({
-        poNumber,
-        quoteId: quote.id,
-        vendorId: req.body.vendorId,
-        status: "draft",
-        orderDate: /* @__PURE__ */ new Date(),
-        expectedDeliveryDate: req.body.expectedDeliveryDate ? new Date(req.body.expectedDeliveryDate) : null,
-        subtotal: quote.subtotal,
-        discount: quote.discount,
-        cgst: quote.cgst,
-        sgst: quote.sgst,
-        igst: quote.igst,
-        shippingCharges: quote.shippingCharges,
-        total: quote.total,
-        notes: req.body.notes || null,
-        termsAndConditions: quote.termsAndConditions,
-        createdBy: req.user.id
-      });
-      for (const item of quoteItems2) {
-        await storage.createVendorPoItem({
-          vendorPoId: po.id,
-          description: item.description,
-          quantity: item.quantity,
-          receivedQuantity: 0,
-          unitPrice: item.unitPrice,
-          subtotal: item.subtotal,
-          sortOrder: item.sortOrder
-        });
-      }
-      res.json(po);
-    } catch (error) {
-      console.error("Error creating vendor PO:", error);
-      res.status(500).json({ error: "Failed to create vendor PO" });
-    }
-  });
-  app2.post("/api/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
-    try {
-      const {
-        vendorId,
-        expectedDeliveryDate,
-        items,
-        subtotal,
-        discount,
-        cgst,
-        sgst,
-        igst,
-        shippingCharges,
-        total,
-        notes,
-        termsAndConditions
-      } = req.body;
-      if (!vendorId) {
-        return res.status(400).json({ error: "Vendor ID is required" });
-      }
-      if (!items || items.length === 0) {
-        return res.status(400).json({ error: "At least one item is required" });
-      }
-      const poNumber = await NumberingService.generateVendorPoNumber();
-      const po = await storage.createVendorPo({
-        poNumber,
-        quoteId: null,
-        // Standalone PO
-        vendorId,
-        status: "draft",
-        orderDate: /* @__PURE__ */ new Date(),
-        expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
-        subtotal: subtotal.toString(),
-        discount: discount.toString(),
-        cgst: cgst.toString(),
-        sgst: sgst.toString(),
-        igst: igst.toString(),
-        shippingCharges: shippingCharges.toString(),
-        total: total.toString(),
-        notes: notes || null,
-        termsAndConditions: termsAndConditions || null,
-        createdBy: req.user.id
-      });
-      let sortOrder = 0;
-      for (const item of items) {
-        await storage.createVendorPoItem({
-          vendorPoId: po.id,
-          description: item.description,
-          quantity: item.quantity,
-          receivedQuantity: 0,
-          unitPrice: item.unitPrice.toString(),
-          subtotal: item.subtotal.toString(),
-          sortOrder: sortOrder++
-        });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_vendor_po",
-        entityType: "vendor_po",
-        entityId: po.id
-      });
-      res.json(po);
-    } catch (error) {
-      console.error("Error creating vendor PO:", error);
-      res.status(500).json({ error: error.message || "Failed to create vendor PO" });
-    }
-  });
-  app2.patch("/api/vendor-pos/:id", authMiddleware, async (req, res) => {
-    try {
-      const updated = await storage.updateVendorPo(req.params.id, req.body);
-      if (!updated) {
-        return res.status(404).json({ error: "Vendor PO not found" });
-      }
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating vendor PO:", error);
-      res.status(500).json({ error: "Failed to update vendor PO" });
-    }
-  });
-  app2.patch("/api/vendor-pos/:id/items/:itemId/serials", authMiddleware, async (req, res) => {
-    try {
-      const { serialNumbers: serialNumbers2 } = req.body;
-      const updated = await storage.updateVendorPoItem(req.params.itemId, {
-        serialNumbers: JSON.stringify(serialNumbers2),
-        receivedQuantity: serialNumbers2.length
-      });
-      if (!updated) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating serial numbers:", error);
-      res.status(500).json({ error: "Failed to update serial numbers" });
-    }
-  });
-  app2.get("/api/quotes/:id/invoices", authMiddleware, async (req, res) => {
-    try {
-      const invoices2 = await storage.getInvoicesByQuote(req.params.id);
-      const enrichedInvoices = await Promise.all(
-        invoices2.map(async (invoice) => {
-          const items = await storage.getInvoiceItems(invoice.id);
-          return { ...invoice, items };
-        })
-      );
-      res.json(enrichedInvoices);
-    } catch (error) {
-      console.error("Error fetching invoices:", error);
-      res.status(500).json({ error: "Failed to fetch invoices" });
-    }
-  });
-  app2.post("/api/quotes/:id/create-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
-    try {
-      const quote = await storage.getQuote(req.params.id);
-      if (!quote) {
-        return res.status(404).json({ error: "Quote not found" });
-      }
-      const { parentInvoiceId, isMaster = false } = req.body;
-      let invoiceNumber;
-      if (parentInvoiceId) {
-        const parentInvoice = await storage.getInvoice(parentInvoiceId);
-        if (!parentInvoice) {
-          return res.status(404).json({ error: "Parent invoice not found" });
-        }
-        const allInvoices = await storage.getInvoicesByQuote(quote.id);
-        const siblings = allInvoices.filter((inv) => inv.parentInvoiceId === parentInvoiceId);
-        const childNumber = siblings.length + 1;
-        invoiceNumber = `${parentInvoice.invoiceNumber}-${childNumber}`;
-      } else if (isMaster) {
-        invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
-      } else {
-        invoiceNumber = await NumberingService.generateChildInvoiceNumber();
-      }
-      const dueDate = /* @__PURE__ */ new Date();
-      dueDate.setDate(dueDate.getDate() + 30);
-      const invoice = await storage.createInvoice({
-        invoiceNumber,
-        quoteId: quote.id,
-        parentInvoiceId: parentInvoiceId || null,
-        isMaster: parentInvoiceId ? false : isMaster || false,
-        paymentStatus: "pending",
-        dueDate,
-        paidAmount: "0",
-        clientId: quote.clientId,
-        subtotal: String(quote.subtotal || 0),
-        discount: String(quote.discount || 0),
-        cgst: String(quote.cgst || 0),
-        sgst: String(quote.sgst || 0),
-        igst: String(quote.igst || 0),
-        total: String(quote.total || 0),
-        remainingAmount: String(quote.total || 0),
-        status: "draft",
-        createdBy: req.user.id
-      });
-      const quoteItems2 = await storage.getQuoteItems(quote.id);
-      for (const item of quoteItems2) {
-        await storage.createInvoiceItem({
-          invoiceId: invoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          subtotal: item.subtotal,
-          hsnSac: item.hsnSac
-        });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_invoice",
-        entityType: "invoice",
-        entityId: invoice.id
-      });
-      return res.json(invoice);
-    } catch (error) {
-      console.error("Create invoice error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create invoice" });
-    }
-  });
-  app2.get("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      const settings2 = await storage.getAllSettings();
-      const settingsMap = {};
-      settings2.forEach((s) => {
-        settingsMap[s.key] = s.value;
-      });
-      return res.json(settingsMap);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch settings" });
-    }
-  });
-  app2.post("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const settingsData = req.body;
-      for (const [key, value] of Object.entries(settingsData)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user.id
-        });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_settings",
-        entityType: "settings"
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update settings" });
-    }
-  });
-  app2.get("/api/themes", authMiddleware, async (req, res) => {
-    try {
-      const { getAllThemes: getAllThemes2 } = await Promise.resolve().then(() => (init_pdf_themes(), pdf_themes_exports));
-      const themes = getAllThemes2();
-      return res.json(themes);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to get themes" });
-    }
-  });
-  app2.get("/api/themes/segment/:segment", authMiddleware, async (req, res) => {
-    try {
-      const { getSuggestedTheme: getSuggestedTheme2 } = await Promise.resolve().then(() => (init_pdf_themes(), pdf_themes_exports));
-      const theme = getSuggestedTheme2(req.params.segment);
-      return res.json(theme);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to get suggested theme" });
-    }
-  });
-  app2.patch("/api/clients/:id/theme", authMiddleware, async (req, res) => {
-    try {
-      const { preferredTheme, segment } = req.body;
-      const updateData = {};
-      if (preferredTheme !== void 0) updateData.preferredTheme = preferredTheme;
-      if (segment !== void 0) updateData.segment = segment;
-      const client = await storage.updateClient(req.params.id, updateData);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_client_theme",
-        entityType: "client",
-        entityId: req.params.id
-      });
-      return res.json(client);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update client theme" });
-    }
-  });
-  app2.get("/api/governance/stats", authMiddleware, async (req, res) => {
-    try {
-      if (req.user?.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden: Admin access required" });
-      }
-      const allUsers = await storage.getAllUsers();
-      const totalUsers = allUsers.length;
-      const activeUsers = allUsers.filter((u) => u.status === "active").length;
-      const activityLogs2 = await db.select().from(activityLogs);
-      const totalActivities = activityLogs2.length;
-      const criticalActivities = activityLogs2.filter(
-        (log) => log.action.includes("delete") || log.action.includes("approve") || log.action.includes("lock") || log.action.includes("finalize")
-      ).length;
-      const unauthorizedAttempts = activityLogs2.filter(
-        (log) => log.action.includes("unauthorized")
-      ).length;
-      const thirtyDaysAgo = /* @__PURE__ */ new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentApprovals = activityLogs2.filter(
-        (log) => log.action.includes("approve") && log.timestamp && new Date(log.timestamp) > thirtyDaysAgo
-      ).length;
-      return res.json({
-        totalUsers,
-        activeUsers,
-        totalActivities,
-        criticalActivities,
-        unauthorizedAttempts,
-        recentApprovals
-      });
-    } catch (error) {
-      console.error("Error fetching governance stats:", error);
-      return res.status(500).json({ error: error.message || "Failed to fetch governance stats" });
-    }
-  });
-  app2.get("/api/activity-logs/recent", authMiddleware, async (req, res) => {
-    try {
-      if (req.user?.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden: Admin access required" });
-      }
-      const logs = await db.select().from(activityLogs).orderBy(desc2(activityLogs.timestamp)).limit(100);
-      const enrichedLogs = await Promise.all(
-        logs.map(async (log) => {
-          const user = log.userId ? await storage.getUser(log.userId) : null;
-          return {
-            ...log,
-            userName: user?.name || "Unknown User",
-            userEmail: user?.email || "unknown@example.com"
-          };
-        })
-      );
-      return res.json(enrichedLogs);
-    } catch (error) {
-      console.error("Error fetching activity logs:", error);
-      return res.status(500).json({ error: error.message || "Failed to fetch activity logs" });
-    }
-  });
-  app2.get("/api/tax-rates", authMiddleware, async (req, res) => {
-    try {
-      const rates = await db.select().from(taxRates).where(eq3(taxRates.isActive, true));
-      const simplifiedRates = rates.map((rate) => ({
-        id: rate.id,
-        name: `${rate.taxType} ${rate.region}`,
-        percentage: parseFloat(rate.igstRate),
-        // Use IGST as the main rate
-        sgstRate: parseFloat(rate.sgstRate),
-        cgstRate: parseFloat(rate.cgstRate),
-        igstRate: parseFloat(rate.igstRate),
-        region: rate.region,
-        taxType: rate.taxType,
-        isActive: rate.isActive,
-        effectiveFrom: rate.effectiveFrom,
-        effectiveTo: rate.effectiveTo
-      }));
-      return res.json(simplifiedRates);
-    } catch (error) {
-      console.error("Error fetching tax rates:", error);
-      return res.status(500).json({ error: "Failed to fetch tax rates" });
-    }
-  });
-  app2.post("/api/tax-rates", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-      }
-      const { region, taxType, sgstRate, cgstRate, igstRate, description } = req.body;
-      if (!region || !taxType) {
-        return res.status(400).json({ error: "Region and taxType are required" });
-      }
-      const sgst = sgstRate !== void 0 && sgstRate !== null ? String(sgstRate) : "0";
-      const cgst = cgstRate !== void 0 && cgstRate !== null ? String(cgstRate) : "0";
-      const igst = igstRate !== void 0 && igstRate !== null ? String(igstRate) : "0";
-      const newRate = await db.insert(taxRates).values({
-        region,
-        taxType,
-        sgstRate: sgst,
-        cgstRate: cgst,
-        igstRate: igst
-      }).returning();
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_tax_rate",
-        entityType: "tax_rate",
-        entityId: newRate[0].id
-      });
-      return res.json({
-        id: newRate[0].id,
-        region,
-        taxType,
-        sgstRate: parseFloat(sgst),
-        cgstRate: parseFloat(cgst),
-        igstRate: parseFloat(igst)
-      });
-    } catch (error) {
-      console.error("Error creating tax rate:", error);
-      return res.status(500).json({ error: error.message || "Failed to create tax rate" });
-    }
-  });
-  app2.delete("/api/tax-rates/:id", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-      }
-      await db.delete(taxRates).where(eq3(taxRates.id, req.params.id));
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_tax_rate",
-        entityType: "tax_rate",
-        entityId: req.params.id
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting tax rate:", error);
-      return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
-    }
-  });
-  app2.get("/api/payment-terms", authMiddleware, async (req, res) => {
-    try {
-      const terms = await db.select().from(paymentTerms).where(eq3(paymentTerms.isActive, true));
-      return res.json(terms);
-    } catch (error) {
-      console.error("Error fetching payment terms:", error);
-      return res.status(500).json({ error: "Failed to fetch payment terms" });
-    }
-  });
-  app2.post("/api/payment-terms", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-      }
-      const { name, days, description, isDefault } = req.body;
-      if (!name || days === void 0) {
-        return res.status(400).json({ error: "Name and days are required" });
-      }
-      if (isDefault) {
-        await db.update(paymentTerms).set({ isDefault: false }).where(eq3(paymentTerms.isDefault, true));
-      }
-      const newTerm = await db.insert(paymentTerms).values({
-        name,
-        days,
-        description: description || null,
-        isDefault: isDefault || false,
-        createdBy: req.user.id
-      }).returning();
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_payment_term",
-        entityType: "payment_term",
-        entityId: newTerm[0].id
-      });
-      return res.json(newTerm[0]);
-    } catch (error) {
-      console.error("Error creating payment term:", error);
-      return res.status(500).json({ error: error.message || "Failed to create payment term" });
-    }
-  });
-  app2.delete("/api/payment-terms/:id", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-      }
-      await db.delete(paymentTerms).where(eq3(paymentTerms.id, req.params.id));
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_payment_term",
-        entityType: "payment_term",
-        entityId: req.params.id
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting payment term:", error);
-      return res.status(500).json({ error: error.message || "Failed to delete payment term" });
-    }
-  });
-  app2.get("/api/debug/counters", async (req, res) => {
-    try {
-      const year = (/* @__PURE__ */ new Date()).getFullYear();
-      const types = ["quote", "master_invoice", "child_invoice", "vendor_po", "grn"];
-      const counters = {};
-      for (const type of types) {
-        const counterKey = `${type}_counter_${year}`;
-        const setting = await storage.getSetting(counterKey);
-        const currentValue = setting?.value || "0";
-        const nextValue = parseInt(String(currentValue), 10) + 1;
-        counters[counterKey] = {
-          current: currentValue,
-          next: String(nextValue).padStart(4, "0"),
-          exists: !!setting
-        };
-      }
-      return res.json({
-        year,
-        counters,
-        message: "Next value shows what will be generated next"
-      });
-    } catch (error) {
-      console.error("Error fetching counters:", error);
-      return res.status(500).json({ error: error.message || "Failed to fetch counters" });
-    }
-  });
-  app2.post("/api/debug/reset-counter/:type", async (req, res) => {
-    try {
-      const { type } = req.params;
-      const year = (/* @__PURE__ */ new Date()).getFullYear();
-      console.log(`[DEBUG] Resetting counter for ${type} in year ${year}`);
-      await NumberingService.resetCounter(type, year);
-      return res.json({
-        success: true,
-        message: `Counter ${type}_counter_${year} has been reset to 0`,
-        nextNumber: "0001"
-      });
-    } catch (error) {
-      console.error("Error resetting counter:", error);
-      return res.status(500).json({ error: error.message || "Failed to reset counter" });
-    }
-  });
-  app2.post("/api/debug/set-counter/:type/:value", async (req, res) => {
-    try {
-      const { type, value } = req.params;
-      const year = (/* @__PURE__ */ new Date()).getFullYear();
-      const numValue = parseInt(value, 10);
-      if (isNaN(numValue) || numValue < 0) {
-        return res.status(400).json({ error: "Value must be a non-negative integer" });
-      }
-      console.log(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
-      await NumberingService.setCounter(type, year, numValue);
-      const nextValue = numValue + 1;
-      return res.json({
-        success: true,
-        message: `Counter ${type}_counter_${year} set to ${numValue}`,
-        nextNumber: String(nextValue).padStart(4, "0")
-      });
-    } catch (error) {
-      console.error("Error setting counter:", error);
-      return res.status(500).json({ error: error.message || "Failed to set counter" });
-    }
-  });
-  app2.patch("/api/invoices/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req, res) => {
-    try {
-      const { serialNumbers: serialNumbers2 } = req.body;
-      console.log(`Updating serial numbers for item ${req.params.itemId} in invoice ${req.params.id}`);
-      console.log(`Serial numbers count: ${serialNumbers2?.length || 0}`);
-      const invoiceItem = await storage.getInvoiceItem(req.params.itemId);
-      if (!invoiceItem) {
-        return res.status(404).json({ error: "Invoice item not found" });
-      }
-      const updated = await storage.updateInvoiceItem(req.params.itemId, {
-        serialNumbers: JSON.stringify(serialNumbers2),
-        fulfilledQuantity: serialNumbers2.length,
-        status: serialNumbers2.length > 0 ? "fulfilled" : "pending"
-      });
-      if (!updated) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      const invoice = await storage.getInvoice(req.params.id);
-      if (invoice && invoice.parentInvoiceId) {
-        console.log(`This is a child invoice. Parent: ${invoice.parentInvoiceId}`);
-        console.log(`Syncing with master invoice...`);
-        const masterItems = await storage.getInvoiceItems(invoice.parentInvoiceId);
-        console.log(`Searching for master item with:`);
-        console.log(`  Description: "${invoiceItem.description}"`);
-        console.log(`  Unit Price: ${invoiceItem.unitPrice}`);
-        console.log(`
-Available master items:`);
-        masterItems.forEach((mi, index2) => {
-          console.log(`  [${index2}] Description: "${mi.description}", Unit Price: ${mi.unitPrice}`);
-        });
-        const masterItem = masterItems.find(
-          (mi) => mi.description === invoiceItem.description && Number(mi.unitPrice) === Number(invoiceItem.unitPrice)
-        );
-        if (masterItem) {
-          console.log(`Found master item: ${masterItem.description} (ID: ${masterItem.id})`);
-          const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId);
-          const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === invoice.parentInvoiceId);
-          console.log(`Found ${childInvoices.length} child invoices for this master`);
-          const allChildSerialNumbers = [];
-          for (const childInvoice of childInvoices) {
-            const childItems = await storage.getInvoiceItems(childInvoice.id);
-            const matchingChildItem = childItems.find(
-              (ci) => ci.description === masterItem.description && Number(ci.unitPrice) === Number(masterItem.unitPrice)
-            );
-            if (matchingChildItem && matchingChildItem.serialNumbers) {
-              try {
-                const serials = JSON.parse(matchingChildItem.serialNumbers);
-                allChildSerialNumbers.push(...serials);
-                console.log(`  Child ${childInvoice.invoiceNumber}: ${serials.length} serial numbers`);
-              } catch (e) {
-                console.error("Error parsing serial numbers:", e);
-              }
-            }
-          }
-          console.log(`Total aggregated serial numbers: ${allChildSerialNumbers.length}`);
-          await storage.updateInvoiceItem(masterItem.id, {
-            serialNumbers: allChildSerialNumbers.length > 0 ? JSON.stringify(allChildSerialNumbers) : null,
-            status: masterItem.fulfilledQuantity >= masterItem.quantity ? "fulfilled" : "pending"
-          });
-          console.log(`\u2713 Master item updated successfully with ${allChildSerialNumbers.length} serial numbers`);
-        } else {
-          console.log(`\u26A0 No matching master item found for: ${invoiceItem.description}`);
-        }
-      } else {
-        console.log(`This is not a child invoice or is a master invoice itself`);
-      }
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating serial numbers:", error);
-      res.status(500).json({ error: "Failed to update serial numbers" });
-    }
-  });
-  app2.post("/api/invoices/:id/items/:itemId/serials/validate", authMiddleware, requirePermission("serial_numbers", "view"), async (req, res) => {
-    try {
-      const { validateSerialNumbers: validateSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
-      const { serials, expectedQuantity } = req.body;
-      const { id: invoiceId, itemId } = req.params;
-      if (!serials || !Array.isArray(serials)) {
-        return res.status(400).json({ error: "Invalid serials array" });
-      }
-      if (typeof expectedQuantity !== "number") {
-        return res.status(400).json({ error: "Expected quantity must be a number" });
-      }
-      const validation = await validateSerialNumbers2(
-        invoiceId,
-        itemId,
-        serials,
-        expectedQuantity,
-        {
-          checkInvoiceScope: true,
-          checkQuoteScope: true,
-          checkSystemWide: true
-        }
-      );
-      return res.json(validation);
-    } catch (error) {
-      console.error("Error validating serial numbers:", error);
-      return res.status(500).json({ error: error.message || "Failed to validate serial numbers" });
-    }
-  });
-  app2.get("/api/invoices/:id/serials/permissions", authMiddleware, async (req, res) => {
-    try {
-      const { canEditSerialNumbers: canEditSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
-      const { id: invoiceId } = req.params;
-      const permissions = await canEditSerialNumbers2(req.user.id, invoiceId);
-      return res.json(permissions);
-    } catch (error) {
-      console.error("Error checking serial edit permissions:", error);
-      return res.status(500).json({ error: error.message || "Failed to check permissions" });
-    }
-  });
-  app2.get("/api/serial-numbers/search", authMiddleware, async (req, res) => {
-    try {
-      const { getSerialTraceability: getSerialTraceability2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
-      const serialNumber = req.query.q;
-      if (!serialNumber || serialNumber.trim().length === 0) {
-        return res.status(400).json({ error: "Serial number query is required" });
-      }
-      const traceability = await getSerialTraceability2(serialNumber.trim());
-      if (!traceability) {
-        return res.status(404).json({ error: "Serial number not found" });
-      }
-      return res.json(traceability);
-    } catch (error) {
-      console.error("Error searching serial number:", error);
-      return res.status(500).json({ error: error.message || "Failed to search serial number" });
-    }
-  });
-  app2.post("/api/serial-numbers/batch-validate", authMiddleware, async (req, res) => {
-    try {
-      const { getSerialTraceability: getSerialTraceability2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
-      const { serials } = req.body;
-      if (!serials || !Array.isArray(serials)) {
-        return res.status(400).json({ error: "Invalid serials array" });
-      }
-      const results = await Promise.all(
-        serials.map(async (serial) => {
-          const traceability = await getSerialTraceability2(serial);
-          return {
-            serial,
-            exists: !!traceability,
-            info: traceability
-          };
-        })
-      );
-      return res.json({ results });
-    } catch (error) {
-      console.error("Error batch validating serials:", error);
-      return res.status(500).json({ error: error.message || "Failed to validate serials" });
-    }
-  });
-  app2.post("/api/invoices/:masterId/create-child", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
-    try {
-      const { masterId } = req.params;
-      const { items, milestoneDescription, deliveryNotes, notes } = req.body;
-      console.log("Creating child invoice for master:", masterId);
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
-      const masterInvoice = await storage.getInvoice(masterId);
-      if (!masterInvoice) {
-        console.error("Master invoice not found:", masterId);
-        return res.status(404).json({ error: "Master invoice not found" });
-      }
-      if (!masterInvoice.isMaster) {
-        console.error("Invoice is not a master invoice:", masterId);
-        return res.status(400).json({ error: "Invoice is not a master invoice" });
-      }
-      const masterItems = await storage.getInvoiceItems(masterId);
-      console.log("Master items count:", masterItems?.length || 0);
-      if (!masterItems || masterItems.length === 0) {
-        console.error("Master invoice has no items");
-        return res.status(400).json({ error: "Master invoice has no items" });
-      }
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        console.error("Invalid items array:", items);
-        return res.status(400).json({ error: "Items array is required and must not be empty" });
-      }
-      for (const item of items) {
-        const masterItem = masterItems.find((mi) => mi.id === item.itemId);
-        if (!masterItem) {
-          console.error("Item not found in master:", item.itemId);
-          return res.status(400).json({ error: `Item ${item.itemId} not found in master invoice` });
-        }
-        const remaining = masterItem.quantity - masterItem.fulfilledQuantity;
-        console.log(`Item ${masterItem.description}: qty=${item.quantity}, remaining=${remaining}`);
-        if (item.quantity > remaining) {
-          console.error(`Over-invoicing detected: requested=${item.quantity}, remaining=${remaining}`);
-          return res.status(400).json({
-            error: `Cannot invoice ${item.quantity} of "${masterItem.description}". Only ${remaining} remaining.`
-          });
-        }
-      }
-      const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId);
-      const siblings = allInvoices.filter((inv) => inv.parentInvoiceId === masterId);
-      const childInvoiceNumber = await NumberingService.generateChildInvoiceNumber();
-      let subtotal = 0;
-      console.log("Calculating subtotal for child invoice...");
-      for (const item of items) {
-        const masterItem = masterItems.find((mi) => mi.id === item.itemId);
-        if (!masterItem) {
-          console.error("Master item not found during calculation:", item.itemId);
-          continue;
-        }
-        const itemSubtotal = Number(masterItem.unitPrice) * item.quantity;
-        console.log(`  Item: ${masterItem.description}, unitPrice: ${masterItem.unitPrice}, qty: ${item.quantity}, subtotal: ${itemSubtotal}`);
-        subtotal += itemSubtotal;
-      }
-      console.log("Total subtotal:", subtotal);
-      const masterSubtotal = Number(masterInvoice.subtotal);
-      console.log("Master subtotal:", masterSubtotal);
-      const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
-      console.log("Ratio:", ratio);
-      const discount = Number(masterInvoice.discount) * ratio;
-      const cgst = Number(masterInvoice.cgst) * ratio;
-      const sgst = Number(masterInvoice.sgst) * ratio;
-      const igst = Number(masterInvoice.igst) * ratio;
-      const shippingCharges = Number(masterInvoice.shippingCharges) * ratio;
-      console.log("Calculated amounts - discount:", discount, "cgst:", cgst, "sgst:", sgst, "igst:", igst, "shipping:", shippingCharges);
-      const total = subtotal - discount + cgst + sgst + igst + shippingCharges;
-      console.log("Final total:", total);
-      const childInvoice = await storage.createInvoice({
-        invoiceNumber: childInvoiceNumber,
-        parentInvoiceId: masterId,
-        quoteId: masterInvoice.quoteId,
-        paymentStatus: "pending",
-        dueDate: masterInvoice.dueDate ? new Date(masterInvoice.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
-        subtotal: subtotal.toFixed(2),
-        discount: discount.toFixed(2),
-        cgst: cgst.toFixed(2),
-        sgst: sgst.toFixed(2),
-        igst: igst.toFixed(2),
-        shippingCharges: shippingCharges.toFixed(2),
-        total: total.toFixed(2),
-        paidAmount: "0",
-        isMaster: false,
-        milestoneDescription: milestoneDescription || null,
-        deliveryNotes: deliveryNotes || null,
-        notes: notes || masterInvoice.notes || null,
-        termsAndConditions: masterInvoice.termsAndConditions || null,
-        createdBy: req.user.id
-      });
-      for (const item of items) {
-        const masterItem = masterItems.find((mi) => mi.id === item.itemId);
-        if (!masterItem) continue;
-        await storage.createInvoiceItem({
-          invoiceId: childInvoice.id,
-          description: masterItem.description,
-          quantity: item.quantity,
-          fulfilledQuantity: 0,
-          unitPrice: masterItem.unitPrice,
-          subtotal: (Number(masterItem.unitPrice) * item.quantity).toFixed(2),
-          serialNumbers: item.serialNumbers ? JSON.stringify(item.serialNumbers) : null,
-          status: "pending",
-          sortOrder: masterItem.sortOrder,
-          hsnSac: masterItem.hsnSac || null
-        });
-        await db.update(invoiceItems).set({
-          fulfilledQuantity: sql4`${invoiceItems.fulfilledQuantity} + ${item.quantity}`,
-          updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq3(invoiceItems.id, masterItem.id));
-      }
-      await db.insert(activityLogs).values({
-        userId: req.user.id,
-        action: "child_invoice_created",
-        entityType: "invoice",
-        entityId: childInvoice.id
-      });
-      res.json(childInvoice);
-    } catch (error) {
-      console.error("Error creating child invoice:", error);
-      res.status(500).json({ error: "Failed to create child invoice" });
-    }
-  });
-  app2.get("/api/products", authMiddleware, async (req, res) => {
-    try {
-      const products2 = await db.select().from(products).orderBy(products.name);
-      res.json(products2);
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      res.status(500).json({ error: "Failed to fetch products" });
-    }
-  });
-  app2.get("/api/products/:id", authMiddleware, async (req, res) => {
-    try {
-      const [product] = await db.select().from(products).where(eq3(products.id, req.params.id));
-      if (!product) {
-        return res.status(404).json({ error: "Product not found" });
-      }
-      res.json(product);
-    } catch (error) {
-      console.error("Error fetching product:", error);
-      res.status(500).json({ error: "Failed to fetch product" });
-    }
-  });
-  app2.post("/api/products", authMiddleware, async (req, res) => {
-    try {
-      const [product] = await db.insert(products).values({
-        ...req.body,
-        createdBy: req.user.id
-      }).returning();
-      res.json(product);
-    } catch (error) {
-      console.error("Error creating product:", error);
-      res.status(500).json({ error: "Failed to create product" });
-    }
-  });
-  app2.patch("/api/products/:id", authMiddleware, async (req, res) => {
-    try {
-      const [updated] = await db.update(products).set({ ...req.body, updatedAt: /* @__PURE__ */ new Date() }).where(eq3(products.id, req.params.id)).returning();
-      if (!updated) {
-        return res.status(404).json({ error: "Product not found" });
-      }
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating product:", error);
-      res.status(500).json({ error: "Failed to update product" });
-    }
-  });
-  app2.get("/api/grns", authMiddleware, async (req, res) => {
-    try {
-      const grns = await db.select({
-        id: goodsReceivedNotes.id,
-        grnNumber: goodsReceivedNotes.grnNumber,
-        vendorPoId: goodsReceivedNotes.vendorPoId,
-        receivedDate: goodsReceivedNotes.receivedDate,
-        quantityOrdered: goodsReceivedNotes.quantityOrdered,
-        quantityReceived: goodsReceivedNotes.quantityReceived,
-        quantityRejected: goodsReceivedNotes.quantityRejected,
-        inspectionStatus: goodsReceivedNotes.inspectionStatus,
-        deliveryNoteNumber: goodsReceivedNotes.deliveryNoteNumber,
-        batchNumber: goodsReceivedNotes.batchNumber,
-        poNumber: vendorPurchaseOrders.poNumber,
-        vendorName: vendors.name
-      }).from(goodsReceivedNotes).leftJoin(
-        vendorPurchaseOrders,
-        eq3(goodsReceivedNotes.vendorPoId, vendorPurchaseOrders.id)
-      ).leftJoin(
-        vendors,
-        eq3(vendorPurchaseOrders.vendorId, vendors.id)
-      ).orderBy(desc2(goodsReceivedNotes.receivedDate));
-      res.json(grns);
-    } catch (error) {
-      console.error("Error fetching GRNs:", error);
-      res.status(500).json({ error: "Failed to fetch GRNs" });
-    }
-  });
-  app2.get("/api/grns/:id", authMiddleware, async (req, res) => {
-    try {
-      const [grn] = await db.select({
-        id: goodsReceivedNotes.id,
-        grnNumber: goodsReceivedNotes.grnNumber,
-        vendorPoId: goodsReceivedNotes.vendorPoId,
-        vendorPoItemId: goodsReceivedNotes.vendorPoItemId,
-        receivedDate: goodsReceivedNotes.receivedDate,
-        quantityOrdered: goodsReceivedNotes.quantityOrdered,
-        quantityReceived: goodsReceivedNotes.quantityReceived,
-        quantityRejected: goodsReceivedNotes.quantityRejected,
-        inspectionStatus: goodsReceivedNotes.inspectionStatus,
-        inspectedBy: goodsReceivedNotes.inspectedBy,
-        inspectionNotes: goodsReceivedNotes.inspectionNotes,
-        deliveryNoteNumber: goodsReceivedNotes.deliveryNoteNumber,
-        batchNumber: goodsReceivedNotes.batchNumber,
-        attachments: goodsReceivedNotes.attachments
-      }).from(goodsReceivedNotes).where(eq3(goodsReceivedNotes.id, req.params.id));
-      if (!grn) {
-        return res.status(404).json({ error: "GRN not found" });
-      }
-      const [po] = await db.select().from(vendorPurchaseOrders).where(eq3(vendorPurchaseOrders.id, grn.vendorPoId));
-      const [vendor] = await db.select().from(vendors).where(eq3(vendors.id, po.vendorId));
-      const [poItem] = await db.select().from(vendorPoItems).where(eq3(vendorPoItems.id, grn.vendorPoItemId));
-      let inspector = null;
-      if (grn.inspectedBy) {
-        [inspector] = await db.select({ id: users.id, name: users.name }).from(users).where(eq3(users.id, grn.inspectedBy));
-      }
-      res.json({
-        ...grn,
-        vendorPo: {
-          id: po.id,
-          poNumber: po.poNumber,
-          vendor: {
-            name: vendor.name,
-            email: vendor.email,
-            phone: vendor.phone
-          }
-        },
-        vendorPoItem: poItem,
-        inspectedBy: inspector
-      });
-    } catch (error) {
-      console.error("Error fetching GRN:", error);
-      res.status(500).json({ error: "Failed to fetch GRN" });
-    }
-  });
-  app2.post("/api/grns", authMiddleware, async (req, res) => {
-    try {
-      const {
-        vendorPoId,
-        vendorPoItemId,
-        quantityOrdered,
-        quantityReceived,
-        quantityRejected,
-        inspectionStatus,
-        inspectionNotes,
-        deliveryNoteNumber,
-        batchNumber,
-        serialNumbers: serialNumbers2
-      } = req.body;
-      const grnNumber = await NumberingService.generateGrnNumber();
-      const [grn] = await db.insert(goodsReceivedNotes).values({
-        grnNumber,
-        vendorPoId,
-        vendorPoItemId,
-        quantityOrdered,
-        quantityReceived,
-        quantityRejected: quantityRejected || 0,
-        inspectionStatus: inspectionStatus || "pending",
-        inspectionNotes,
-        deliveryNoteNumber,
-        batchNumber,
-        createdBy: req.user.id
-      }).returning();
-      const [poItem] = await db.select().from(vendorPoItems).where(eq3(vendorPoItems.id, vendorPoItemId));
-      await db.update(vendorPoItems).set({
-        receivedQuantity: (poItem.receivedQuantity || 0) + quantityReceived,
-        updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq3(vendorPoItems.id, vendorPoItemId));
-      if (serialNumbers2 && Array.isArray(serialNumbers2) && serialNumbers2.length > 0) {
-        const serialRecords = serialNumbers2.map((sn) => ({
-          serialNumber: sn,
-          vendorPoId,
-          vendorPoItemId,
-          grnId: grn.id,
-          status: "in_stock",
-          createdBy: req.user.id
-        }));
-        await db.insert(serialNumbers).values(serialRecords);
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_grn",
-        entityType: "grn",
-        entityId: grn.id
-      });
-      res.json(grn);
-    } catch (error) {
-      console.error("Error creating GRN:", error);
-      res.status(500).json({ error: error.message || "Failed to create GRN" });
-    }
-  });
-  app2.patch("/api/grns/:id", authMiddleware, async (req, res) => {
-    try {
-      const {
-        quantityReceived,
-        quantityRejected,
-        inspectionStatus,
-        inspectionNotes,
-        deliveryNoteNumber,
-        batchNumber
-      } = req.body;
-      const [grn] = await db.update(goodsReceivedNotes).set({
-        quantityReceived,
-        quantityRejected: quantityRejected || 0,
-        inspectionStatus,
-        inspectedBy: req.user.id,
-        inspectionNotes,
-        deliveryNoteNumber,
-        batchNumber,
-        updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq3(goodsReceivedNotes.id, req.params.id)).returning();
-      if (!grn) {
-        return res.status(404).json({ error: "GRN not found" });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_grn",
-        entityType: "grn",
-        entityId: grn.id
-      });
-      res.json(grn);
-    } catch (error) {
-      console.error("Error updating GRN:", error);
-      res.status(500).json({ error: error.message || "Failed to update GRN" });
-    }
-  });
-  app2.post("/api/serial-numbers/bulk", authMiddleware, async (req, res) => {
-    try {
-      const {
-        serialNumbers: serialNumbers2,
-        invoiceItemId,
-        productId,
-        vendorPoItemId,
-        grnId
-      } = req.body;
-      if (!Array.isArray(serialNumbers2) || serialNumbers2.length === 0) {
-        return res.status(400).json({ error: "Serial numbers array is required" });
-      }
-      const existing = await db.select().from(serialNumbers).where(sql4`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
-      if (existing.length > 0) {
-        return res.status(400).json({
-          error: "Duplicate serial numbers found",
-          duplicates: existing.map((s) => s.serialNumber)
-        });
-      }
-      const records = serialNumbers2.map((sn) => ({
-        serialNumber: sn,
-        productId: productId || null,
-        vendorPoItemId: vendorPoItemId || null,
-        grnId: grnId || null,
-        invoiceItemId: invoiceItemId || null,
-        status: invoiceItemId ? "reserved" : "in_stock",
-        createdBy: req.user.id
-      }));
-      const created = await db.insert(serialNumbers).values(records).returning();
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "bulk_import_serials",
-        entityType: "serial_numbers",
-        entityId: created[0].id
-      });
-      res.json({ count: created.length, serialNumbers: created });
-    } catch (error) {
-      console.error("Error importing serial numbers:", error);
-      res.status(500).json({ error: error.message || "Failed to import serial numbers" });
-    }
-  });
-  app2.get("/api/serial-numbers/:serialNumber", authMiddleware, async (req, res) => {
-    try {
-      const [serial] = await db.select().from(serialNumbers).where(eq3(serialNumbers.serialNumber, req.params.serialNumber));
-      if (!serial) {
-        return res.status(404).json({ error: "Serial number not found" });
-      }
-      let product = null;
-      if (serial.productId) {
-        [product] = await db.select({ id: products.id, name: products.name, sku: products.sku }).from(products).where(eq3(products.id, serial.productId));
-      }
-      let vendor = null;
-      if (serial.vendorId) {
-        [vendor] = await db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq3(vendors.id, serial.vendorId));
-      }
-      let vendorPo = null;
-      if (serial.vendorPoId) {
-        [vendorPo] = await db.select({
-          id: vendorPurchaseOrders.id,
-          poNumber: vendorPurchaseOrders.poNumber,
-          orderDate: vendorPurchaseOrders.orderDate
-        }).from(vendorPurchaseOrders).where(eq3(vendorPurchaseOrders.id, serial.vendorPoId));
-      }
-      let grn = null;
-      if (serial.grnId) {
-        [grn] = await db.select({
-          id: goodsReceivedNotes.id,
-          grnNumber: goodsReceivedNotes.grnNumber,
-          receivedDate: goodsReceivedNotes.receivedDate,
-          inspectionStatus: goodsReceivedNotes.inspectionStatus
-        }).from(goodsReceivedNotes).where(eq3(goodsReceivedNotes.id, serial.grnId));
-      }
-      let invoice = null;
-      if (serial.invoiceId) {
-        [invoice] = await db.select({
-          id: invoices.id,
-          invoiceNumber: invoices.invoiceNumber,
-          createdAt: invoices.createdAt
-        }).from(invoices).where(eq3(invoices.id, serial.invoiceId));
-      }
-      res.json({
-        ...serial,
-        product,
-        vendor,
-        vendorPo,
-        grn,
-        invoice
-      });
-    } catch (error) {
-      console.error("Error fetching serial number:", error);
-      res.status(500).json({ error: "Failed to fetch serial number" });
-    }
-  });
   app2.get("/api/analytics/dashboard", authMiddleware, async (req, res) => {
     try {
       const quotes2 = await storage.getAllQuotes();
@@ -11951,8 +12475,14 @@ Available master items:`);
       const invoices2 = await storage.getAllInvoices();
       const totalQuotes = quotes2.length;
       const totalClients = clients2.length;
-      const approvedQuotes = quotes2.filter((q) => q.status === "approved" || q.status === "invoiced");
-      const totalRevenue = approvedQuotes.reduce((sum, q) => sum + Number(q.total), 0);
+      const safeToNum = (val) => {
+        if (typeof val === "number") return val;
+        if (!val) return 0;
+        const str = String(val).replace(/[^0-9.-]+/g, "");
+        return parseFloat(str) || 0;
+      };
+      const approvedQuotes = quotes2.filter((q) => q.status === "approved" || q.status === "invoiced" || q.status === "closed_paid");
+      const totalRevenue = invoices2.reduce((sum, inv) => sum + safeToNum(inv.paidAmount), 0);
       const conversionRate = totalQuotes > 0 ? (approvedQuotes.length / totalQuotes * 100).toFixed(1) : "0";
       const recentQuotes = await Promise.all(
         quotes2.slice(0, 5).map(async (quote) => {
@@ -11967,6 +12497,32 @@ Available master items:`);
           };
         })
       );
+      const clientMap = new Map(clients2.map((c) => [c.id, c]));
+      const clientRevenue = /* @__PURE__ */ new Map();
+      for (const inv of invoices2) {
+        if (!inv.clientId) continue;
+        const paid = safeToNum(inv.paidAmount);
+        if (paid <= 0) continue;
+        const client = clientMap.get(inv.clientId);
+        if (!client) continue;
+        const existing = clientRevenue.get(inv.clientId);
+        if (existing) {
+          existing.totalRevenue += paid;
+          existing.quoteCount += 1;
+        } else {
+          clientRevenue.set(inv.clientId, {
+            name: client.name,
+            totalRevenue: paid,
+            quoteCount: 1
+          });
+        }
+      }
+      const topClients = Array.from(clientRevenue.values()).map((c) => ({
+        name: c.name,
+        total: c.totalRevenue,
+        // Send as number
+        quoteCount: c.quoteCount
+      })).sort((a, b) => b.total - a.total).slice(0, 5);
       const quotesByStatus = quotes2.reduce((acc, quote) => {
         const existing = acc.find((item) => item.status === quote.status);
         if (existing) {
@@ -11985,7 +12541,7 @@ Available master items:`);
           const qDate = new Date(q.createdAt);
           return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
         });
-        const revenue = monthQuotes.reduce((sum, q) => sum + Number(q.total), 0);
+        const revenue = monthQuotes.reduce((sum, q) => sum + safeToNum(q.total), 0);
         monthlyRevenue.push({ month, revenue });
       }
       return res.json({
@@ -11994,11 +12550,12 @@ Available master items:`);
         totalRevenue: totalRevenue.toFixed(2),
         conversionRate,
         recentQuotes,
+        topClients,
         quotesByStatus,
         monthlyRevenue
       });
     } catch (error) {
-      console.error("Analytics error:", error);
+      logger.error("Analytics error:", error);
       return res.status(500).json({ error: "Failed to fetch analytics" });
     }
   });
@@ -12076,7 +12633,7 @@ Available master items:`);
         statusBreakdown
       });
     } catch (error) {
-      console.error("Analytics error:", error);
+      logger.error("Analytics error:", error);
       return res.status(500).json({ error: "Failed to fetch analytics" });
     }
   });
@@ -12086,7 +12643,7 @@ Available master items:`);
       const forecast = await analyticsService.getRevenueForecast(monthsAhead);
       return res.json(forecast);
     } catch (error) {
-      console.error("Forecast error:", error);
+      logger.error("Forecast error:", error);
       return res.status(500).json({ error: "Failed to fetch forecast" });
     }
   });
@@ -12095,7 +12652,7 @@ Available master items:`);
       const distribution = await analyticsService.getDealDistribution();
       return res.json(distribution);
     } catch (error) {
-      console.error("Deal distribution error:", error);
+      logger.error("Deal distribution error:", error);
       return res.status(500).json({ error: "Failed to fetch deal distribution" });
     }
   });
@@ -12104,7 +12661,7 @@ Available master items:`);
       const regionalData = await analyticsService.getRegionalDistribution();
       return res.json(regionalData);
     } catch (error) {
-      console.error("Regional data error:", error);
+      logger.error("Regional data error:", error);
       return res.status(500).json({ error: "Failed to fetch regional data" });
     }
   });
@@ -12120,7 +12677,7 @@ Available master items:`);
       });
       return res.json(report);
     } catch (error) {
-      console.error("Custom report error:", error);
+      logger.error("Custom report error:", error);
       return res.status(500).json({ error: "Failed to generate custom report" });
     }
   });
@@ -12129,7 +12686,7 @@ Available master items:`);
       const pipeline = await analyticsService.getSalesPipeline();
       return res.json(pipeline);
     } catch (error) {
-      console.error("Pipeline error:", error);
+      logger.error("Pipeline error:", error);
       return res.status(500).json({ error: "Failed to fetch pipeline data" });
     }
   });
@@ -12138,7 +12695,7 @@ Available master items:`);
       const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
       return res.json(ltv);
     } catch (error) {
-      console.error("LTV error:", error);
+      logger.error("LTV error:", error);
       return res.status(500).json({ error: "Failed to fetch client LTV" });
     }
   });
@@ -12147,7 +12704,7 @@ Available master items:`);
       const insights = await analyticsService.getCompetitorInsights();
       return res.json(insights);
     } catch (error) {
-      console.error("Competitor insights error:", error);
+      logger.error("Competitor insights error:", error);
       return res.status(500).json({ error: "Failed to fetch competitor insights" });
     }
   });
@@ -12230,7 +12787,7 @@ Available master items:`);
         }
       });
     } catch (error) {
-      console.error("Vendor analytics error:", error);
+      logger.error("Vendor analytics error:", error);
       return res.status(500).json({ error: "Failed to fetch vendor analytics" });
     }
   });
@@ -12239,7 +12796,7 @@ Available master items:`);
       const tags = await storage.getClientTags(req.params.clientId);
       return res.json(tags);
     } catch (error) {
-      console.error("Get tags error:", error);
+      logger.error("Get tags error:", error);
       return res.status(500).json({ error: "Failed to fetch client tags" });
     }
   });
@@ -12261,7 +12818,7 @@ Available master items:`);
       });
       return res.json(clientTag);
     } catch (error) {
-      console.error("Add tag error:", error);
+      logger.error("Add tag error:", error);
       return res.status(500).json({ error: "Failed to add tag" });
     }
   });
@@ -12276,7 +12833,7 @@ Available master items:`);
       });
       return res.json({ success: true });
     } catch (error) {
-      console.error("Remove tag error:", error);
+      logger.error("Remove tag error:", error);
       return res.status(500).json({ error: "Failed to remove tag" });
     }
   });
@@ -12285,7 +12842,7 @@ Available master items:`);
       const communications = await storage.getClientCommunications(req.params.clientId);
       return res.json(communications);
     } catch (error) {
-      console.error("Get communications error:", error);
+      logger.error("Get communications error:", error);
       return res.status(500).json({ error: "Failed to fetch communications" });
     }
   });
@@ -12312,7 +12869,7 @@ Available master items:`);
       });
       return res.json(communication);
     } catch (error) {
-      console.error("Create communication error:", error);
+      logger.error("Create communication error:", error);
       return res.status(500).json({ error: error.message || "Failed to create communication" });
     }
   });
@@ -12327,7 +12884,7 @@ Available master items:`);
       });
       return res.json({ success: true });
     } catch (error) {
-      console.error("Delete communication error:", error);
+      logger.error("Delete communication error:", error);
       return res.status(500).json({ error: "Failed to delete communication" });
     }
   });
@@ -12336,7 +12893,7 @@ Available master items:`);
       const tiers = await storage.getAllPricingTiers();
       return res.json(tiers);
     } catch (error) {
-      console.error("Get pricing tiers error:", error);
+      logger.error("Get pricing tiers error:", error);
       return res.status(500).json({ error: "Failed to fetch pricing tiers" });
     }
   });
@@ -12365,7 +12922,7 @@ Available master items:`);
       });
       return res.json(tier);
     } catch (error) {
-      console.error("Create pricing tier error:", error);
+      logger.error("Create pricing tier error:", error);
       return res.status(500).json({ error: error.message || "Failed to create pricing tier" });
     }
   });
@@ -12386,7 +12943,7 @@ Available master items:`);
       });
       return res.json(updated);
     } catch (error) {
-      console.error("Update pricing tier error:", error);
+      logger.error("Update pricing tier error:", error);
       return res.status(500).json({ error: error.message || "Failed to update pricing tier" });
     }
   });
@@ -12404,7 +12961,7 @@ Available master items:`);
       });
       return res.json({ success: true });
     } catch (error) {
-      console.error("Delete pricing tier error:", error);
+      logger.error("Delete pricing tier error:", error);
       return res.status(500).json({ error: "Failed to delete pricing tier" });
     }
   });
@@ -12417,7 +12974,7 @@ Available master items:`);
       const result = await pricingService.calculateDiscount(subtotal);
       return res.json(result);
     } catch (error) {
-      console.error("Calculate discount error:", error);
+      logger.error("Calculate discount error:", error);
       return res.status(500).json({ error: error.message || "Failed to calculate discount" });
     }
   });
@@ -12430,7 +12987,7 @@ Available master items:`);
       const taxes = await pricingService.calculateTaxes(amount, region, useIGST);
       return res.json(taxes);
     } catch (error) {
-      console.error("Calculate taxes error:", error);
+      logger.error("Calculate taxes error:", error);
       return res.status(500).json({ error: error.message || "Failed to calculate taxes" });
     }
   });
@@ -12449,7 +13006,7 @@ Available master items:`);
       });
       return res.json(total);
     } catch (error) {
-      console.error("Calculate total error:", error);
+      logger.error("Calculate total error:", error);
       return res.status(500).json({ error: error.message || "Failed to calculate total" });
     }
   });
@@ -12462,177 +13019,8 @@ Available master items:`);
       const converted = await pricingService.convertCurrency(amount, fromCurrency, toCurrency);
       return res.json({ original: amount, converted, fromCurrency, toCurrency });
     } catch (error) {
-      console.error("Convert currency error:", error);
+      logger.error("Convert currency error:", error);
       return res.status(500).json({ error: error.message || "Failed to convert currency" });
-    }
-  });
-  app2.get("/api/currency-settings", authMiddleware, async (req, res) => {
-    try {
-      const settings2 = await storage.getCurrencySettings();
-      if (!settings2) {
-        return res.json({ baseCurrency: "INR", supportedCurrencies: "[]", exchangeRates: "{}" });
-      }
-      return res.json(settings2);
-    } catch (error) {
-      console.error("Get currency settings error:", error);
-      return res.status(500).json({ error: "Failed to fetch currency settings" });
-    }
-  });
-  app2.post("/api/currency-settings", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const { baseCurrency, supportedCurrencies, exchangeRates } = req.body;
-      const settings2 = await storage.upsertCurrencySettings({
-        baseCurrency: baseCurrency || "INR",
-        supportedCurrencies: typeof supportedCurrencies === "string" ? supportedCurrencies : JSON.stringify(supportedCurrencies),
-        exchangeRates: typeof exchangeRates === "string" ? exchangeRates : JSON.stringify(exchangeRates)
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_currency_settings",
-        entityType: "settings"
-      });
-      return res.json(settings2);
-    } catch (error) {
-      console.error("Update currency settings error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update currency settings" });
-    }
-  });
-  app2.get("/api/admin/settings", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const settings2 = await storage.getAllSettings();
-      const settingsMap = {};
-      settings2.forEach((s) => {
-        settingsMap[s.key] = s.value;
-      });
-      const categories = {
-        company: {
-          companyName: settingsMap["companyName"] || "",
-          companyEmail: settingsMap["companyEmail"] || "",
-          companyPhone: settingsMap["companyPhone"] || "",
-          companyWebsite: settingsMap["companyWebsite"] || "",
-          companyAddress: settingsMap["companyAddress"] || "",
-          companyLogo: settingsMap["companyLogo"] || ""
-        },
-        taxation: {
-          gstin: settingsMap["gstin"] || "",
-          taxType: settingsMap["taxType"] || "GST",
-          // GST, VAT, etc.
-          defaultTaxRate: settingsMap["defaultTaxRate"] || "18",
-          enableIGST: settingsMap["enableIGST"] === "true",
-          enableCGST: settingsMap["enableCGST"] === "true",
-          enableSGST: settingsMap["enableSGST"] === "true"
-        },
-        documents: {
-          quotePrefix: settingsMap["quotePrefix"] || "QT",
-          invoicePrefix: settingsMap["invoicePrefix"] || "INV",
-          nextQuoteNumber: settingsMap["nextQuoteNumber"] || "1001",
-          nextInvoiceNumber: settingsMap["nextInvoiceNumber"] || "1001"
-        },
-        email: {
-          smtpHost: settingsMap["smtpHost"] || "",
-          smtpPort: settingsMap["smtpPort"] || "",
-          smtpEmail: settingsMap["smtpEmail"] || "",
-          emailTemplateQuote: settingsMap["emailTemplateQuote"] || "",
-          emailTemplateInvoice: settingsMap["emailTemplateInvoice"] || "",
-          emailTemplatePaymentReminder: settingsMap["emailTemplatePaymentReminder"] || ""
-        },
-        general: {
-          quotaValidityDays: settingsMap["quotaValidityDays"] || "30",
-          invoiceDueDays: settingsMap["invoiceDueDays"] || "30",
-          enableAutoReminders: settingsMap["enableAutoReminders"] === "true",
-          reminderDaysBeforeDue: settingsMap["reminderDaysBeforeDue"] || "3"
-        }
-      };
-      return res.json(categories);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch admin settings" });
-    }
-  });
-  app2.post("/api/admin/settings/company", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const companySettings = req.body;
-      for (const [key, value] of Object.entries(companySettings)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user.id
-        });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_company_settings",
-        entityType: "settings"
-      });
-      return res.json({ success: true, message: "Company settings updated" });
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update company settings" });
-    }
-  });
-  app2.post("/api/admin/settings/taxation", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const taxSettings = req.body;
-      for (const [key, value] of Object.entries(taxSettings)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user.id
-        });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_tax_settings",
-        entityType: "settings"
-      });
-      return res.json({ success: true, message: "Tax settings updated" });
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update tax settings" });
-    }
-  });
-  app2.post("/api/admin/settings/email", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const emailSettings = req.body;
-      for (const [key, value] of Object.entries(emailSettings)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user.id
-        });
-      }
-      if (emailSettings.smtpHost) {
-        EmailService.initialize({
-          host: emailSettings.smtpHost,
-          port: Number(emailSettings.smtpPort),
-          secure: emailSettings.smtpSecure === "true",
-          auth: {
-            user: emailSettings.smtpEmail,
-            pass: process.env.SMTP_PASSWORD || ""
-          },
-          from: emailSettings.smtpEmail || "noreply@quoteprogen.com"
-        });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_email_settings",
-        entityType: "settings"
-      });
-      return res.json({ success: true, message: "Email settings updated" });
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update email settings" });
     }
   });
   app2.get("/api/admin/users", authMiddleware, async (req, res) => {
@@ -12700,365 +13088,6 @@ Available master items:`);
       return res.json({ success: true, message: `User status changed to ${status}` });
     } catch (error) {
       return res.status(500).json({ error: error.message || "Failed to update user status" });
-    }
-  });
-  app2.get("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      const settings2 = await storage.getAllSettings();
-      const settingsMap = {};
-      settings2.forEach((s) => {
-        settingsMap[s.key] = s.value;
-      });
-      return res.json(settingsMap);
-    } catch (error) {
-      return res.status(500).json({ error: "Failed to fetch settings" });
-    }
-  });
-  app2.post("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const settingsData = req.body;
-      for (const [key, value] of Object.entries(settingsData)) {
-        await storage.upsertSetting({
-          key,
-          value: String(value),
-          updatedBy: req.user.id
-        });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_settings",
-        entityType: "settings"
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update settings" });
-    }
-  });
-  app2.get("/api/themes", authMiddleware, async (req, res) => {
-    try {
-      const { getAllThemes: getAllThemes2 } = await Promise.resolve().then(() => (init_pdf_themes(), pdf_themes_exports));
-      const themes = getAllThemes2();
-      return res.json(themes);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to get themes" });
-    }
-  });
-  app2.get("/api/themes/segment/:segment", authMiddleware, async (req, res) => {
-    try {
-      const { getSuggestedTheme: getSuggestedTheme2 } = await Promise.resolve().then(() => (init_pdf_themes(), pdf_themes_exports));
-      const theme = getSuggestedTheme2(req.params.segment);
-      return res.json(theme);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to get suggested theme" });
-    }
-  });
-  app2.patch("/api/clients/:id/theme", authMiddleware, async (req, res) => {
-    try {
-      const { preferredTheme, segment } = req.body;
-      const updateData = {};
-      if (preferredTheme !== void 0) updateData.preferredTheme = preferredTheme;
-      if (segment !== void 0) updateData.segment = segment;
-      const client = await storage.updateClient(req.params.id, updateData);
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_client_theme",
-        entityType: "client",
-        entityId: req.params.id
-      });
-      return res.json(client);
-    } catch (error) {
-      return res.status(500).json({ error: error.message || "Failed to update client theme" });
-    }
-  });
-  app2.get("/api/governance/stats", authMiddleware, async (req, res) => {
-    try {
-      if (req.user?.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden: Admin access required" });
-      }
-      const allUsers = await storage.getAllUsers();
-      const totalUsers = allUsers.length;
-      const activeUsers = allUsers.filter((u) => u.status === "active").length;
-      const activityLogs2 = await db.select().from(activityLogs);
-      const totalActivities = activityLogs2.length;
-      const criticalActivities = activityLogs2.filter(
-        (log) => log.action.includes("delete") || log.action.includes("approve") || log.action.includes("lock") || log.action.includes("finalize")
-      ).length;
-      const unauthorizedAttempts = activityLogs2.filter(
-        (log) => log.action.includes("unauthorized")
-      ).length;
-      const thirtyDaysAgo = /* @__PURE__ */ new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentApprovals = activityLogs2.filter(
-        (log) => log.action.includes("approve") && log.timestamp && new Date(log.timestamp) > thirtyDaysAgo
-      ).length;
-      return res.json({
-        totalUsers,
-        activeUsers,
-        totalActivities,
-        criticalActivities,
-        unauthorizedAttempts,
-        recentApprovals
-      });
-    } catch (error) {
-      console.error("Error fetching governance stats:", error);
-      return res.status(500).json({ error: error.message || "Failed to fetch governance stats" });
-    }
-  });
-  app2.get("/api/activity-logs/recent", authMiddleware, async (req, res) => {
-    try {
-      if (req.user?.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden: Admin access required" });
-      }
-      const logs = await db.select().from(activityLogs).orderBy(desc2(activityLogs.timestamp)).limit(100);
-      const enrichedLogs = await Promise.all(
-        logs.map(async (log) => {
-          const user = log.userId ? await storage.getUser(log.userId) : null;
-          return {
-            ...log,
-            userName: user?.name || "Unknown User",
-            userEmail: user?.email || "unknown@example.com"
-          };
-        })
-      );
-      return res.json(enrichedLogs);
-    } catch (error) {
-      console.error("Error fetching activity logs:", error);
-      return res.status(500).json({ error: error.message || "Failed to fetch activity logs" });
-    }
-  });
-  app2.get("/api/tax-rates", authMiddleware, async (req, res) => {
-    try {
-      const rates = await db.select().from(taxRates).where(eq3(taxRates.isActive, true));
-      const simplifiedRates = rates.map((rate) => ({
-        id: rate.id,
-        name: `${rate.taxType} ${rate.region}`,
-        percentage: parseFloat(rate.igstRate),
-        // Use IGST as the main rate
-        sgstRate: parseFloat(rate.sgstRate),
-        cgstRate: parseFloat(rate.cgstRate),
-        igstRate: parseFloat(rate.igstRate),
-        region: rate.region,
-        taxType: rate.taxType,
-        isActive: rate.isActive,
-        effectiveFrom: rate.effectiveFrom,
-        effectiveTo: rate.effectiveTo
-      }));
-      return res.json(simplifiedRates);
-    } catch (error) {
-      console.error("Error fetching tax rates:", error);
-      return res.status(500).json({ error: "Failed to fetch tax rates" });
-    }
-  });
-  app2.post("/api/tax-rates", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-      }
-      const { region, taxType, sgstRate, cgstRate, igstRate, description } = req.body;
-      if (!region || !taxType) {
-        return res.status(400).json({ error: "Region and taxType are required" });
-      }
-      const sgst = sgstRate !== void 0 && sgstRate !== null ? String(sgstRate) : "0";
-      const cgst = cgstRate !== void 0 && cgstRate !== null ? String(cgstRate) : "0";
-      const igst = igstRate !== void 0 && igstRate !== null ? String(igstRate) : "0";
-      const newRate = await db.insert(taxRates).values({
-        region,
-        taxType,
-        sgstRate: sgst,
-        cgstRate: cgst,
-        igstRate: igst
-      }).returning();
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_tax_rate",
-        entityType: "tax_rate",
-        entityId: newRate[0].id
-      });
-      return res.json({
-        id: newRate[0].id,
-        region,
-        taxType,
-        sgstRate: parseFloat(sgst),
-        cgstRate: parseFloat(cgst),
-        igstRate: parseFloat(igst)
-      });
-    } catch (error) {
-      console.error("Error creating tax rate:", error);
-      return res.status(500).json({ error: error.message || "Failed to create tax rate" });
-    }
-  });
-  app2.delete("/api/tax-rates/:id", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-      }
-      await db.delete(taxRates).where(eq3(taxRates.id, req.params.id));
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_tax_rate",
-        entityType: "tax_rate",
-        entityId: req.params.id
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting tax rate:", error);
-      return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
-    }
-  });
-  app2.get("/api/payment-terms", authMiddleware, async (req, res) => {
-    try {
-      const terms = await db.select().from(paymentTerms).where(eq3(paymentTerms.isActive, true));
-      return res.json(terms);
-    } catch (error) {
-      console.error("Error fetching payment terms:", error);
-      return res.status(500).json({ error: "Failed to fetch payment terms" });
-    }
-  });
-  app2.post("/api/payment-terms", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-      }
-      const { name, days, description, isDefault } = req.body;
-      if (!name || days === void 0) {
-        return res.status(400).json({ error: "Name and days are required" });
-      }
-      if (isDefault) {
-        await db.update(paymentTerms).set({ isDefault: false }).where(eq3(paymentTerms.isDefault, true));
-      }
-      const newTerm = await db.insert(paymentTerms).values({
-        name,
-        days,
-        description: description || null,
-        isDefault: isDefault || false,
-        createdBy: req.user.id
-      }).returning();
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_payment_term",
-        entityType: "payment_term",
-        entityId: newTerm[0].id
-      });
-      return res.json(newTerm[0]);
-    } catch (error) {
-      console.error("Error creating payment term:", error);
-      return res.status(500).json({ error: error.message || "Failed to create payment term" });
-    }
-  });
-  app2.delete("/api/payment-terms/:id", authMiddleware, async (req, res) => {
-    try {
-      if (!["admin", "finance_accounts"].includes(req.user.role)) {
-        return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-      }
-      await db.delete(paymentTerms).where(eq3(paymentTerms.id, req.params.id));
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_payment_term",
-        entityType: "payment_term",
-        entityId: req.params.id
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting payment term:", error);
-      return res.status(500).json({ error: error.message || "Failed to delete payment term" });
-    }
-  });
-  app2.get("/api/debug/counters", async (req, res) => {
-    try {
-      const year = (/* @__PURE__ */ new Date()).getFullYear();
-      const types = ["quote", "master_invoice", "child_invoice", "vendor_po", "grn"];
-      const counters = {};
-      for (const type of types) {
-        const counterKey = `${type}_counter_${year}`;
-        const setting = await storage.getSetting(counterKey);
-        const currentValue = setting?.value || "0";
-        const nextValue = parseInt(String(currentValue), 10) + 1;
-        counters[counterKey] = {
-          current: currentValue,
-          next: String(nextValue).padStart(4, "0"),
-          exists: !!setting
-        };
-      }
-      return res.json({
-        year,
-        counters,
-        message: "Next value shows what will be generated next"
-      });
-    } catch (error) {
-      console.error("Error fetching counters:", error);
-      return res.status(500).json({ error: error.message || "Failed to fetch counters" });
-    }
-  });
-  app2.post("/api/debug/reset-counter/:type", async (req, res) => {
-    try {
-      const { type } = req.params;
-      const year = (/* @__PURE__ */ new Date()).getFullYear();
-      console.log(`[DEBUG] Resetting counter for ${type} in year ${year}`);
-      await NumberingService.resetCounter(type, year);
-      return res.json({
-        success: true,
-        message: `Counter ${type}_counter_${year} has been reset to 0`,
-        nextNumber: "0001"
-      });
-    } catch (error) {
-      console.error("Error resetting counter:", error);
-      return res.status(500).json({ error: error.message || "Failed to reset counter" });
-    }
-  });
-  app2.post("/api/debug/set-counter/:type/:value", async (req, res) => {
-    try {
-      const { type, value } = req.params;
-      const year = (/* @__PURE__ */ new Date()).getFullYear();
-      const numValue = parseInt(value, 10);
-      if (isNaN(numValue) || numValue < 0) {
-        return res.status(400).json({ error: "Value must be a non-negative integer" });
-      }
-      console.log(`[DEBUG] Setting ${type}_counter_${year} to ${numValue}`);
-      await NumberingService.setCounter(type, year, numValue);
-      const nextValue = numValue + 1;
-      return res.json({
-        success: true,
-        message: `Counter ${type}_counter_${year} set to ${numValue}`,
-        nextNumber: String(nextValue).padStart(4, "0")
-      });
-    } catch (error) {
-      console.error("Error setting counter:", error);
-      return res.status(500).json({ error: error.message || "Failed to set counter" });
-    }
-  });
-  app2.get("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      const allSettings = await storage.getAllSettings();
-      const settingsObj = {};
-      for (const setting of allSettings) {
-        settingsObj[setting.key] = setting.value;
-      }
-      res.json(settingsObj);
-    } catch (error) {
-      console.error("Error fetching settings:", error);
-      res.status(500).json({ error: error.message || "Failed to fetch settings" });
-    }
-  });
-  app2.post("/api/settings", authMiddleware, async (req, res) => {
-    try {
-      const { key, value } = req.body;
-      if (!key) {
-        return res.status(400).json({ error: "Setting key is required" });
-      }
-      const setting = await storage.upsertSetting({
-        key,
-        value: value !== void 0 ? String(value) : ""
-      });
-      res.json(setting);
-    } catch (error) {
-      console.error("Error saving setting:", error);
-      res.status(500).json({ error: error.message || "Failed to save setting" });
     }
   });
   app2.use("/api", authMiddleware, analytics_routes_default);
