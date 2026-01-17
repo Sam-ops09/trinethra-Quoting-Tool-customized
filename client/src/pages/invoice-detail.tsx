@@ -611,7 +611,7 @@ export default function InvoiceDetail() {
                                     </PermissionGuard>
                                 )}
 
-                                {canCreateChildInvoice && invoice.isMaster && (
+                                {canCreateChildInvoice && invoice.isMaster && invoice.masterInvoiceStatus !== "draft" && (
                                     <PermissionGuard resource="invoices" action="create" tooltipText="Only Finance/Accounts can create invoices">
                                       <Button
                                         variant="default"

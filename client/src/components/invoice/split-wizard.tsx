@@ -18,6 +18,7 @@ interface InvoiceItem {
   unitPrice: string;
   subtotal: string;
   fulfilledQuantity?: number;
+  productId?: string;
 }
 
 interface InvoiceSplitWizardProps {
@@ -44,6 +45,7 @@ interface SplitItem {
   selectedQuantity: number;
   unitPrice: string;
   subtotal: string;
+  productId?: string;
 }
 
 export function InvoiceSplitWizard({
@@ -66,6 +68,7 @@ export function InvoiceSplitWizard({
       selectedQuantity: 0,
       unitPrice: item.unitPrice,
       subtotal: item.subtotal,
+      productId: item.productId,
     }))
   );
   const [invoiceData, setInvoiceData] = useState({
@@ -79,9 +82,11 @@ export function InvoiceSplitWizard({
       // If masterInvoiceId exists, create child invoice with proper validation
       if (masterInvoiceId) {
         console.log("Creating child invoice with items:", data.items);
-        return await apiRequest("POST", `/api/invoices/${masterInvoiceId}/create-child`, {
+        return await apiRequest("POST", `/api/invoices/${masterInvoiceId}/create-child-invoice`, {
           items: data.items.map((item: any) => ({
             itemId: item.itemId,
+            description: item.description,
+            productId: item.productId,
             quantity: item.quantity, // ✅ Use item.quantity (already mapped from selectedQuantity)
             serialNumbers: item.serialNumbers || [],
           })),
@@ -130,6 +135,7 @@ export function InvoiceSplitWizard({
         selectedQuantity: 0,
         unitPrice: item.unitPrice,
         subtotal: item.subtotal,
+        productId: item.productId,
       }))
     );
     setInvoiceData({
@@ -242,6 +248,9 @@ export function InvoiceSplitWizard({
     const invoiceItems = masterInvoiceId
       ? totals.items.map((item) => ({
           itemId: item.itemId,
+          description: item.description,
+          productId: item.productId,
+          unitPrice: item.unitPrice,
           quantity: item.selectedQuantity,
           serialNumbers: [], // Can be added later
         }))

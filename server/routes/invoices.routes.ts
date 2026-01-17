@@ -619,29 +619,56 @@ router.post("/:id/create-child-invoice", authMiddleware, requirePermission("invo
     }
 
     // Validate new items don't exceed remaining quantities
-    for (const newItem of items) {
-      const masterItem = masterItems.find(mi => (mi.productId && mi.productId === newItem.productId) || mi.description === newItem.description);
+    // 1. Validate items and populate data from Master Invoice
+    const processedItems = [];
+    let subtotal = 0;
+
+    for (const rawItem of items) {
+      const newItem = { ...rawItem }; // Clone to avoid mutation side-effects
+
+      // Find matching master item
+      const masterItem = masterItems.find(mi => 
+        (newItem.itemId && mi.id === newItem.itemId) || 
+        (mi.productId && mi.productId === newItem.productId) || 
+        mi.description === newItem.description
+      );
+
       if (!masterItem) {
         return res.status(400).json({
           error: `Item "${newItem.description}" not found in master invoice`
         });
       }
 
+      // Populate missing fields from master item
+      if (!newItem.unitPrice) newItem.unitPrice = masterItem.unitPrice;
+      if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
+      if (!newItem.productId) newItem.productId = masterItem.productId;
+
+      // Validate numeric values to prevent NaN
+      const unitPrice = Number(newItem.unitPrice);
+      const quantity = Number(newItem.quantity);
+
+      if (isNaN(unitPrice)) {
+         return res.status(400).json({
+          error: `Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`
+        });
+      }
+
+      // Check quantities
       const key = newItem.productId || newItem.description;
-      const alreadyInvoiced = invoicedQuantities[key] || 0;
+      const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
       const remaining = masterItem.quantity - alreadyInvoiced;
 
-      if (newItem.quantity > remaining) {
+      if (quantity > remaining) {
         return res.status(400).json({
           error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
         });
       }
-    }
 
-    // Calculate totals for child invoice
-    let subtotal = 0;
-    for (const item of items) {
-      subtotal += Number(item.unitPrice) * item.quantity;
+      // Add to running totals
+      subtotal += unitPrice * quantity;
+      
+      processedItems.push(newItem);
     }
 
     // Apply proportional taxes and charges based on subtotal ratio
@@ -656,6 +683,10 @@ router.post("/:id/create-child-invoice", authMiddleware, requirePermission("invo
 
     const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
 
+    if (isNaN(total)) {
+        return res.status(500).json({ error: "Calculation resulted in NaN. Check inputs." });
+    }
+
     // Generate child invoice number using admin child invoice numbering settings
     const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
 
@@ -664,6 +695,7 @@ router.post("/:id/create-child-invoice", authMiddleware, requirePermission("invo
       invoiceNumber,
       parentInvoiceId: masterInvoice.id,
       quoteId: masterInvoice.quoteId,
+      clientId: masterInvoice.clientId,
       paymentStatus: "pending",
       dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       paidAmount: "0",
@@ -683,10 +715,10 @@ router.post("/:id/create-child-invoice", authMiddleware, requirePermission("invo
     });
 
     // Create child invoice items
-    for (const item of items) {
+    for (const item of processedItems) {
       await storage.createInvoiceItem({
         invoiceId: childInvoice.id,
-        productId: (item as any).productId || null,
+        productId: item.productId || null,
         description: item.description,
         quantity: item.quantity,
         fulfilledQuantity: 0,
@@ -694,7 +726,7 @@ router.post("/:id/create-child-invoice", authMiddleware, requirePermission("invo
         subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
         status: "pending",
         sortOrder: item.sortOrder || 0,
-        hsnSac: (item as any).hsnSac || null,
+        hsnSac: item.hsnSac || null,
       });
     }
 
@@ -1194,6 +1226,141 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
     } catch (error: any) {
       logger.error("Payment reminder error:", error);
       return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
+    }
+  });
+
+
+  // PATCH: Update Serial Numbers for an Item
+  router.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { serialNumbers } = req.body;
+
+      logger.info(`Updating serial numbers for item ${req.params.itemId} in invoice ${req.params.id}`);
+      logger.info(`Serial numbers count: ${serialNumbers?.length || 0}`);
+
+      // Get the invoice item being updated
+      const invoiceItem = await storage.getInvoiceItem(req.params.itemId);
+      if (!invoiceItem) {
+        return res.status(404).json({ error: "Invoice item not found" });
+      }
+
+      // Update the child/current invoice item
+      const updated = await storage.updateInvoiceItem(req.params.itemId, {
+        serialNumbers: JSON.stringify(serialNumbers),
+        fulfilledQuantity: serialNumbers.length,
+        status: serialNumbers.length > 0 ? "fulfilled" : "pending",
+      });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      // Get the invoice to check if it's a child invoice
+      const invoice = await storage.getInvoice(req.params.id);
+
+      // If this is a child invoice, update the corresponding master item
+      if (invoice && invoice.parentInvoiceId) {
+        logger.info(`This is a child invoice. Parent: ${invoice.parentInvoiceId}`);
+        logger.info(`Syncing with master invoice...`);
+
+        // Get master invoice items
+        const masterItems = await storage.getInvoiceItems(invoice.parentInvoiceId);
+
+        // Find the corresponding master item by matching description and unitPrice
+        const masterItem = masterItems.find((mi: any) =>
+          mi.description === invoiceItem.description &&
+          Number(mi.unitPrice) === Number(invoiceItem.unitPrice)
+        );
+
+        if (masterItem) {
+          logger.info(`Found master item: ${masterItem.description} (ID: ${masterItem.id})`);
+
+          // Get all child invoices of this master
+          const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
+          const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === invoice.parentInvoiceId);
+
+          // Aggregate serial numbers from all child invoices for this item
+          const allChildSerialNumbers = [];
+          for (const childInvoice of childInvoices) {
+            const childItems = await storage.getInvoiceItems(childInvoice.id);
+            const matchingChildItem = childItems.find((ci: any) =>
+              ci.description === masterItem.description &&
+              Number(ci.unitPrice) === Number(masterItem.unitPrice)
+            );
+
+            if (matchingChildItem && matchingChildItem.serialNumbers) {
+              try {
+                const serials = JSON.parse(matchingChildItem.serialNumbers);
+                allChildSerialNumbers.push(...serials);
+              } catch (e) {
+                logger.error("Error parsing serial numbers:", e);
+              }
+            }
+          }
+
+          // Update master item with aggregated serial numbers
+          await storage.updateInvoiceItem(masterItem.id, {
+            serialNumbers: allChildSerialNumbers.length > 0
+              ? JSON.stringify(allChildSerialNumbers)
+              : null,
+            status: masterItem.fulfilledQuantity >= masterItem.quantity ? "fulfilled" : "pending",
+          });
+        }
+      }
+
+      res.json(updated);
+    } catch (error) {
+      logger.error("Error updating serial numbers:", error);
+      res.status(500).json({ error: "Failed to update serial numbers" });
+    }
+  });
+
+  // POST: Create/Validate Serial Numbers (Specific to Invoice Item)
+  router.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermission("serial_numbers", "view"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { validateSerialNumbers } = await import("../serial-number-service");
+      const { serials, expectedQuantity } = req.body;
+      const { id: invoiceId, itemId } = req.params;
+
+      if (!serials || !Array.isArray(serials)) {
+        return res.status(400).json({ error: "Invalid serials array" });
+      }
+
+      if (typeof expectedQuantity !== 'number') {
+        return res.status(400).json({ error: "Expected quantity must be a number" });
+      }
+
+      const validation = await validateSerialNumbers(
+        invoiceId,
+        itemId,
+        serials,
+        expectedQuantity,
+        {
+          checkInvoiceScope: true,
+          checkQuoteScope: true,
+          checkSystemWide: true,
+        }
+      );
+
+      return res.json(validation);
+    } catch (error: any) {
+      logger.error("Error validating serial numbers:", error);
+      return res.status(500).json({ error: error.message || "Failed to validate serial numbers" });
+    }
+  });
+
+  // GET: Check Serial Edit Permissions
+  router.get("/:id/serials/permissions", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const { canEditSerialNumbers } = await import("../serial-number-service");
+      const { id: invoiceId } = req.params;
+
+      const permissions = await canEditSerialNumbers(req.user!.id, invoiceId);
+
+      return res.json(permissions);
+    } catch (error: any) {
+      logger.error("Error checking serial edit permissions:", error);
+      return res.status(500).json({ error: error.message || "Failed to check permissions" });
     }
   });
 

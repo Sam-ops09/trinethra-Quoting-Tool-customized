@@ -209,15 +209,18 @@ export default function QuoteDetail() {
 
   const convertToInvoiceMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", `/api/quotes/${params?.id}/convert-to-invoice`, {});
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/convert-to-invoice`, {});
+      return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quotes", params?.id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${params?.id}/invoices`] });
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({
         title: "Invoice created",
         description: "Quote has been converted to invoice successfully.",
       });
+      setLocation(`/invoices/${data.id}`);
     },
   });
 
@@ -440,6 +443,17 @@ export default function QuoteDetail() {
             <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 mt-0.5">
               Created {new Date(quote.quoteDate).toLocaleDateString()}
               {quote.createdByName && ` • by ${quote.createdByName}`}
+              {hasInvoices && invoices && invoices.length > 0 && (
+                <>
+                  <span className="mx-1">•</span>
+                  <span 
+                    className="text-primary hover:underline cursor-pointer font-medium"
+                    onClick={() => setLocation(`/invoices/${invoices[0].id}`)}
+                  >
+                    Invoiced: {invoices[0].invoiceNumber}
+                  </span>
+                </>
+              )}
             </p>
           </div>
         </div>

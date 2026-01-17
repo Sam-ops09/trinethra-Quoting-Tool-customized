@@ -375,6 +375,69 @@ router.post("/numbering/reset-counter", authMiddleware, async (req: AuthRequest,
   }
 });
 
+router.post("/numbering/set-counter", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can set counters" });
+    }
+
+    const { type, year, value } = req.body;
+
+    if (!type || value === undefined) {
+      return res.status(400).json({ error: "Counter type and value are required" });
+    }
+
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) || numValue < 0) {
+        return res.status(400).json({ error: "Value must be a non-negative integer" });
+    }
+
+    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: "Invalid counter type" });
+    }
+
+     // Check if feature is enabled
+    const { featureFlags } = await import("../../shared/feature-flags");
+    const featureMap: Record<string, boolean> = {
+      quote: featureFlags.quotes_module,
+      vendor_po: featureFlags.vendorPO_module,
+      invoice: featureFlags.invoices_module,
+      grn: featureFlags.grn_module,
+      sales_order: featureFlags.sales_orders_module,
+    };
+
+    if (!featureMap[type]) {
+      return res.status(403).json({ error: `Feature for ${type} is not enabled` });
+    }
+
+    const { NumberingService } = await import("../services/numbering.service");
+    const targetYear = year || new Date().getFullYear();
+
+    await NumberingService.setCounter(type, targetYear, numValue);
+    
+    // Calculate the next number to return in the response
+    const nextValue = numValue + 1;
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "set_counter",
+      entityType: "numbering",
+      entityId: `${type}_${targetYear}`,
+    });
+
+    return res.json({
+      success: true,
+      message: `Counter for ${type} (${targetYear}) set to ${numValue}`,
+      currentValue: numValue,
+      nextNumber: String(nextValue).padStart(4, "0")
+    });
+  } catch (error: any) {
+    logger.error("Set counter error:", error);
+    return res.status(500).json({ error: error.message || "Failed to set counter" });
+  }
+});
+
 // ==================== TAX RATES & PAYMENT TERMS ROUTES ====================
 
 // Get all tax rates

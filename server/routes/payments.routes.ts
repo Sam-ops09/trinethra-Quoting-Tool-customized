@@ -76,17 +76,24 @@ router.put("/invoices/:id/payment-status", authMiddleware, requirePermission("pa
           return sum + childPaid;
         }, 0);
 
+        // Add direct payments on master
+        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
+        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        
+        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+
+
         // Update master invoice with aggregated payment data
         const masterTotal = Number(masterInvoice.total);
         let masterPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
-        if (totalChildPaidAmount >= masterTotal) {
+        if (finalMasterPaidAmount >= masterTotal) {
           masterPaymentStatus = "paid";
-        } else if (totalChildPaidAmount > 0) {
+        } else if (finalMasterPaidAmount > 0) {
           masterPaymentStatus = "partial";
         }
 
         await storage.updateInvoice(masterInvoice.id, {
-          paidAmount: String(totalChildPaidAmount),
+          paidAmount: String(finalMasterPaidAmount),
           paymentStatus: masterPaymentStatus,
         });
 
@@ -238,17 +245,28 @@ router.post("/invoices/:id/payment", authMiddleware, requirePermission("payments
             totalChildPaidAmount = totalChildPaidAmount.plus(childPaid);
           }
 
+          // Add Master's own direct payments
+          const masterDirectPayments = await tx.select().from(schema.paymentHistory)
+            .where(eq(schema.paymentHistory.invoiceId, masterInvoice.id));
+          
+          let totalMasterDirect = toDecimal(0);
+          for(const p of masterDirectPayments) {
+             totalMasterDirect = totalMasterDirect.plus(toDecimal(p.amount));
+          }
+
+          const finalMasterPaidAmount = totalChildPaidAmount.plus(totalMasterDirect);
+
           const masterTotal = toDecimal(masterInvoice.total);
           let masterPaymentStatus: string = "pending";
-          if (moneyGte(totalChildPaidAmount, masterTotal)) {
+          if (moneyGte(finalMasterPaidAmount, masterTotal)) {
             masterPaymentStatus = "paid";
-          } else if (moneyGt(totalChildPaidAmount, 0)) {
+          } else if (moneyGt(finalMasterPaidAmount, 0)) {
             masterPaymentStatus = "partial";
           }
 
           await tx.update(schema.invoices)
             .set({
-              paidAmount: toMoneyString(totalChildPaidAmount),
+              paidAmount: toMoneyString(finalMasterPaidAmount),
               paymentStatus: masterPaymentStatus,
               lastPaymentDate: new Date(),
               updatedAt: new Date(),
@@ -321,7 +339,7 @@ router.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req:
 
     let payments;
 
-    // If this is a master invoice, aggregate payment history from all child invoices
+    // If this is a master invoice, aggregate payment history from all child invoices AND the master invoice itself
     if (invoice.isMaster) {
       let childInvoices: any[] = [];
       if (invoice.quoteId) {
@@ -338,12 +356,15 @@ router.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req:
       const childPayments = await Promise.all(
         childInvoices.map((child: any) => storage.getPaymentHistory(child.id))
       );
+      
+      // Get payment history for the master invoice itself
+      const masterDirectPayments = await storage.getPaymentHistory(invoice.id);
 
       // Flatten and sort by date (most recent first)
-      payments = childPayments.flat().sort((a, b) =>
+      payments = [...masterDirectPayments, ...childPayments.flat()].sort((a, b) =>
         new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()
       );
-      logger.info(`[Payment History] Aggregated ${payments.length} payments from children`);
+      logger.info(`[Payment History] Aggregated ${payments.length} payments from children and master directly`);
     } else {
       // For regular or child invoices, get payment history directly
       payments = await storage.getPaymentHistory(req.params.id);
@@ -429,7 +450,21 @@ router.delete("/payment-history/:id", authMiddleware, async (req: AuthRequest, r
 
     // Recalculate invoice totals
     const allPayments = await storage.getPaymentHistory(payment.invoiceId);
-    const newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    let newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    // If this is a master invoice, also include sum of all child invoices
+    if (invoice.isMaster) {
+      let childInvoices: any[] = [];
+      if (invoice.quoteId) {
+        const allInv = await storage.getInvoicesByQuote(invoice.quoteId);
+        childInvoices = allInv.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+      } else if (invoice.salesOrderId) {
+        const allInv = await storage.getInvoicesBySalesOrder(invoice.salesOrderId);
+        childInvoices = allInv.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+      }
+      const childTotal = childInvoices.reduce((sum, c) => sum + Number(c.paidAmount || 0), 0);
+      newPaidAmount += childTotal;
+    }
     // Use invoice.total for child invoices, quote.total for regular invoices
     const totalAmount = Number(invoice.total || quote.total);
 
@@ -462,19 +497,25 @@ router.delete("/payment-history/:id", authMiddleware, async (req: AuthRequest, r
           return sum + childPaid;
         }, 0);
 
+        // Add direct payments on master
+        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
+        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        
+        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+
         // Update master invoice with aggregated payment data
         const masterTotal = Number(masterInvoice.total);
         let masterPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
-        if (totalChildPaidAmount >= masterTotal) {
+        if (finalMasterPaidAmount >= masterTotal) {
           masterPaymentStatus = "paid";
-        } else if (totalChildPaidAmount > 0) {
+        } else if (finalMasterPaidAmount > 0) {
           masterPaymentStatus = "partial";
         }
 
         await storage.updateInvoice(masterInvoice.id, {
-          paidAmount: String(totalChildPaidAmount),
+          paidAmount: String(finalMasterPaidAmount),
           paymentStatus: masterPaymentStatus,
-          lastPaymentDate: totalChildPaidAmount > 0 ? new Date() : null,
+          lastPaymentDate: finalMasterPaidAmount > 0 ? new Date() : null,
         });
       }
     }

@@ -7,6 +7,8 @@ import { requirePermission } from "../permissions-middleware";
 import { NumberingService } from "../services/numbering.service";
 import { logger } from "../utils/logger";
 import { calculateSubtotal, calculateTotal, toMoneyString } from "../utils/financial";
+import { EmailService } from "../services/email.service";
+import { PDFService } from "../services/pdf.service";
 
 const router = Router();
 
@@ -308,6 +310,271 @@ router.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoic
     logger.error("Convert quote error:", error);
     return res.status(500).json({ error: error.message || "Failed to convert quote" });
   }
+});
+
+
+// Email Quote
+router.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { recipientEmail, message } = req.body;
+
+      if (!recipientEmail) {
+        return res.status(400).json({ error: "Recipient email is required" });
+      }
+
+      const quote = await storage.getQuote(req.params.id);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      const client = await storage.getClient(quote.clientId);
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+      const items = await storage.getQuoteItems(quote.id);
+
+      const creator = await storage.getUser(quote.createdBy);
+
+      // Fetch company settings
+      const settings = await storage.getAllSettings();
+      const companyName = settings.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+      const companyAddress = settings.find((s) => s.key === "company_address")?.value || "";
+      const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
+      const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
+      const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
+      const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
+
+      // Fetch email templates
+      const emailSubjectTemplate = settings.find((s) => s.key === "email_quote_subject")?.value || "Quote {QUOTE_NUMBER} from {COMPANY_NAME}";
+      const emailBodyTemplate = settings.find((s) => s.key === "email_quote_body")?.value || "Dear {CLIENT_NAME},\\n\\nPlease find attached quote {QUOTE_NUMBER} for your review.\\n\\nTotal Amount: {TOTAL}\\nValid Until: {VALIDITY_DATE}\\n\\nBest regards,\\n{COMPANY_NAME}";
+
+      // Calculate validity date
+      const quoteDate = new Date(quote.quoteDate);
+      const validityDate = new Date(quoteDate);
+      validityDate.setDate(validityDate.getDate() + (quote.validityDays || 30));
+
+      // Replace variables in templates
+      const variables: Record<string, string> = {
+        "{COMPANY_NAME}": companyName,
+        "{CLIENT_NAME}": client.name,
+        "{QUOTE_NUMBER}": quote.quoteNumber,
+        "{TOTAL}": `₹${Number(quote.total).toLocaleString()}`,
+        "{VALIDITY_DATE}": validityDate.toLocaleDateString(),
+      };
+
+      let emailSubject = emailSubjectTemplate;
+      let emailBody = emailBodyTemplate;
+
+      // Replace variables - escape special regex characters in the key
+      Object.entries(variables).forEach(([key, value]) => {
+        const escapedKey = key.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+        emailSubject = emailSubject.replace(new RegExp(escapedKey, 'g'), value);
+        emailBody = emailBody.replace(new RegExp(escapedKey, 'g'), value);
+      });
+
+      // Add custom message if provided
+      if (message) {
+        emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
+      }
+
+      // Fetch bank details
+      const bankDetail = await storage.getActiveBankDetails();
+
+      const bankName = bankDetail?.bankName || "";
+      const bankAccountNumber = bankDetail?.accountNumber || "";
+      const bankAccountName = bankDetail?.accountName || "";
+      const bankIfscCode = bankDetail?.ifscCode || "";
+      const bankBranch = bankDetail?.branch || "";
+      const bankSwiftCode = bankDetail?.swiftCode || "";
+
+      // Generate PDF for attachment
+      const { PassThrough } = await import("stream");
+      const pdfStream = new PassThrough();
+
+      const pdfPromise = PDFService.generateQuotePDF({
+        quote,
+        client,
+        items,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyLogo,
+        preparedBy: creator?.name,
+        preparedByEmail: creator?.email,
+        bankDetails: {
+          bankName,
+          accountNumber: bankAccountNumber,
+          accountName: bankAccountName,
+          ifsc: bankIfscCode,
+          branch: bankBranch,
+          swift: bankSwiftCode,
+        },
+      }, pdfStream);
+
+      // Convert stream to buffer
+      const chunks: Buffer[] = [];
+      pdfStream.on("data", (chunk: any) => chunks.push(chunk));
+      await new Promise<void>((resolve, reject) => {
+        pdfStream.on("end", resolve);
+        pdfStream.on("error", reject);
+      });
+      await pdfPromise;
+      const pdfBuffer = Buffer.concat(chunks);
+
+      // Send email with PDF attachment using template
+      await EmailService.sendQuoteEmail(
+        recipientEmail,
+        emailSubject,
+        emailBody,
+        pdfBuffer
+      );
+
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "email_quote",
+        entityType: "quote",
+        entityId: quote.id,
+      });
+
+      return res.json({ success: true, message: "Quote sent successfully" });
+    } catch (error: any) {
+      logger.error("Email quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to send quote email" });
+    }
+});
+
+router.get("/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) => {
+    logger.info(`[PDF Export START] Received request for quote: ${req.params.id}`);
+    try {
+      const quote = await storage.getQuote(req.params.id);
+      logger.info(`[PDF Export] Found quote: ${quote?.quoteNumber}`);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+
+      const client = await storage.getClient(quote.clientId);
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+
+      const items = await storage.getQuoteItems(quote.id);
+      const creator = await storage.getUser(quote.createdBy);
+
+      // Fetch company settings
+      const settings = await storage.getAllSettings();
+      // Debug logging to see what keys are available
+      logger.info("Available settings keys:", settings.map(s => s.key));
+
+      const companyName = settings.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
+      
+      const addr = settings.find((s) => s.key === "company_address")?.value || "";
+      const city = settings.find((s) => s.key === "company_city")?.value || "";
+      const state = settings.find((s) => s.key === "company_state")?.value || "";
+      const zip = settings.find((s) => s.key === "company_zipCode")?.value || "";
+      const country = settings.find((s) => s.key === "company_country")?.value || "";
+      
+      // Construct full address
+      const companyAddress = [addr, city, state, zip, country].filter(Boolean).join(", ");
+
+      const companyPhone = settings.find((s) => s.key === "company_phone")?.value || "";
+      const companyEmail = settings.find((s) => s.key === "company_email")?.value || "";
+      const companyWebsite = settings.find((s) => s.key === "company_website")?.value || "";
+      const companyGSTIN = settings.find((s) => s.key === "company_gstin")?.value || "";
+      const companyLogo = settings.find((s) => s.key === "company_logo")?.value;
+      
+      logger.info("Company Logo found:", !!companyLogo, "Length:", companyLogo?.length);
+
+      // Fetch bank details from settings
+      const bankName = settings.find((s) => s.key === "bank_bankName")?.value || "";
+      const bankAccountNumber = settings.find((s) => s.key === "bank_accountNumber")?.value || "";
+      const bankAccountName = settings.find((s) => s.key === "bank_accountName")?.value || "";
+      const bankIfscCode = settings.find((s) => s.key === "bank_ifscCode")?.value || "";
+      const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
+      const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
+
+      logger.error("!!! DEBUG BANK DETAILS !!!", {
+          bankName,
+          bankAccountNumber,
+          bankAccountName,
+          bankIfscCode
+      });
+
+      // Create filename - ensure it's clean and doesn't have problematic characters
+      const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, '_');
+
+      // Set headers BEFORE piping to ensure they're sent first
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Length", "");  // Let Node calculate length
+      // Use RFC 5987 format for filename with UTF-8 encoding
+      res.setHeader("Content-Disposition", `attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
+      // DEBUG: Log what we're sending
+      logger.info(`[PDF Export] Quote #${quote.quoteNumber}`);
+      logger.info(`[PDF Export] Clean filename: ${cleanFilename}`);
+      logger.info(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
+
+      // Generate PDF
+      logger.info(`[PDF Export] About to generate PDF`);
+      await PDFService.generateQuotePDF({
+        quote,
+        client,
+        items,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyLogo,
+        preparedBy: creator?.name,
+        preparedByEmail: creator?.email,
+        bankDetails: {
+          bankName,
+          accountNumber: bankAccountNumber,
+          accountName: bankAccountName,
+          ifsc: bankIfscCode,
+          branch: bankBranch,
+          swift: bankSwiftCode,
+        },
+      }, res);
+      logger.info(`[PDF Export] PDF stream piped successfully`);
+
+      // Log after headers are sent
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "export_pdf",
+        entityType: "quote",
+        entityId: quote.id,
+      });
+      logger.info(`[PDF Export COMPLETE] Quote PDF exported successfully: ${quote.quoteNumber}`);
+    } catch (error: any) {
+      logger.error("[PDF Export ERROR]", error);
+      return res.status(500).json({ error: error.message || "Failed to generate PDF" });
+    }
+});
+
+router.get("/:id/invoices", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const invoices = await storage.getInvoicesByQuote(req.params.id);
+      const enrichedInvoices = await Promise.all(
+        invoices.map(async (invoice) => {
+          const items = await storage.getInvoiceItems(invoice.id);
+          return { ...invoice, items };
+        })
+      );
+      res.json(enrichedInvoices);
+    } catch (error) {
+      logger.error("Error fetching invoices:", error);
+      res.status(500).json({ error: "Failed to fetch invoices" });
+    }
 });
 
 export default router;

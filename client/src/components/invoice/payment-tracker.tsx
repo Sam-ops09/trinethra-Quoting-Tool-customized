@@ -222,8 +222,7 @@ export function PaymentTracker({
                         </div>
                     </div>
 
-                    {!isMaster && (
-                        <PermissionGuard resource="payments" action="create" tooltipText="Only Finance/Accounts can record payments">
+                    <PermissionGuard resource="payments" action="create" tooltipText="Only Finance/Accounts can record payments">
                           <Button
                             size="sm"
                             className="btn-classy shadow-elegant h-8 shrink-0 px-2.5 text-[11px] sm:px-3 sm:text-xs"
@@ -235,7 +234,6 @@ export function PaymentTracker({
                             <span className="sm:hidden">Add</span>
                           </Button>
                         </PermissionGuard>
-                    )}
                 </div>
             </CardHeader>
 
