@@ -599,9 +599,9 @@ export default function QuoteCreate() {
                         onSubmit={form.handleSubmit(onSubmit)}
                         className="space-y-3"
                     >
-                        <div className="grid gap-3 lg:grid-cols-3">
+                        <div className="grid gap-3 2xl:grid-cols-3">
                             {/* Left column */}
-                            <div className="lg:col-span-2 space-y-3">
+                            <div className="2xl:col-span-2 space-y-3">
                                 {/* Basic Information */}
                                 <Card className="border bg-card shadow-sm overflow-hidden">
                                     <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
@@ -739,7 +739,7 @@ export default function QuoteCreate() {
                                                     }
                                                     data-testid="button-add-item"
                                                     size="sm"
-                                                    className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm"
+                                                    className="hidden lg:flex flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm"
                                                 >
                                                     <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                                     <span className="hidden xs:inline">Add Item</span>
@@ -771,7 +771,179 @@ export default function QuoteCreate() {
                                         </div>
                                     </CardHeader>
                                     <CardContent className="p-0">
-                                        <div className="w-full overflow-x-auto">
+                                        {/* Mobile/Tablet View (Cards) - Shows up to LG screens */}
+                                        <div className="lg:hidden space-y-4 p-3 sm:p-4 bg-muted/20">
+                                            {fields.map((fieldItem, index) => (
+                                                <div key={fieldItem.id} className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
+                                                    {/* Card Header */}
+                                                    <div className="flex items-center justify-between border-b px-4 py-3 bg-muted/30">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold">
+                                                                {index + 1}
+                                                            </div>
+                                                            <span className="font-semibold text-sm text-foreground/80">Item Details</span>
+                                                        </div>
+                                                        {fields.length > 1 && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => remove(index)}
+                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="p-4 space-y-4">
+                                                        {/* Product Selection */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Product</label>
+                                                            <ProductPicker
+                                                                value={form.watch(`items.${index}.productId`)}
+                                                                showStock={true}
+                                                                placeholder="Select product..."
+                                                                onSelect={(product) => {
+                                                                    if (product) {
+                                                                        form.setValue(`items.${index}.productId`, product.id);
+                                                                        form.setValue(`items.${index}.description`, product.name + (product.description ? `\n${product.description}` : ''));
+                                                                        if (product.basePrice) {
+                                                                            form.setValue(`items.${index}.unitPrice`, parseFloat(product.basePrice));
+                                                                        }
+                                                                    } else {
+                                                                        form.setValue(`items.${index}.productId`, null);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+
+                                                        {/* Description */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Description</label>
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`items.${index}.description`}
+                                                                render={({ field }) => (
+                                                                    <FormItem>
+                                                                        <FormControl>
+                                                                            <Textarea
+                                                                                {...field}
+                                                                                placeholder="Enter item description..."
+                                                                                className="min-h-[80px] text-sm resize-none focus-visible:ring-1"
+                                                                            />
+                                                                        </FormControl>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+
+                                                        <Separator className="bg-border/50" />
+
+                                                        {/* Data Grid */}
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">HSN/SAC</label>
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`items.${index}.hsnSac`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem>
+                                                                            <FormControl>
+                                                                                <Input
+                                                                                    {...field}
+                                                                                    maxLength={10}
+                                                                                    placeholder="HSN/SAC"
+                                                                                    className="text-sm h-9"
+                                                                                />
+                                                                            </FormControl>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Quantity</label>
+                                                                <FormField
+                                                                    control={form.control}
+                                                                    name={`items.${index}.quantity`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem>
+                                                                            <FormControl>
+                                                                                <Input
+                                                                                    {...field}
+                                                                                    type="number"
+                                                                                    min="1"
+                                                                                    onChange={(e) => field.onChange(Number(e.target.value))}
+                                                                                    className="text-right text-sm h-9 font-mono"
+                                                                                />
+                                                                            </FormControl>
+                                                                            <FormMessage />
+                                                                        </FormItem>
+                                                                    )}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Unit Price</label>
+                                                                <div className="relative">
+                                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">₹</span>
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`items.${index}.unitPrice`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem>
+                                                                                <FormControl>
+                                                                                    <Input
+                                                                                        {...field}
+                                                                                        type="number"
+                                                                                        step="0.01"
+                                                                                        min="0"
+                                                                                        onChange={(e) => field.onChange(Number(e.target.value))}
+                                                                                        className="text-right text-sm h-9 pl-6 font-mono"
+                                                                                    />
+                                                                                </FormControl>
+                                                                                <FormMessage />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Total</label>
+                                                                <div className="h-9 px-3 border rounded-md bg-muted/50 text-right text-sm font-bold text-primary flex items-center justify-end font-mono">
+                                                                    ₹{(items[index].quantity * items[index].unitPrice).toLocaleString()}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            
+                                            <div className="pt-2">
+                                                <Button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        append({
+                                                            productId: null,
+                                                            description: "",
+                                                            quantity: 1,
+                                                            unitPrice: 0,
+                                                            hsnSac: "",
+                                                        })
+                                                    }
+                                                    variant="outline"
+                                                    className="w-full border-dashed border-2 h-12 hover:bg-muted/50 transition-colors"
+                                                >
+                                                    <Plus className="mr-2 h-4 w-4" />
+                                                    Add New Item
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Desktop View (Table) - Shows on LG screens and up */}
+                                        <div className="hidden lg:block w-full overflow-x-auto">
+
                                             <table className="w-full min-w-[900px] text-xs sm:text-sm">
                                                 <thead className="bg-muted/80 border-b">
                                                     <tr>
@@ -1024,7 +1196,7 @@ export default function QuoteCreate() {
                                     </CardHeader>
                                     <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5">
                                         <Tabs defaultValue="bom" className="w-full">
-                                            <TabsList className="grid w-full grid-cols-3">
+                                            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto gap-1">
                                                 <TabsTrigger value="bom">📦 BOM</TabsTrigger>
                                                 <TabsTrigger value="sla">📋 SLA</TabsTrigger>
                                                 <TabsTrigger value="timeline">📅 Timeline</TabsTrigger>
@@ -1053,7 +1225,7 @@ export default function QuoteCreate() {
                             </div>
 
                             {/* Right column - Pricing Summary */}
-                            <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-6 min-w-0">
+                            <div className="space-y-4 sm:space-y-6 2xl:sticky 2xl:top-6 min-w-0">
                                 <Card className="border bg-card shadow-sm">
                                     <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                         <div className="flex items-center gap-2 sm:gap-3">
