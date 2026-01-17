@@ -84,6 +84,7 @@ export const quotes = pgTable("quotes", {
   validUntil: timestamp("valid_until"),
   referenceNumber: text("reference_number"),
   attentionTo: text("attention_to"),
+  currency: text("currency").notNull().default("INR"),
   subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
   discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
   cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -156,6 +157,7 @@ export const salesOrders = pgTable("sales_orders", {
   orderDate: timestamp("order_date").notNull().defaultNow(),
   expectedDeliveryDate: timestamp("expected_delivery_date"),
   actualDeliveryDate: timestamp("actual_delivery_date"),
+  currency: text("currency").notNull().default("INR"),
   subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
   discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
   cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -251,6 +253,7 @@ export const invoices = pgTable("invoices", {
   dueDate: timestamp("due_date"),
   paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0"),
   remainingAmount: decimal("remaining_amount", { precision: 12, scale: 2 }).default("0"),
+  currency: text("currency").notNull().default("INR"),
   subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0"),
   discount: decimal("discount", { precision: 12, scale: 2 }).default("0"),
   cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
@@ -278,7 +281,8 @@ export const invoices = pgTable("invoices", {
 }, (table) => {
   return {
     parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId),
-    uniqueSalesOrder: uniqueIndex("idx_invoices_sales_order_unique").on(table.salesOrderId).where(sql`sales_order_id IS NOT NULL`),
+    // REMOVED unique constraint to allow partial invoicing (multiple invoices per SO)
+    // uniqueSalesOrder: uniqueIndex("idx_invoices_sales_order_unique").on(table.salesOrderId).where(sql`sales_order_id IS NOT NULL`),
     clientIdx: index("idx_invoices_client_id").on(table.clientId),
     paymentStatusIdx: index("idx_invoices_payment_status").on(table.paymentStatus),
   };
@@ -420,6 +424,7 @@ export const vendorPurchaseOrders = pgTable("vendor_purchase_orders", {
   orderDate: timestamp("order_date").notNull().defaultNow(),
   expectedDeliveryDate: timestamp("expected_delivery_date"),
   actualDeliveryDate: timestamp("actual_delivery_date"),
+  currency: text("currency").notNull().default("INR"),
   subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
   discount: decimal("discount", { precision: 12, scale: 2 }).notNull().default("0"),
   cgst: decimal("cgst", { precision: 12, scale: 2 }).notNull().default("0"),

@@ -220,7 +220,7 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
     
     summarySheet.columns = [
         { header: 'Metric', key: 'metric', width: 25 },
-        { header: 'Value', key: 'value', width: 25, style: { numFmt: '"₹"#,##0' } }, // Default currency, will override for non-currency rows manually or just let it be?
+        { header: 'Value', key: 'value', width: 25, style: { numFmt: '#,##0.00' } }, // Use generic number format or dynamic currency
     ];
     // Actually better to apply per-cell for mixed types, but let's try to handle the specific numeric rows.
 
@@ -237,8 +237,8 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
     summarySheet.getRow(2).getCell('value').numFmt = '@'; // Date/Text
     summarySheet.getRow(3).getCell('value').numFmt = '@'; 
     summarySheet.getRow(5).getCell('value').numFmt = '#,##0'; // Count
-    summarySheet.getRow(6).getCell('value').numFmt = '"₹"#,##0'; // Revenue
-    summarySheet.getRow(7).getCell('value').numFmt = '"₹"#,##0'; // Avg Deal
+    summarySheet.getRow(6).getCell('value').numFmt = '#,##0.00'; // Revenue
+    summarySheet.getRow(7).getCell('value').numFmt = '#,##0.00'; // Avg Deal
 
 
     summarySheet.getRow(1).font = { bold: true, size: 14 };
@@ -256,7 +256,7 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
         summarySheet.getCell(`A${currentRow}`).value = stage.stage;
         summarySheet.getCell(`B${currentRow}`).value = stage.count;
         summarySheet.getCell(`C${currentRow}`).value = stage.totalValue;
-        summarySheet.getCell(`C${currentRow}`).numFmt = '"₹"#,##0';
+        summarySheet.getCell(`C${currentRow}`).numFmt = '#,##0.00';
         currentRow++;
     });
 
@@ -265,7 +265,7 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
     regionSheet.columns = [
         { header: 'Region', key: 'region', width: 20 },
         { header: 'Quotes', key: 'count', width: 15, style: { numFmt: '#,##0' } },
-        { header: 'Revenue', key: 'revenue', width: 20, style: { numFmt: '"₹"#,##0' } },
+        { header: 'Revenue', key: 'revenue', width: 20, style: { numFmt: '#,##0.00' } },
         { header: 'Share (%)', key: 'share', width: 15, style: { numFmt: '0.0"%"' } },
     ];
     regionSheet.getRow(1).font = { bold: true };
@@ -285,7 +285,7 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
         { header: 'Quote Number', key: 'quoteNumber', width: 20 },
         { header: 'Client', key: 'clientName', width: 30 },
         { header: 'Status', key: 'status', width: 15 },
-        { header: 'Amount', key: 'totalAmount', width: 20, style: { numFmt: '"₹"#,##0' } },
+        { header: 'Amount', key: 'totalAmount', width: 20, style: { numFmt: '#,##0.00' } },
         { header: 'Date', key: 'createdDate', width: 20 },
     ];
     quotesSheet.getRow(1).font = { bold: true };

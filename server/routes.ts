@@ -14,7 +14,8 @@ import { pricingService } from "./services/pricing.service";
 import { NumberingService } from "./services/numbering.service";
 import { requirePermission } from "./permissions-middleware";
 import { requireFeature, getFeatureFlagsEndpoint } from "./feature-flags-middleware";
-import { validateRequest, authMiddleware, getJWTSecret, AuthRequest } from "./middleware";
+import { validateRequest, authMiddleware, getJWTSecret } from "./middleware";
+import type { AuthRequest } from "./middleware";
 import { isFeatureEnabled } from "@shared/feature-flags";
 import analyticsRoutes from "./analytics-routes";
 import quoteWorkflowRoutes from "./quote-workflow-routes";
@@ -1835,3 +1836,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+
+export type { AuthRequest };

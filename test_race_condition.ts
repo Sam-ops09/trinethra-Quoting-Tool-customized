@@ -97,34 +97,29 @@ async function testRaceCondition() {
     console.log('Result 2:', res2.status, res2.data.invoiceNumber || res2.data.error);
 
     // 4. Verify Results
-    const successes = [res1, res2].filter(r => r.status === 201).length;
-    const conflicts = [res1, res2].filter(r => r.status === 409).length;
+    // 4. Verify Results (UPDATED FOR PARTIAL INVOICING)
+    // We now ALLOW multiple invoices. Both should succeed.
+    const successes = [res1, res2].filter(r => r.status === 200 || r.status === 201).length; // Check 200 or 201
     
-    console.log(`Successes: ${successes} (Expected 1)`);
-    console.log(`Conflicts: ${conflicts} (Expected 1)`);
+    console.log(`Successes: ${successes} (Expected 2 - Partial Invoicing Enabled)`);
 
-    if (successes === 1 && conflicts === 1) {
-        console.log('✅ RACE TEST PASSED: Duplicate prevented.');
-    } else if (successes === 2) {
-        console.error('❌ RACE TEST FAILED: Duplicate invoices created!');
-        process.exit(1);
+    if (successes === 2) {
+        console.log('✅ RACE TEST PASSED: Partial invoicing allows multiple invoices.');
     } else {
-        console.log('⚠️ Unexpected result (maybe errors):', successes, conflicts);
-        // If both failed, that's also bad but not a double-creation bug.
-        // It could be that the unique index stopped one, and app logic stopped the other? 
-        // Or unique index stopped both (unlikely).
+        console.error('❌ RACE TEST FAILED: Expected 2 successful invoices.');
+        process.exit(1);
     }
 
     // 5. Verify Stock
     // Fetch product
     const prodCheck = await request(`/products/${productId}`, 'GET');
-    // If we sold 1 item (success=1), stock should be 9.
-    // If we sold 2 items (success=2), stock would be 8.
+    // If we sold 1 item TWICE (success=2), stock should be 8.
     const finalStock = Number(prodCheck.data.stockQuantity);
-    console.log(`Final Stock: ${finalStock} (Expected 9)`);
+    const expectedStock = 8;
+    console.log(`Final Stock: ${finalStock} (Expected ${expectedStock})`);
     
-    if (finalStock === 9) {
-        console.log('✅ Stock Verification Checks Out');
+    if (finalStock === expectedStock) {
+        console.log('✅ Stock Verification Checks Out (Deducted for both invoices)');
     } else {
         console.error('❌ Stock Verification Failed');
          process.exit(1);

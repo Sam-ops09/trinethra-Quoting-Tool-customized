@@ -733,9 +733,9 @@ router.post(
         return res.status(404).json({ error: "Sales order not found" });
       }
 
-      if (order.status !== "fulfilled") {
+      if (order.status !== "fulfilled" && order.status !== "confirmed") {
         return res.status(400).json({ 
-          error: "Only fulfilled sales orders can be converted to an invoice" 
+          error: "Sales order must be Confirmed or Fulfilled to be converted to an invoice" 
         });
       }
 
@@ -763,10 +763,12 @@ router.post(
       const result = await db.transaction(async (tx) => {
           // A. Check for duplicates (Double check within lock/transaction scope)
           // Note: The Unique Index we added acts as the final guard rail
-          const existingInvoices = await tx.select().from(schema.invoices).where(eq(schema.invoices.salesOrderId, orderId));
-          if (existingInvoices.length > 0) {
-              throw new Error("An invoice has already been generated for this sales order");
-          }
+          // A. Check for duplicates
+          // DISABLED: We now allow multiple invoices per sales order (Partial Invoicing)
+          // const existingInvoices = await tx.select().from(schema.invoices).where(eq(schema.invoices.salesOrderId, orderId));
+          // if (existingInvoices.length > 0) {
+          //     throw new Error("An invoice has already been generated for this sales order");
+          // }
 
           // B. Create Invoice
           const [invoice] = await tx.insert(schema.invoices).values({
@@ -780,7 +782,10 @@ router.post(
               isMaster: false,
               paymentStatus: "pending",
               paidAmount: "0", // String for decimal
+              remainingAmount: order.total, // Initialize remaining amount
               createdBy: req.user!.id,
+              // Propagate currency
+              currency: (order as any).currency || "INR",
               subtotal: order.subtotal,
               discount: order.discount,
               cgst: order.cgst,
