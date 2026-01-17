@@ -76,7 +76,14 @@ router.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "dele
 // ==================== VENDOR PURCHASE ORDERS ROUTES ====================
 router.get("/vendor-pos", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const pos = await storage.getAllVendorPos();
+    const quoteId = req.query.quoteId as string | undefined;
+    
+    let pos;
+    if (quoteId) {
+      pos = await storage.getVendorPosByQuote(quoteId);
+    } else {
+      pos = await storage.getAllVendorPos();
+    }
 
     const enrichedPos = await Promise.all(
       pos.map(async (po) => {

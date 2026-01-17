@@ -51,8 +51,10 @@ export default function SalesOrderEdit() {
         shippingCharges: 0,
     });
 
+    const [initialized, setInitialized] = useState(false);
     const [items, setItems] = useState<Array<{
         id?: string;
+        productId?: string | null;
         description: string;
         quantity: number;
         unitPrice: string;
@@ -62,7 +64,7 @@ export default function SalesOrderEdit() {
 
     // Initialize form when order loads
     useEffect(() => {
-        if (order) {
+        if (order && !initialized) {
             // Use order items if available, otherwise fall back to quote items
             const displayItems = (order.items && order.items.length > 0) 
                  ? order.items 
@@ -93,14 +95,17 @@ export default function SalesOrderEdit() {
 
             setItems(displayItems.map((item: any) => ({
                 id: item.id,
+                productId: item.productId,
                 description: item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 subtotal: item.subtotal,
                 hsnSac: item.hsnSac,
             })));
+            
+            setInitialized(true);
         }
-    }, [order]);
+    }, [order, initialized]);
 
     const updateMutation = useMutation({
         mutationFn: async (data: any) => {
@@ -148,6 +153,7 @@ export default function SalesOrderEdit() {
             shippingCharges: formData.shippingCharges.toString(),
             total: total.toFixed(2),
             items: items.map((item, index) => ({
+                productId: item.productId,
                 description: item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,

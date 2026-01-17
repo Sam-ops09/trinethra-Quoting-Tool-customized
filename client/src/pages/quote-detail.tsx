@@ -22,6 +22,7 @@ import { hasPermission } from "@/lib/permissions-new";
 
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { VersionComparisonDialog } from "@/components/quote/version-comparison-dialog";
+import { QuoteVersionViewer } from "@/components/quote/quote-version-viewer";
 
 interface QuoteDetail {
   id: string;
@@ -74,6 +75,7 @@ export default function QuoteDetail() {
 
   const [showVendorPoDialog, setShowVendorPoDialog] = useState(false);
   const [comparingVersionNumber, setComparingVersionNumber] = useState<number | null>(null);
+  const [viewingVersionNumber, setViewingVersionNumber] = useState<number | null>(null);
 
   // Feature flags
   const canCreateVendorPO = useFeatureFlag('vendorPO_create');
@@ -100,6 +102,20 @@ export default function QuoteDetail() {
     queryKey: [`/api/quotes/${params?.id}/versions`],
     enabled: !!params?.id,
   });
+
+  // Check for linked invoices
+  const { data: invoices } = useQuery<any[]>({
+    queryKey: [`/api/quotes/${params?.id}/invoices`],
+    enabled: !!params?.id,
+  });
+  const hasInvoices = invoices && invoices.length > 0;
+
+  // Check for linked vendor POs
+  const { data: vendorPos } = useQuery<any[]>({
+    queryKey: [`/api/vendor-pos?quoteId=${params?.id}`],
+    enabled: !!params?.id,
+  });
+  const hasVendorPos = vendorPos && vendorPos.length > 0;
 
   const createSalesOrderMutation = useMutation({
     mutationFn: async () => {
@@ -560,10 +576,67 @@ export default function QuoteDetail() {
                     </PermissionGuard>
                   </>
                 )}
+
+                {/* Always show View buttons if linked items exist */}
+                
+                {/* View Sales Order */}
+                {hasSalesOrder && salesOrder && (
+                  <Button
+                    size="sm"
+                    variant="outline" // Changed to outline to differentiate from primary actions
+                    onClick={() => setLocation(`/sales-orders/${salesOrder.id}`)}
+                    className="flex-1 sm:flex-initial h-7 text-xs border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                  >
+                    <Package className="h-3 w-3 mr-1" />
+                    View Order
+                  </Button>
+                )}
+
+                {/* View Invoices */}
+                {hasInvoices && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (invoices && invoices.length === 1) {
+                         setLocation(`/invoices/${invoices[0].id}`);
+                      } else {
+                         // If multiple, maybe go to invoices list with filter? or just the first one?
+                         // For now, let's go to the first one or a list. 
+                         // Given the UI usually links to detail, let's go to the first one.
+                         // Or ideally, open a dialog to choose.
+                         // But simplify: go to first one.
+                         setLocation(`/invoices/${invoices![0].id}`);
+                      }
+                    }}
+                    className="flex-1 sm:flex-initial h-7 text-xs border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-900/20"
+                  >
+                    <Receipt className="h-3 w-3 mr-1" />
+                    View Invoice{invoices!.length > 1 ? 's' : ''}
+                  </Button>
+                )}
+
+                {/* View Vendor POs */}
+                {hasVendorPos && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                         // Similar logic, go to first one
+                         setLocation(`/vendor-pos/${vendorPos![0].id}`);
+                    }}
+                    className="flex-1 sm:flex-initial h-7 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-900/20"
+                  >
+                    <Package className="h-3 w-3 mr-1" />
+                    View Vendor PO{vendorPos!.length > 1 ? 's' : ''}
+                  </Button>
+                )}
+
+                {/* Actions available only when Approved */}
                 {quote.status === "approved" && (
                   <>
-                    {/* Only show Invoice button if NO sales order exists */}
-                    {canConvertToInvoice && !hasSalesOrder && (
+                    {/* Only show Invoice button if NO sales order exists AND NO existing invoices */}
+                    {canConvertToInvoice && !hasSalesOrder && !hasInvoices && (
                       <Button
                         size="sm"
                         onClick={() => convertToInvoiceMutation.mutate()}
@@ -588,18 +661,6 @@ export default function QuoteDetail() {
                            Create Order
                         </Button>
                       </PermissionGuard>
-                    )}
-                    
-                    {/* Show View Sales Order button if sales order exists */}
-                    {hasSalesOrder && salesOrder && (
-                      <Button
-                        size="sm"
-                        onClick={() => setLocation(`/sales-orders/${salesOrder.id}`)}
-                        className="flex-1 sm:flex-initial h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        <Package className="h-3 w-3 mr-1" />
-                        View Sales Order
-                      </Button>
                     )}
                     
                     {canCreateVendorPO && user && hasPermission(user.role, "vendor-pos", "create") && (
@@ -818,7 +879,7 @@ export default function QuoteDetail() {
                                         <p className="text-[10px] text-slate-500">{new Date(version.createdAt).toLocaleDateString()}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <Button variant="ghost" size="sm" className="h-6 w-16 text-[10px]" onClick={() => window.open(`/quotes/${version.id}`, "_blank")}>
+                                      <Button variant="ghost" size="sm" className="h-6 w-16 text-[10px]" onClick={() => setViewingVersionNumber(version.version)}>
                                           View
                                       </Button>
                                       <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => {
@@ -841,6 +902,12 @@ export default function QuoteDetail() {
                 currentQuote={quote!}
                 versionNumber={comparingVersionNumber}
                 quoteId={params?.id || ""}
+             />
+             <QuoteVersionViewer
+                isOpen={!!viewingVersionNumber}
+                onOpenChange={(open) => !open && setViewingVersionNumber(null)}
+                quoteId={params?.id || ""}
+                versionNumber={viewingVersionNumber}
              />
             <Card className="border-slate-200 dark:border-slate-800">
               <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
