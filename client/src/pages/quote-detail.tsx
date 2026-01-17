@@ -161,6 +161,38 @@ export default function QuoteDetail() {
     }
   });
 
+  // NEW: Share Quote Mutation
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
+  const shareMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/share`, {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      setShareLink(data.url);
+      setIsShareDialogOpen(true);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate share link",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const copyToClipboard = () => {
+    if (shareLink) {
+      navigator.clipboard.writeText(shareLink);
+      toast({
+        title: "Copied!",
+        description: "Link copied to clipboard",
+      });
+    }
+  };
+
   const cloneQuoteMutation = useMutation({
     mutationFn: async () => {
        const response = await fetch(`/api/quotes/${params?.id}/clone`, {
@@ -516,6 +548,20 @@ export default function QuoteDetail() {
                     </Button>
                   </PermissionGuard>
                 )}
+                {/* Share Button (Always visible if edit permission exists) */}
+                <PermissionGuard resource="quotes" action="edit" tooltipText="Only authorized users can share quotes">
+                   <Button
+                     variant="outline"
+                     size="sm"
+                     onClick={() => shareMutation.mutate()}
+                     disabled={shareMutation.isPending}
+                     className="flex-1 sm:flex-initial h-7 text-xs"
+                   >
+                     {shareMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+                     <span className="hidden xs:inline">Share</span>
+                   </Button>
+                </PermissionGuard>
+
                 {canGeneratePDF && (
                   <Button
                     variant="outline"
@@ -1094,6 +1140,27 @@ export default function QuoteDetail() {
           />
         )}
       </div>
+      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share Quote</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Anyone with this link can view this quote without logging in.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input value={shareLink || ""} readOnly />
+              <Button size="icon" variant="outline" onClick={copyToClipboard}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsShareDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

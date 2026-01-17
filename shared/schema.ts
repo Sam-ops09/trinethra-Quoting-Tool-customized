@@ -102,6 +102,9 @@ export const quotes = pgTable("quotes", {
   closedAt: timestamp("closed_at"),
   closedBy: varchar("closed_by").references(() => users.id),
   closureNotes: text("closure_notes"),
+  // Public Sharing
+  publicToken: text("public_token").unique(),
+  tokenExpiresAt: timestamp("token_expires_at"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

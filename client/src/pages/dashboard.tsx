@@ -33,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
+import { cn } from "@/lib/utils";
 import {
     ResponsiveContainer,
     CartesianGrid,
@@ -832,6 +833,41 @@ export default function Dashboard() {
                                             ))}
                                         </TableBody>
                                     </Table>
+                                </div>
+
+                                {/* Mobile List (Card Style) */}
+                                <div className="sm:hidden space-y-3">
+                                    {filteredRecentQuotes.map((quote) => (
+                                        <div
+                                            key={quote.id}
+                                            onClick={() => setLocation(`/quotes/${quote.id}`)}
+                                            className="p-4 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 backdrop-blur-sm shadow-sm active:scale-98 transition-transform cursor-pointer"
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <p className="font-bold text-slate-900 dark:text-white text-sm">{quote.quoteNumber}</p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{quote.clientName}</p>
+                                                </div>
+                                                <Badge
+                                                    className={cn(
+                                                        "px-2 py-0.5 text-[10px] font-semibold rounded-full",
+                                                        STATUS_COLORS[quote.status] ? "text-white" : "bg-slate-100 text-slate-600"
+                                                    )}
+                                                    style={STATUS_COLORS[quote.status] ? { backgroundColor: STATUS_COLORS[quote.status] } : {}}
+                                                >
+                                                    {quote.status}
+                                                </Badge>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-slate-500 dark:text-slate-400">
+                                                    {new Date(quote.createdAt).toLocaleDateString()}
+                                                </span>
+                                                <span className="font-bold text-slate-900 dark:text-white">
+                                                    INR {toNum(quote.total).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                                 {/* Mobile Cards */}
                                 <div className="sm:hidden space-y-3">

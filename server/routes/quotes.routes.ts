@@ -577,4 +577,172 @@ router.get("/:id/invoices", authMiddleware, async (req: AuthRequest, res: Respon
     }
 });
 
+// Generate public link
+router.post("/:id/share", authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    // Generate new token if not exists or if requested to regenerate
+    const { nanoid } = await import("nanoid");
+    const token = nanoid(32); // Long secure token
+    
+    // Set expiry to 30 days from now
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    const updated = await storage.updateQuote(quote.id, {
+      publicToken: quote.publicToken || token, // Keep existing if present, or use new
+      tokenExpiresAt: quote.tokenExpiresAt || expiresAt, // Keep existing expiry if present
+    });
+
+    if (!updated) {
+        throw new Error("Failed to update quote with public token");
+    }
+
+    return res.json({ 
+      token: updated.publicToken, 
+      expiresAt: updated.tokenExpiresAt,
+      url: `${req.protocol}://${req.get('host')}/p/quote/${updated.publicToken}`
+    });
+  } catch (error) {
+    logger.error("Share quote error:", error);
+    return res.status(500).json({ error: "Failed to generate share link" });
+  }
+});
+
+// Remove public link
+router.delete("/:id/share", authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    await storage.updateQuote(quote.id, {
+        publicToken: null,
+        tokenExpiresAt: null,
+    } as any); // Type cast needed until types are fully updated
+
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Unshare quote error:", error);
+    return res.status(500).json({ error: "Failed to remove share link" });
+  }
+});
+
+// PUBLIC ROUTE: Get Quote by Token
+// Note: This route does NOT have authMiddleware
+router.get("/public/:token", async (req: any, res: Response) => {
+    try {
+        const token = req.params.token;
+        if (!token) return res.status(400).json({ error: "Token required" });
+
+        const quote = await storage.getQuoteByToken(token);
+
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found or link verified" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        const client = await storage.getClient(quote.clientId);
+        const items = await storage.getQuoteItems(quote.id);
+        const creator = await storage.getUser(quote.createdBy);
+
+        // Return limited data for public view
+        res.json({
+            id: quote.id,
+            quoteNumber: quote.quoteNumber,
+            version: quote.version,
+            status: quote.status,
+            quoteDate: quote.quoteDate,
+            validUntil: quote.validUntil,
+            items,
+            subtotal: quote.subtotal,
+            discount: quote.discount,
+            shippingCharges: quote.shippingCharges,
+            cgst: quote.cgst,
+            sgst: quote.sgst,
+            igst: quote.igst,
+            total: quote.total,
+            notes: quote.notes,
+            termsAndConditions: quote.termsAndConditions,
+            client: {
+                name: client?.name,
+                email: client?.email,
+                billingAddress: client?.billingAddress,
+                gstin: client?.gstin,
+                phone: client?.phone,
+            },
+            sender: {
+                name: creator?.name,
+                email: creator?.email
+            }
+        });
+
+    } catch (error) {
+        logger.error("Public quote fetch error:", error);
+        res.status(500).json({ error: "Failed to fetch quote" });
+    }
+});
+
+// PUBLIC ROUTE: Client Action (Approve/Reject)
+router.post("/public/:token/:action", async (req: any, res: Response) => {
+    try {
+        const { token, action } = req.params;
+        const { reason } = req.body;
+
+        if (!["approve", "reject"].includes(action)) {
+            return res.status(400).json({ error: "Invalid action" });
+        }
+
+        const quote = await storage.getQuoteByToken(token);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        if (quote.status !== "sent" && quote.status !== "draft") { 
+             // Allow approving 'draft' quotes directly via link? Maybe only 'sent'? 
+             // Let's allow 'sent' mainly. If 'draft', maybe auto-transition to sent then approved?
+             // For safety, let's only allow 'sent' or 'draft'.
+        }
+        
+        // Prevent re-approving
+        if (["approved", "invoiced", "closed_paid"].includes(quote.status)) {
+             return res.status(400).json({ error: "Quote is already processed" });
+        }
+
+        const newStatus = action === "approve" ? "approved" : "rejected";
+        
+        await storage.updateQuote(quote.id, {
+            status: newStatus,
+            // Logic to store client signature/reason could go here (e.g. Activity Log)
+        });
+
+        // Log the public action
+        await storage.createActivityLog({
+            userId: quote.createdBy, // Attributing to creator but noting it was client
+            action: `client_${action}_public`,
+            entityType: "quote",
+            entityId: quote.id,
+            metadata: { 
+                via: "public_link", 
+                reason, 
+                ip: req.ip 
+            }
+        });
+
+        res.json({ success: true, status: newStatus });
+
+    } catch (error) {
+        logger.error("Public quote action error:", error);
+        res.status(500).json({ error: "Failed to process " + req.params.action });
+    }
+});
+
 export default router;

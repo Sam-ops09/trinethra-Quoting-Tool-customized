@@ -11,6 +11,7 @@ import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import ResetPassword from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
+import PublicQuote from "@/pages/public-quote";
 import Clients from "@/pages/clients";
 import ClientDetail from "@/pages/client-detail";
 import Quotes from "@/pages/quotes";
@@ -247,6 +248,7 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/p/quote/:token" component={PublicQuote} />
       <Route path="/login" component={() => <PublicRoute component={Login} />} />
       {isFeatureEnabled('pages_signup') && (
         <Route path="/signup" component={() => <PublicRoute component={Signup} />} />

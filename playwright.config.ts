@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
 
 /**
  * Playwright E2E Test Configuration for QuoteProGen
@@ -20,10 +24,7 @@ export default defineConfig({
   /* Opt out of parallel workers on CI */
   workers: process.env.CI ? 1 : undefined,
 
-  /* Set test environment variable */
-  env: {
-    TESTING: 'true',
-  },
+
 
   /* Reporter to use */
   reporter: [
