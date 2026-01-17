@@ -120,8 +120,8 @@ npx tsx debug_payment_failure.ts
 npx tsx verify_decimal.ts
 npx tsx verify_audit_fixes_v3.ts
 npx tsx reproduce_so_edit.ts
-npm tsx repro_clone_numbering.ts
-npm tsx check_settings.ts
+npx tsx repro_clone_numbering.ts
+npx tsx check_settings.ts
 ```
 
 ### Expected Output
