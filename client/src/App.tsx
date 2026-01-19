@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { WebSocketProvider } from "@/lib/websocket-context";
 import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
@@ -269,11 +270,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme={defaultTheme}>
         <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-            {showAnalytics && <VercelAnalytics />}
-          </TooltipProvider>
+          <WebSocketProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+              {showAnalytics && <VercelAnalytics />}
+            </TooltipProvider>
+          </WebSocketProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

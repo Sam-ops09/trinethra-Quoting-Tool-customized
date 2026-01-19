@@ -33,6 +33,8 @@ import type { Client } from "@shared/schema";
 import { ExecBOMSection } from "@/components/shared/exec-bom-section";
 import type { ExecBOMData, ExecBOMItemRow } from "@/types/bom-types";
 import { SLASection, type SLAData } from "@/components/quote/sla-section";
+import { CollaborationPresence } from "@/components/collaboration-presence";
+import { useCollaboration } from "@/lib/websocket-context";
 import {
     TimelineSection,
     type TimelineData,
@@ -149,6 +151,10 @@ export default function QuoteCreate() {
     const { toast } = useToast();
     const { user } = useAuth();
     const isEditMode = !!params?.id;
+
+    // Real-time collaboration - only for edit mode
+    const { collaborators, broadcast, startEditing, stopEditing, onDocumentUpdate } = 
+        useCollaboration(isEditMode ? "quote" : "", isEditMode ? params?.id || "" : "");
 
     const { data: clients } = useQuery<Client[]>({
         queryKey: ["/api/clients"],
@@ -589,6 +595,14 @@ export default function QuoteCreate() {
                                     )}
                                 </div>
                             </div>
+                            {/* Real-time collaboration presence indicator */}
+                            {isEditMode && params?.id && (
+                                <CollaborationPresence 
+                                    entityType="quote" 
+                                    entityId={params.id}
+                                    className="self-center"
+                                />
+                            )}
                         </div>
                     </CardContent>
                 </Card>

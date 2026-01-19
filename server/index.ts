@@ -8,6 +8,7 @@ import { registerReportRoutes } from "./reports-routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { EmailService } from "./services/email.service";
 import { PaymentReminderScheduler } from "./services/payment-reminder.service";
+import { WebSocketService } from "./services/websocket.service";
 
 const app = express();
 
@@ -119,6 +120,10 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+  
+  // Initialize WebSocket service for real-time collaboration and notifications
+  WebSocketService.initialize(server);
+  
   registerReportRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

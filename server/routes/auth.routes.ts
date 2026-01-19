@@ -368,4 +368,25 @@ router.post("/refresh", async (req: Request, res: Response) => {
     }
 });
 
+// WebSocket Token - Generate a short-lived token for WebSocket authentication
+router.get("/ws-token", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    // Generate a short-lived token specifically for WebSocket connection
+    const wsToken = jwt.sign(
+      { id: req.user.id, email: req.user.email },
+      getJWTSecret(),
+      { expiresIn: "5m" } // Short-lived for initial connection only
+    );
+
+    return res.json({ token: wsToken });
+  } catch (error: any) {
+    logger.error("WebSocket token error:", error);
+    return res.status(500).json({ error: "Failed to generate WebSocket token" });
+  }
+});
+
 export default router;

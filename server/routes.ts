@@ -32,6 +32,8 @@ import templatesRoutes from "./routes/templates.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import adminUsersRoutes from "./routes/users.admin.routes";
 import emailTemplatesRoutes from "./routes/email-templates.routes";
+import { notificationRoutes } from "./routes/notification.routes";
+import { collaborationRoutes } from "./routes/collaboration.routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
@@ -89,6 +91,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Email Templates Routes
   app.use("/api/email-templates", emailTemplatesRoutes);
+
+  // Notification Routes
+  app.use("/api/notifications", notificationRoutes);
+
+  // Collaboration Routes
+  app.use("/api/collaboration", authMiddleware, collaborationRoutes);
 
   // Moved to invoices.routes.ts
 

@@ -13,6 +13,10 @@ import { EmailService } from "../services/email.service";
 import { PDFService } from "../services/pdf.service";
 
 import { ApprovalService } from "../services/approval.service";
+import { NotificationService } from "../services/notification.service";
+import { users } from "@shared/schema";
+import { db } from "../db";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -143,6 +147,36 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
     console.log("[DEBUG] Eval Result:", { approvalStatus, approvalRequiredBy });
 
     // Explicitly return computed status in case DB insert returned restricted object
+    
+    // NOTIFICATIONS
+    try {
+      // 1. Notify creator
+      await NotificationService.create({
+        userId: req.user!.id,
+        type: "quote_status_change",
+        title: "Quote Created",
+        message: `Quote #${quoteNumber} has been created successfully.`,
+        entityType: "quote",
+        entityId: quote.id,
+      });
+
+      // 2. If approval needed, notify admins
+      if (approvalStatus === "pending") {
+        const admins = await db.select().from(users).where(eq(users.role, "admin"));
+        for (const admin of admins) {
+          await NotificationService.notifyApprovalRequest(
+            admin.id,
+            quoteNumber,
+            quote.id,
+            req.user!.email || "User",
+            "Quote creation triggered approval rules"
+          );
+        }
+      }
+    } catch (notifError) {
+      logger.error("Failed to send notifications for new quote:", notifError);
+    }
+
     return res.json({ ...quote, approvalStatus, approvalRequiredBy });
   } catch (error: any) {
     logger.error("Create quote error:", error);
@@ -303,6 +337,52 @@ router.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async 
         entityType: "quote",
         entityId: quote.id,
     });
+
+    // NOTIFICATIONS
+    try {
+      // Detect approval status change
+      if (updateData.approvalStatus && updateData.approvalStatus !== existingQuote.approvalStatus) {
+        // If approved or rejected, notify the creator
+        if (["approved", "rejected"].includes(updateData.approvalStatus)) {
+          const action = updateData.approvalStatus === "approved" ? "approved" : "rejected";
+          await NotificationService.notifyApprovalDecision(
+            existingQuote.createdBy,
+            quote.quoteNumber,
+            quote.id,
+            req.user!.email || "Approver",
+            action as any
+          );
+        }
+        
+        // If became pending (e.g. revision triggers it), notify admins
+        if (updateData.approvalStatus === "pending") {
+           const admins = await db.select().from(users).where(eq(users.role, "admin"));
+           for (const admin of admins) {
+             await NotificationService.notifyApprovalRequest(
+               admin.id,
+               quote.quoteNumber,
+               quote.id,
+               req.user!.email || "User",
+               "Quote update triggered approval rules"
+             );
+           }
+        }
+      } else if (updateData.status && updateData.status !== existingQuote.status) {
+         // General status change notification
+         // Only notify if it's a significant status change like "sent"
+         if (updateData.status === "sent") {
+            await NotificationService.notifyQuoteStatusChange(
+              existingQuote.createdBy,
+              quote.quoteNumber,
+              quote.id,
+              existingQuote.status,
+              "sent"
+            );
+         }
+      }
+    } catch (notifError) {
+      logger.error("Failed to send notifications for updated quote:", notifError);
+    }
 
 
     // DISABLED: Automatic email sending when quote status changes to "sent"

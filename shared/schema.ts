@@ -1000,6 +1000,81 @@ export const insertSalesOrderItemSchema = createInsertSchema(salesOrderItems).om
   updatedAt: true,
 });
 
+// REAL-TIME COLLABORATION - NOTIFICATION TYPES ENUM
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "quote_status_change",
+  "approval_request",
+  "approval_decision",
+  "payment_received",
+  "payment_overdue",
+  "collaboration_joined",
+  "collaboration_edit",
+  "system_announcement"
+]);
+
+// NOTIFICATIONS TABLE - For in-app notification center
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: notificationTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  entityType: text("entity_type"), // quote, invoice, payment, sales_order, etc.
+  entityId: varchar("entity_id"),
+  isRead: boolean("is_read").notNull().default(false),
+  readAt: timestamp("read_at"),
+  metadata: jsonb("metadata"), // Additional context data (e.g., old/new status, amount, etc.)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("idx_notifications_user_id").on(table.userId),
+  userUnreadIdx: index("idx_notifications_user_unread").on(table.userId, table.isRead),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+// COLLABORATION SESSIONS TABLE - For tracking active document editors
+export const collaborationSessions = pgTable("collaboration_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityType: text("entity_type").notNull(), // quote, sales_order, invoice
+  entityId: varchar("entity_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  socketId: text("socket_id").notNull(),
+  cursorPosition: jsonb("cursor_position"), // { field: string, line: number }
+  isEditing: boolean("is_editing").notNull().default(false),
+  lastActivity: timestamp("last_activity").notNull().defaultNow(),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+}, (table) => ({
+  entityIdx: index("idx_collab_sessions_entity").on(table.entityType, table.entityId),
+  userSocketIdx: index("idx_collab_sessions_socket").on(table.socketId),
+}));
+
+export const collaborationSessionsRelations = relations(collaborationSessions, ({ one }) => ({
+  user: one(users, {
+    fields: [collaborationSessions.userId],
+    references: [users.id],
+  }),
+}));
+
+// NOTIFICATION INSERT SCHEMA
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  isRead: true,
+  readAt: true,
+});
+
+// COLLABORATION SESSION INSERT SCHEMA
+export const insertCollaborationSessionSchema = createInsertSchema(collaborationSessions).omit({
+  id: true,
+  joinedAt: true,
+  lastActivity: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1109,3 +1184,10 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailTemplateType = "quote" | "invoice" | "sales_order" | "payment_reminder" | "password_reset" | "welcome";
 
+// REAL-TIME COLLABORATION TYPES
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type NotificationType = "quote_status_change" | "approval_request" | "approval_decision" | "payment_received" | "payment_overdue" | "collaboration_joined" | "collaboration_edit" | "system_announcement";
+
+export type CollaborationSession = typeof collaborationSessions.$inferSelect;
+export type InsertCollaborationSession = z.infer<typeof insertCollaborationSessionSchema>;
