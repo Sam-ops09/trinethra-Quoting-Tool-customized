@@ -1,5 +1,7 @@
 
 import { Router, Response } from "express";
+import { Worker } from "worker_threads";
+import path from "path";
 import { storage } from "../storage";
 import { authMiddleware, AuthRequest } from "../middleware";
 import { requireFeature } from "../feature-flags-middleware";
@@ -611,30 +613,117 @@ router.get("/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) =
       logger.info(`[PDF Export] Clean filename: ${cleanFilename}`);
       logger.info(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
 
-      // Generate PDF
-      logger.info(`[PDF Export] About to generate PDF`);
-      await PDFService.generateQuotePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        companyLogo,
-        preparedBy: creator?.name,
-        preparedByEmail: creator?.email,
-        bankDetails: {
-          bankName,
-          accountNumber: bankAccountNumber,
-          accountName: bankAccountName,
-          ifsc: bankIfscCode,
-          branch: bankBranch,
-          swift: bankSwiftCode,
-        },
-      }, res);
+      // Generate PDF using Worker Thread with Fallback
+      logger.info(`[PDF Export] Attempting offload to Worker Thread`);
+      
+      const runWorker = async () => {
+          let workerPath: string;
+          if (process.env.NODE_ENV === "production") {
+             workerPath = path.join(process.cwd(), "dist", "workers", "pdf.worker.js");
+          } else {
+             workerPath = path.join(process.cwd(), "server", "workers", "pdf.worker.ts");
+          }
+          
+          // Attempt to resolve tsx loader relative to CWD
+          const { pathToFileURL } = await import("url");
+          const tsxLoaderPath = path.resolve("node_modules/tsx/dist/loader.mjs");
+          const loaderUrl = pathToFileURL(tsxLoaderPath).href;
+          
+          const worker = new Worker(workerPath, {
+              execArgv: process.env.NODE_ENV === "production" ? [] : ["--import", loaderUrl],
+          });
+
+          const pdfPayload = {
+            quote,
+            client,
+            items,
+            companyName,
+            companyAddress,
+            companyPhone,
+            companyEmail,
+            companyWebsite,
+            companyGSTIN,
+            companyLogo,
+            preparedBy: creator?.name,
+            preparedByEmail: creator?.email,
+            bankDetails: {
+              bankName,
+              accountNumber: bankAccountNumber,
+              accountName: bankAccountName,
+              ifsc: bankIfscCode,
+              branch: bankBranch,
+              swift: bankSwiftCode,
+            },
+          };
+
+          return new Promise<Buffer>((resolve, reject) => {
+              worker.on("message", (msg) => {
+                  if (msg.status === "success") {
+                      resolve(Buffer.from(msg.buffer));
+                  } else {
+                      reject(new Error(msg.error));
+                  }
+                  worker.terminate();
+              });
+              worker.on("error", (err) => {
+                  reject(err);
+                  worker.terminate();
+              });
+              worker.on("exit", (code) => {
+                  if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+              });
+              
+              worker.postMessage(pdfPayload);
+          });
+      };
+
+      let pdfBuffer: Buffer;
+      try {
+          pdfBuffer = await runWorker();
+          logger.info(`[PDF Export] Worker returned PDF buffer. Size: ${pdfBuffer.length}`);
+      } catch (err: any) {
+          logger.warn(`[PDF Export] Worker failed (${err.message}). Falling back to main thread.`);
+          
+          // Fallback: Generate in main thread
+          const { PassThrough } = await import("stream"); // Ensure import
+          const stream = new PassThrough();
+          const chunks: Buffer[] = [];
+          stream.on("data", c => chunks.push(c));
+          
+          const done = new Promise<void>((resolve, reject) => {
+              stream.on("end", () => resolve());
+              stream.on("error", reject);
+          });
+
+          await PDFService.generateQuotePDF({
+            quote,
+            client,
+            items,
+            companyName,
+            companyAddress,
+            companyPhone,
+            companyEmail,
+            companyWebsite,
+            companyGSTIN,
+            companyLogo,
+            preparedBy: creator?.name,
+            preparedByEmail: creator?.email,
+            bankDetails: {
+              bankName,
+              accountNumber: bankAccountNumber,
+              accountName: bankAccountName,
+              ifsc: bankIfscCode,
+              branch: bankBranch,
+              swift: bankSwiftCode,
+            },
+          }, stream);
+          
+          await done;
+          pdfBuffer = Buffer.concat(chunks);
+          logger.info(`[PDF Export] Main thread generated PDF buffer. Size: ${pdfBuffer.length}`);
+      }
+
+      res.send(pdfBuffer);
       logger.info(`[PDF Export] PDF stream piped successfully`);
 
       // Log after headers are sent

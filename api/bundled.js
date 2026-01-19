@@ -13,6 +13,9 @@ var schema_exports = {};
 __export(schema_exports, {
   activityLogs: () => activityLogs,
   activityLogsRelations: () => activityLogsRelations,
+  approvalRuleTriggerTypeEnum: () => approvalRuleTriggerTypeEnum,
+  approvalRules: () => approvalRules,
+  approvalRulesRelations: () => approvalRulesRelations,
   bankDetails: () => bankDetails,
   clientCommunications: () => clientCommunications,
   clientCommunicationsRelations: () => clientCommunicationsRelations,
@@ -24,6 +27,7 @@ __export(schema_exports, {
   goodsReceivedNotes: () => goodsReceivedNotes,
   goodsReceivedNotesRelations: () => goodsReceivedNotesRelations,
   insertActivityLogSchema: () => insertActivityLogSchema,
+  insertApprovalRuleSchema: () => insertApprovalRuleSchema,
   insertBankDetailsSchema: () => insertBankDetailsSchema,
   insertClientCommunicationSchema: () => insertClientCommunicationSchema,
   insertClientSchema: () => insertClientSchema,
@@ -98,7 +102,7 @@ import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, i
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, users, usersRelations, clients, clientsRelations, quotes, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, insertUserSchema, insertClientSchema, insertQuoteSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, insertInvoiceAttachmentSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, users, usersRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, insertInvoiceAttachmentSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -197,10 +201,37 @@ var init_schema = __esm({
       closedAt: timestamp("closed_at"),
       closedBy: varchar("closed_by").references(() => users.id),
       closureNotes: text("closure_notes"),
+      // Public Sharing
+      publicToken: text("public_token").unique(),
+      tokenExpiresAt: timestamp("token_expires_at"),
+      // Rule-Based Approval Fields
+      approvalStatus: text("approval_status").notNull().default("none"),
+      // none, pending, approved, rejected
+      approvalRequiredBy: userRoleEnum("approval_required_by"),
+      // Role required to approve (e.g. sales_manager)
       createdBy: varchar("created_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
     });
+    approvalRuleTriggerTypeEnum = pgEnum("approval_rule_trigger_type", ["discount_percentage", "total_amount"]);
+    approvalRules = pgTable("approval_rules", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      name: text("name").notNull(),
+      description: text("description"),
+      triggerType: approvalRuleTriggerTypeEnum("trigger_type").notNull(),
+      thresholdValue: decimal("threshold_value", { precision: 12, scale: 2 }).notNull(),
+      requiredRole: userRoleEnum("required_role").notNull().default("sales_manager"),
+      isActive: boolean("is_active").notNull().default(true),
+      createdBy: varchar("created_by").references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    });
+    approvalRulesRelations = relations(approvalRules, ({ one }) => ({
+      creator: one(users, {
+        fields: [approvalRules.createdBy],
+        references: [users.id]
+      })
+    }));
     quoteVersions = pgTable("quote_versions", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
@@ -858,6 +889,14 @@ var init_schema = __esm({
       quoteNumber: true,
       createdAt: true,
       updatedAt: true,
+      createdBy: true,
+      approvalStatus: true,
+      approvalRequiredBy: true
+    });
+    insertApprovalRuleSchema = createInsertSchema(approvalRules).omit({
+      id: true,
+      createdAt: true,
+      updatedAt: true,
       createdBy: true
     });
     insertQuoteItemSchema = createInsertSchema(quoteItems).omit({
@@ -1003,6 +1042,179 @@ var init_db = __esm({
   }
 });
 
+// server/utils/logger.ts
+var isDev, logger;
+var init_logger = __esm({
+  "server/utils/logger.ts"() {
+    "use strict";
+    isDev = process.env.NODE_ENV !== "production";
+    logger = {
+      /**
+       * Debug level log - only in development
+       */
+      debug: (...args) => {
+        if (isDev) {
+          console.log("[DEBUG]", ...args);
+        }
+      },
+      /**
+       * Info level log - only in development
+       */
+      info: (...args) => {
+        if (isDev) {
+          console.log("[INFO]", ...args);
+        }
+      },
+      /**
+       * Warning level log - always
+       */
+      warn: (...args) => {
+        console.warn("[WARN]", ...args);
+      },
+      /**
+       * Error level log - always
+       */
+      error: (...args) => {
+        console.error("[ERROR]", ...args);
+      },
+      /**
+       * Stock operation logs - only in development
+       */
+      stock: (message) => {
+        if (isDev) {
+          console.log(message);
+        }
+      }
+    };
+  }
+});
+
+// server/services/cache.service.ts
+import { createClient } from "redis";
+import { LRUCache } from "lru-cache";
+var CacheService, cacheService;
+var init_cache_service = __esm({
+  "server/services/cache.service.ts"() {
+    "use strict";
+    init_logger();
+    CacheService = class {
+      redisClient = null;
+      memoryCache;
+      useRedis = false;
+      isConnected = false;
+      constructor() {
+        this.memoryCache = new LRUCache({
+          max: 500,
+          // Maximum number of items
+          ttl: 1e3 * 60 * 60
+          // 1 hour default TTL
+        });
+        if (process.env.REDIS_URL) {
+          this.initRedis();
+        } else {
+          logger.info("Local: Cache service initialized with in-memory storage (No REDIS_URL provided)");
+        }
+      }
+      async initRedis() {
+        try {
+          this.redisClient = createClient({
+            url: process.env.REDIS_URL
+          });
+          this.redisClient.on("error", (err) => {
+            logger.error("Redis Client Error", err);
+            this.useRedis = false;
+            this.isConnected = false;
+          });
+          this.redisClient.on("connect", () => {
+            logger.info("Redis: Connected to Redis server");
+            this.useRedis = true;
+            this.isConnected = true;
+          });
+          this.redisClient.on("reconnecting", () => {
+            logger.info("Redis: Reconnecting...");
+            this.useRedis = false;
+            this.isConnected = false;
+          });
+          await this.redisClient.connect();
+        } catch (error) {
+          logger.error("Failed to connect to Redis, falling back to memory cache:", error);
+          this.useRedis = false;
+          this.isConnected = false;
+        }
+      }
+      /**
+       * Get a value from the cache
+       * @param key Cache key
+       */
+      async get(key) {
+        try {
+          if (this.useRedis && this.isConnected && this.redisClient) {
+            const value = await this.redisClient.get(key);
+            if (value) {
+              return JSON.parse(value);
+            }
+            return null;
+          } else {
+            return this.memoryCache.get(key) || null;
+          }
+        } catch (error) {
+          logger.error(`Cache get error for key ${key}:`, error);
+          return null;
+        }
+      }
+      /**
+       * Set a value in the cache
+       * @param key Cache key
+       * @param value Value to store
+       * @param ttlSeconds Time to live in seconds
+       */
+      async set(key, value, ttlSeconds = 3600) {
+        try {
+          if (this.useRedis && this.isConnected && this.redisClient) {
+            await this.redisClient.set(key, JSON.stringify(value), {
+              EX: ttlSeconds
+            });
+          } else {
+            this.memoryCache.set(key, value, { ttl: ttlSeconds * 1e3 });
+          }
+        } catch (error) {
+          logger.error(`Cache set error for key ${key}:`, error);
+        }
+      }
+      /**
+       * Delete a value from the cache
+       * @param key Cache key
+       */
+      async del(key) {
+        try {
+          if (this.useRedis && this.isConnected && this.redisClient) {
+            await this.redisClient.del(key);
+          } else {
+            this.memoryCache.delete(key);
+          }
+        } catch (error) {
+          logger.error(`Cache delete error for key ${key}:`, error);
+        }
+      }
+      /**
+       * Flush all keys from the cache
+       */
+      async flush() {
+        try {
+          if (this.useRedis && this.isConnected && this.redisClient) {
+            await this.redisClient.flushAll();
+          } else {
+            this.memoryCache.clear();
+          }
+        } catch (error) {
+          logger.error("Cache flush error:", error);
+        }
+      }
+    };
+    cacheService = new CacheService();
+  }
+});
+
 // server/storage.ts
 import { eq, desc, and, sql as sql2 } from "drizzle-orm";
 var DatabaseStorage, storage;
@@ -1011,6 +1223,7 @@ var init_storage = __esm({
     "use strict";
     init_db();
     init_schema();
+    init_cache_service();
     DatabaseStorage = class {
       async getUser(id) {
         const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -1034,10 +1247,16 @@ var init_storage = __esm({
       }
       async updateUser(id, data) {
         const [updated] = await db.update(users).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(users.id, id)).returning();
+        if (updated) {
+          await cacheService.del(`user:${id}`);
+        }
         return updated || void 0;
       }
       async updateUserWithTokenCheck(id, token, data) {
         const [updated] = await db.update(users).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(users.id, id), eq(users.resetToken, token))).returning();
+        if (updated) {
+          await cacheService.del(`user:${id}`);
+        }
         return updated || void 0;
       }
       async deleteUser(id) {
@@ -1050,6 +1269,7 @@ var init_storage = __esm({
           updatedAt: /* @__PURE__ */ new Date()
         }).where(eq(users.id, id));
         console.log(`[Storage] User ${id} soft-deleted (set to inactive).`);
+        await cacheService.del(`user:${id}`);
       }
       async getAllUsers() {
         return await db.select().from(users).orderBy(desc(users.createdAt));
@@ -1082,6 +1302,10 @@ var init_storage = __esm({
       // Quotes
       async getQuote(id) {
         const [quote] = await db.select().from(quotes).where(eq(quotes.id, id));
+        return quote || void 0;
+      }
+      async getQuoteByToken(token) {
+        const [quote] = await db.select().from(quotes).where(eq(quotes.publicToken, token));
         return quote || void 0;
       }
       async getQuotesByCreator(createdBy) {
@@ -1564,6 +1788,21 @@ var init_storage = __esm({
       async updateProduct(id, data) {
         const [updated] = await db.update(products).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(products.id, id)).returning();
         return updated || void 0;
+      }
+      // Approval Rules
+      async getApprovalRules() {
+        return await db.select().from(approvalRules).where(eq(approvalRules.isActive, true));
+      }
+      async createApprovalRule(rule) {
+        const [newRule] = await db.insert(approvalRules).values(rule).returning();
+        return newRule;
+      }
+      async updateApprovalRule(id, rule) {
+        const [updated] = await db.update(approvalRules).set({ ...rule, updatedAt: /* @__PURE__ */ new Date() }).where(eq(approvalRules.id, id)).returning();
+        return updated;
+      }
+      async deleteApprovalRule(id) {
+        await db.delete(approvalRules).where(eq(approvalRules.id, id));
       }
     };
     storage = new DatabaseStorage();
@@ -2086,7 +2325,7 @@ var numbering_service_exports = {};
 __export(numbering_service_exports, {
   NumberingService: () => NumberingService
 });
-import { sql as sql4 } from "drizzle-orm";
+import { sql as sql3 } from "drizzle-orm";
 var NumberingService;
 var init_numbering_service = __esm({
   "server/services/numbering.service.ts"() {
@@ -2236,9 +2475,9 @@ var init_numbering_service = __esm({
       static async getAndIncrementCounter(type) {
         const year = (/* @__PURE__ */ new Date()).getFullYear();
         const counterKey = `${type}_counter_${year}`;
-        const result = await db.execute(sql4`
+        const result = await db.execute(sql3`
       INSERT INTO settings (id, key, value, updated_at) 
-      VALUES (${sql4`gen_random_uuid()`}, ${counterKey}, '1', NOW())
+      VALUES (${sql3`gen_random_uuid()`}, ${counterKey}, '1', NOW())
       ON CONFLICT (key) DO UPDATE 
       SET value = (CAST(settings.value AS INTEGER) + 1)::text, updated_at = NOW()
       RETURNING value
@@ -2318,7 +2557,7 @@ __export(serial_number_service_exports, {
   logSerialNumberChange: () => logSerialNumberChange,
   validateSerialNumbers: () => validateSerialNumbers
 });
-import { eq as eq3, and as and2, sql as sql6 } from "drizzle-orm";
+import { eq as eq3, and as and2, sql as sql5 } from "drizzle-orm";
 async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expectedQuantity, options = {
   checkInvoiceScope: true,
   checkQuoteScope: true,
@@ -2354,7 +2593,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
     const invoiceItemsList = await db.select().from(invoiceItems).where(
       and2(
         eq3(invoiceItems.invoiceId, invoiceId),
-        sql6`${invoiceItems.id} != ${invoiceItemId}`
+        sql5`${invoiceItems.id} != ${invoiceItemId}`
       )
     );
     const existingSerialsInInvoice = [];
@@ -2386,7 +2625,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
         const relatedInvoices = await db.select().from(invoices).where(
           and2(
             eq3(invoices.quoteId, quoteId),
-            sql6`${invoices.id} != ${invoiceId}`
+            sql5`${invoices.id} != ${invoiceId}`
           )
         );
         const existingSerialsInQuote = [];
@@ -2417,7 +2656,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
   }
   if (options.checkSystemWide) {
     const existingSerials = await db.select({ serialNumber: serialNumbers.serialNumber }).from(serialNumbers).where(
-      sql6`${serialNumbers.serialNumber} IN (${sql6.join(validSerials.map((s) => sql6`${s}`), sql6`, `)})`
+      sql5`${serialNumbers.serialNumber} IN (${sql5.join(validSerials.map((s) => sql5`${s}`), sql5`, `)})`
     );
     const duplicatesInSystem = existingSerials.map((s) => s.serialNumber);
     if (duplicatesInSystem.length > 0) {
@@ -2831,462 +3070,9 @@ import cookieParser from "cookie-parser";
 init_storage();
 import { createServer } from "http";
 
-// server/services/analytics.service.ts
-init_storage();
-var AnalyticsService = class {
-  /**
-   * Get revenue forecast based on historical data
-   */
-  async getRevenueForecast(monthsAhead = 3) {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
-      const now = /* @__PURE__ */ new Date();
-      const monthlyRevenue = {};
-      for (let i = 0; i < 12; i++) {
-        const date = new Date(now);
-        date.setMonth(date.getMonth() - i);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        monthlyRevenue[monthKey] = 0;
-      }
-      allInvoices.forEach((invoice) => {
-        const date = new Date(invoice.createdAt);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        if (monthlyRevenue.hasOwnProperty(monthKey)) {
-          monthlyRevenue[monthKey] += parseFloat((invoice.paidAmount || 0).toString());
-        }
-      });
-      const revenues = Object.values(monthlyRevenue).filter((v) => v > 0);
-      const avgRevenue = revenues.length > 0 ? revenues.reduce((a, b) => a + b, 0) / revenues.length : 0;
-      const forecast = [];
-      for (let i = 1; i <= monthsAhead; i++) {
-        const date = new Date(now);
-        date.setMonth(date.getMonth() + i);
-        const monthStr = date.toLocaleString("default", { month: "short", year: "numeric" });
-        forecast.push({
-          month: monthStr,
-          forecastedRevenue: this.roundAmount(avgRevenue * (1 + (Math.random() - 0.5) * 0.2)),
-          confidence: 0.75 + Math.random() * 0.15
-          // 75-90% confidence
-        });
-      }
-      return forecast;
-    } catch (error) {
-      console.error("Error getting revenue forecast:", error);
-      return [];
-    }
-  }
-  /**
-   * Get deal distribution by value ranges
-   */
-  async getDealDistribution() {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const ranges = [
-        { label: "0-10K", min: 0, max: 1e4 },
-        { label: "10K-50K", min: 1e4, max: 5e4 },
-        { label: "50K-100K", min: 5e4, max: 1e5 },
-        { label: "100K-500K", min: 1e5, max: 5e5 },
-        { label: "500K+", min: 5e5, max: Infinity }
-      ];
-      const distribution = ranges.map((range) => {
-        const quotesInRange = allQuotes.filter((q) => {
-          const total = parseFloat(q.total.toString());
-          return total >= range.min && total < range.max;
-        });
-        const totalValue = quotesInRange.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
-        return {
-          range: range.label,
-          count: quotesInRange.length,
-          totalValue: this.roundAmount(totalValue),
-          percentage: 0
-          // Will calculate after
-        };
-      });
-      const totalQuotes = distribution.reduce((sum, d) => sum + d.count, 0);
-      return distribution.map((d) => ({
-        ...d,
-        percentage: totalQuotes > 0 ? d.count / totalQuotes * 100 : 0
-      }));
-    } catch (error) {
-      console.error("Error getting deal distribution:", error);
-      return [];
-    }
-  }
-  /**
-   * Get regional sales distribution
-   */
-  async getRegionalDistribution() {
-    try {
-      const allClients = await storage.getAllClients();
-      const allQuotes = await storage.getAllQuotes();
-      const regionData = {};
-      for (const quote of allQuotes) {
-        const client = allClients.find((c) => c.id === quote.clientId);
-        const rawAddress = client?.billingAddress || client?.shippingAddress || "";
-        const addressParts = rawAddress.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.length > 0);
-        let region = "Unknown";
-        if (addressParts.length > 0) {
-          const last = addressParts[addressParts.length - 1];
-          if (/^[\d-]+$/.test(last) && addressParts.length > 1) {
-            region = addressParts[addressParts.length - 2];
-          } else {
-            region = last;
-          }
-        }
-        if ((region === "Unknown" || region.length < 3) && client?.gstin && client.gstin.length >= 2) {
-          const stateCode = client.gstin.substring(0, 2);
-          const stateMap = {
-            "01": "Jammu & Kashmir",
-            "02": "Himachal Pradesh",
-            "03": "Punjab",
-            "04": "Chandigarh",
-            "05": "Uttarakhand",
-            "06": "Haryana",
-            "07": "Delhi",
-            "08": "Rajasthan",
-            "09": "Uttar Pradesh",
-            "10": "Bihar",
-            "11": "Sikkim",
-            "12": "Arunachal Pradesh",
-            "13": "Nagaland",
-            "14": "Manipur",
-            "15": "Mizoram",
-            "16": "Tripura",
-            "17": "Meghalaya",
-            "18": "Assam",
-            "19": "West Bengal",
-            "20": "Jharkhand",
-            "21": "Odisha",
-            "22": "Chattisgarh",
-            "23": "Madhya Pradesh",
-            "24": "Gujarat",
-            "27": "Maharashtra",
-            "29": "Karnataka",
-            "30": "Goa",
-            "31": "Lakshadweep",
-            "32": "Kerala",
-            "33": "Tamil Nadu",
-            "34": "Puducherry",
-            "35": "Andaman & Nicobar",
-            "36": "Telangana",
-            "37": "Andhra Pradesh",
-            "38": "Ladakh"
-          };
-          if (stateMap[stateCode]) {
-            region = stateMap[stateCode];
-          }
-        }
-        if (!regionData[region]) {
-          regionData[region] = { count: 0, revenue: 0 };
-        }
-        regionData[region].count++;
-        regionData[region].revenue += parseFloat(quote.total.toString());
-      }
-      const totalQuotes = Object.values(regionData).reduce((sum, r) => sum + r.count, 0);
-      return Object.entries(regionData).map(([region, data]) => ({
-        region,
-        quoteCount: data.count,
-        totalRevenue: this.roundAmount(data.revenue),
-        percentage: totalQuotes > 0 ? data.count / totalQuotes * 100 : 0
-      }));
-    } catch (error) {
-      console.error("Error getting regional distribution:", error);
-      return [];
-    }
-  }
-  /**
-   * Get custom report data
-   */
-  async getCustomReport(params) {
-    try {
-      let quotes2 = await storage.getAllQuotes();
-      const clients2 = await storage.getAllClients();
-      if (params.startDate) {
-        quotes2 = quotes2.filter((q) => new Date(q.createdAt) >= params.startDate);
-      }
-      if (params.endDate) {
-        quotes2 = quotes2.filter((q) => new Date(q.createdAt) <= params.endDate);
-      }
-      if (params.status) {
-        quotes2 = quotes2.filter((q) => q.status === params.status);
-      }
-      if (params.minAmount) {
-        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) >= params.minAmount);
-      }
-      if (params.maxAmount) {
-        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) <= params.maxAmount);
-      }
-      return quotes2.map((q) => {
-        const client = clients2.find((c) => c.id === q.clientId);
-        return {
-          quoteNumber: q.quoteNumber,
-          clientName: client?.name || "Unknown",
-          totalAmount: this.roundAmount(parseFloat(q.total.toString())),
-          status: q.status,
-          createdDate: q.createdAt
-        };
-      });
-    } catch (error) {
-      console.error("Error getting custom report:", error);
-      return [];
-    }
-  }
-  /**
-   * Get sales pipeline data
-   */
-  async getSalesPipeline() {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const stages = ["draft", "sent", "approved", "rejected", "invoiced"];
-      const pipeline = stages.map((stage) => {
-        const stageQuotes = allQuotes.filter((q) => q.status === stage);
-        const totalValue = stageQuotes.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
-        const avgDealValue = stageQuotes.length > 0 ? totalValue / stageQuotes.length : 0;
-        return {
-          stage,
-          count: stageQuotes.length,
-          totalValue: this.roundAmount(totalValue),
-          avgDealValue: this.roundAmount(avgDealValue)
-        };
-      });
-      return pipeline;
-    } catch (error) {
-      console.error("Error getting sales pipeline:", error);
-      return [];
-    }
-  }
-  /**
-   * Get client lifetime value
-   */
-  async getClientLifetimeValue(clientId) {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const clientQuotes = allQuotes.filter((q) => q.clientId === clientId);
-      const allInvoices = await storage.getAllInvoices();
-      const clientInvoices = allInvoices.filter((i) => {
-        const quote = clientQuotes.find((q) => q.id === i.quoteId);
-        return !!quote;
-      });
-      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
-      const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
-      const conversionRate = clientQuotes.length > 0 ? clientInvoices.length / clientQuotes.length * 100 : 0;
-      return {
-        totalQuotes: clientQuotes.length,
-        totalInvoices: clientInvoices.length,
-        totalRevenue: this.roundAmount(totalRevenue),
-        averageDealSize: this.roundAmount(avgDealSize),
-        conversionRate: parseFloat(conversionRate.toFixed(2))
-      };
-    } catch (error) {
-      console.error("Error getting client lifetime value:", error);
-      return {
-        totalQuotes: 0,
-        totalInvoices: 0,
-        totalRevenue: 0,
-        averageDealSize: 0,
-        conversionRate: 0
-      };
-    }
-  }
-  /**
-   * Get competitor analysis insights
-   */
-  async getCompetitorInsights() {
-    try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
-      if (allQuotes.length === 0) {
-        return {
-          avgQuoteValue: 0,
-          medianQuoteValue: 0,
-          quoteFrequency: 0,
-          conversionTrend: 0
-        };
-      }
-      const values = allQuotes.map((q) => parseFloat(q.total.toString())).sort((a, b) => a - b);
-      const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
-      const medianValue = values.length % 2 === 0 ? (values[values.length / 2 - 1] + values[values.length / 2]) / 2 : values[Math.floor(values.length / 2)];
-      const weekAgo = /* @__PURE__ */ new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const recentQuotes = allQuotes.filter((q) => new Date(q.createdAt) >= weekAgo);
-      const quoteFrequency = recentQuotes.length;
-      const conversionCount = allInvoices.length;
-      const conversionTrend = allQuotes.length > 0 ? conversionCount / allQuotes.length * 100 : 0;
-      return {
-        avgQuoteValue: this.roundAmount(avgValue),
-        medianQuoteValue: this.roundAmount(medianValue),
-        quoteFrequency,
-        conversionTrend: parseFloat(conversionTrend.toFixed(2))
-      };
-    } catch (error) {
-      console.error("Error getting competitor insights:", error);
-      return {
-        avgQuoteValue: 0,
-        medianQuoteValue: 0,
-        quoteFrequency: 0,
-        conversionTrend: 0
-      };
-    }
-  }
-  roundAmount(amount) {
-    return Math.round(amount * 100) / 100;
-  }
-};
-var analyticsService = new AnalyticsService();
-
-// server/services/pricing.service.ts
-init_storage();
-import { Decimal } from "decimal.js";
-var PricingService = class {
-  /**
-   * Calculate discount based on quote amount and applicable pricing tier
-   */
-  async calculateDiscount(subtotal) {
-    try {
-      const tier = await storage.getPricingTierByAmount(subtotal);
-      if (!tier) {
-        return {
-          discountPercent: 0,
-          discountAmount: 0,
-          finalAmount: subtotal
-        };
-      }
-      const discountPercent = parseFloat(tier.discountPercent.toString());
-      const discountAmount = subtotal * (discountPercent / 100);
-      const finalAmount = subtotal - discountAmount;
-      return {
-        discountPercent,
-        discountAmount,
-        finalAmount
-      };
-    } catch (error) {
-      console.error("Error calculating discount:", error);
-      return {
-        discountPercent: 0,
-        discountAmount: 0,
-        finalAmount: subtotal
-      };
-    }
-  }
-  /**
-   * Get applicable tax rates for a region
-   */
-  async getTaxRatesForRegion(region) {
-    try {
-      const taxRate = await storage.getTaxRateByRegion(region);
-      if (!taxRate) {
-        return {
-          sgstRate: 0,
-          cgstRate: 0,
-          igstRate: 0
-        };
-      }
-      return {
-        sgstRate: parseFloat(taxRate.sgstRate.toString()),
-        cgstRate: parseFloat(taxRate.cgstRate.toString()),
-        igstRate: parseFloat(taxRate.igstRate.toString())
-      };
-    } catch (error) {
-      console.error("Error getting tax rates:", error);
-      return {
-        sgstRate: 0,
-        cgstRate: 0,
-        igstRate: 0
-      };
-    }
-  }
-  /**
-   * Calculate taxes on an amount
-   */
-  async calculateTaxes(amount, region, useIGST = false) {
-    const rates = await this.getTaxRatesForRegion(region);
-    if (useIGST) {
-      const igst = amount * (rates.igstRate / 100);
-      return {
-        sgst: 0,
-        cgst: 0,
-        igst,
-        totalTax: igst
-      };
-    } else {
-      const sgst = amount * (rates.sgstRate / 100);
-      const cgst = amount * (rates.cgstRate / 100);
-      return {
-        sgst,
-        cgst,
-        igst: 0,
-        totalTax: sgst + cgst
-      };
-    }
-  }
-  /**
-   * Convert amount between currencies
-   */
-  async convertCurrency(amount, fromCurrency, toCurrency) {
-    if (fromCurrency === toCurrency) {
-      return amount;
-    }
-    try {
-      const currencySettings2 = await storage.getCurrencySettings();
-      if (!currencySettings2 || !currencySettings2.exchangeRates) {
-        return amount;
-      }
-      const rates = JSON.parse(currencySettings2.exchangeRates);
-      const fromRate = rates[fromCurrency] || 1;
-      const toRate = rates[toCurrency] || 1;
-      return amount / fromRate * toRate;
-    } catch (error) {
-      console.error("Error converting currency:", error);
-      return amount;
-    }
-  }
-  /**
-   * Apply rounding rules to a monetary amount
-   */
-  roundAmount(amount, roundingRule = "nearest") {
-    const decimal2 = new Decimal(amount);
-    switch (roundingRule) {
-      case "up":
-        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_UP).toString());
-      case "down":
-        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_DOWN).toString());
-      case "nearest":
-      default:
-        return parseFloat(decimal2.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString());
-    }
-  }
-  /**
-   * Calculate final quote total with all adjustments
-   */
-  async calculateQuoteTotal(params) {
-    let discount = params.customDiscount || 0;
-    if (!params.customDiscount) {
-      const discountCalc = await this.calculateDiscount(params.subtotal);
-      discount = discountCalc.discountAmount;
-    }
-    const discountedSubtotal = params.subtotal - discount;
-    const shipping = params.shippingCharges || 0;
-    const subtotalWithShipping = discountedSubtotal + shipping;
-    const taxes = await this.calculateTaxes(subtotalWithShipping, params.region, params.useIGST);
-    const total = this.roundAmount(subtotalWithShipping + taxes.totalTax);
-    return {
-      subtotal: this.roundAmount(params.subtotal),
-      discount: this.roundAmount(discount),
-      discountedSubtotal: this.roundAmount(discountedSubtotal),
-      shipping: this.roundAmount(shipping),
-      subtotalWithShipping: this.roundAmount(subtotalWithShipping),
-      sgst: this.roundAmount(taxes.sgst),
-      cgst: this.roundAmount(taxes.cgst),
-      igst: this.roundAmount(taxes.igst),
-      total
-    };
-  }
-};
-var pricingService = new PricingService();
-
 // server/middleware.ts
 init_storage();
+init_cache_service();
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import jwt from "jsonwebtoken";
@@ -3303,10 +3089,25 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     const decoded = jwt.verify(token, getJWTSecret());
+    const cacheKey = `user:${decoded.id}`;
+    const cachedUser = await cacheService.get(cacheKey);
+    if (cachedUser) {
+      if (cachedUser.status !== "active") {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      req.user = { id: cachedUser.id, email: cachedUser.email, role: cachedUser.role };
+      return next();
+    }
     const user = await storage.getUser(decoded.id);
     if (!user || user.status !== "active") {
       return res.status(401).json({ error: "Unauthorized" });
     }
+    await cacheService.set(cacheKey, {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      status: user.status
+    }, 300);
     req.user = { id: user.id, email: user.email, role: user.role };
     next();
   } catch (error) {
@@ -3328,776 +3129,12 @@ function validateRequest(schema) {
   };
 }
 
-// server/analytics-routes.ts
-init_storage();
-init_db();
-import { Router } from "express";
-import { sql as sql3 } from "drizzle-orm";
-import ExcelJS from "exceljs";
-
-// server/utils/financial.ts
-import Decimal2 from "decimal.js";
-Decimal2.set({
-  precision: 20,
-  // Maximum significant digits
-  rounding: Decimal2.ROUND_HALF_UP,
-  // Standard banking rounding
-  toExpNeg: -7,
-  // Never use exponential notation for small numbers
-  toExpPos: 20
-  // Only use exponential for very large numbers
-});
-function toDecimal(value) {
-  if (value === null || value === void 0 || value === "") {
-    return new Decimal2(0);
-  }
-  if (value instanceof Decimal2) {
-    return value;
-  }
-  return new Decimal2(value);
-}
-function add(...values) {
-  return values.reduce((sum, val) => sum.plus(toDecimal(val)), new Decimal2(0));
-}
-function subtract(a, b) {
-  return toDecimal(a).minus(toDecimal(b));
-}
-function multiply(a, b) {
-  return toDecimal(a).times(toDecimal(b));
-}
-function divide(a, b) {
-  const divisor = toDecimal(b);
-  if (divisor.isZero()) {
-    throw new Error("Division by zero");
-  }
-  return toDecimal(a).dividedBy(divisor);
-}
-function calculateLineSubtotal(quantity, unitPrice) {
-  return multiply(quantity, unitPrice);
-}
-function calculateSubtotal(items) {
-  return items.reduce((total, item) => {
-    return total.plus(calculateLineSubtotal(item.quantity, item.unitPrice));
-  }, new Decimal2(0));
-}
-function calculateTotal(params) {
-  const subtotal = toDecimal(params.subtotal);
-  const discount = toDecimal(params.discount);
-  const shipping = toDecimal(params.shippingCharges);
-  const cgst = toDecimal(params.cgst);
-  const sgst = toDecimal(params.sgst);
-  const igst = toDecimal(params.igst);
-  return subtotal.minus(discount).plus(shipping).plus(cgst).plus(sgst).plus(igst);
-}
-function toMoneyString(value) {
-  return toDecimal(value).toFixed(2);
-}
-function moneyGte(a, b) {
-  return toDecimal(a).gte(toDecimal(b));
-}
-function moneyGt(a, b) {
-  return toDecimal(a).gt(toDecimal(b));
-}
-
-// server/utils/logger.ts
-var isDev = process.env.NODE_ENV !== "production";
-var logger = {
-  /**
-   * Debug level log - only in development
-   */
-  debug: (...args) => {
-    if (isDev) {
-      console.log("[DEBUG]", ...args);
-    }
-  },
-  /**
-   * Info level log - only in development
-   */
-  info: (...args) => {
-    if (isDev) {
-      console.log("[INFO]", ...args);
-    }
-  },
-  /**
-   * Warning level log - always
-   */
-  warn: (...args) => {
-    console.warn("[WARN]", ...args);
-  },
-  /**
-   * Error level log - always
-   */
-  error: (...args) => {
-    console.error("[ERROR]", ...args);
-  },
-  /**
-   * Stock operation logs - only in development
-   */
-  stock: (message) => {
-    if (isDev) {
-      console.log(message);
-    }
-  }
-};
-
-// server/analytics-routes.ts
-var router = Router();
-router.get("/analytics", async (req, res) => {
-  try {
-    const allQuotes = await storage.getAllQuotes();
-    const allClients = await storage.getAllClients();
-    const allInvoices = await storage.getAllInvoices();
-    const totalQuotes = allQuotes.length;
-    const totalRevenueVal = allInvoices.reduce((sum, inv) => {
-      if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
-        return add(sum, inv.paidAmount);
-      }
-      return sum;
-    }, toDecimal(0));
-    const totalQuoteValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
-    const avgQuoteValue = allQuotes.length > 0 ? divide(totalQuoteValue, allQuotes.length) : toDecimal(0);
-    const convertedQuotes = allQuotes.filter((q) => q.status === "invoiced" || q.status === "closed_paid").length;
-    const conversionRate = allQuotes.length > 0 ? convertedQuotes / allQuotes.length * 100 : 0;
-    const overview = {
-      totalQuotes,
-      totalRevenue: Math.round(totalRevenueVal.toNumber()).toLocaleString(),
-      avgQuoteValue: Math.round(avgQuoteValue.toNumber()).toLocaleString(),
-      conversionRate: conversionRate.toFixed(1)
-    };
-    const monthlyDataMap = /* @__PURE__ */ new Map();
-    const now = /* @__PURE__ */ new Date();
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.toLocaleString("default", { month: "short" });
-      monthlyDataMap.set(key, { quotes: 0, revenue: 0, conversions: 0 });
-    }
-    allQuotes.forEach((q) => {
-      const d = new Date(q.createdAt);
-      const key = d.toLocaleString("default", { month: "short" });
-      if (monthlyDataMap.has(key)) {
-        const entry = monthlyDataMap.get(key);
-        entry.quotes++;
-        if (q.status === "invoiced" || q.status === "closed_paid") {
-          entry.conversions++;
-        }
-      }
-    });
-    allInvoices.forEach((inv) => {
-      const d = new Date(inv.createdAt);
-      const key = d.toLocaleString("default", { month: "short" });
-      if (monthlyDataMap.has(key)) {
-        const entry = monthlyDataMap.get(key);
-        if (inv.paymentStatus === "paid" || inv.paymentStatus === "partial") {
-          entry.revenue = add(entry.revenue, inv.paidAmount).toNumber();
-        }
-      }
-    });
-    const monthlyData = Array.from(monthlyDataMap.entries()).map(([month, data]) => ({
-      month,
-      quotes: data.quotes,
-      revenue: Math.round(data.revenue),
-      conversions: data.conversions
-    }));
-    const clientRevenue = /* @__PURE__ */ new Map();
-    const clientQuotes = /* @__PURE__ */ new Map();
-    allQuotes.forEach((q) => {
-      const curr = clientQuotes.get(q.clientId) || 0;
-      clientQuotes.set(q.clientId, curr + 1);
-    });
-    const clientDealValue = /* @__PURE__ */ new Map();
-    allQuotes.forEach((q) => {
-      const val = toDecimal(q.total);
-      const curr = toDecimal(clientDealValue.get(q.clientId) || 0);
-      clientDealValue.set(q.clientId, add(curr, val).toNumber());
-    });
-    const topClients = Array.from(clientDealValue.entries()).map(([clientId, val]) => {
-      const client = allClients.find((c) => c.id === clientId);
-      return {
-        name: client?.name || "Unknown",
-        totalRevenue: Math.round(val).toLocaleString(),
-        quoteCount: clientQuotes.get(clientId) || 0
-      };
-    }).sort((a, b) => parseFloat(b.totalRevenue.replace(/,/g, "")) - parseFloat(a.totalRevenue.replace(/,/g, ""))).slice(0, 5);
-    const statusMap = /* @__PURE__ */ new Map();
-    allQuotes.forEach((q) => {
-      const status = q.status;
-      const val = toDecimal(q.total);
-      const entry = statusMap.get(status) || { count: 0, value: 0 };
-      entry.count++;
-      entry.value = add(entry.value, val).toNumber();
-      statusMap.set(status, entry);
-    });
-    const statusBreakdown = Array.from(statusMap.entries()).map(([status, data]) => ({
-      status: status.charAt(0).toUpperCase() + status.slice(1),
-      count: data.count,
-      value: Math.round(data.value)
-    }));
-    res.json({
-      overview,
-      monthlyData,
-      topClients,
-      statusBreakdown
-    });
-  } catch (error) {
-    logger.error("Error fetching analytics overview:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/forecast", async (req, res) => {
-  const data = await analyticsService.getRevenueForecast();
-  res.json(data);
-});
-router.get("/analytics/deal-distribution", async (req, res) => {
-  const data = await analyticsService.getDealDistribution();
-  res.json(data);
-});
-router.get("/analytics/regional", async (req, res) => {
-  const data = await analyticsService.getRegionalDistribution();
-  res.json(data);
-});
-router.get("/analytics/pipeline", async (req, res) => {
-  const data = await analyticsService.getSalesPipeline();
-  res.json(data);
-});
-router.get("/analytics/competitor-insights", async (req, res) => {
-  const data = await analyticsService.getCompetitorInsights();
-  res.json(data);
-});
-router.get("/analytics/export", async (req, res) => {
-  try {
-    const timeRange = req.query.timeRange || "12";
-    let startDate;
-    let endDate = /* @__PURE__ */ new Date();
-    if (timeRange !== "all") {
-      const months = parseInt(timeRange);
-      if (!isNaN(months)) {
-        startDate = /* @__PURE__ */ new Date();
-        startDate.setMonth(startDate.getMonth() - months);
-      }
-    }
-    const quotesList = await analyticsService.getCustomReport({ startDate, endDate });
-    const pipelineData = await analyticsService.getSalesPipeline();
-    const regionalData = await analyticsService.getRegionalDistribution();
-    const totalQuotes = quotesList.length;
-    const totalRevenue = quotesList.reduce((sum, q) => sum + q.totalAmount, 0);
-    const avgDealSize = totalQuotes > 0 ? totalRevenue / totalQuotes : 0;
-    const statusCounts = {};
-    quotesList.forEach((q) => {
-      statusCounts[q.status] = (statusCounts[q.status] || 0) + 1;
-    });
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "T-Quoting Tool";
-    workbook.created = /* @__PURE__ */ new Date();
-    const summarySheet = workbook.addWorksheet("Overview");
-    summarySheet.columns = [
-      { header: "Metric", key: "metric", width: 25 },
-      { header: "Value", key: "value", width: 25, style: { numFmt: "#,##0.00" } }
-      // Use generic number format or dynamic currency
-    ];
-    summarySheet.addRows([
-      { metric: "Report Date", value: (/* @__PURE__ */ new Date()).toLocaleDateString() },
-      { metric: "Time Range", value: timeRange === "all" ? "All Time" : `Last ${timeRange} Months` },
-      {},
-      // Empty row
-      { metric: "Total Quotes", value: totalQuotes },
-      { metric: "Total Revenue", value: totalRevenue },
-      { metric: "Average Deal Size", value: avgDealSize }
-    ]);
-    summarySheet.getRow(2).getCell("value").numFmt = "@";
-    summarySheet.getRow(3).getCell("value").numFmt = "@";
-    summarySheet.getRow(5).getCell("value").numFmt = "#,##0";
-    summarySheet.getRow(6).getCell("value").numFmt = "#,##0.00";
-    summarySheet.getRow(7).getCell("value").numFmt = "#,##0.00";
-    summarySheet.getRow(1).font = { bold: true, size: 14 };
-    summarySheet.getCell("A9").value = "Pipeline Stage";
-    summarySheet.getCell("B9").value = "Count";
-    summarySheet.getCell("C9").value = "Value";
-    summarySheet.getCell("A9").font = { bold: true };
-    summarySheet.getCell("B9").font = { bold: true };
-    summarySheet.getCell("C9").font = { bold: true };
-    let currentRow = 10;
-    pipelineData.forEach((stage) => {
-      summarySheet.getCell(`A${currentRow}`).value = stage.stage;
-      summarySheet.getCell(`B${currentRow}`).value = stage.count;
-      summarySheet.getCell(`C${currentRow}`).value = stage.totalValue;
-      summarySheet.getCell(`C${currentRow}`).numFmt = "#,##0.00";
-      currentRow++;
-    });
-    const regionSheet = workbook.addWorksheet("Regional Performance");
-    regionSheet.columns = [
-      { header: "Region", key: "region", width: 20 },
-      { header: "Quotes", key: "count", width: 15, style: { numFmt: "#,##0" } },
-      { header: "Revenue", key: "revenue", width: 20, style: { numFmt: "#,##0.00" } },
-      { header: "Share (%)", key: "share", width: 15, style: { numFmt: '0.0"%"' } }
-    ];
-    regionSheet.getRow(1).font = { bold: true };
-    regionalData.forEach((r) => {
-      regionSheet.addRow({
-        region: r.region,
-        count: r.quoteCount,
-        revenue: r.totalRevenue,
-        share: r.percentage.toFixed(1)
-      });
-    });
-    const quotesSheet = workbook.addWorksheet("Quote Details");
-    quotesSheet.columns = [
-      { header: "Quote Number", key: "quoteNumber", width: 20 },
-      { header: "Client", key: "clientName", width: 30 },
-      { header: "Status", key: "status", width: 15 },
-      { header: "Amount", key: "totalAmount", width: 20, style: { numFmt: "#,##0.00" } },
-      { header: "Date", key: "createdDate", width: 20 }
-    ];
-    quotesSheet.getRow(1).font = { bold: true };
-    quotesList.forEach((q) => {
-      quotesSheet.addRow({
-        quoteNumber: q.quoteNumber,
-        clientName: q.clientName,
-        status: q.status,
-        totalAmount: q.totalAmount,
-        createdDate: new Date(q.createdDate).toLocaleDateString()
-      });
-    });
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="Analytics_Report_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.xlsx"`);
-    await workbook.xlsx.write(res);
-    res.end();
-  } catch (error) {
-    logger.error("Error exporting analytics report:", error);
-    res.status(500).json({ error: "Failed to export report" });
-  }
-});
-router.get("/analytics/vendor-spend", async (req, res) => {
-  try {
-    const timeRange = req.query.timeRange || "12";
-    const allPOs = await db.execute(sql3`
-      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
-    `);
-    const allVendors = await storage.getAllVendors();
-    let totalSpend = 0;
-    let totalPOs = 0;
-    let fulfilledPOs = 0;
-    let delayedPOs = 0;
-    const vendorStats = /* @__PURE__ */ new Map();
-    allPOs.rows.forEach((po) => {
-      const val = toDecimal(po.total || po.total_amount);
-      totalSpend = add(totalSpend, val).toNumber();
-      totalPOs++;
-      if (po.status === "fulfilled") fulfilledPOs++;
-      if (po.actual_delivery_date && po.expected_delivery_date) {
-        if (new Date(po.actual_delivery_date) > new Date(po.expected_delivery_date)) delayedPOs++;
-      }
-      const stats = vendorStats.get(po.vendor_id) || { spend: 0, count: 0, fulfilled: 0 };
-      stats.spend = add(stats.spend, val).toNumber();
-      stats.count++;
-      if (po.status === "fulfilled") stats.fulfilled++;
-      vendorStats.set(po.vendor_id, stats);
-    });
-    const avgPoValue = totalPOs > 0 ? totalSpend / totalPOs : 0;
-    const topVendors = Array.from(vendorStats.entries()).map(([vid, stat]) => {
-      const v = allVendors.find((vend) => vend.id === vid);
-      return {
-        vendorName: v?.name || "Unknown",
-        totalSpend: Math.round(stat.spend).toLocaleString(),
-        poCount: stat.count,
-        avgPoValue: stat.count > 0 ? Math.round(stat.spend / stat.count).toLocaleString() : "0"
-      };
-    }).sort((a, b) => parseFloat(b.totalSpend.replace(/,/g, "")) - parseFloat(a.totalSpend.replace(/,/g, ""))).slice(0, 5);
-    const vendorPerformance = Array.from(vendorStats.entries()).map(([vid, stat]) => {
-      const v = allVendors.find((vend) => vend.id === vid);
-      return {
-        vendorName: v?.name || "Unknown",
-        totalPOs: stat.count,
-        fulfilledPOs: stat.fulfilled,
-        onTimeDeliveryRate: "95%",
-        // Placeholder - needs actual logic
-        totalSpend: Math.round(stat.spend).toLocaleString()
-      };
-    }).slice(0, 10);
-    const data = {
-      overview: {
-        totalSpend: Math.round(totalSpend).toLocaleString(),
-        totalPOs,
-        activeVendors: vendorStats.size,
-        delayedPOs,
-        avgPoValue: Math.round(avgPoValue).toLocaleString()
-      },
-      topVendors,
-      vendorPerformance,
-      procurementDelays: {
-        count: delayedPOs,
-        percentage: totalPOs > 0 ? (delayedPOs / totalPOs * 100).toFixed(1) : "0.0"
-      }
-    };
-    res.json(data);
-  } catch (error) {
-    logger.error("Error fetching vendor analytics:", error);
-    res.status(500).json({ error: "Failed to fetch vendor analytics" });
-  }
-});
-router.get("/analytics/sales-quotes", async (req, res) => {
-  try {
-    const allQuotes = await storage.getAllQuotes();
-    const allClients = await storage.getAllClients();
-    const quotesByStatus = {
-      draft: 0,
-      sent: 0,
-      approved: 0,
-      rejected: 0,
-      invoiced: 0
-    };
-    const valueByStatus = {
-      draft: 0,
-      sent: 0,
-      approved: 0,
-      rejected: 0,
-      invoiced: 0
-    };
-    allQuotes.forEach((quote) => {
-      const status = quote.status;
-      if (quotesByStatus.hasOwnProperty(status)) {
-        quotesByStatus[status]++;
-        valueByStatus[status] = add(valueByStatus[status], quote.total).toNumber();
-      }
-    });
-    const sentQuotes = quotesByStatus.sent + quotesByStatus.approved + quotesByStatus.rejected;
-    const conversionRate = sentQuotes > 0 ? quotesByStatus.approved / sentQuotes * 100 : 0;
-    const totalValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
-    const averageQuoteValue = allQuotes.length > 0 ? divide(totalValue, allQuotes.length).toNumber() : 0;
-    const customerQuotes = /* @__PURE__ */ new Map();
-    allQuotes.forEach((quote) => {
-      const existing = customerQuotes.get(quote.clientId);
-      const value = toDecimal(quote.total);
-      if (existing) {
-        existing.count++;
-        existing.value = add(existing.value, value).toNumber();
-      } else {
-        const client = allClients.find((c) => c.id === quote.clientId);
-        if (client) {
-          customerQuotes.set(quote.clientId, {
-            name: client.name,
-            count: 1,
-            value: value.toNumber()
-          });
-        }
-      }
-    });
-    const topCustomers = Array.from(customerQuotes.entries()).map(([id, data]) => ({
-      id,
-      name: data.name,
-      quoteCount: data.count,
-      totalValue: data.value
-    })).sort((a, b) => b.totalValue - a.totalValue).slice(0, 10);
-    const monthlyData = /* @__PURE__ */ new Map();
-    allQuotes.forEach((quote) => {
-      const date = new Date(quote.createdAt);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const existing = monthlyData.get(monthKey);
-      if (existing) {
-        existing.quotes++;
-        existing.value = add(existing.value, quote.total).toNumber();
-        if (quote.status === "approved") existing.approved++;
-      } else {
-        monthlyData.set(monthKey, {
-          quotes: 1,
-          value: toDecimal(quote.total).toNumber(),
-          approved: quote.status === "approved" ? 1 : 0
-        });
-      }
-    });
-    const monthlyTrend = Array.from(monthlyData.entries()).map(([month, data]) => ({ month, ...data })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-    res.json({
-      quotesByStatus,
-      valueByStatus,
-      conversionRate,
-      averageQuoteValue: Math.round(averageQuoteValue),
-      totalQuoteValue: Math.round(totalValue.toNumber()),
-      topCustomers,
-      monthlyTrend
-    });
-  } catch (error) {
-    logger.error("Error fetching sales analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/vendor-po", async (req, res) => {
-  try {
-    const allPOs = await db.execute(sql3`
-      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
-    `);
-    const allVendors = await storage.getAllVendors();
-    const posByStatus = {
-      draft: 0,
-      sent: 0,
-      acknowledged: 0,
-      fulfilled: 0,
-      cancelled: 0
-    };
-    let totalPOValue = 0;
-    allPOs.rows.forEach((po) => {
-      const status = po.status;
-      if (posByStatus.hasOwnProperty(status)) {
-        posByStatus[status]++;
-      }
-      totalPOValue += parseFloat(po.total_amount || 0);
-    });
-    const averagePOValue = allPOs.rows.length > 0 ? totalPOValue / allPOs.rows.length : 0;
-    const fulfillmentRate = allPOs.rows.length > 0 ? posByStatus.fulfilled / allPOs.rows.length * 100 : 0;
-    const vendorSpend = /* @__PURE__ */ new Map();
-    allPOs.rows.forEach((po) => {
-      const existing = vendorSpend.get(po.vendor_id);
-      const amount = toDecimal(po.total_amount);
-      if (existing) {
-        existing.spend = add(existing.spend, amount).toNumber();
-        existing.count++;
-      } else {
-        const vendor = allVendors.find((v) => v.id === po.vendor_id);
-        if (vendor) {
-          vendorSpend.set(po.vendor_id, {
-            name: vendor.name,
-            spend: amount.toNumber(),
-            count: 1
-          });
-        }
-      }
-    });
-    const spendByVendor = Array.from(vendorSpend.entries()).map(([vendorId, data]) => ({
-      vendorId,
-      vendorName: data.name,
-      totalSpend: Math.round(data.spend),
-      poCount: data.count
-    })).sort((a, b) => b.totalSpend - a.totalSpend);
-    const monthlySpendMap = /* @__PURE__ */ new Map();
-    allPOs.rows.forEach((po) => {
-      const date = new Date(po.created_at);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const existing = monthlySpendMap.get(monthKey);
-      const amount = toDecimal(po.total_amount);
-      if (existing) {
-        existing.spend = add(existing.spend, amount).toNumber();
-        existing.count++;
-      } else {
-        monthlySpendMap.set(monthKey, { spend: amount.toNumber(), count: 1 });
-      }
-    });
-    const monthlySpend = Array.from(monthlySpendMap.entries()).map(([month, data]) => ({ month, spend: Math.round(data.spend), poCount: data.count })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-    const poVsGrnVariance = [];
-    res.json({
-      posByStatus,
-      totalPOValue: Math.round(totalPOValue),
-      averagePOValue: Math.round(averagePOValue),
-      spendByVendor,
-      monthlySpend,
-      poVsGrnVariance,
-      fulfillmentRate
-    });
-  } catch (error) {
-    logger.error("Error fetching PO analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/invoice-collections", async (req, res) => {
-  try {
-    const allInvoices = await storage.getAllInvoices();
-    const allClients = await storage.getAllClients();
-    const invoicesByStatus = {
-      draft: 0,
-      sent: 0,
-      partial: 0,
-      paid: 0,
-      overdue: 0
-    };
-    let totalOutstanding = 0;
-    let totalPaid = 0;
-    let overdueAmount = 0;
-    let totalCollectionDays = 0;
-    let paidInvoicesCount = 0;
-    const now = /* @__PURE__ */ new Date();
-    allInvoices.forEach((invoice) => {
-      const paidAmt = toDecimal(invoice.paidAmount);
-      const totalAmt = toDecimal(invoice.total);
-      const remaining = subtract(totalAmt, paidAmt).toNumber();
-      const totalAmtVal = totalAmt.toNumber();
-      if (invoice.paymentStatus === "paid") {
-        invoicesByStatus.paid++;
-        totalPaid = add(totalPaid, totalAmt).toNumber();
-        const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
-        const paidDate = invoice.lastPaymentDate ? new Date(invoice.lastPaymentDate) : new Date(invoice.updatedAt);
-        const days = Math.floor((paidDate.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        if (days >= 0) {
-          totalCollectionDays += days;
-          paidInvoicesCount++;
-        }
-      } else if (invoice.paymentStatus === "partial") {
-        invoicesByStatus.partial++;
-        totalOutstanding += remaining;
-      } else if (invoice.paymentStatus === "overdue") {
-        invoicesByStatus.overdue++;
-        totalOutstanding += remaining;
-        overdueAmount += remaining;
-      } else if (invoice.paymentStatus === "pending") {
-        const invoiceDate = new Date(invoice.createdAt);
-        const daysSince = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        if (daysSince > 30) {
-          invoicesByStatus.overdue++;
-          overdueAmount += remaining;
-        } else {
-          invoicesByStatus.sent++;
-        }
-        totalOutstanding += remaining;
-      }
-      if (!invoice.isMaster) {
-      }
-    });
-    const averageCollectionDays = paidInvoicesCount > 0 ? Math.round(totalCollectionDays / paidInvoicesCount) : 0;
-    const ageingBuckets = [
-      { bucket: "0-30 days", count: 0, amount: 0 },
-      { bucket: "31-60 days", count: 0, amount: 0 },
-      { bucket: "61-90 days", count: 0, amount: 0 },
-      { bucket: "90+ days", count: 0, amount: 0 }
-    ];
-    allInvoices.forEach((invoice) => {
-      if (invoice.paymentStatus !== "paid") {
-        const invoiceDate = new Date(invoice.createdAt);
-        const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        const remaining = subtract(invoice.total, invoice.paidAmount).toNumber();
-        if (days <= 30) {
-          ageingBuckets[0].count++;
-          ageingBuckets[0].amount += remaining;
-        } else if (days <= 60) {
-          ageingBuckets[1].count++;
-          ageingBuckets[1].amount += remaining;
-        } else if (days <= 90) {
-          ageingBuckets[2].count++;
-          ageingBuckets[2].amount += remaining;
-        } else {
-          ageingBuckets[3].count++;
-          ageingBuckets[3].amount += remaining;
-        }
-      }
-    });
-    ageingBuckets.forEach((bucket) => {
-      bucket.amount = Math.round(bucket.amount);
-    });
-    const monthlyMap = /* @__PURE__ */ new Map();
-    allInvoices.forEach((invoice) => {
-      const date = new Date(invoice.createdAt);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const existing = monthlyMap.get(monthKey);
-      const totalAmt = toDecimal(invoice.total).toNumber();
-      const paidAmt = toDecimal(invoice.paidAmount).toNumber();
-      if (existing) {
-        existing.invoiced += totalAmt;
-        existing.collected += paidAmt;
-      } else {
-        monthlyMap.set(monthKey, {
-          invoiced: totalAmt,
-          collected: paidAmt
-        });
-      }
-    });
-    const monthlyCollections = Array.from(monthlyMap.entries()).map(([month, data]) => ({
-      month,
-      invoiced: Math.round(data.invoiced),
-      collected: Math.round(data.collected)
-    })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-    const debtorMap = /* @__PURE__ */ new Map();
-    allInvoices.forEach((invoice) => {
-      const remaining = toDecimal(invoice.remainingAmount);
-      const calcRemaining = subtract(invoice.total, invoice.paidAmount);
-      const outstanding = Math.max(remaining.toNumber(), calcRemaining.toNumber());
-      if (outstanding > 0 && invoice.clientId) {
-        const existing = debtorMap.get(invoice.clientId);
-        const invoiceDate = new Date(invoice.createdAt);
-        const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
-        if (existing) {
-          existing.outstanding += outstanding;
-          existing.count++;
-          existing.oldestDays = Math.max(existing.oldestDays, days);
-        } else {
-          const client = allClients.find((c) => c.id === invoice.clientId);
-          debtorMap.set(invoice.clientId, {
-            name: client?.name || "Unknown Client",
-            outstanding,
-            count: 1,
-            oldestDays: days
-          });
-        }
-      }
-    });
-    const topDebtors = Array.from(debtorMap.entries()).map(([clientId, data]) => ({
-      clientId,
-      clientName: data.name,
-      outstandingAmount: Math.round(data.outstanding),
-      invoiceCount: data.count,
-      oldestInvoiceDays: data.oldestDays
-    })).sort((a, b) => b.outstandingAmount - a.outstandingAmount).slice(0, 20);
-    res.json({
-      invoicesByStatus,
-      totalOutstanding: Math.round(totalOutstanding),
-      totalPaid: Math.round(totalPaid),
-      overdueAmount: Math.round(overdueAmount),
-      averageCollectionDays,
-      ageingBuckets,
-      monthlyCollections,
-      topDebtors
-    });
-  } catch (error) {
-    logger.error("Error fetching invoice analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-router.get("/analytics/serial-tracking", async (req, res) => {
-  try {
-    const serialNumbers2 = await db.execute(sql3`
-      SELECT * FROM serial_numbers ORDER BY created_at DESC
-    `);
-    const totalSerials = serialNumbers2.rows.length;
-    const serialsByStatus = {
-      delivered: 0,
-      in_stock: 0,
-      returned: 0,
-      defective: 0
-    };
-    serialNumbers2.rows.forEach((serial2) => {
-      const status = serial2.status;
-      if (serialsByStatus.hasOwnProperty(status)) {
-        serialsByStatus[status]++;
-      }
-    });
-    const serialsByProduct = [];
-    const now = /* @__PURE__ */ new Date();
-    const warrantyExpiring = serialNumbers2.rows.filter((serial2) => serial2.warranty_end_date).map((serial2) => {
-      const endDate = new Date(serial2.warranty_end_date);
-      const daysRemaining = Math.floor((endDate.getTime() - now.getTime()) / (1e3 * 60 * 60 * 24));
-      return {
-        serialNumber: serial2.serial_number,
-        productName: "Product",
-        // Would need actual product lookup
-        customerName: "Customer",
-        // Would need actual customer lookup
-        warrantyEndDate: serial2.warranty_end_date,
-        daysRemaining
-      };
-    }).filter((item) => item.daysRemaining > 0 && item.daysRemaining <= 90).sort((a, b) => a.daysRemaining - b.daysRemaining);
-    res.json({
-      totalSerials,
-      serialsByProduct,
-      warrantyExpiring,
-      serialsByStatus
-    });
-  } catch (error) {
-    logger.error("Error fetching serial tracking analytics:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
-});
-var analytics_routes_default = router;
-
 // server/quote-workflow-routes.ts
 init_storage();
 init_db();
 init_schema();
-import { Router as Router2 } from "express";
-import { eq as eq2, sql as sql5 } from "drizzle-orm";
+import { Router } from "express";
+import { eq as eq2, sql as sql4 } from "drizzle-orm";
 
 // server/permissions-middleware.ts
 init_permissions_service();
@@ -4151,7 +3188,7 @@ function requireFeature(feature) {
 // server/quote-workflow-routes.ts
 init_feature_flags();
 init_numbering_service();
-import ExcelJS2 from "exceljs";
+import ExcelJS from "exceljs";
 
 // server/services/invoice-pdf.service.ts
 import PDFDocument from "pdfkit";
@@ -6688,7 +5725,72 @@ This link will expire in 1 hour.`
   }
 };
 
+// server/utils/financial.ts
+import Decimal from "decimal.js";
+Decimal.set({
+  precision: 20,
+  // Maximum significant digits
+  rounding: Decimal.ROUND_HALF_UP,
+  // Standard banking rounding
+  toExpNeg: -7,
+  // Never use exponential notation for small numbers
+  toExpPos: 20
+  // Only use exponential for very large numbers
+});
+function toDecimal(value) {
+  if (value === null || value === void 0 || value === "") {
+    return new Decimal(0);
+  }
+  if (value instanceof Decimal) {
+    return value;
+  }
+  return new Decimal(value);
+}
+function add(...values) {
+  return values.reduce((sum, val) => sum.plus(toDecimal(val)), new Decimal(0));
+}
+function subtract(a, b) {
+  return toDecimal(a).minus(toDecimal(b));
+}
+function multiply(a, b) {
+  return toDecimal(a).times(toDecimal(b));
+}
+function divide(a, b) {
+  const divisor = toDecimal(b);
+  if (divisor.isZero()) {
+    throw new Error("Division by zero");
+  }
+  return toDecimal(a).dividedBy(divisor);
+}
+function calculateLineSubtotal(quantity, unitPrice) {
+  return multiply(quantity, unitPrice);
+}
+function calculateSubtotal(items) {
+  return items.reduce((total, item) => {
+    return total.plus(calculateLineSubtotal(item.quantity, item.unitPrice));
+  }, new Decimal(0));
+}
+function calculateTotal(params) {
+  const subtotal = toDecimal(params.subtotal);
+  const discount = toDecimal(params.discount);
+  const shipping = toDecimal(params.shippingCharges);
+  const cgst = toDecimal(params.cgst);
+  const sgst = toDecimal(params.sgst);
+  const igst = toDecimal(params.igst);
+  return subtotal.minus(discount).plus(shipping).plus(cgst).plus(sgst).plus(igst);
+}
+function toMoneyString(value) {
+  return toDecimal(value).toFixed(2);
+}
+function moneyGte(a, b) {
+  return toDecimal(a).gte(toDecimal(b));
+}
+function moneyGt(a, b) {
+  return toDecimal(a).gt(toDecimal(b));
+}
+
 // server/quote-workflow-routes.ts
+init_logger();
 async function streamToBuffer(stream) {
   const chunks = [];
   return new Promise((resolve, reject) => {
@@ -6697,8 +5799,8 @@ async function streamToBuffer(stream) {
     stream.on("end", () => resolve(Buffer.concat(chunks)));
   });
 }
-var router2 = Router2();
-router2.post(
+var router = Router();
+router.post(
   "/quotes/:id/revise",
   requireFeature("quotes_module"),
   requirePermission("quotes", "edit"),
@@ -6754,7 +5856,7 @@ router2.post(
     }
   }
 );
-router2.post(
+router.post(
   "/quotes/:id/versions",
   requireFeature("quotes_module"),
   // authMiddleware is applied at mount level
@@ -6802,7 +5904,7 @@ router2.post(
     }
   }
 );
-router2.get(
+router.get(
   "/quotes/:id/versions",
   requireFeature("quotes_module"),
   requirePermission("quotes", "view"),
@@ -6815,7 +5917,7 @@ router2.get(
     }
   }
 );
-router2.get(
+router.get(
   "/quotes/:id/versions/:version",
   requireFeature("quotes_module"),
   requirePermission("quotes", "view"),
@@ -6831,7 +5933,7 @@ router2.get(
     }
   }
 );
-router2.post(
+router.post(
   "/quotes/:id/clone",
   requireFeature("quotes_clone"),
   requirePermission("quotes", "create"),
@@ -6892,7 +5994,7 @@ router2.post(
     }
   }
 );
-router2.post(
+router.post(
   "/sales-orders",
   requireFeature("quotes_module"),
   requirePermission("sales_orders", "create"),
@@ -7008,7 +6110,7 @@ router2.post(
     }
   }
 );
-router2.get(
+router.get(
   "/sales-orders",
   requirePermission("sales_orders", "view"),
   async (req, res) => {
@@ -7039,7 +6141,7 @@ router2.get(
     }
   }
 );
-router2.get(
+router.get(
   "/sales-orders/:id",
   requirePermission("sales_orders", "view"),
   async (req, res) => {
@@ -7078,7 +6180,7 @@ router2.get(
     }
   }
 );
-router2.patch(
+router.patch(
   "/sales-orders/:id",
   requirePermission("sales_orders", "edit"),
   async (req, res) => {
@@ -7165,8 +6267,8 @@ router2.patch(
             if (isFeatureEnabled("products_stock_tracking") && isFeatureEnabled("products_reserve_on_order")) {
               for (const [productId, quantity] of Object.entries(productQuantities)) {
                 await tx.update(products).set({
-                  reservedQuantity: sql5`${products.reservedQuantity} + ${quantity}`,
-                  availableQuantity: sql5`${products.availableQuantity} - ${quantity}`,
+                  reservedQuantity: sql4`${products.reservedQuantity} + ${quantity}`,
+                  availableQuantity: sql4`${products.availableQuantity} - ${quantity}`,
                   updatedAt: /* @__PURE__ */ new Date()
                 }).where(eq2(products.id, productId));
               }
@@ -7176,8 +6278,8 @@ router2.patch(
             if (isFeatureEnabled("products_stock_tracking") && isFeatureEnabled("products_reserve_on_order")) {
               for (const [productId, quantity] of Object.entries(productQuantities)) {
                 await tx.update(products).set({
-                  reservedQuantity: sql5`GREATEST(0, ${products.reservedQuantity} - ${quantity})`,
-                  availableQuantity: sql5`${products.availableQuantity} + ${quantity}`,
+                  reservedQuantity: sql4`GREATEST(0, ${products.reservedQuantity} - ${quantity})`,
+                  availableQuantity: sql4`${products.availableQuantity} + ${quantity}`,
                   updatedAt: /* @__PURE__ */ new Date()
                 }).where(eq2(products.id, productId));
               }
@@ -7201,7 +6303,7 @@ router2.patch(
     }
   }
 );
-router2.post(
+router.post(
   "/sales-orders/:id/convert-to-invoice",
   requireFeature("invoices_module"),
   requirePermission("invoices", "create"),
@@ -7283,9 +6385,9 @@ router2.post(
                 }
               }
               const updateQuery = {
-                stockQuantity: sql5`${products.stockQuantity} - ${requiredQty}`,
-                reservedQuantity: sql5`GREATEST(0, ${products.reservedQuantity} - ${requiredQty})`,
-                availableQuantity: sql5`(${products.stockQuantity} - ${requiredQty}) - GREATEST(0, ${products.reservedQuantity} - ${requiredQty})`
+                stockQuantity: sql4`${products.stockQuantity} - ${requiredQty}`,
+                reservedQuantity: sql4`GREATEST(0, ${products.reservedQuantity} - ${requiredQty})`,
+                availableQuantity: sql4`(${products.stockQuantity} - ${requiredQty}) - GREATEST(0, ${products.reservedQuantity} - ${requiredQty})`
               };
               await tx.update(products).set(updateQuery).where(eq2(products.id, item.productId));
             }
@@ -7421,7 +6523,7 @@ ${shortageText}` : shortageText;
     }
   }
 );
-router2.post(
+router.post(
   "/quotes/parse-excel",
   requirePermission("quotes", "create"),
   async (req, res) => {
@@ -7431,7 +6533,7 @@ router2.post(
         return res.status(400).json({ message: "No file content provided" });
       }
       const buffer = Buffer.from(fileContent, "base64");
-      const workbook = new ExcelJS2.Workbook();
+      const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
       const worksheet = workbook.worksheets[0];
       const items = [];
@@ -7472,7 +6574,7 @@ router2.post(
     }
   }
 );
-router2.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), async (req, res) => {
+router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), async (req, res) => {
   try {
     const order = await storage.getSalesOrder(req.params.id);
     if (!order) {
@@ -7564,7 +6666,7 @@ router2.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), 
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 });
-router2.post("/sales-orders/:id/email", requirePermission("sales_orders", "view"), async (req, res) => {
+router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view"), async (req, res) => {
   try {
     const { email, subject, body } = req.body;
     if (!email) {
@@ -7664,7 +6766,7 @@ router2.post("/sales-orders/:id/email", requirePermission("sales_orders", "view"
     res.status(500).json({ error: "Failed to send email" });
   }
 });
-router2.post(
+router.post(
   "/quotes/:id/sales-orders",
   requireFeature("sales_orders_module"),
   requirePermission("sales_orders", "create"),
@@ -7673,7 +6775,7 @@ router2.post(
       const quoteId = req.params.id;
       const quote = await storage.getQuote(quoteId);
       if (!quote) {
-        return res.status(404).json({ message: "Quote not found" });
+        return res.status(404).json({ error: "Quote not found" });
       }
       if (quote.status !== "approved") {
         return res.status(400).json({ message: "Only approved quotes can be converted to sales orders" });
@@ -7738,17 +6840,18 @@ router2.post(
     }
   }
 );
-var quote_workflow_routes_default = router2;
+var quote_workflow_routes_default = router;
 
 // server/routes/auth.routes.ts
 init_storage();
-import { Router as Router3 } from "express";
+import { Router as Router2 } from "express";
 import bcrypt from "bcryptjs";
 import jwt2 from "jsonwebtoken";
 import { nanoid } from "nanoid";
-var router3 = Router3();
+init_logger();
+var router2 = Router2();
 var JWT_EXPIRES_IN = "15m";
-router3.post("/signup", async (req, res) => {
+router2.post("/signup", async (req, res) => {
   try {
     const { email, password, name } = req.body;
     if (!email || !password || !name) {
@@ -7782,7 +6885,7 @@ router3.post("/signup", async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create account" });
   }
 });
-router3.post("/login", async (req, res) => {
+router2.post("/login", async (req, res) => {
   try {
     logger.info("Login attempt received");
     const { email, password } = req.body;
@@ -7855,7 +6958,7 @@ router3.post("/login", async (req, res) => {
     });
   }
 });
-router3.post("/logout", authMiddleware, async (req, res) => {
+router2.post("/logout", authMiddleware, async (req, res) => {
   try {
     if (req.user?.id) {
       await storage.updateUser(req.user.id, {
@@ -7879,7 +6982,7 @@ router3.post("/logout", authMiddleware, async (req, res) => {
     return res.json({ success: true });
   }
 });
-router3.get("/me", authMiddleware, async (req, res) => {
+router2.get("/me", authMiddleware, async (req, res) => {
   try {
     const user = await storage.getUser(req.user.id);
     if (!user) {
@@ -7896,7 +6999,7 @@ router3.get("/me", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch user" });
   }
 });
-router3.post("/reset-password", requireFeature("pages_resetPassword"), async (req, res) => {
+router2.post("/reset-password", requireFeature("pages_resetPassword"), async (req, res) => {
   try {
     const { email } = req.body;
     const user = await storage.getUserByEmail(email);
@@ -7923,7 +7026,7 @@ router3.post("/reset-password", requireFeature("pages_resetPassword"), async (re
     return res.status(500).json({ error: "Failed to process request" });
   }
 });
-router3.post("/reset-password-confirm", requireFeature("pages_resetPassword"), async (req, res) => {
+router2.post("/reset-password-confirm", requireFeature("pages_resetPassword"), async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     if (!token || !newPassword) {
@@ -7969,7 +7072,7 @@ router3.post("/reset-password-confirm", requireFeature("pages_resetPassword"), a
     return res.status(500).json({ error: "Failed to reset password" });
   }
 });
-router3.post("/refresh", async (req, res) => {
+router2.post("/refresh", async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
@@ -8017,14 +7120,15 @@ router3.post("/refresh", async (req, res) => {
     return res.status(500).json({ error: "Failed to refresh token" });
   }
 });
-var auth_routes_default = router3;
+var auth_routes_default = router2;
 
 // server/routes/users.routes.ts
 init_storage();
-import { Router as Router4 } from "express";
+init_logger();
+import { Router as Router3 } from "express";
 import bcrypt2 from "bcryptjs";
-var router4 = Router4();
-router4.get("/", authMiddleware, async (req, res) => {
+var router3 = Router3();
+router3.get("/", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -8043,7 +7147,7 @@ router4.get("/", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch users" });
   }
 });
-router4.post("/", authMiddleware, async (req, res) => {
+router3.post("/", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -8073,7 +7177,7 @@ router4.post("/", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create user" });
   }
 });
-router4.put("/:id", authMiddleware, async (req, res) => {
+router3.put("/:id", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -8120,7 +7224,7 @@ router4.put("/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update user" });
   }
 });
-router4.delete("/:id", authMiddleware, async (req, res) => {
+router3.delete("/:id", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -8141,14 +7245,14 @@ router4.delete("/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to delete user" });
   }
 });
-var users_routes_default = router4;
+var users_routes_default = router3;
 
 // server/routes/clients.routes.ts
 init_storage();
-import { Router as Router5 } from "express";
+import { Router as Router4 } from "express";
 init_schema();
-var router5 = Router5();
-router5.get("/", requireFeature("clients_module"), authMiddleware, async (req, res) => {
+var router4 = Router4();
+router4.get("/", requireFeature("clients_module"), authMiddleware, async (req, res) => {
   try {
     const clients2 = await storage.getAllClients();
     res.json(clients2);
@@ -8156,7 +7260,7 @@ router5.get("/", requireFeature("clients_module"), authMiddleware, async (req, r
     res.status(500).json({ error: "Failed to fetch clients" });
   }
 });
-router5.get("/:id", requireFeature("clients_module"), authMiddleware, async (req, res) => {
+router4.get("/:id", requireFeature("clients_module"), authMiddleware, async (req, res) => {
   try {
     const client = await storage.getClient(req.params.id);
     if (!client) {
@@ -8167,7 +7271,7 @@ router5.get("/:id", requireFeature("clients_module"), authMiddleware, async (req
     return res.status(500).json({ error: "Failed to fetch client" });
   }
 });
-router5.post("/", requireFeature("clients_create"), authMiddleware, requirePermission("clients", "create"), validateRequest(insertClientSchema), async (req, res) => {
+router4.post("/", requireFeature("clients_create"), authMiddleware, requirePermission("clients", "create"), validateRequest(insertClientSchema), async (req, res) => {
   try {
     const client = await storage.createClient({
       ...req.body,
@@ -8184,7 +7288,7 @@ router5.post("/", requireFeature("clients_create"), authMiddleware, requirePermi
     return res.status(500).json({ error: error.message || "Failed to create client" });
   }
 });
-router5.put("/:id", requireFeature("clients_edit"), authMiddleware, requirePermission("clients", "edit"), async (req, res) => {
+router4.put("/:id", requireFeature("clients_edit"), authMiddleware, requirePermission("clients", "edit"), async (req, res) => {
   try {
     const { name, email } = req.body;
     if (!name || !email) {
@@ -8209,7 +7313,7 @@ router5.put("/:id", requireFeature("clients_edit"), authMiddleware, requirePermi
     return res.status(500).json({ error: error.message || "Failed to update client" });
   }
 });
-router5.delete("/:id", requireFeature("clients_delete"), authMiddleware, requirePermission("clients", "delete"), async (req, res) => {
+router4.delete("/:id", requireFeature("clients_delete"), authMiddleware, requirePermission("clients", "delete"), async (req, res) => {
   try {
     await storage.deleteClient(req.params.id);
     await storage.createActivityLog({
@@ -8223,12 +7327,106 @@ router5.delete("/:id", requireFeature("clients_delete"), authMiddleware, require
     return res.status(500).json({ error: "Failed to delete client" });
   }
 });
-var clients_routes_default = router5;
+router4.get("/:clientId/tags", authMiddleware, async (req, res) => {
+  try {
+    const tags = await storage.getClientTags(req.params.clientId);
+    return res.json(tags);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch client tags" });
+  }
+});
+router4.post("/:clientId/tags", authMiddleware, async (req, res) => {
+  try {
+    const { tag } = req.body;
+    if (!tag) {
+      return res.status(400).json({ error: "Tag is required" });
+    }
+    const clientTag = await storage.addClientTag({
+      clientId: req.params.clientId,
+      tag
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "add_client_tag",
+      entityType: "client",
+      entityId: req.params.clientId
+    });
+    return res.json(clientTag);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to add tag" });
+  }
+});
+router4.delete("/tags/:tagId", authMiddleware, async (req, res) => {
+  try {
+    await storage.removeClientTag(req.params.tagId);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "remove_client_tag",
+      entityType: "client_tag",
+      entityId: req.params.tagId
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to remove tag" });
+  }
+});
+router4.get("/:clientId/communications", authMiddleware, async (req, res) => {
+  try {
+    const communications = await storage.getClientCommunications(req.params.clientId);
+    return res.json(communications);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch communications" });
+  }
+});
+router4.post("/:clientId/communications", authMiddleware, async (req, res) => {
+  try {
+    const { type, subject, message, attachments } = req.body;
+    if (!type || !["email", "call", "meeting", "note"].includes(type)) {
+      return res.status(400).json({ error: "Valid communication type is required" });
+    }
+    const communication = await storage.createClientCommunication({
+      clientId: req.params.clientId,
+      type,
+      subject,
+      message,
+      date: /* @__PURE__ */ new Date(),
+      communicatedBy: req.user.id,
+      attachments: attachments ? JSON.stringify(attachments) : void 0
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_communication",
+      entityType: "client",
+      entityId: req.params.clientId
+    });
+    return res.json(communication);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create communication" });
+  }
+});
+router4.delete("/communications/:commId", authMiddleware, async (req, res) => {
+  try {
+    await storage.deleteClientCommunication(req.params.commId);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_communication",
+      entityType: "client_communication",
+      entityId: req.params.commId
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to delete communication" });
+  }
+});
+var clients_routes_default = router4;
 
 // server/routes/quotes.routes.ts
 init_storage();
-import { Router as Router6 } from "express";
+import { Router as Router5 } from "express";
+import { Worker } from "worker_threads";
+import path4 from "path";
 init_numbering_service();
+init_logger();
 
 // server/services/pdf.service.ts
 import PDFDocument3 from "pdfkit";
@@ -9290,9 +8488,56 @@ var PDFService = class _PDFService {
   }
 };
 
+// server/services/approval.service.ts
+init_storage();
+import { Decimal as Decimal2 } from "decimal.js";
+var ApprovalService = class {
+  /**
+   * Evaluates a quote against active approval rules.
+   * Returns approval status and required role.
+   */
+  static async evaluateQuote(quote) {
+    const rules = await storage.getApprovalRules();
+    if (!rules || rules.length === 0) {
+      return { approvalStatus: "none", approvalRequiredBy: null };
+    }
+    let requiredRole = null;
+    let needsApproval = false;
+    for (const rule of rules) {
+      if (!rule.isActive) continue;
+      let triggered = false;
+      const threshold = new Decimal2(rule.thresholdValue);
+      if (rule.triggerType === "discount_percentage") {
+        const subtotal = new Decimal2(quote.subtotal || 0);
+        const discount = new Decimal2(quote.discount || 0);
+        if (subtotal.gt(0)) {
+          const discountPercent = discount.div(subtotal).mul(100);
+          if (discountPercent.gt(threshold)) {
+            triggered = true;
+          }
+        }
+      } else if (rule.triggerType === "total_amount") {
+        const total = new Decimal2(quote.total || 0);
+        if (total.gt(threshold)) {
+          triggered = true;
+        }
+      }
+      if (triggered) {
+        needsApproval = true;
+        requiredRole = rule.requiredRole || "sales_manager";
+        break;
+      }
+    }
+    if (needsApproval) {
+      return { approvalStatus: "pending", approvalRequiredBy: requiredRole };
+    }
+    return { approvalStatus: "none", approvalRequiredBy: null };
+  }
+};
+
 // server/routes/quotes.routes.ts
-var router6 = Router6();
-router6.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+var router5 = Router5();
+router5.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
     const quotes2 = await storage.getAllQuotes();
     const quotesWithClients = await Promise.all(
@@ -9310,7 +8555,7 @@ router6.get("/", requireFeature("quotes_module"), authMiddleware, async (req, re
     res.status(500).json({ error: "Failed to fetch quotes" });
   }
 });
-router6.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+router5.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) {
@@ -9329,7 +8574,7 @@ router6.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req,
     res.status(500).json({ error: "Failed to fetch quote" });
   }
 });
-router6.post("/", requireFeature("quotes_create"), authMiddleware, requirePermission("quotes", "create"), async (req, res) => {
+router5.post("/", requireFeature("quotes_create"), authMiddleware, requirePermission("quotes", "create"), async (req, res) => {
   try {
     const { items, ...quoteData } = req.body;
     if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
@@ -9379,6 +8624,8 @@ router6.post("/", requireFeature("quotes_create"), authMiddleware, requirePermis
       igst: toMoneyString(igst),
       total: toMoneyString(total)
     };
+    const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(finalQuoteData);
+    Object.assign(finalQuoteData, { approvalStatus, approvalRequiredBy });
     const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
     await storage.createActivityLog({
       userId: req.user.id,
@@ -9386,13 +8633,15 @@ router6.post("/", requireFeature("quotes_create"), authMiddleware, requirePermis
       entityType: "quote",
       entityId: quote.id
     });
-    return res.json(quote);
+    console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2));
+    console.log("[DEBUG] Eval Result:", { approvalStatus, approvalRequiredBy });
+    return res.json({ ...quote, approvalStatus, approvalRequiredBy });
   } catch (error) {
     logger.error("Create quote error:", error);
     return res.status(500).json({ error: error.message || "Failed to create quote" });
   }
 });
-router6.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+router5.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
   try {
     const existingQuote = await storage.getQuote(req.params.id);
     if (!existingQuote) {
@@ -9442,8 +8691,39 @@ router6.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async
         sortOrder: i,
         hsnSac: item.hsnSac || null
       }));
+      const subtotal = calculateSubtotal(quoteItemsData);
+      const discount = updateData.discount !== void 0 ? updateData.discount : existingQuote.discount;
+      const proposedQuote = {
+        ...existingQuote,
+        ...updateData,
+        subtotal: toMoneyString(subtotal)
+        // Recalculate total if items changed
+        // ...
+      };
+      const mergedDataForEval = { ...existingQuote, ...updateData };
+      if (items) {
+        const sub = calculateSubtotal(quoteItemsData);
+        mergedDataForEval.subtotal = toMoneyString(sub);
+        mergedDataForEval.total = toMoneyString(calculateTotal({
+          subtotal: sub,
+          discount: mergedDataForEval.discount || 0,
+          shippingCharges: mergedDataForEval.shippingCharges || 0,
+          cgst: mergedDataForEval.cgst || 0,
+          sgst: mergedDataForEval.sgst || 0,
+          igst: mergedDataForEval.igst || 0
+        }));
+      }
+      const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(mergedDataForEval);
+      Object.assign(updateData, { approvalStatus, approvalRequiredBy });
       quote = await storage.updateQuoteTransaction(req.params.id, updateData, quoteItemsData);
     } else {
+      const mergedDataForEval = { ...existingQuote, ...updateData };
+      const financialFields = ["discount", "shippingCharges", "items", "total"];
+      const isFinancialUpdate = Object.keys(updateData).some((k) => financialFields.includes(k));
+      if (isFinancialUpdate) {
+        const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(mergedDataForEval);
+        Object.assign(updateData, { approvalStatus, approvalRequiredBy });
+      }
       quote = await storage.updateQuote(req.params.id, updateData);
     }
     if (!quote) {
@@ -9461,7 +8741,7 @@ router6.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async
     res.status(500).json({ error: "Failed to update quote" });
   }
 });
-router6.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
+router5.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -9526,7 +8806,7 @@ router6.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoi
     return res.status(500).json({ error: error.message || "Failed to convert quote" });
   }
 });
-router6.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req, res) => {
+router5.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req, res) => {
   try {
     const { recipientEmail, message } = req.body;
     if (!recipientEmail) {
@@ -9535,6 +8815,12 @@ router6.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), 
     const quote = await storage.getQuote(req.params.id);
     if (!quote) {
       return res.status(404).json({ error: "Quote not found" });
+    }
+    if (quote.approvalStatus === "pending") {
+      return res.status(400).json({ error: "Quote requires approval before it can be sent." });
+    }
+    if (quote.approvalStatus === "rejected") {
+      return res.status(400).json({ error: "Quote has been rejected and cannot be sent." });
     }
     const client = await storage.getClient(quote.clientId);
     if (!client) {
@@ -9629,7 +8915,7 @@ router6.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), 
     return res.status(500).json({ error: error.message || "Failed to send quote email" });
   }
 });
-router6.get("/:id/pdf", authMiddleware, async (req, res) => {
+router5.get("/:id/pdf", authMiddleware, async (req, res) => {
   logger.info(`[PDF Export START] Received request for quote: ${req.params.id}`);
   try {
     const quote = await storage.getQuote(req.params.id);
@@ -9680,29 +8966,102 @@ router6.get("/:id/pdf", authMiddleware, async (req, res) => {
     logger.info(`[PDF Export] Quote #${quote.quoteNumber}`);
     logger.info(`[PDF Export] Clean filename: ${cleanFilename}`);
     logger.info(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
-    logger.info(`[PDF Export] About to generate PDF`);
-    await PDFService.generateQuotePDF({
-      quote,
-      client,
-      items,
-      companyName,
-      companyAddress,
-      companyPhone,
-      companyEmail,
-      companyWebsite,
-      companyGSTIN,
-      companyLogo,
-      preparedBy: creator?.name,
-      preparedByEmail: creator?.email,
-      bankDetails: {
-        bankName,
-        accountNumber: bankAccountNumber,
-        accountName: bankAccountName,
-        ifsc: bankIfscCode,
-        branch: bankBranch,
-        swift: bankSwiftCode
+    logger.info(`[PDF Export] Attempting offload to Worker Thread`);
+    const runWorker = async () => {
+      let workerPath;
+      if (process.env.NODE_ENV === "production") {
+        workerPath = path4.join(process.cwd(), "dist", "workers", "pdf.worker.js");
+      } else {
+        workerPath = path4.join(process.cwd(), "server", "workers", "pdf.worker.ts");
       }
-    }, res);
+      const { pathToFileURL } = await import("url");
+      const tsxLoaderPath = path4.resolve("node_modules/tsx/dist/loader.mjs");
+      const loaderUrl = pathToFileURL(tsxLoaderPath).href;
+      const worker = new Worker(workerPath, {
+        execArgv: process.env.NODE_ENV === "production" ? [] : ["--import", loaderUrl]
+      });
+      const pdfPayload = {
+        quote,
+        client,
+        items,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyLogo,
+        preparedBy: creator?.name,
+        preparedByEmail: creator?.email,
+        bankDetails: {
+          bankName,
+          accountNumber: bankAccountNumber,
+          accountName: bankAccountName,
+          ifsc: bankIfscCode,
+          branch: bankBranch,
+          swift: bankSwiftCode
+        }
+      };
+      return new Promise((resolve, reject) => {
+        worker.on("message", (msg) => {
+          if (msg.status === "success") {
+            resolve(Buffer.from(msg.buffer));
+          } else {
+            reject(new Error(msg.error));
+          }
+          worker.terminate();
+        });
+        worker.on("error", (err) => {
+          reject(err);
+          worker.terminate();
+        });
+        worker.on("exit", (code) => {
+          if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+        });
+        worker.postMessage(pdfPayload);
+      });
+    };
+    let pdfBuffer;
+    try {
+      pdfBuffer = await runWorker();
+      logger.info(`[PDF Export] Worker returned PDF buffer. Size: ${pdfBuffer.length}`);
+    } catch (err) {
+      logger.warn(`[PDF Export] Worker failed (${err.message}). Falling back to main thread.`);
+      const { PassThrough } = await import("stream");
+      const stream = new PassThrough();
+      const chunks = [];
+      stream.on("data", (c) => chunks.push(c));
+      const done = new Promise((resolve, reject) => {
+        stream.on("end", () => resolve());
+        stream.on("error", reject);
+      });
+      await PDFService.generateQuotePDF({
+        quote,
+        client,
+        items,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyLogo,
+        preparedBy: creator?.name,
+        preparedByEmail: creator?.email,
+        bankDetails: {
+          bankName,
+          accountNumber: bankAccountNumber,
+          accountName: bankAccountName,
+          ifsc: bankIfscCode,
+          branch: bankBranch,
+          swift: bankSwiftCode
+        }
+      }, stream);
+      await done;
+      pdfBuffer = Buffer.concat(chunks);
+      logger.info(`[PDF Export] Main thread generated PDF buffer. Size: ${pdfBuffer.length}`);
+    }
+    res.send(pdfBuffer);
     logger.info(`[PDF Export] PDF stream piped successfully`);
     await storage.createActivityLog({
       userId: req.user.id,
@@ -9716,7 +9075,7 @@ router6.get("/:id/pdf", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to generate PDF" });
   }
 });
-router6.get("/:id/invoices", authMiddleware, async (req, res) => {
+router5.get("/:id/invoices", authMiddleware, async (req, res) => {
   try {
     const invoices2 = await storage.getInvoicesByQuote(req.params.id);
     const enrichedInvoices = await Promise.all(
@@ -9731,17 +9090,214 @@ router6.get("/:id/invoices", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch invoices" });
   }
 });
-var quotes_routes_default = router6;
+router5.post("/:id/share", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    const { nanoid: nanoid2 } = await import("nanoid");
+    const token = nanoid2(32);
+    const expiresAt = /* @__PURE__ */ new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+    const updated = await storage.updateQuote(quote.id, {
+      publicToken: quote.publicToken || token,
+      // Keep existing if present, or use new
+      tokenExpiresAt: quote.tokenExpiresAt || expiresAt
+      // Keep existing expiry if present
+    });
+    if (!updated) {
+      throw new Error("Failed to update quote with public token");
+    }
+    return res.json({
+      token: updated.publicToken,
+      expiresAt: updated.tokenExpiresAt,
+      url: `${req.protocol}://${req.get("host")}/p/quote/${updated.publicToken}`
+    });
+  } catch (error) {
+    logger.error("Share quote error:", error);
+    return res.status(500).json({ error: "Failed to generate share link" });
+  }
+});
+router5.delete("/:id/share", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    await storage.updateQuote(quote.id, {
+      publicToken: null,
+      tokenExpiresAt: null
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Unshare quote error:", error);
+    return res.status(500).json({ error: "Failed to remove share link" });
+  }
+});
+router5.get("/public/:token", async (req, res) => {
+  try {
+    const token = req.params.token;
+    if (!token) return res.status(400).json({ error: "Token required" });
+    const quote = await storage.getQuoteByToken(token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found or link verified" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    const client = await storage.getClient(quote.clientId);
+    const items = await storage.getQuoteItems(quote.id);
+    const creator = await storage.getUser(quote.createdBy);
+    res.json({
+      id: quote.id,
+      quoteNumber: quote.quoteNumber,
+      version: quote.version,
+      status: quote.status,
+      quoteDate: quote.quoteDate,
+      validUntil: quote.validUntil,
+      items,
+      subtotal: quote.subtotal,
+      discount: quote.discount,
+      shippingCharges: quote.shippingCharges,
+      cgst: quote.cgst,
+      sgst: quote.sgst,
+      igst: quote.igst,
+      total: quote.total,
+      notes: quote.notes,
+      termsAndConditions: quote.termsAndConditions,
+      client: {
+        name: client?.name,
+        email: client?.email,
+        billingAddress: client?.billingAddress,
+        gstin: client?.gstin,
+        phone: client?.phone
+      },
+      sender: {
+        name: creator?.name,
+        email: creator?.email
+      }
+    });
+  } catch (error) {
+    logger.error("Public quote fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch quote" });
+  }
+});
+router5.post("/public/:token/:action", async (req, res) => {
+  try {
+    const { token, action } = req.params;
+    const { reason } = req.body;
+    if (!["approve", "reject"].includes(action)) {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+    const quote = await storage.getQuoteByToken(token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    if (quote.status !== "sent" && quote.status !== "draft") {
+    }
+    if (["approved", "invoiced", "closed_paid"].includes(quote.status)) {
+      return res.status(400).json({ error: "Quote is already processed" });
+    }
+    const newStatus = action === "approve" ? "approved" : "rejected";
+    await storage.updateQuote(quote.id, {
+      status: newStatus
+      // Logic to store client signature/reason could go here (e.g. Activity Log)
+    });
+    await storage.createActivityLog({
+      userId: quote.createdBy,
+      // Attributing to creator but noting it was client
+      action: `client_${action}_public`,
+      entityType: "quote",
+      entityId: quote.id,
+      metadata: {
+        via: "public_link",
+        reason,
+        ip: req.ip
+      }
+    });
+    res.json({ success: true, status: newStatus });
+  } catch (error) {
+    logger.error("Public quote action error:", error);
+    res.status(500).json({ error: "Failed to process " + req.params.action });
+  }
+});
+router5.post("/:id/approve", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    if (quote.approvalStatus !== "pending") {
+      return res.status(400).json({ error: "Quote is not pending approval" });
+    }
+    const requiredRole = quote.approvalRequiredBy;
+    if (requiredRole && req.user.role !== requiredRole && req.user.role !== "admin") {
+      return res.status(403).json({ error: `You do not have permission to approve this quote. Required role: ${requiredRole}` });
+    }
+    const updated = await storage.updateQuote(quote.id, {
+      approvalStatus: "approved",
+      status: "approved"
+      // Also update main status? Or keep as draft/sent? Usually 'approved' is internal.
+      // Let's map internal approval to main status 'approved' for now, but usually 'approved' in main status means Client Approved.
+      // Wait, `quoteStatusEnum` has `approved`. Is that for Client or Internal?
+      // Usually Client. 
+      // If we have internal approval, maybe we keep it as 'draft' or 'pending'?
+      // Let's keep main status as 'draft' (or whatever it was) but set `approvalStatus` to `approved`.
+      // When sending, we check `approvalStatus`.
+      // BUT, if the user manually sets status to 'Approved' (Client Approved), we might want to block that if internal approval is pending?
+      // For now, let's just update `approvalStatus`.
+      // Actually, if it's "Approved" by manager, it's ready to be sent.
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "approve_quote_internal",
+      entityType: "quote",
+      entityId: quote.id
+    });
+    res.json(updated);
+  } catch (error) {
+    logger.error("Approve quote error:", error);
+    res.status(500).json({ error: "Failed to approve quote" });
+  }
+});
+router5.post("/:id/reject", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    if (quote.approvalStatus !== "pending") {
+      return res.status(400).json({ error: "Quote is not pending approval" });
+    }
+    const requiredRole = quote.approvalRequiredBy;
+    if (requiredRole && req.user.role !== requiredRole && req.user.role !== "admin") {
+      return res.status(403).json({ error: `You do not have permission to reject this quote. Required role: ${requiredRole}` });
+    }
+    const updated = await storage.updateQuote(quote.id, {
+      approvalStatus: "rejected",
+      status: "rejected"
+      // Update main status to rejected too?
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "reject_quote_internal",
+      entityType: "quote",
+      entityId: quote.id
+    });
+    res.json(updated);
+  } catch (error) {
+    logger.error("Reject quote error:", error);
+    res.status(500).json({ error: "Failed to reject quote" });
+  }
+});
+var quotes_routes_default = router5;
 
 // server/routes/invoices.routes.ts
 init_storage();
-import { Router as Router7 } from "express";
+import { Router as Router6 } from "express";
+init_logger();
 init_db();
 init_schema();
 init_numbering_service();
-import { eq as eq4, sql as sql7 } from "drizzle-orm";
-var router7 = Router7();
-router7.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+import { eq as eq4, sql as sql6 } from "drizzle-orm";
+var router6 = Router6();
+router6.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
     const invoices2 = await storage.getAllInvoices();
     const invoicesWithDetails = await Promise.all(
@@ -9758,7 +9314,7 @@ router7.get("/", requireFeature("quotes_module"), authMiddleware, async (req, re
     res.status(500).json({ error: "Failed to fetch invoices" });
   }
 });
-router7.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+router6.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -9803,7 +9359,7 @@ router7.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req,
     res.status(500).json({ error: "Failed to fetch invoice" });
   }
 });
-router7.put("/:id/master-status", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
+router6.put("/:id/master-status", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
   try {
     const { masterInvoiceStatus } = req.body;
     if (!["draft", "confirmed", "locked"].includes(masterInvoiceStatus)) {
@@ -9843,7 +9399,7 @@ router7.put("/:id/master-status", authMiddleware, requirePermission("invoices", 
     return res.status(500).json({ error: error.message || "Failed to update master invoice status" });
   }
 });
-router7.put("/:id/master-details", authMiddleware, requirePermission("invoices", "edit"), async (req, res) => {
+router6.put("/:id/master-details", authMiddleware, requirePermission("invoices", "edit"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -9971,7 +9527,7 @@ router7.put("/:id/master-details", authMiddleware, requirePermission("invoices",
     return res.status(500).json({ error: error.message || "Failed to update master invoice" });
   }
 });
-router7.put("/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
+router6.put("/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -10003,7 +9559,7 @@ router7.put("/:id/finalize", authMiddleware, requirePermission("invoices", "fina
     return res.status(500).json({ error: error.message || "Failed to finalize invoice" });
   }
 });
-router7.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req, res) => {
+router6.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req, res) => {
   try {
     const { isLocked } = req.body;
     if (typeof isLocked !== "boolean") {
@@ -10031,7 +9587,7 @@ router7.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), 
     return res.status(500).json({ error: error.message || "Failed to lock/unlock invoice" });
   }
 });
-router7.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req, res) => {
+router6.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req, res) => {
   try {
     const { cancellationReason } = req.body;
     if (!cancellationReason || cancellationReason.trim().length === 0) {
@@ -10075,8 +9631,8 @@ router7.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
         }
         for (const [productId, quantityToRestore] of Object.entries(productStockUpdatesFromSerials)) {
           await tx.update(products).set({
-            stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
-            availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
+            stockQuantity: sql6`${products.stockQuantity} + ${quantityToRestore}`,
+            availableQuantity: sql6`${products.availableQuantity} + ${quantityToRestore}`,
             updatedAt: /* @__PURE__ */ new Date()
           }).where(eq4(products.id, productId));
         }
@@ -10086,8 +9642,8 @@ router7.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
             const quantityToRestore = Number(item.quantity) || 0;
             if (quantityToRestore > 0) {
               await tx.update(products).set({
-                stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
-                availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
+                stockQuantity: sql6`${products.stockQuantity} + ${quantityToRestore}`,
+                availableQuantity: sql6`${products.availableQuantity} + ${quantityToRestore}`,
                 updatedAt: /* @__PURE__ */ new Date()
               }).where(eq4(products.id, item.productId));
             }
@@ -10136,7 +9692,7 @@ router7.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
     return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
   }
 });
-router7.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), async (req, res) => {
+router6.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -10170,7 +9726,7 @@ router7.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), 
     return res.status(500).json({ error: error.message || "Failed to delete invoice" });
   }
 });
-router7.post("/:id/create-child-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
+router6.post("/:id/create-child-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
   try {
     const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
     const masterInvoice = await storage.getInvoice(req.params.id);
@@ -10289,7 +9845,7 @@ router7.post("/:id/create-child-invoice", authMiddleware, requirePermission("inv
     return res.status(500).json({ error: error.message || "Failed to create child invoice" });
   }
 });
-router7.get("/:id/master-summary", authMiddleware, async (req, res) => {
+router6.get("/:id/master-summary", authMiddleware, async (req, res) => {
   try {
     const masterInvoice = await storage.getInvoice(req.params.id);
     if (!masterInvoice) {
@@ -10359,7 +9915,7 @@ router7.get("/:id/master-summary", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to get master invoice summary" });
   }
 });
-router7.get("/:id/pdf", authMiddleware, async (req, res) => {
+router6.get("/:id/pdf", authMiddleware, async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -10478,7 +10034,7 @@ router7.get("/:id/pdf", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 });
-router7.post("/:id/email", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
+router6.post("/:id/email", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
   try {
     const { recipientEmail, message } = req.body;
     if (!recipientEmail) {
@@ -10613,7 +10169,7 @@ router7.post("/:id/email", authMiddleware, requirePermission("invoices", "view")
     return res.status(500).json({ error: error.message || "Failed to send invoice email" });
   }
 });
-router7.post("/:id/payment-reminder", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
+router6.post("/:id/payment-reminder", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
   try {
     const { recipientEmail, message } = req.body;
     if (!recipientEmail) {
@@ -10676,7 +10232,7 @@ router7.post("/:id/payment-reminder", authMiddleware, requirePermission("invoice
     return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
   }
 });
-router7.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req, res) => {
+router6.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req, res) => {
   try {
     const { serialNumbers: serialNumbers2 } = req.body;
     logger.info(`Updating serial numbers for item ${req.params.itemId} in invoice ${req.params.id}`);
@@ -10732,7 +10288,7 @@ router7.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("s
     res.status(500).json({ error: "Failed to update serial numbers" });
   }
 });
-router7.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermission("serial_numbers", "view"), async (req, res) => {
+router6.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermission("serial_numbers", "view"), async (req, res) => {
   try {
     const { validateSerialNumbers: validateSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
     const { serials, expectedQuantity } = req.body;
@@ -10760,7 +10316,7 @@ router7.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermi
     return res.status(500).json({ error: error.message || "Failed to validate serial numbers" });
   }
 });
-router7.get("/:id/serials/permissions", authMiddleware, async (req, res) => {
+router6.get("/:id/serials/permissions", authMiddleware, async (req, res) => {
   try {
     const { canEditSerialNumbers: canEditSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
     const { id: invoiceId } = req.params;
@@ -10771,16 +10327,17 @@ router7.get("/:id/serials/permissions", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to check permissions" });
   }
 });
-var invoices_routes_default = router7;
+var invoices_routes_default = router6;
 
 // server/routes/payments.routes.ts
 init_storage();
-import { Router as Router8 } from "express";
+import { Router as Router7 } from "express";
+init_logger();
 init_db();
 init_schema();
 import { eq as eq5 } from "drizzle-orm";
-var router8 = Router8();
-router8.put("/invoices/:id/payment-status", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
+var router7 = Router7();
+router7.put("/invoices/:id/payment-status", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
   try {
     const { paymentStatus, paidAmount } = req.body;
     const invoice = await storage.getInvoice(req.params.id);
@@ -10887,7 +10444,7 @@ router8.put("/invoices/:id/payment-status", authMiddleware, requirePermission("p
     return res.status(500).json({ error: error.message || "Failed to update payment status" });
   }
 });
-router8.post("/invoices/:id/payment", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
+router7.post("/invoices/:id/payment", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
   try {
     const { amount, paymentMethod, transactionId, notes, paymentDate } = req.body;
     if (!amount || amount <= 0) {
@@ -11003,7 +10560,7 @@ router8.post("/invoices/:id/payment", authMiddleware, requirePermission("payment
     return res.status(500).json({ error: error.message || "Failed to record payment" });
   }
 });
-router8.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req, res) => {
+router7.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -11049,7 +10606,7 @@ router8.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req
     return res.status(500).json({ error: "Failed to fetch payment history" });
   }
 });
-router8.get("/invoices/:id/payment-history", authMiddleware, async (req, res) => {
+router7.get("/invoices/:id/payment-history", authMiddleware, async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -11078,7 +10635,7 @@ router8.get("/invoices/:id/payment-history", authMiddleware, async (req, res) =>
     return res.status(500).json({ error: "Failed to fetch payment history" });
   }
 });
-router8.delete("/payment-history/:id", authMiddleware, async (req, res) => {
+router7.delete("/payment-history/:id", authMiddleware, async (req, res) => {
   try {
     const payment = await storage.getPaymentById(req.params.id);
     if (!payment) {
@@ -11158,15 +10715,16 @@ router8.delete("/payment-history/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to delete payment" });
   }
 });
-var payments_routes_default = router8;
+var payments_routes_default = router7;
 
 // server/routes/products.routes.ts
-import { Router as Router9 } from "express";
+import { Router as Router8 } from "express";
+init_logger();
 init_db();
 init_schema();
 import { eq as eq6 } from "drizzle-orm";
-var router9 = Router9();
-router9.get("/", authMiddleware, async (req, res) => {
+var router8 = Router8();
+router8.get("/", authMiddleware, async (req, res) => {
   try {
     const products2 = await db.select().from(products).orderBy(products.name);
     res.json(products2);
@@ -11175,7 +10733,7 @@ router9.get("/", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch products" });
   }
 });
-router9.get("/:id", authMiddleware, async (req, res) => {
+router8.get("/:id", authMiddleware, async (req, res) => {
   try {
     const [product] = await db.select().from(products).where(eq6(products.id, req.params.id));
     if (!product) {
@@ -11187,7 +10745,7 @@ router9.get("/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch product" });
   }
 });
-router9.post("/", authMiddleware, async (req, res) => {
+router8.post("/", authMiddleware, async (req, res) => {
   try {
     if (req.body && typeof req.body.unitPrice === "number") {
       req.body.unitPrice = String(req.body.unitPrice);
@@ -11211,7 +10769,7 @@ router9.post("/", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to create product" });
   }
 });
-router9.patch("/:id", authMiddleware, async (req, res) => {
+router8.patch("/:id", authMiddleware, async (req, res) => {
   try {
     const [updated] = await db.update(products).set({ ...req.body, updatedAt: /* @__PURE__ */ new Date() }).where(eq6(products.id, req.params.id)).returning();
     if (!updated) {
@@ -11223,18 +10781,19 @@ router9.patch("/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to update product" });
   }
 });
-var products_routes_default = router9;
+var products_routes_default = router8;
 
 // server/routes/vendors.routes.ts
-import { Router as Router10 } from "express";
+import { Router as Router9 } from "express";
+init_logger();
 init_storage();
 init_db();
 init_schema();
 init_numbering_service();
 init_feature_flags();
-import { eq as eq7, sql as sql9, desc as desc2 } from "drizzle-orm";
-var router10 = Router10();
-router10.get("/vendors", authMiddleware, async (req, res) => {
+import { eq as eq7, sql as sql8, desc as desc2 } from "drizzle-orm";
+var router9 = Router9();
+router9.get("/vendors", authMiddleware, async (req, res) => {
   try {
     const vendors2 = await storage.getAllVendors();
     res.json(vendors2);
@@ -11243,7 +10802,7 @@ router10.get("/vendors", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendors" });
   }
 });
-router10.get("/vendors/:id", authMiddleware, async (req, res) => {
+router9.get("/vendors/:id", authMiddleware, async (req, res) => {
   try {
     const vendor = await storage.getVendor(req.params.id);
     if (!vendor) {
@@ -11255,7 +10814,7 @@ router10.get("/vendors/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendor" });
   }
 });
-router10.post("/vendors", authMiddleware, requirePermission("vendors", "create"), async (req, res) => {
+router9.post("/vendors", authMiddleware, requirePermission("vendors", "create"), async (req, res) => {
   try {
     const vendor = await storage.createVendor({
       ...req.body,
@@ -11267,7 +10826,7 @@ router10.post("/vendors", authMiddleware, requirePermission("vendors", "create")
     res.status(500).json({ error: "Failed to create vendor" });
   }
 });
-router10.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edit"), async (req, res) => {
+router9.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edit"), async (req, res) => {
   try {
     const updated = await storage.updateVendor(req.params.id, req.body);
     if (!updated) {
@@ -11279,7 +10838,7 @@ router10.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edi
     res.status(500).json({ error: "Failed to update vendor" });
   }
 });
-router10.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "delete"), async (req, res) => {
+router9.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "delete"), async (req, res) => {
   try {
     await storage.deleteVendor(req.params.id);
     res.json({ success: true });
@@ -11288,7 +10847,7 @@ router10.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "de
     res.status(500).json({ error: "Failed to delete vendor" });
   }
 });
-router10.get("/vendor-pos", authMiddleware, async (req, res) => {
+router9.get("/vendor-pos", authMiddleware, async (req, res) => {
   try {
     const quoteId = req.query.quoteId;
     let pos;
@@ -11314,7 +10873,7 @@ router10.get("/vendor-pos", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendor POs" });
   }
 });
-router10.get("/vendor-pos/:id", authMiddleware, async (req, res) => {
+router9.get("/vendor-pos/:id", authMiddleware, async (req, res) => {
   try {
     const po = await storage.getVendorPo(req.params.id);
     if (!po) {
@@ -11334,7 +10893,7 @@ router10.get("/vendor-pos/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendor PO" });
   }
 });
-router10.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
+router9.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) {
@@ -11378,7 +10937,7 @@ router10.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission(
     res.status(500).json({ error: "Failed to create vendor PO" });
   }
 });
-router10.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
+router9.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
   try {
     const {
       vendorId,
@@ -11445,7 +11004,7 @@ router10.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "cr
     res.status(500).json({ error: error.message || "Failed to create vendor PO" });
   }
 });
-router10.patch("/vendor-pos/:id", authMiddleware, async (req, res) => {
+router9.patch("/vendor-pos/:id", authMiddleware, async (req, res) => {
   try {
     const updated = await storage.updateVendorPo(req.params.id, req.body);
     if (!updated) {
@@ -11457,7 +11016,7 @@ router10.patch("/vendor-pos/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to update vendor PO" });
   }
 });
-router10.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, async (req, res) => {
+router9.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, async (req, res) => {
   try {
     const { serialNumbers: serialNumbers2 } = req.body;
     const updated = await storage.updateVendorPoItem(req.params.itemId, {
@@ -11473,7 +11032,7 @@ router10.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, async (r
     res.status(500).json({ error: "Failed to update serial numbers" });
   }
 });
-router10.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+router9.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
   try {
     const grns = await db.select({
       id: goodsReceivedNotes.id,
@@ -11501,7 +11060,7 @@ router10.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, 
     res.status(500).json({ error: "Failed to fetch GRNs" });
   }
 });
-router10.get("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+router9.get("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
   try {
     const [grn] = await db.select().from(goodsReceivedNotes).where(eq7(goodsReceivedNotes.id, req.params.id));
     if (!grn) {
@@ -11533,7 +11092,7 @@ router10.get("/grns/:id", authMiddleware, requireFeature("grn_module"), async (r
     res.status(500).json({ error: "Failed to fetch GRN" });
   }
 });
-router10.post("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+router9.post("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
   try {
     const {
       vendorPoId,
@@ -11570,8 +11129,8 @@ router10.post("/grns", authMiddleware, requireFeature("grn_module"), async (req,
       const quantityAccepted = quantityReceived - (quantityRejected || 0);
       if (quantityAccepted > 0) {
         await db.update(products).set({
-          stockQuantity: sql9`${products.stockQuantity} + ${quantityAccepted}`,
-          availableQuantity: sql9`${products.availableQuantity} + ${quantityAccepted}`,
+          stockQuantity: sql8`${products.stockQuantity} + ${quantityAccepted}`,
+          availableQuantity: sql8`${products.availableQuantity} + ${quantityAccepted}`,
           updatedAt: /* @__PURE__ */ new Date()
         }).where(eq7(products.id, poItem.productId));
         logger.info(`[GRN] Updated product ${poItem.productId} stock: +${quantityAccepted}`);
@@ -11604,7 +11163,7 @@ router10.post("/grns", authMiddleware, requireFeature("grn_module"), async (req,
     res.status(500).json({ error: error.message || "Failed to create GRN" });
   }
 });
-router10.patch("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+router9.patch("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
   try {
     const {
       quantityReceived,
@@ -11639,17 +11198,18 @@ router10.patch("/grns/:id", authMiddleware, requireFeature("grn_module"), async 
     res.status(500).json({ error: error.message || "Failed to update GRN" });
   }
 });
-var vendors_routes_default = router10;
+var vendors_routes_default = router9;
 
 // server/routes/settings.routes.ts
-import { Router as Router11 } from "express";
+import { Router as Router10 } from "express";
+init_logger();
 init_storage();
 init_db();
 init_schema();
 init_numbering_service();
 import { eq as eq8 } from "drizzle-orm";
-var router11 = Router11();
-router11.get("/settings", authMiddleware, async (req, res) => {
+var router10 = Router10();
+router10.get("/settings", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access settings" });
@@ -11665,7 +11225,7 @@ router11.get("/settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch settings" });
   }
 });
-router11.post("/settings", authMiddleware, async (req, res) => {
+router10.post("/settings", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can update settings" });
@@ -11771,7 +11331,7 @@ router11.post("/settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update setting" });
   }
 });
-router11.get("/bank-details", authMiddleware, async (req, res) => {
+router10.get("/bank-details", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access bank details" });
@@ -11782,7 +11342,7 @@ router11.get("/bank-details", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch bank details" });
   }
 });
-router11.get("/bank-details/active", authMiddleware, async (req, res) => {
+router10.get("/bank-details/active", authMiddleware, async (req, res) => {
   try {
     const detail = await storage.getActiveBankDetails();
     return res.json(detail || null);
@@ -11790,7 +11350,7 @@ router11.get("/bank-details/active", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch active bank details" });
   }
 });
-router11.post("/bank-details", authMiddleware, async (req, res) => {
+router10.post("/bank-details", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can create bank details" });
@@ -11820,7 +11380,7 @@ router11.post("/bank-details", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create bank details" });
   }
 });
-router11.put("/bank-details/:id", authMiddleware, async (req, res) => {
+router10.put("/bank-details/:id", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can update bank details" });
@@ -11853,7 +11413,7 @@ router11.put("/bank-details/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update bank details" });
   }
 });
-router11.delete("/bank-details/:id", authMiddleware, async (req, res) => {
+router10.delete("/bank-details/:id", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can delete bank details" });
@@ -11870,7 +11430,7 @@ router11.delete("/bank-details/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to delete bank details" });
   }
 });
-router11.post("/settings/migrate-document-numbers", authMiddleware, async (req, res) => {
+router10.post("/settings/migrate-document-numbers", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can migrate document numbers" });
@@ -11904,7 +11464,7 @@ router11.post("/settings/migrate-document-numbers", authMiddleware, async (req, 
     });
   }
 });
-router11.get("/numbering/counters", authMiddleware, async (req, res) => {
+router10.get("/numbering/counters", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access counter values" });
@@ -11934,7 +11494,7 @@ router11.get("/numbering/counters", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to get counters" });
   }
 });
-router11.post("/numbering/reset-counter", authMiddleware, async (req, res) => {
+router10.post("/numbering/reset-counter", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can reset counters" });
@@ -11977,7 +11537,7 @@ router11.post("/numbering/reset-counter", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to reset counter" });
   }
 });
-router11.post("/numbering/set-counter", authMiddleware, async (req, res) => {
+router10.post("/numbering/set-counter", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can set counters" });
@@ -12026,7 +11586,7 @@ router11.post("/numbering/set-counter", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to set counter" });
   }
 });
-router11.get("/tax-rates", authMiddleware, async (req, res) => {
+router10.get("/tax-rates", authMiddleware, async (req, res) => {
   try {
     const rates = await db.select().from(taxRates).where(eq8(taxRates.isActive, true));
     const simplifiedRates = rates.map((rate) => ({
@@ -12049,7 +11609,7 @@ router11.get("/tax-rates", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch tax rates" });
   }
 });
-router11.post("/tax-rates", authMiddleware, async (req, res) => {
+router10.post("/tax-rates", authMiddleware, async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
@@ -12089,7 +11649,7 @@ router11.post("/tax-rates", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create tax rate" });
   }
 });
-router11.delete("/tax-rates/:id", authMiddleware, async (req, res) => {
+router10.delete("/tax-rates/:id", authMiddleware, async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
@@ -12107,7 +11667,7 @@ router11.delete("/tax-rates/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to delete tax rate" });
   }
 });
-router11.get("/payment-terms", authMiddleware, async (req, res) => {
+router10.get("/payment-terms", authMiddleware, async (req, res) => {
   try {
     const terms = await db.select().from(paymentTerms).where(eq8(paymentTerms.isActive, true));
     return res.json(terms);
@@ -12116,7 +11676,7 @@ router11.get("/payment-terms", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch payment terms" });
   }
 });
-router11.post("/payment-terms", authMiddleware, async (req, res) => {
+router10.post("/payment-terms", authMiddleware, async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
@@ -12147,7 +11707,7 @@ router11.post("/payment-terms", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create payment term" });
   }
 });
-router11.delete("/payment-terms/:id", authMiddleware, async (req, res) => {
+router10.delete("/payment-terms/:id", authMiddleware, async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
@@ -12165,7 +11725,7 @@ router11.delete("/payment-terms/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to delete payment term" });
   }
 });
-router11.get("/currency-settings", authMiddleware, async (req, res) => {
+router10.get("/currency-settings", authMiddleware, async (req, res) => {
   try {
     const settings2 = await storage.getCurrencySettings();
     if (!settings2) {
@@ -12177,7 +11737,7 @@ router11.get("/currency-settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch currency settings" });
   }
 });
-router11.post("/currency-settings", authMiddleware, async (req, res) => {
+router10.post("/currency-settings", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -12199,7 +11759,7 @@ router11.post("/currency-settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update currency settings" });
   }
 });
-router11.get("/admin/settings", authMiddleware, async (req, res) => {
+router10.get("/admin/settings", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -12253,7 +11813,7 @@ router11.get("/admin/settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch admin settings" });
   }
 });
-router11.post("/admin/settings/company", authMiddleware, async (req, res) => {
+router10.post("/admin/settings/company", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -12276,7 +11836,7 @@ router11.post("/admin/settings/company", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update company settings" });
   }
 });
-router11.post("/admin/settings/taxation", authMiddleware, async (req, res) => {
+router10.post("/admin/settings/taxation", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -12299,7 +11859,7 @@ router11.post("/admin/settings/taxation", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update tax settings" });
   }
 });
-router11.post("/admin/settings/email", authMiddleware, async (req, res) => {
+router10.post("/admin/settings/email", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -12334,7 +11894,7 @@ router11.post("/admin/settings/email", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update email settings" });
   }
 });
-router11.get("/debug/counters", async (req, res) => {
+router10.get("/debug/counters", async (req, res) => {
   try {
     const year = (/* @__PURE__ */ new Date()).getFullYear();
     const types = ["quote", "master_invoice", "child_invoice", "vendor_po", "grn"];
@@ -12360,7 +11920,7 @@ router11.get("/debug/counters", async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to fetch counters" });
   }
 });
-router11.post("/debug/reset-counter/:type", async (req, res) => {
+router10.post("/debug/reset-counter/:type", async (req, res) => {
   try {
     const { type } = req.params;
     const year = (/* @__PURE__ */ new Date()).getFullYear();
@@ -12376,7 +11936,7 @@ router11.post("/debug/reset-counter/:type", async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to reset counter" });
   }
 });
-router11.post("/debug/set-counter/:type/:value", async (req, res) => {
+router10.post("/debug/set-counter/:type/:value", async (req, res) => {
   try {
     const { type, value } = req.params;
     const year = (/* @__PURE__ */ new Date()).getFullYear();
@@ -12397,16 +11957,17 @@ router11.post("/debug/set-counter/:type/:value", async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to set counter" });
   }
 });
-var settings_routes_default = router11;
+var settings_routes_default = router10;
 
 // server/routes/serial-numbers.routes.ts
 init_storage();
-import { Router as Router12 } from "express";
+import { Router as Router11 } from "express";
+init_logger();
 init_db();
 init_schema();
-import { eq as eq9, sql as sql10 } from "drizzle-orm";
-var router12 = Router12();
-router12.get("/search", authMiddleware, async (req, res) => {
+import { eq as eq9, sql as sql9 } from "drizzle-orm";
+var router11 = Router11();
+router11.get("/search", authMiddleware, async (req, res) => {
   try {
     const { getSerialTraceability: getSerialTraceability2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
     const serialNumber = req.query.q;
@@ -12423,7 +11984,7 @@ router12.get("/search", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to search serial number" });
   }
 });
-router12.post("/batch-validate", authMiddleware, async (req, res) => {
+router11.post("/batch-validate", authMiddleware, async (req, res) => {
   try {
     const { getSerialTraceability: getSerialTraceability2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
     const { serials } = req.body;
@@ -12446,7 +12007,7 @@ router12.post("/batch-validate", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to validate serials" });
   }
 });
-router12.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
+router11.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
   try {
     const {
       serialNumbers: serialNumbers2,
@@ -12458,7 +12019,7 @@ router12.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), 
     if (!Array.isArray(serialNumbers2) || serialNumbers2.length === 0) {
       return res.status(400).json({ error: "Serial numbers array is required" });
     }
-    const existing = await db.select().from(serialNumbers).where(sql10`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
+    const existing = await db.select().from(serialNumbers).where(sql9`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
     if (existing.length > 0) {
       return res.status(400).json({
         error: "Duplicate serial numbers found",
@@ -12487,7 +12048,7 @@ router12.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), 
     return res.status(500).json({ error: error.message || "Failed to import serial numbers" });
   }
 });
-router12.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
+router11.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
   try {
     const [serial2] = await db.select().from(serialNumbers).where(eq9(serialNumbers.serialNumber, req.params.serialNumber));
     if (!serial2) {
@@ -12539,12 +12100,1474 @@ router12.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_trac
     return res.status(500).json({ error: "Failed to fetch serial number" });
   }
 });
-var serial_numbers_routes_default = router12;
+var serial_numbers_routes_default = router11;
+
+// server/routes/approval-rules.routes.ts
+init_storage();
+import { Router as Router12 } from "express";
+init_schema();
+init_logger();
+var router12 = Router12();
+router12.get("/", authMiddleware, requirePermission("settings", "view"), async (req, res) => {
+  try {
+    const rules = await storage.getApprovalRules();
+    res.json(rules);
+  } catch (error) {
+    logger.error("Failed to fetch approval rules:", error);
+    res.status(500).json({ error: "Failed to fetch approval rules" });
+  }
+});
+router12.post("/", authMiddleware, requirePermission("settings", "edit"), async (req, res) => {
+  try {
+    const validatedRule = insertApprovalRuleSchema.parse({
+      ...req.body,
+      createdBy: req.user.id
+    });
+    const rule = await storage.createApprovalRule(validatedRule);
+    res.json(rule);
+  } catch (error) {
+    logger.error("Failed to create approval rule:", error);
+    res.status(400).json({ error: error.message || "Failed to create approval rule" });
+  }
+});
+router12.patch("/:id", authMiddleware, requirePermission("settings", "edit"), async (req, res) => {
+  try {
+    const updated = await storage.updateApprovalRule(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: "Rule not found" });
+    }
+    res.json(updated);
+  } catch (error) {
+    logger.error("Failed to update approval rule:", error);
+    res.status(500).json({ error: "Failed to update approval rule" });
+  }
+});
+router12.delete("/:id", authMiddleware, requirePermission("settings", "edit"), async (req, res) => {
+  try {
+    await storage.deleteApprovalRule(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("Failed to delete approval rule:", error);
+    res.status(500).json({ error: "Failed to delete approval rule" });
+  }
+});
+var approval_rules_routes_default = router12;
+
+// server/routes/pricing.routes.ts
+init_storage();
+import { Router as Router13 } from "express";
+init_logger();
+
+// server/services/pricing.service.ts
+init_storage();
+import { Decimal as Decimal3 } from "decimal.js";
+var PricingService = class {
+  /**
+   * Calculate discount based on quote amount and applicable pricing tier
+   */
+  async calculateDiscount(subtotal) {
+    try {
+      const tier = await storage.getPricingTierByAmount(subtotal);
+      if (!tier) {
+        return {
+          discountPercent: 0,
+          discountAmount: 0,
+          finalAmount: subtotal
+        };
+      }
+      const discountPercent = parseFloat(tier.discountPercent.toString());
+      const discountAmount = subtotal * (discountPercent / 100);
+      const finalAmount = subtotal - discountAmount;
+      return {
+        discountPercent,
+        discountAmount,
+        finalAmount
+      };
+    } catch (error) {
+      console.error("Error calculating discount:", error);
+      return {
+        discountPercent: 0,
+        discountAmount: 0,
+        finalAmount: subtotal
+      };
+    }
+  }
+  /**
+   * Get applicable tax rates for a region
+   */
+  async getTaxRatesForRegion(region) {
+    try {
+      const taxRate = await storage.getTaxRateByRegion(region);
+      if (!taxRate) {
+        return {
+          sgstRate: 0,
+          cgstRate: 0,
+          igstRate: 0
+        };
+      }
+      return {
+        sgstRate: parseFloat(taxRate.sgstRate.toString()),
+        cgstRate: parseFloat(taxRate.cgstRate.toString()),
+        igstRate: parseFloat(taxRate.igstRate.toString())
+      };
+    } catch (error) {
+      console.error("Error getting tax rates:", error);
+      return {
+        sgstRate: 0,
+        cgstRate: 0,
+        igstRate: 0
+      };
+    }
+  }
+  /**
+   * Calculate taxes on an amount
+   */
+  async calculateTaxes(amount, region, useIGST = false) {
+    const rates = await this.getTaxRatesForRegion(region);
+    if (useIGST) {
+      const igst = amount * (rates.igstRate / 100);
+      return {
+        sgst: 0,
+        cgst: 0,
+        igst,
+        totalTax: igst
+      };
+    } else {
+      const sgst = amount * (rates.sgstRate / 100);
+      const cgst = amount * (rates.cgstRate / 100);
+      return {
+        sgst,
+        cgst,
+        igst: 0,
+        totalTax: sgst + cgst
+      };
+    }
+  }
+  /**
+   * Convert amount between currencies
+   */
+  async convertCurrency(amount, fromCurrency, toCurrency) {
+    if (fromCurrency === toCurrency) {
+      return amount;
+    }
+    try {
+      const currencySettings2 = await storage.getCurrencySettings();
+      if (!currencySettings2 || !currencySettings2.exchangeRates) {
+        return amount;
+      }
+      const rates = JSON.parse(currencySettings2.exchangeRates);
+      const fromRate = rates[fromCurrency] || 1;
+      const toRate = rates[toCurrency] || 1;
+      return amount / fromRate * toRate;
+    } catch (error) {
+      console.error("Error converting currency:", error);
+      return amount;
+    }
+  }
+  /**
+   * Apply rounding rules to a monetary amount
+   */
+  roundAmount(amount, roundingRule = "nearest") {
+    const decimal2 = new Decimal3(amount);
+    switch (roundingRule) {
+      case "up":
+        return parseFloat(decimal2.toDecimalPlaces(2, Decimal3.ROUND_UP).toString());
+      case "down":
+        return parseFloat(decimal2.toDecimalPlaces(2, Decimal3.ROUND_DOWN).toString());
+      case "nearest":
+      default:
+        return parseFloat(decimal2.toDecimalPlaces(2, Decimal3.ROUND_HALF_UP).toString());
+    }
+  }
+  /**
+   * Calculate final quote total with all adjustments
+   */
+  async calculateQuoteTotal(params) {
+    let discount = params.customDiscount || 0;
+    if (!params.customDiscount) {
+      const discountCalc = await this.calculateDiscount(params.subtotal);
+      discount = discountCalc.discountAmount;
+    }
+    const discountedSubtotal = params.subtotal - discount;
+    const shipping = params.shippingCharges || 0;
+    const subtotalWithShipping = discountedSubtotal + shipping;
+    const taxes = await this.calculateTaxes(subtotalWithShipping, params.region, params.useIGST);
+    const total = this.roundAmount(subtotalWithShipping + taxes.totalTax);
+    return {
+      subtotal: this.roundAmount(params.subtotal),
+      discount: this.roundAmount(discount),
+      discountedSubtotal: this.roundAmount(discountedSubtotal),
+      shipping: this.roundAmount(shipping),
+      subtotalWithShipping: this.roundAmount(subtotalWithShipping),
+      sgst: this.roundAmount(taxes.sgst),
+      cgst: this.roundAmount(taxes.cgst),
+      igst: this.roundAmount(taxes.igst),
+      total
+    };
+  }
+};
+var pricingService = new PricingService();
+
+// server/routes/pricing.routes.ts
+var router13 = Router13();
+router13.get("/pricing-tiers", authMiddleware, async (req, res) => {
+  try {
+    const tiers = await storage.getAllPricingTiers();
+    res.json(tiers);
+  } catch (error) {
+    logger.error("Get pricing tiers error:", error);
+    res.status(500).json({ error: "Failed to fetch pricing tiers" });
+  }
+});
+router13.post("/pricing-tiers", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const { name, minAmount, maxAmount, discountPercent, description, isActive } = req.body;
+    if (!name || minAmount === void 0 || discountPercent === void 0) {
+      return res.status(400).json({ error: "Name, minAmount, and discountPercent are required" });
+    }
+    const tier = await storage.createPricingTier({
+      name,
+      minAmount,
+      maxAmount,
+      discountPercent,
+      description,
+      isActive: isActive !== false
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "create_pricing_tier",
+      entityType: "pricing_tier",
+      entityId: tier.id
+    });
+    res.json(tier);
+  } catch (error) {
+    logger.error("Create pricing tier error:", error);
+    res.status(500).json({ error: error.message || "Failed to create pricing tier" });
+  }
+});
+router13.patch("/pricing-tiers/:id", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const updated = await storage.updatePricingTier(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: "Pricing tier not found" });
+    }
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "update_pricing_tier",
+      entityType: "pricing_tier",
+      entityId: updated.id
+    });
+    res.json(updated);
+  } catch (error) {
+    logger.error("Update pricing tier error:", error);
+    res.status(500).json({ error: error.message || "Failed to update pricing tier" });
+  }
+});
+router13.delete("/pricing-tiers/:id", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    await storage.deletePricingTier(req.params.id);
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "delete_pricing_tier",
+      entityType: "pricing_tier",
+      entityId: req.params.id
+    });
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("Delete pricing tier error:", error);
+    res.status(500).json({ error: "Failed to delete pricing tier" });
+  }
+});
+router13.post("/pricing/calculate-discount", authMiddleware, async (req, res) => {
+  try {
+    const { subtotal } = req.body;
+    if (!subtotal || subtotal <= 0) {
+      return res.status(400).json({ error: "Valid subtotal is required" });
+    }
+    const result = await pricingService.calculateDiscount(subtotal);
+    res.json(result);
+  } catch (error) {
+    logger.error("Calculate discount error:", error);
+    res.status(500).json({ error: error.message || "Failed to calculate discount" });
+  }
+});
+router13.post("/pricing/calculate-taxes", authMiddleware, async (req, res) => {
+  try {
+    const { amount, region, useIGST } = req.body;
+    if (!amount || !region) {
+      return res.status(400).json({ error: "Amount and region are required" });
+    }
+    const taxes = await pricingService.calculateTaxes(amount, region, useIGST);
+    res.json(taxes);
+  } catch (error) {
+    logger.error("Calculate taxes error:", error);
+    res.status(500).json({ error: error.message || "Failed to calculate taxes" });
+  }
+});
+router13.post("/pricing/calculate-total", authMiddleware, async (req, res) => {
+  try {
+    const { subtotal, region, useIGST, shippingCharges, customDiscount } = req.body;
+    if (!subtotal || !region) {
+      return res.status(400).json({ error: "Subtotal and region are required" });
+    }
+    const total = await pricingService.calculateQuoteTotal({
+      subtotal,
+      region,
+      useIGST,
+      shippingCharges,
+      customDiscount
+    });
+    res.json(total);
+  } catch (error) {
+    logger.error("Calculate total error:", error);
+    res.status(500).json({ error: error.message || "Failed to calculate total" });
+  }
+});
+router13.post("/pricing/convert-currency", authMiddleware, async (req, res) => {
+  try {
+    const { amount, fromCurrency, toCurrency } = req.body;
+    if (!amount || !fromCurrency || !toCurrency) {
+      return res.status(400).json({ error: "Amount, fromCurrency, and toCurrency are required" });
+    }
+    const converted = await pricingService.convertCurrency(amount, fromCurrency, toCurrency);
+    res.json({ original: amount, converted, fromCurrency, toCurrency });
+  } catch (error) {
+    logger.error("Convert currency error:", error);
+    res.status(500).json({ error: error.message || "Failed to convert currency" });
+  }
+});
+var pricing_routes_default = router13;
+
+// server/routes/analytics.routes.ts
+import { Router as Router14 } from "express";
+init_storage();
+init_logger();
+
+// server/services/analytics.service.ts
+init_storage();
+init_cache_service();
+var AnalyticsService = class {
+  /**
+   * Get revenue forecast based on historical data
+   */
+  async getRevenueForecast(monthsAhead = 3) {
+    const cacheKey = `analytics:forecast:${monthsAhead}`;
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return cached;
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const allInvoices = await storage.getAllInvoices();
+      const now = /* @__PURE__ */ new Date();
+      const monthlyRevenue = {};
+      for (let i = 0; i < 12; i++) {
+        const date = new Date(now);
+        date.setMonth(date.getMonth() - i);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        monthlyRevenue[monthKey] = 0;
+      }
+      allInvoices.forEach((invoice) => {
+        const date = new Date(invoice.createdAt);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (monthlyRevenue.hasOwnProperty(monthKey)) {
+          monthlyRevenue[monthKey] += parseFloat((invoice.paidAmount || 0).toString());
+        }
+      });
+      const revenues = Object.values(monthlyRevenue).filter((v) => v > 0);
+      const avgRevenue = revenues.length > 0 ? revenues.reduce((a, b) => a + b, 0) / revenues.length : 0;
+      const forecast = [];
+      for (let i = 1; i <= monthsAhead; i++) {
+        const date = new Date(now);
+        date.setMonth(date.getMonth() + i);
+        const monthStr = date.toLocaleString("default", { month: "short", year: "numeric" });
+        forecast.push({
+          month: monthStr,
+          forecastedRevenue: this.roundAmount(avgRevenue * (1 + (Math.random() - 0.5) * 0.2)),
+          confidence: 0.75 + Math.random() * 0.15
+          // 75-90% confidence
+        });
+      }
+      await cacheService.set(cacheKey, forecast, 3600);
+      return forecast;
+    } catch (error) {
+      console.error("Error getting revenue forecast:", error);
+      return [];
+    }
+  }
+  /**
+   * Get deal distribution by value ranges
+   */
+  async getDealDistribution() {
+    const cacheKey = "analytics:deal_distribution";
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return cached;
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const ranges = [
+        { label: "0-10K", min: 0, max: 1e4 },
+        { label: "10K-50K", min: 1e4, max: 5e4 },
+        { label: "50K-100K", min: 5e4, max: 1e5 },
+        { label: "100K-500K", min: 1e5, max: 5e5 },
+        { label: "500K+", min: 5e5, max: Infinity }
+      ];
+      const distribution = ranges.map((range) => {
+        const quotesInRange = allQuotes.filter((q) => {
+          const total = parseFloat(q.total.toString());
+          return total >= range.min && total < range.max;
+        });
+        const totalValue = quotesInRange.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
+        return {
+          range: range.label,
+          count: quotesInRange.length,
+          totalValue: this.roundAmount(totalValue),
+          percentage: 0
+          // Will calculate after
+        };
+      });
+      const totalQuotes = distribution.reduce((sum, d) => sum + d.count, 0);
+      const result = distribution.map((d) => ({
+        ...d,
+        percentage: totalQuotes > 0 ? d.count / totalQuotes * 100 : 0
+      }));
+      await cacheService.set(cacheKey, result, 900);
+      return result;
+    } catch (error) {
+      console.error("Error getting deal distribution:", error);
+      return [];
+    }
+  }
+  /**
+   * Get regional sales distribution
+   */
+  async getRegionalDistribution() {
+    const cacheKey = "analytics:regional_distribution";
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return cached;
+    try {
+      const allClients = await storage.getAllClients();
+      const allQuotes = await storage.getAllQuotes();
+      const regionData = {};
+      for (const quote of allQuotes) {
+        const client = allClients.find((c) => c.id === quote.clientId);
+        const rawAddress = client?.billingAddress || client?.shippingAddress || "";
+        const addressParts = rawAddress.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.length > 0);
+        let region = "Unknown";
+        if (addressParts.length > 0) {
+          const last = addressParts[addressParts.length - 1];
+          if (/^[\d-]+$/.test(last) && addressParts.length > 1) {
+            region = addressParts[addressParts.length - 2];
+          } else {
+            region = last;
+          }
+        }
+        if ((region === "Unknown" || region.length < 3) && client?.gstin && client.gstin.length >= 2) {
+          const stateCode = client.gstin.substring(0, 2);
+          const stateMap = {
+            "01": "Jammu & Kashmir",
+            "02": "Himachal Pradesh",
+            "03": "Punjab",
+            "04": "Chandigarh",
+            "05": "Uttarakhand",
+            "06": "Haryana",
+            "07": "Delhi",
+            "08": "Rajasthan",
+            "09": "Uttar Pradesh",
+            "10": "Bihar",
+            "11": "Sikkim",
+            "12": "Arunachal Pradesh",
+            "13": "Nagaland",
+            "14": "Manipur",
+            "15": "Mizoram",
+            "16": "Tripura",
+            "17": "Meghalaya",
+            "18": "Assam",
+            "19": "West Bengal",
+            "20": "Jharkhand",
+            "21": "Odisha",
+            "22": "Chattisgarh",
+            "23": "Madhya Pradesh",
+            "24": "Gujarat",
+            "27": "Maharashtra",
+            "29": "Karnataka",
+            "30": "Goa",
+            "31": "Lakshadweep",
+            "32": "Kerala",
+            "33": "Tamil Nadu",
+            "34": "Puducherry",
+            "35": "Andaman & Nicobar",
+            "36": "Telangana",
+            "37": "Andhra Pradesh",
+            "38": "Ladakh"
+          };
+          if (stateMap[stateCode]) {
+            region = stateMap[stateCode];
+          }
+        }
+        if (!regionData[region]) {
+          regionData[region] = { count: 0, revenue: 0 };
+        }
+        regionData[region].count++;
+        regionData[region].revenue += parseFloat(quote.total.toString());
+      }
+      const totalQuotes = Object.values(regionData).reduce((sum, r) => sum + r.count, 0);
+      const result = Object.entries(regionData).map(([region, data]) => ({
+        region,
+        quoteCount: data.count,
+        totalRevenue: this.roundAmount(data.revenue),
+        percentage: totalQuotes > 0 ? data.count / totalQuotes * 100 : 0
+      }));
+      await cacheService.set(cacheKey, result, 3600);
+      return result;
+    } catch (error) {
+      console.error("Error getting regional distribution:", error);
+      return [];
+    }
+  }
+  /**
+   * Get custom report data
+   */
+  async getCustomReport(params) {
+    try {
+      let quotes2 = await storage.getAllQuotes();
+      const clients2 = await storage.getAllClients();
+      if (params.startDate) {
+        quotes2 = quotes2.filter((q) => new Date(q.createdAt) >= params.startDate);
+      }
+      if (params.endDate) {
+        quotes2 = quotes2.filter((q) => new Date(q.createdAt) <= params.endDate);
+      }
+      if (params.status) {
+        quotes2 = quotes2.filter((q) => q.status === params.status);
+      }
+      if (params.minAmount) {
+        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) >= params.minAmount);
+      }
+      if (params.maxAmount) {
+        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) <= params.maxAmount);
+      }
+      return quotes2.map((q) => {
+        const client = clients2.find((c) => c.id === q.clientId);
+        return {
+          quoteNumber: q.quoteNumber,
+          clientName: client?.name || "Unknown",
+          totalAmount: this.roundAmount(parseFloat(q.total.toString())),
+          status: q.status,
+          createdDate: q.createdAt
+        };
+      });
+    } catch (error) {
+      console.error("Error getting custom report:", error);
+      return [];
+    }
+  }
+  /**
+   * Get sales pipeline data
+   */
+  async getSalesPipeline() {
+    const cacheKey = "analytics:sales_pipeline";
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return cached;
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const stages = ["draft", "sent", "approved", "rejected", "invoiced"];
+      const pipeline = stages.map((stage) => {
+        const stageQuotes = allQuotes.filter((q) => q.status === stage);
+        const totalValue = stageQuotes.reduce((sum, q) => sum + parseFloat(q.total.toString()), 0);
+        const avgDealValue = stageQuotes.length > 0 ? totalValue / stageQuotes.length : 0;
+        return {
+          stage,
+          count: stageQuotes.length,
+          totalValue: this.roundAmount(totalValue),
+          avgDealValue: this.roundAmount(avgDealValue)
+        };
+      });
+      await cacheService.set(cacheKey, pipeline, 300);
+      return pipeline;
+    } catch (error) {
+      console.error("Error getting sales pipeline:", error);
+      return [];
+    }
+  }
+  /**
+   * Get client lifetime value
+   */
+  async getClientLifetimeValue(clientId) {
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const clientQuotes = allQuotes.filter((q) => q.clientId === clientId);
+      const allInvoices = await storage.getAllInvoices();
+      const clientInvoices = allInvoices.filter((i) => {
+        const quote = clientQuotes.find((q) => q.id === i.quoteId);
+        return !!quote;
+      });
+      const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
+      const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
+      const conversionRate = clientQuotes.length > 0 ? clientInvoices.length / clientQuotes.length * 100 : 0;
+      return {
+        totalQuotes: clientQuotes.length,
+        totalInvoices: clientInvoices.length,
+        totalRevenue: this.roundAmount(totalRevenue),
+        averageDealSize: this.roundAmount(avgDealSize),
+        conversionRate: parseFloat(conversionRate.toFixed(2))
+      };
+    } catch (error) {
+      console.error("Error getting client lifetime value:", error);
+      return {
+        totalQuotes: 0,
+        totalInvoices: 0,
+        totalRevenue: 0,
+        averageDealSize: 0,
+        conversionRate: 0
+      };
+    }
+  }
+  /**
+   * Get competitor analysis insights
+   */
+  async getCompetitorInsights() {
+    const cacheKey = "analytics:competitor_insights";
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return cached;
+    try {
+      const allQuotes = await storage.getAllQuotes();
+      const allInvoices = await storage.getAllInvoices();
+      if (allQuotes.length === 0) {
+        return {
+          avgQuoteValue: 0,
+          medianQuoteValue: 0,
+          quoteFrequency: 0,
+          conversionTrend: 0
+        };
+      }
+      const values = allQuotes.map((q) => parseFloat(q.total.toString())).sort((a, b) => a - b);
+      const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
+      const medianValue = values.length % 2 === 0 ? (values[values.length / 2 - 1] + values[values.length / 2]) / 2 : values[Math.floor(values.length / 2)];
+      const weekAgo = /* @__PURE__ */ new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const recentQuotes = allQuotes.filter((q) => new Date(q.createdAt) >= weekAgo);
+      const quoteFrequency = recentQuotes.length;
+      const conversionCount = allInvoices.length;
+      const conversionTrend = allQuotes.length > 0 ? conversionCount / allQuotes.length * 100 : 0;
+      const result = {
+        avgQuoteValue: this.roundAmount(avgValue),
+        medianQuoteValue: this.roundAmount(medianValue),
+        quoteFrequency,
+        conversionTrend: parseFloat(conversionTrend.toFixed(2))
+      };
+      await cacheService.set(cacheKey, result, 3600);
+      return result;
+    } catch (error) {
+      console.error("Error getting competitor insights:", error);
+      return {
+        avgQuoteValue: 0,
+        medianQuoteValue: 0,
+        quoteFrequency: 0,
+        conversionTrend: 0
+      };
+    }
+  }
+  roundAmount(amount) {
+    return Math.round(amount * 100) / 100;
+  }
+};
+var analyticsService = new AnalyticsService();
+
+// server/routes/analytics.routes.ts
+init_db();
+import { sql as sql10 } from "drizzle-orm";
+import ExcelJS2 from "exceljs";
+var router14 = Router14();
+router14.get("/dashboard", authMiddleware, async (req, res) => {
+  try {
+    const quotes2 = await storage.getAllQuotes();
+    const clients2 = await storage.getAllClients();
+    const invoices2 = await storage.getAllInvoices();
+    const totalQuotes = quotes2.length;
+    const totalClients = clients2.length;
+    const safeToNum = (val) => {
+      if (typeof val === "number") return val;
+      if (!val) return 0;
+      const str = String(val).replace(/[^0-9.-]+/g, "");
+      return parseFloat(str) || 0;
+    };
+    const approvedQuotes = quotes2.filter((q) => q.status === "approved" || q.status === "invoiced" || q.status === "closed_paid");
+    const totalRevenue = invoices2.reduce((sum, inv) => sum + safeToNum(inv.paidAmount), 0);
+    const conversionRate = totalQuotes > 0 ? (approvedQuotes.length / totalQuotes * 100).toFixed(1) : "0";
+    const recentQuotes = await Promise.all(
+      quotes2.slice(0, 5).map(async (quote) => {
+        const client = await storage.getClient(quote.clientId);
+        return {
+          id: quote.id,
+          quoteNumber: quote.quoteNumber,
+          clientName: client?.name || "Unknown",
+          total: quote.total,
+          status: quote.status,
+          createdAt: quote.createdAt
+        };
+      })
+    );
+    const clientMap = new Map(clients2.map((c) => [c.id, c]));
+    const clientRevenue = /* @__PURE__ */ new Map();
+    for (const inv of invoices2) {
+      if (!inv.clientId) continue;
+      const paid = safeToNum(inv.paidAmount);
+      if (paid <= 0) continue;
+      const client = clientMap.get(inv.clientId);
+      if (!client) continue;
+      const existing = clientRevenue.get(inv.clientId);
+      if (existing) {
+        existing.totalRevenue += paid;
+        existing.quoteCount += 1;
+      } else {
+        clientRevenue.set(inv.clientId, {
+          name: client.name,
+          totalRevenue: paid,
+          quoteCount: 1
+        });
+      }
+    }
+    const topClients = Array.from(clientRevenue.values()).map((c) => ({
+      name: c.name,
+      total: c.totalRevenue,
+      // Send as number
+      quoteCount: c.quoteCount
+    })).sort((a, b) => b.total - a.total).slice(0, 5);
+    const quotesByStatus = quotes2.reduce((acc, quote) => {
+      const existing = acc.find((item) => item.status === quote.status);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        acc.push({ status: quote.status, count: 1 });
+      }
+      return acc;
+    }, []);
+    const monthlyRevenue = [];
+    for (let i = 5; i >= 0; i--) {
+      const date = /* @__PURE__ */ new Date();
+      date.setMonth(date.getMonth() - i);
+      const month = date.toLocaleDateString("en-US", { month: "short" });
+      const monthQuotes = approvedQuotes.filter((q) => {
+        const qDate = new Date(q.createdAt);
+        return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
+      });
+      const revenue = monthQuotes.reduce((sum, q) => sum + safeToNum(q.total), 0);
+      monthlyRevenue.push({ month, revenue });
+    }
+    return res.json({
+      totalQuotes,
+      totalClients,
+      totalRevenue: totalRevenue.toFixed(2),
+      conversionRate,
+      recentQuotes,
+      topClients,
+      quotesByStatus,
+      monthlyRevenue
+    });
+  } catch (error) {
+    logger.error("Analytics error:", error);
+    return res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router14.get("/:timeRange(\\d+)", authMiddleware, async (req, res) => {
+  try {
+    const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
+    const quotes2 = await storage.getAllQuotes();
+    const clients2 = await storage.getAllClients();
+    const cutoffDate = /* @__PURE__ */ new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
+    const filteredQuotes = quotes2.filter((q) => new Date(q.createdAt) >= cutoffDate);
+    const approvedQuotes = filteredQuotes.filter((q) => q.status === "approved" || q.status === "invoiced");
+    const totalRevenue = approvedQuotes.reduce((sum, q) => sum + Number(q.total), 0);
+    const avgQuoteValue = filteredQuotes.length > 0 ? (filteredQuotes.reduce((sum, q) => sum + Number(q.total), 0) / filteredQuotes.length).toFixed(2) : "0";
+    const conversionRate = filteredQuotes.length > 0 ? (approvedQuotes.length / filteredQuotes.length * 100).toFixed(1) : "0";
+    const monthlyData = [];
+    for (let i = timeRange - 1; i >= 0; i--) {
+      const date = /* @__PURE__ */ new Date();
+      date.setMonth(date.getMonth() - i);
+      const month = date.toLocaleDateString("en-US", { month: "short" });
+      const monthQuotes = filteredQuotes.filter((q) => {
+        const qDate = new Date(q.createdAt);
+        return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
+      });
+      const monthApproved = monthQuotes.filter((q) => q.status === "approved" || q.status === "invoiced");
+      const revenue = monthApproved.reduce((sum, q) => sum + Number(q.total), 0);
+      monthlyData.push({
+        month,
+        quotes: monthQuotes.length,
+        revenue,
+        conversions: monthApproved.length
+      });
+    }
+    const clientRevenue = /* @__PURE__ */ new Map();
+    for (const quote of approvedQuotes) {
+      const client = await storage.getClient(quote.clientId);
+      if (!client) continue;
+      const existing = clientRevenue.get(client.id);
+      if (existing) {
+        existing.totalRevenue += Number(quote.total);
+        existing.quoteCount += 1;
+      } else {
+        clientRevenue.set(client.id, {
+          name: client.name,
+          totalRevenue: Number(quote.total),
+          quoteCount: 1
+        });
+      }
+    }
+    const topClients = Array.from(clientRevenue.values()).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10).map((c) => ({
+      name: c.name,
+      totalRevenue: c.totalRevenue.toFixed(2),
+      quoteCount: c.quoteCount
+    }));
+    const statusBreakdown = filteredQuotes.reduce((acc, quote) => {
+      const existing = acc.find((item) => item.status === quote.status);
+      const value = Number(quote.total);
+      if (existing) {
+        existing.count += 1;
+        existing.value += value;
+      } else {
+        acc.push({ status: quote.status, count: 1, value });
+      }
+      return acc;
+    }, []);
+    return res.json({
+      overview: {
+        totalQuotes: filteredQuotes.length,
+        totalRevenue: totalRevenue.toFixed(2),
+        avgQuoteValue,
+        conversionRate
+      },
+      monthlyData,
+      topClients,
+      statusBreakdown
+    });
+  } catch (error) {
+    logger.error("Analytics error:", error);
+    return res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router14.get("/forecast", authMiddleware, async (req, res) => {
+  try {
+    const monthsAhead = req.query.months ? Number(req.query.months) : 3;
+    const forecast = await analyticsService.getRevenueForecast(monthsAhead);
+    return res.json(forecast);
+  } catch (error) {
+    logger.error("Forecast error:", error);
+    return res.status(500).json({ error: "Failed to fetch forecast" });
+  }
+});
+router14.get("/deal-distribution", authMiddleware, async (req, res) => {
+  try {
+    const distribution = await analyticsService.getDealDistribution();
+    return res.json(distribution);
+  } catch (error) {
+    logger.error("Deal distribution error:", error);
+    return res.status(500).json({ error: "Failed to fetch deal distribution" });
+  }
+});
+router14.get("/regional", authMiddleware, async (req, res) => {
+  try {
+    const regionalData = await analyticsService.getRegionalDistribution();
+    return res.json(regionalData);
+  } catch (error) {
+    logger.error("Regional data error:", error);
+    return res.status(500).json({ error: "Failed to fetch regional data" });
+  }
+});
+router14.post("/custom-report", authMiddleware, async (req, res) => {
+  try {
+    const { startDate, endDate, status, minAmount, maxAmount } = req.body;
+    const report = await analyticsService.getCustomReport({
+      startDate: startDate ? new Date(startDate) : void 0,
+      endDate: endDate ? new Date(endDate) : void 0,
+      status,
+      minAmount,
+      maxAmount
+    });
+    return res.json(report);
+  } catch (error) {
+    logger.error("Custom report error:", error);
+    return res.status(500).json({ error: "Failed to generate custom report" });
+  }
+});
+router14.get("/pipeline", authMiddleware, async (req, res) => {
+  try {
+    const pipeline = await analyticsService.getSalesPipeline();
+    return res.json(pipeline);
+  } catch (error) {
+    logger.error("Pipeline error:", error);
+    return res.status(500).json({ error: "Failed to fetch pipeline data" });
+  }
+});
+router14.get("/client/:clientId/ltv", authMiddleware, async (req, res) => {
+  try {
+    const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
+    return res.json(ltv);
+  } catch (error) {
+    logger.error("LTV error:", error);
+    return res.status(500).json({ error: "Failed to fetch client LTV" });
+  }
+});
+router14.get("/competitor-insights", authMiddleware, async (req, res) => {
+  try {
+    const insights = await analyticsService.getCompetitorInsights();
+    return res.json(insights);
+  } catch (error) {
+    logger.error("Competitor insights error:", error);
+    return res.status(500).json({ error: "Failed to fetch competitor insights" });
+  }
+});
+router14.get("/vendor-spend", authMiddleware, async (req, res) => {
+  try {
+    const timeRange = req.query.timeRange ? Number(req.query.timeRange) : 12;
+    const vendors2 = await storage.getAllVendors();
+    const vendorPos = await storage.getAllVendorPos();
+    const cutoffDate = /* @__PURE__ */ new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
+    const filteredPos = vendorPos.filter((po) => new Date(po.createdAt) >= cutoffDate);
+    const vendorSpend = /* @__PURE__ */ new Map();
+    for (const po of filteredPos) {
+      const vendor = vendors2.find((v) => v.id === po.vendorId);
+      if (vendor) {
+        const existing = vendorSpend.get(po.vendorId);
+        const poTotal = Number(po.total);
+        if (existing) {
+          existing.totalSpend += poTotal;
+          existing.poCount += 1;
+        } else {
+          vendorSpend.set(po.vendorId, {
+            vendorId: po.vendorId,
+            vendorName: vendor.name,
+            totalSpend: poTotal,
+            poCount: 1,
+            status: po.status
+          });
+        }
+      }
+    }
+    const topVendors = Array.from(vendorSpend.values()).sort((a, b) => b.totalSpend - a.totalSpend).slice(0, 10).map((v) => ({
+      vendorId: v.vendorId,
+      vendorName: v.vendorName,
+      totalSpend: v.totalSpend.toFixed(2),
+      poCount: v.poCount,
+      avgPoValue: (v.totalSpend / v.poCount).toFixed(2)
+    }));
+    const totalSpend = filteredPos.reduce((sum, po) => sum + Number(po.total), 0);
+    const delayedPos = filteredPos.filter((po) => {
+      if (po.status === "fulfilled" && po.expectedDeliveryDate && po.actualDeliveryDate) {
+        return new Date(po.actualDeliveryDate) > new Date(po.expectedDeliveryDate);
+      }
+      if (po.status !== "fulfilled" && po.expectedDeliveryDate) {
+        return /* @__PURE__ */ new Date() > new Date(po.expectedDeliveryDate);
+      }
+      return false;
+    });
+    const vendorPerformance = Array.from(vendorSpend.values()).map((v) => {
+      const vendorPOs = filteredPos.filter((po) => po.vendorId === v.vendorId);
+      const onTimePOs = vendorPOs.filter((po) => {
+        if (po.status === "fulfilled" && po.expectedDeliveryDate && po.actualDeliveryDate) {
+          return new Date(po.actualDeliveryDate) <= new Date(po.expectedDeliveryDate);
+        }
+        return false;
+      });
+      const fulfilledCount = vendorPOs.filter((po) => po.status === "fulfilled").length;
+      const onTimeRate = fulfilledCount > 0 ? (onTimePOs.length / fulfilledCount * 100).toFixed(1) : "0";
+      return {
+        vendorName: v.vendorName,
+        totalPOs: vendorPOs.length,
+        fulfilledPOs: fulfilledCount,
+        onTimeDeliveryRate: onTimeRate + "%",
+        totalSpend: v.totalSpend.toFixed(2)
+      };
+    }).sort((a, b) => Number(b.totalSpend) - Number(a.totalSpend));
+    return res.json({
+      overview: {
+        totalSpend: totalSpend.toFixed(2),
+        totalPOs: filteredPos.length,
+        activeVendors: vendorSpend.size,
+        delayedPOs: delayedPos.length,
+        avgPoValue: filteredPos.length > 0 ? (totalSpend / filteredPos.length).toFixed(2) : "0"
+      },
+      topVendors,
+      vendorPerformance,
+      procurementDelays: {
+        count: delayedPos.length,
+        percentage: filteredPos.length > 0 ? (delayedPos.length / filteredPos.length * 100).toFixed(1) : "0"
+      }
+    });
+  } catch (error) {
+    logger.error("Vendor analytics error:", error);
+    return res.status(500).json({ error: "Failed to fetch vendor analytics" });
+  }
+});
+router14.get("/export", authMiddleware, async (req, res) => {
+  try {
+    const timeRange = req.query.timeRange || "12";
+    let startDate;
+    let endDate = /* @__PURE__ */ new Date();
+    if (timeRange !== "all") {
+      const months = parseInt(timeRange);
+      if (!isNaN(months)) {
+        startDate = /* @__PURE__ */ new Date();
+        startDate.setMonth(startDate.getMonth() - months);
+      }
+    }
+    const quotesList = await analyticsService.getCustomReport({ startDate, endDate });
+    const pipelineData = await analyticsService.getSalesPipeline();
+    const regionalData = await analyticsService.getRegionalDistribution();
+    const totalQuotes = quotesList.length;
+    const totalRevenue = quotesList.reduce((sum, q) => sum + q.totalAmount, 0);
+    const avgDealSize = totalQuotes > 0 ? totalRevenue / totalQuotes : 0;
+    const statusCounts = {};
+    quotesList.forEach((q) => {
+      statusCounts[q.status] = (statusCounts[q.status] || 0) + 1;
+    });
+    const workbook = new ExcelJS2.Workbook();
+    workbook.creator = "T-Quoting Tool";
+    workbook.created = /* @__PURE__ */ new Date();
+    const summarySheet = workbook.addWorksheet("Overview");
+    summarySheet.columns = [
+      { header: "Metric", key: "metric", width: 25 },
+      { header: "Value", key: "value", width: 25, style: { numFmt: "#,##0.00" } }
+    ];
+    summarySheet.addRows([
+      { metric: "Report Date", value: (/* @__PURE__ */ new Date()).toLocaleDateString() },
+      { metric: "Time Range", value: timeRange === "all" ? "All Time" : `Last ${timeRange} Months` },
+      {},
+      // Empty row
+      { metric: "Total Quotes", value: totalQuotes },
+      { metric: "Total Revenue", value: totalRevenue },
+      { metric: "Average Deal Size", value: avgDealSize }
+    ]);
+    summarySheet.getRow(2).getCell("value").numFmt = "@";
+    summarySheet.getRow(3).getCell("value").numFmt = "@";
+    summarySheet.getRow(5).getCell("value").numFmt = "#,##0";
+    summarySheet.getRow(6).getCell("value").numFmt = "#,##0.00";
+    summarySheet.getRow(7).getCell("value").numFmt = "#,##0.00";
+    summarySheet.getRow(1).font = { bold: true, size: 14 };
+    summarySheet.getCell("A9").value = "Pipeline Stage";
+    summarySheet.getCell("B9").value = "Count";
+    summarySheet.getCell("C9").value = "Value";
+    summarySheet.getCell("A9").font = { bold: true };
+    summarySheet.getCell("B9").font = { bold: true };
+    summarySheet.getCell("C9").font = { bold: true };
+    let currentRow = 10;
+    pipelineData.forEach((stage) => {
+      summarySheet.getCell(`A${currentRow}`).value = stage.stage;
+      summarySheet.getCell(`B${currentRow}`).value = stage.count;
+      summarySheet.getCell(`C${currentRow}`).value = stage.totalValue;
+      summarySheet.getCell(`C${currentRow}`).numFmt = "#,##0.00";
+      currentRow++;
+    });
+    const regionSheet = workbook.addWorksheet("Regional Performance");
+    regionSheet.columns = [
+      { header: "Region", key: "region", width: 20 },
+      { header: "Quotes", key: "count", width: 15, style: { numFmt: "#,##0" } },
+      { header: "Revenue", key: "revenue", width: 20, style: { numFmt: "#,##0.00" } },
+      { header: "Share (%)", key: "share", width: 15, style: { numFmt: '0.0"%"' } }
+    ];
+    regionSheet.getRow(1).font = { bold: true };
+    regionalData.forEach((r) => {
+      regionSheet.addRow({
+        region: r.region,
+        count: r.quoteCount,
+        revenue: r.totalRevenue,
+        share: r.percentage.toFixed(1)
+      });
+    });
+    const quotesSheet = workbook.addWorksheet("Quote Details");
+    quotesSheet.columns = [
+      { header: "Quote Number", key: "quoteNumber", width: 20 },
+      { header: "Client", key: "clientName", width: 30 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Amount", key: "totalAmount", width: 20, style: { numFmt: "#,##0.00" } },
+      { header: "Date", key: "createdDate", width: 20 }
+    ];
+    quotesSheet.getRow(1).font = { bold: true };
+    quotesList.forEach((q) => {
+      quotesSheet.addRow({
+        quoteNumber: q.quoteNumber,
+        clientName: q.clientName,
+        status: q.status,
+        totalAmount: q.totalAmount,
+        createdDate: new Date(q.createdDate).toLocaleDateString()
+      });
+    });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Analytics_Report_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    logger.error("Error exporting analytics report:", error);
+    res.status(500).json({ error: "Failed to export report" });
+  }
+});
+router14.get("/sales-quotes", authMiddleware, async (req, res) => {
+  try {
+    const allQuotes = await storage.getAllQuotes();
+    const allClients = await storage.getAllClients();
+    const quotesByStatus = {
+      draft: 0,
+      sent: 0,
+      approved: 0,
+      rejected: 0,
+      invoiced: 0
+    };
+    const valueByStatus = {
+      draft: 0,
+      sent: 0,
+      approved: 0,
+      rejected: 0,
+      invoiced: 0
+    };
+    allQuotes.forEach((quote) => {
+      const status = quote.status;
+      if (quotesByStatus.hasOwnProperty(status)) {
+        quotesByStatus[status]++;
+        valueByStatus[status] = add(valueByStatus[status], quote.total).toNumber();
+      }
+    });
+    const sentQuotes = quotesByStatus.sent + quotesByStatus.approved + quotesByStatus.rejected;
+    const conversionRate = sentQuotes > 0 ? quotesByStatus.approved / sentQuotes * 100 : 0;
+    const totalValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
+    const averageQuoteValue = allQuotes.length > 0 ? divide(totalValue, allQuotes.length).toNumber() : 0;
+    const customerQuotes = /* @__PURE__ */ new Map();
+    allQuotes.forEach((quote) => {
+      const existing = customerQuotes.get(quote.clientId);
+      const value = toDecimal(quote.total);
+      if (existing) {
+        existing.count++;
+        existing.value = add(existing.value, value).toNumber();
+      } else {
+        const client = allClients.find((c) => c.id === quote.clientId);
+        if (client) {
+          customerQuotes.set(quote.clientId, {
+            name: client.name,
+            count: 1,
+            value: value.toNumber()
+          });
+        }
+      }
+    });
+    const topCustomers = Array.from(customerQuotes.entries()).map(([id, data]) => ({
+      id,
+      name: data.name,
+      quoteCount: data.count,
+      totalValue: data.value
+    })).sort((a, b) => b.totalValue - a.totalValue).slice(0, 10);
+    const monthlyData = /* @__PURE__ */ new Map();
+    allQuotes.forEach((quote) => {
+      const date = new Date(quote.createdAt);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const existing = monthlyData.get(monthKey);
+      if (existing) {
+        existing.quotes++;
+        existing.value = add(existing.value, quote.total).toNumber();
+        if (quote.status === "approved") existing.approved++;
+      } else {
+        monthlyData.set(monthKey, {
+          quotes: 1,
+          value: toDecimal(quote.total).toNumber(),
+          approved: quote.status === "approved" ? 1 : 0
+        });
+      }
+    });
+    const monthlyTrend = Array.from(monthlyData.entries()).map(([month, data]) => ({ month, ...data })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+    res.json({
+      quotesByStatus,
+      valueByStatus,
+      conversionRate,
+      averageQuoteValue: Math.round(averageQuoteValue),
+      totalQuoteValue: Math.round(totalValue.toNumber()),
+      topCustomers,
+      monthlyTrend
+    });
+  } catch (error) {
+    logger.error("Error fetching sales analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router14.get("/vendor-po", authMiddleware, async (req, res) => {
+  try {
+    const allPOs = await db.execute(sql10`
+      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
+    `);
+    const allVendors = await storage.getAllVendors();
+    const posByStatus = {
+      draft: 0,
+      sent: 0,
+      acknowledged: 0,
+      fulfilled: 0,
+      cancelled: 0
+    };
+    let totalPOValue = 0;
+    allPOs.rows.forEach((po) => {
+      const status = po.status;
+      if (posByStatus.hasOwnProperty(status)) {
+        posByStatus[status]++;
+      }
+      totalPOValue += parseFloat(po.total_amount || 0);
+    });
+    const averagePOValue = allPOs.rows.length > 0 ? totalPOValue / allPOs.rows.length : 0;
+    const fulfillmentRate = allPOs.rows.length > 0 ? posByStatus.fulfilled / allPOs.rows.length * 100 : 0;
+    const vendorSpend = /* @__PURE__ */ new Map();
+    allPOs.rows.forEach((po) => {
+      const existing = vendorSpend.get(po.vendor_id);
+      const amount = toDecimal(po.total_amount);
+      if (existing) {
+        existing.spend = add(existing.spend, amount).toNumber();
+        existing.count++;
+      } else {
+        const vendor = allVendors.find((v) => v.id === po.vendor_id);
+        if (vendor) {
+          vendorSpend.set(po.vendor_id, {
+            name: vendor.name,
+            spend: amount.toNumber(),
+            count: 1
+          });
+        }
+      }
+    });
+    const spendByVendor = Array.from(vendorSpend.entries()).map(([vendorId, data]) => ({
+      vendorId,
+      vendorName: data.name,
+      totalSpend: Math.round(data.spend),
+      poCount: data.count
+    })).sort((a, b) => b.totalSpend - a.totalSpend);
+    const monthlySpendMap = /* @__PURE__ */ new Map();
+    allPOs.rows.forEach((po) => {
+      const date = new Date(po.created_at);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const existing = monthlySpendMap.get(monthKey);
+      const amount = toDecimal(po.total_amount);
+      if (existing) {
+        existing.spend = add(existing.spend, amount).toNumber();
+        existing.count++;
+      } else {
+        monthlySpendMap.set(monthKey, { spend: amount.toNumber(), count: 1 });
+      }
+    });
+    const monthlySpend = Array.from(monthlySpendMap.entries()).map(([month, data]) => ({ month, spend: Math.round(data.spend), poCount: data.count })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+    const poVsGrnVariance = [];
+    res.json({
+      posByStatus,
+      totalPOValue: Math.round(totalPOValue),
+      averagePOValue: Math.round(averagePOValue),
+      spendByVendor,
+      monthlySpend,
+      poVsGrnVariance,
+      fulfillmentRate
+    });
+  } catch (error) {
+    logger.error("Error fetching PO analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router14.get("/invoice-collections", authMiddleware, async (req, res) => {
+  try {
+    const allInvoices = await storage.getAllInvoices();
+    const allClients = await storage.getAllClients();
+    const invoicesByStatus = {
+      draft: 0,
+      sent: 0,
+      partial: 0,
+      paid: 0,
+      overdue: 0
+    };
+    let totalOutstanding = 0;
+    let totalPaid = 0;
+    let overdueAmount = 0;
+    let totalCollectionDays = 0;
+    let paidInvoicesCount = 0;
+    const now = /* @__PURE__ */ new Date();
+    allInvoices.forEach((invoice) => {
+      const paidAmt = toDecimal(invoice.paidAmount);
+      const totalAmt = toDecimal(invoice.total);
+      const remaining = subtract(totalAmt, paidAmt).toNumber();
+      if (invoice.paymentStatus === "paid") {
+        invoicesByStatus.paid++;
+        totalPaid = add(totalPaid, totalAmt).toNumber();
+        const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
+        const paidDate = invoice.lastPaymentDate ? new Date(invoice.lastPaymentDate) : new Date(invoice.updatedAt);
+        const days = Math.floor((paidDate.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        if (days >= 0) {
+          totalCollectionDays += days;
+          paidInvoicesCount++;
+        }
+      } else if (invoice.paymentStatus === "partial") {
+        invoicesByStatus.partial++;
+        totalOutstanding += remaining;
+      } else if (invoice.paymentStatus === "overdue") {
+        invoicesByStatus.overdue++;
+        totalOutstanding += remaining;
+        overdueAmount += remaining;
+      } else if (invoice.paymentStatus === "pending") {
+        const invoiceDate = new Date(invoice.createdAt);
+        const daysSince = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        if (daysSince > 30) {
+          invoicesByStatus.overdue++;
+          overdueAmount += remaining;
+        } else {
+          invoicesByStatus.sent++;
+        }
+        totalOutstanding += remaining;
+      }
+    });
+    const averageCollectionDays = paidInvoicesCount > 0 ? Math.round(totalCollectionDays / paidInvoicesCount) : 0;
+    const ageingBuckets = [
+      { bucket: "0-30 days", count: 0, amount: 0 },
+      { bucket: "31-60 days", count: 0, amount: 0 },
+      { bucket: "61-90 days", count: 0, amount: 0 },
+      { bucket: "90+ days", count: 0, amount: 0 }
+    ];
+    allInvoices.forEach((invoice) => {
+      if (invoice.paymentStatus !== "paid") {
+        const invoiceDate = new Date(invoice.createdAt);
+        const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        const remaining = subtract(invoice.total, invoice.paidAmount).toNumber();
+        if (days <= 30) {
+          ageingBuckets[0].count++;
+          ageingBuckets[0].amount += remaining;
+        } else if (days <= 60) {
+          ageingBuckets[1].count++;
+          ageingBuckets[1].amount += remaining;
+        } else if (days <= 90) {
+          ageingBuckets[2].count++;
+          ageingBuckets[2].amount += remaining;
+        } else {
+          ageingBuckets[3].count++;
+          ageingBuckets[3].amount += remaining;
+        }
+      }
+    });
+    ageingBuckets.forEach((bucket) => {
+      bucket.amount = Math.round(bucket.amount);
+    });
+    const monthlyMap = /* @__PURE__ */ new Map();
+    allInvoices.forEach((invoice) => {
+      const date = new Date(invoice.createdAt);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const existing = monthlyMap.get(monthKey);
+      const totalAmt = toDecimal(invoice.total).toNumber();
+      const paidAmt = toDecimal(invoice.paidAmount).toNumber();
+      if (existing) {
+        existing.invoiced += totalAmt;
+        existing.collected += paidAmt;
+      } else {
+        monthlyMap.set(monthKey, {
+          invoiced: totalAmt,
+          collected: paidAmt
+        });
+      }
+    });
+    const monthlyCollections = Array.from(monthlyMap.entries()).map(([month, data]) => ({
+      month,
+      invoiced: Math.round(data.invoiced),
+      collected: Math.round(data.collected)
+    })).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+    const debtorMap = /* @__PURE__ */ new Map();
+    allInvoices.forEach((invoice) => {
+      const remaining = toDecimal(invoice.remainingAmount);
+      const calcRemaining = subtract(invoice.total, invoice.paidAmount);
+      const outstanding = Math.max(remaining.toNumber(), calcRemaining.toNumber());
+      if (outstanding > 0 && invoice.clientId) {
+        const existing = debtorMap.get(invoice.clientId);
+        const invoiceDate = new Date(invoice.createdAt);
+        const days = Math.floor((now.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
+        if (existing) {
+          existing.outstanding += outstanding;
+          existing.count++;
+          existing.oldestDays = Math.max(existing.oldestDays, days);
+        } else {
+          const client = allClients.find((c) => c.id === invoice.clientId);
+          debtorMap.set(invoice.clientId, {
+            name: client?.name || "Unknown Client",
+            outstanding,
+            count: 1,
+            oldestDays: days
+          });
+        }
+      }
+    });
+    const topDebtors = Array.from(debtorMap.entries()).map(([clientId, data]) => ({
+      clientId,
+      clientName: data.name,
+      outstandingAmount: Math.round(data.outstanding),
+      invoiceCount: data.count,
+      oldestInvoiceDays: data.oldestDays
+    })).sort((a, b) => b.outstandingAmount - a.outstandingAmount).slice(0, 20);
+    res.json({
+      invoicesByStatus,
+      totalOutstanding: Math.round(totalOutstanding),
+      totalPaid: Math.round(totalPaid),
+      overdueAmount: Math.round(overdueAmount),
+      averageCollectionDays,
+      ageingBuckets,
+      monthlyCollections,
+      topDebtors
+    });
+  } catch (error) {
+    logger.error("Error fetching invoice analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+router14.get("/serial-tracking", authMiddleware, async (req, res) => {
+  try {
+    const serialNumbers2 = await db.execute(sql10`
+      SELECT * FROM serial_numbers ORDER BY created_at DESC
+    `);
+    const totalSerials = serialNumbers2.rows.length;
+    const serialsByStatus = {
+      delivered: 0,
+      in_stock: 0,
+      returned: 0,
+      defective: 0
+    };
+    serialNumbers2.rows.forEach((serial2) => {
+      const status = serial2.status;
+      if (serialsByStatus.hasOwnProperty(status)) {
+        serialsByStatus[status]++;
+      }
+    });
+    const serialsByProduct = [];
+    const now = /* @__PURE__ */ new Date();
+    const warrantyExpiring = serialNumbers2.rows.filter((serial2) => serial2.warranty_end_date).map((serial2) => {
+      const endDate = new Date(serial2.warranty_end_date);
+      const daysRemaining = Math.floor((endDate.getTime() - now.getTime()) / (1e3 * 60 * 60 * 24));
+      return {
+        serialNumber: serial2.serial_number,
+        productName: "Product",
+        customerName: "Customer",
+        warrantyEndDate: serial2.warranty_end_date,
+        daysRemaining
+      };
+    }).filter((item) => item.daysRemaining > 0 && item.daysRemaining <= 90).sort((a, b) => a.daysRemaining - b.daysRemaining);
+    res.json({
+      totalSerials,
+      serialsByProduct,
+      warrantyExpiring,
+      serialsByStatus
+    });
+  } catch (error) {
+    logger.error("Error fetching serial tracking analytics:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+var analytics_routes_default = router14;
 
 // server/routes.ts
+init_logger();
+init_cache_service();
 async function registerRoutes(app2) {
   app2.use("/api/auth", auth_routes_default);
-  app2.use("/api", authMiddleware, analytics_routes_default);
   app2.use("/api", authMiddleware, quote_workflow_routes_default);
   app2.use("/api/users", authMiddleware, users_routes_default);
   app2.use("/api/clients", authMiddleware, clients_routes_default);
@@ -12555,10 +13578,15 @@ async function registerRoutes(app2) {
   app2.use("/api", authMiddleware, vendors_routes_default);
   app2.use("/api", authMiddleware, settings_routes_default);
   app2.use("/api/serial-numbers", authMiddleware, serial_numbers_routes_default);
+  app2.use("/api/approval-rules", authMiddleware, approval_rules_routes_default);
+  app2.use("/api", authMiddleware, pricing_routes_default);
   app2.get("/api/templates", authMiddleware, async (req, res) => {
     try {
       const type = req.query.type;
       const style = req.query.style;
+      const cacheKey = `templates:list:${type || "all"}:${style || "all"}`;
+      const cached = await cacheService.get(cacheKey);
+      if (cached) return res.json(cached);
       let templates2;
       if (type) {
         templates2 = await storage.getTemplatesByType(type);
@@ -12567,6 +13595,7 @@ async function registerRoutes(app2) {
       } else {
         templates2 = await storage.getAllTemplates();
       }
+      await cacheService.set(cacheKey, templates2, 300);
       return res.json(templates2);
     } catch (error) {
       return res.status(500).json({ error: "Failed to fetch templates" });
@@ -12593,10 +13622,14 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/templates/:id", authMiddleware, async (req, res) => {
     try {
+      const cacheKey = `templates:id:${req.params.id}`;
+      const cached = await cacheService.get(cacheKey);
+      if (cached) return res.json(cached);
       const template = await storage.getTemplate(req.params.id);
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
       }
+      await cacheService.set(cacheKey, template, 3600);
       return res.json(template);
     } catch (error) {
       return res.status(500).json({ error: "Failed to fetch template" });
@@ -12632,6 +13665,7 @@ async function registerRoutes(app2) {
         entityType: "template",
         entityId: template.id
       });
+      await cacheService.del(`templates:id:${req.params.id}`);
       return res.json(template);
     } catch (error) {
       logger.error("Update template error:", error);
@@ -12647,564 +13681,10 @@ async function registerRoutes(app2) {
         entityType: "template",
         entityId: req.params.id
       });
+      await cacheService.del(`templates:id:${req.params.id}`);
       return res.json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: "Failed to delete template" });
-    }
-  });
-  app2.get("/api/analytics/dashboard", authMiddleware, async (req, res) => {
-    try {
-      const quotes2 = await storage.getAllQuotes();
-      const clients2 = await storage.getAllClients();
-      const invoices2 = await storage.getAllInvoices();
-      const totalQuotes = quotes2.length;
-      const totalClients = clients2.length;
-      const safeToNum = (val) => {
-        if (typeof val === "number") return val;
-        if (!val) return 0;
-        const str = String(val).replace(/[^0-9.-]+/g, "");
-        return parseFloat(str) || 0;
-      };
-      const approvedQuotes = quotes2.filter((q) => q.status === "approved" || q.status === "invoiced" || q.status === "closed_paid");
-      const totalRevenue = invoices2.reduce((sum, inv) => sum + safeToNum(inv.paidAmount), 0);
-      const conversionRate = totalQuotes > 0 ? (approvedQuotes.length / totalQuotes * 100).toFixed(1) : "0";
-      const recentQuotes = await Promise.all(
-        quotes2.slice(0, 5).map(async (quote) => {
-          const client = await storage.getClient(quote.clientId);
-          return {
-            id: quote.id,
-            quoteNumber: quote.quoteNumber,
-            clientName: client?.name || "Unknown",
-            total: quote.total,
-            status: quote.status,
-            createdAt: quote.createdAt
-          };
-        })
-      );
-      const clientMap = new Map(clients2.map((c) => [c.id, c]));
-      const clientRevenue = /* @__PURE__ */ new Map();
-      for (const inv of invoices2) {
-        if (!inv.clientId) continue;
-        const paid = safeToNum(inv.paidAmount);
-        if (paid <= 0) continue;
-        const client = clientMap.get(inv.clientId);
-        if (!client) continue;
-        const existing = clientRevenue.get(inv.clientId);
-        if (existing) {
-          existing.totalRevenue += paid;
-          existing.quoteCount += 1;
-        } else {
-          clientRevenue.set(inv.clientId, {
-            name: client.name,
-            totalRevenue: paid,
-            quoteCount: 1
-          });
-        }
-      }
-      const topClients = Array.from(clientRevenue.values()).map((c) => ({
-        name: c.name,
-        total: c.totalRevenue,
-        // Send as number
-        quoteCount: c.quoteCount
-      })).sort((a, b) => b.total - a.total).slice(0, 5);
-      const quotesByStatus = quotes2.reduce((acc, quote) => {
-        const existing = acc.find((item) => item.status === quote.status);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          acc.push({ status: quote.status, count: 1 });
-        }
-        return acc;
-      }, []);
-      const monthlyRevenue = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = /* @__PURE__ */ new Date();
-        date.setMonth(date.getMonth() - i);
-        const month = date.toLocaleDateString("en-US", { month: "short" });
-        const monthQuotes = approvedQuotes.filter((q) => {
-          const qDate = new Date(q.createdAt);
-          return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
-        });
-        const revenue = monthQuotes.reduce((sum, q) => sum + safeToNum(q.total), 0);
-        monthlyRevenue.push({ month, revenue });
-      }
-      return res.json({
-        totalQuotes,
-        totalClients,
-        totalRevenue: totalRevenue.toFixed(2),
-        conversionRate,
-        recentQuotes,
-        topClients,
-        quotesByStatus,
-        monthlyRevenue
-      });
-    } catch (error) {
-      logger.error("Analytics error:", error);
-      return res.status(500).json({ error: "Failed to fetch analytics" });
-    }
-  });
-  app2.get("/api/analytics/:timeRange(\\d+)", authMiddleware, async (req, res) => {
-    try {
-      const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
-      const quotes2 = await storage.getAllQuotes();
-      const clients2 = await storage.getAllClients();
-      const cutoffDate = /* @__PURE__ */ new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
-      const filteredQuotes = quotes2.filter((q) => new Date(q.createdAt) >= cutoffDate);
-      const approvedQuotes = filteredQuotes.filter((q) => q.status === "approved" || q.status === "invoiced");
-      const totalRevenue = approvedQuotes.reduce((sum, q) => sum + Number(q.total), 0);
-      const avgQuoteValue = filteredQuotes.length > 0 ? (filteredQuotes.reduce((sum, q) => sum + Number(q.total), 0) / filteredQuotes.length).toFixed(2) : "0";
-      const conversionRate = filteredQuotes.length > 0 ? (approvedQuotes.length / filteredQuotes.length * 100).toFixed(1) : "0";
-      const monthlyData = [];
-      for (let i = timeRange - 1; i >= 0; i--) {
-        const date = /* @__PURE__ */ new Date();
-        date.setMonth(date.getMonth() - i);
-        const month = date.toLocaleDateString("en-US", { month: "short" });
-        const monthQuotes = filteredQuotes.filter((q) => {
-          const qDate = new Date(q.createdAt);
-          return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
-        });
-        const monthApproved = monthQuotes.filter((q) => q.status === "approved" || q.status === "invoiced");
-        const revenue = monthApproved.reduce((sum, q) => sum + Number(q.total), 0);
-        monthlyData.push({
-          month,
-          quotes: monthQuotes.length,
-          revenue,
-          conversions: monthApproved.length
-        });
-      }
-      const clientRevenue = /* @__PURE__ */ new Map();
-      for (const quote of approvedQuotes) {
-        const client = await storage.getClient(quote.clientId);
-        if (!client) continue;
-        const existing = clientRevenue.get(client.id);
-        if (existing) {
-          existing.totalRevenue += Number(quote.total);
-          existing.quoteCount += 1;
-        } else {
-          clientRevenue.set(client.id, {
-            name: client.name,
-            totalRevenue: Number(quote.total),
-            quoteCount: 1
-          });
-        }
-      }
-      const topClients = Array.from(clientRevenue.values()).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10).map((c) => ({
-        name: c.name,
-        totalRevenue: c.totalRevenue.toFixed(2),
-        quoteCount: c.quoteCount
-      }));
-      const statusBreakdown = filteredQuotes.reduce((acc, quote) => {
-        const existing = acc.find((item) => item.status === quote.status);
-        const value = Number(quote.total);
-        if (existing) {
-          existing.count += 1;
-          existing.value += value;
-        } else {
-          acc.push({ status: quote.status, count: 1, value });
-        }
-        return acc;
-      }, []);
-      return res.json({
-        overview: {
-          totalQuotes: filteredQuotes.length,
-          totalRevenue: totalRevenue.toFixed(2),
-          avgQuoteValue,
-          conversionRate
-        },
-        monthlyData,
-        topClients,
-        statusBreakdown
-      });
-    } catch (error) {
-      logger.error("Analytics error:", error);
-      return res.status(500).json({ error: "Failed to fetch analytics" });
-    }
-  });
-  app2.get("/api/analytics/forecast", authMiddleware, async (req, res) => {
-    try {
-      const monthsAhead = req.query.months ? Number(req.query.months) : 3;
-      const forecast = await analyticsService.getRevenueForecast(monthsAhead);
-      return res.json(forecast);
-    } catch (error) {
-      logger.error("Forecast error:", error);
-      return res.status(500).json({ error: "Failed to fetch forecast" });
-    }
-  });
-  app2.get("/api/analytics/deal-distribution", authMiddleware, async (req, res) => {
-    try {
-      const distribution = await analyticsService.getDealDistribution();
-      return res.json(distribution);
-    } catch (error) {
-      logger.error("Deal distribution error:", error);
-      return res.status(500).json({ error: "Failed to fetch deal distribution" });
-    }
-  });
-  app2.get("/api/analytics/regional", authMiddleware, async (req, res) => {
-    try {
-      const regionalData = await analyticsService.getRegionalDistribution();
-      return res.json(regionalData);
-    } catch (error) {
-      logger.error("Regional data error:", error);
-      return res.status(500).json({ error: "Failed to fetch regional data" });
-    }
-  });
-  app2.post("/api/analytics/custom-report", authMiddleware, async (req, res) => {
-    try {
-      const { startDate, endDate, status, minAmount, maxAmount } = req.body;
-      const report = await analyticsService.getCustomReport({
-        startDate: startDate ? new Date(startDate) : void 0,
-        endDate: endDate ? new Date(endDate) : void 0,
-        status,
-        minAmount,
-        maxAmount
-      });
-      return res.json(report);
-    } catch (error) {
-      logger.error("Custom report error:", error);
-      return res.status(500).json({ error: "Failed to generate custom report" });
-    }
-  });
-  app2.get("/api/analytics/pipeline", authMiddleware, async (req, res) => {
-    try {
-      const pipeline = await analyticsService.getSalesPipeline();
-      return res.json(pipeline);
-    } catch (error) {
-      logger.error("Pipeline error:", error);
-      return res.status(500).json({ error: "Failed to fetch pipeline data" });
-    }
-  });
-  app2.get("/api/analytics/client/:clientId/ltv", authMiddleware, async (req, res) => {
-    try {
-      const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
-      return res.json(ltv);
-    } catch (error) {
-      logger.error("LTV error:", error);
-      return res.status(500).json({ error: "Failed to fetch client LTV" });
-    }
-  });
-  app2.get("/api/analytics/competitor-insights", authMiddleware, async (req, res) => {
-    try {
-      const insights = await analyticsService.getCompetitorInsights();
-      return res.json(insights);
-    } catch (error) {
-      logger.error("Competitor insights error:", error);
-      return res.status(500).json({ error: "Failed to fetch competitor insights" });
-    }
-  });
-  app2.get("/api/analytics/vendor-spend", authMiddleware, async (req, res) => {
-    try {
-      const timeRange = req.query.timeRange ? Number(req.query.timeRange) : 12;
-      const vendors2 = await storage.getAllVendors();
-      const vendorPos = await storage.getAllVendorPos();
-      const cutoffDate = /* @__PURE__ */ new Date();
-      cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
-      const filteredPos = vendorPos.filter((po) => new Date(po.createdAt) >= cutoffDate);
-      const vendorSpend = /* @__PURE__ */ new Map();
-      for (const po of filteredPos) {
-        const vendor = vendors2.find((v) => v.id === po.vendorId);
-        if (vendor) {
-          const existing = vendorSpend.get(po.vendorId);
-          const poTotal = Number(po.total);
-          if (existing) {
-            existing.totalSpend += poTotal;
-            existing.poCount += 1;
-          } else {
-            vendorSpend.set(po.vendorId, {
-              vendorId: po.vendorId,
-              vendorName: vendor.name,
-              totalSpend: poTotal,
-              poCount: 1,
-              status: po.status
-            });
-          }
-        }
-      }
-      const topVendors = Array.from(vendorSpend.values()).sort((a, b) => b.totalSpend - a.totalSpend).slice(0, 10).map((v) => ({
-        vendorId: v.vendorId,
-        vendorName: v.vendorName,
-        totalSpend: v.totalSpend.toFixed(2),
-        poCount: v.poCount,
-        avgPoValue: (v.totalSpend / v.poCount).toFixed(2)
-      }));
-      const totalSpend = filteredPos.reduce((sum, po) => sum + Number(po.total), 0);
-      const delayedPos = filteredPos.filter((po) => {
-        if (po.status === "fulfilled" && po.expectedDeliveryDate && po.actualDeliveryDate) {
-          return new Date(po.actualDeliveryDate) > new Date(po.expectedDeliveryDate);
-        }
-        if (po.status !== "fulfilled" && po.expectedDeliveryDate) {
-          return /* @__PURE__ */ new Date() > new Date(po.expectedDeliveryDate);
-        }
-        return false;
-      });
-      const vendorPerformance = Array.from(vendorSpend.values()).map((v) => {
-        const vendorPOs = filteredPos.filter((po) => po.vendorId === v.vendorId);
-        const onTimePOs = vendorPOs.filter((po) => {
-          if (po.status === "fulfilled" && po.expectedDeliveryDate && po.actualDeliveryDate) {
-            return new Date(po.actualDeliveryDate) <= new Date(po.expectedDeliveryDate);
-          }
-          return false;
-        });
-        const fulfilledCount = vendorPOs.filter((po) => po.status === "fulfilled").length;
-        const onTimeRate = fulfilledCount > 0 ? (onTimePOs.length / fulfilledCount * 100).toFixed(1) : "0";
-        return {
-          vendorName: v.vendorName,
-          totalPOs: vendorPOs.length,
-          fulfilledPOs: fulfilledCount,
-          onTimeDeliveryRate: onTimeRate + "%",
-          totalSpend: v.totalSpend.toFixed(2)
-        };
-      }).sort((a, b) => Number(b.totalSpend) - Number(a.totalSpend));
-      return res.json({
-        overview: {
-          totalSpend: totalSpend.toFixed(2),
-          totalPOs: filteredPos.length,
-          activeVendors: vendorSpend.size,
-          delayedPOs: delayedPos.length,
-          avgPoValue: filteredPos.length > 0 ? (totalSpend / filteredPos.length).toFixed(2) : "0"
-        },
-        topVendors,
-        vendorPerformance,
-        procurementDelays: {
-          count: delayedPos.length,
-          percentage: filteredPos.length > 0 ? (delayedPos.length / filteredPos.length * 100).toFixed(1) : "0"
-        }
-      });
-    } catch (error) {
-      logger.error("Vendor analytics error:", error);
-      return res.status(500).json({ error: "Failed to fetch vendor analytics" });
-    }
-  });
-  app2.get("/api/clients/:clientId/tags", authMiddleware, async (req, res) => {
-    try {
-      const tags = await storage.getClientTags(req.params.clientId);
-      return res.json(tags);
-    } catch (error) {
-      logger.error("Get tags error:", error);
-      return res.status(500).json({ error: "Failed to fetch client tags" });
-    }
-  });
-  app2.post("/api/clients/:clientId/tags", authMiddleware, async (req, res) => {
-    try {
-      const { tag } = req.body;
-      if (!tag) {
-        return res.status(400).json({ error: "Tag is required" });
-      }
-      const clientTag = await storage.addClientTag({
-        clientId: req.params.clientId,
-        tag
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "add_client_tag",
-        entityType: "client",
-        entityId: req.params.clientId
-      });
-      return res.json(clientTag);
-    } catch (error) {
-      logger.error("Add tag error:", error);
-      return res.status(500).json({ error: "Failed to add tag" });
-    }
-  });
-  app2.delete("/api/clients/tags/:tagId", authMiddleware, async (req, res) => {
-    try {
-      await storage.removeClientTag(req.params.tagId);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "remove_client_tag",
-        entityType: "client_tag",
-        entityId: req.params.tagId
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      logger.error("Remove tag error:", error);
-      return res.status(500).json({ error: "Failed to remove tag" });
-    }
-  });
-  app2.get("/api/clients/:clientId/communications", authMiddleware, async (req, res) => {
-    try {
-      const communications = await storage.getClientCommunications(req.params.clientId);
-      return res.json(communications);
-    } catch (error) {
-      logger.error("Get communications error:", error);
-      return res.status(500).json({ error: "Failed to fetch communications" });
-    }
-  });
-  app2.post("/api/clients/:clientId/communications", authMiddleware, async (req, res) => {
-    try {
-      const { type, subject, message, attachments } = req.body;
-      if (!type || !["email", "call", "meeting", "note"].includes(type)) {
-        return res.status(400).json({ error: "Valid communication type is required" });
-      }
-      const communication = await storage.createClientCommunication({
-        clientId: req.params.clientId,
-        type,
-        subject,
-        message,
-        date: /* @__PURE__ */ new Date(),
-        communicatedBy: req.user.id,
-        attachments: attachments ? JSON.stringify(attachments) : void 0
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_communication",
-        entityType: "client",
-        entityId: req.params.clientId
-      });
-      return res.json(communication);
-    } catch (error) {
-      logger.error("Create communication error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create communication" });
-    }
-  });
-  app2.delete("/api/clients/communications/:commId", authMiddleware, async (req, res) => {
-    try {
-      await storage.deleteClientCommunication(req.params.commId);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_communication",
-        entityType: "client_communication",
-        entityId: req.params.commId
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      logger.error("Delete communication error:", error);
-      return res.status(500).json({ error: "Failed to delete communication" });
-    }
-  });
-  app2.get("/api/pricing-tiers", authMiddleware, async (req, res) => {
-    try {
-      const tiers = await storage.getAllPricingTiers();
-      return res.json(tiers);
-    } catch (error) {
-      logger.error("Get pricing tiers error:", error);
-      return res.status(500).json({ error: "Failed to fetch pricing tiers" });
-    }
-  });
-  app2.post("/api/pricing-tiers", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const { name, minAmount, maxAmount, discountPercent, description, isActive } = req.body;
-      if (!name || minAmount === void 0 || discountPercent === void 0) {
-        return res.status(400).json({ error: "Name, minAmount, and discountPercent are required" });
-      }
-      const tier = await storage.createPricingTier({
-        name,
-        minAmount,
-        maxAmount,
-        discountPercent,
-        description,
-        isActive: isActive !== false
-      });
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "create_pricing_tier",
-        entityType: "pricing_tier",
-        entityId: tier.id
-      });
-      return res.json(tier);
-    } catch (error) {
-      logger.error("Create pricing tier error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create pricing tier" });
-    }
-  });
-  app2.patch("/api/pricing-tiers/:id", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      const updated = await storage.updatePricingTier(req.params.id, req.body);
-      if (!updated) {
-        return res.status(404).json({ error: "Pricing tier not found" });
-      }
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "update_pricing_tier",
-        entityType: "pricing_tier",
-        entityId: req.params.id
-      });
-      return res.json(updated);
-    } catch (error) {
-      logger.error("Update pricing tier error:", error);
-      return res.status(500).json({ error: error.message || "Failed to update pricing tier" });
-    }
-  });
-  app2.delete("/api/pricing-tiers/:id", authMiddleware, async (req, res) => {
-    try {
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      await storage.deletePricingTier(req.params.id);
-      await storage.createActivityLog({
-        userId: req.user.id,
-        action: "delete_pricing_tier",
-        entityType: "pricing_tier",
-        entityId: req.params.id
-      });
-      return res.json({ success: true });
-    } catch (error) {
-      logger.error("Delete pricing tier error:", error);
-      return res.status(500).json({ error: "Failed to delete pricing tier" });
-    }
-  });
-  app2.post("/api/pricing/calculate-discount", authMiddleware, async (req, res) => {
-    try {
-      const { subtotal } = req.body;
-      if (!subtotal || subtotal <= 0) {
-        return res.status(400).json({ error: "Valid subtotal is required" });
-      }
-      const result = await pricingService.calculateDiscount(subtotal);
-      return res.json(result);
-    } catch (error) {
-      logger.error("Calculate discount error:", error);
-      return res.status(500).json({ error: error.message || "Failed to calculate discount" });
-    }
-  });
-  app2.post("/api/pricing/calculate-taxes", authMiddleware, async (req, res) => {
-    try {
-      const { amount, region, useIGST } = req.body;
-      if (!amount || !region) {
-        return res.status(400).json({ error: "Amount and region are required" });
-      }
-      const taxes = await pricingService.calculateTaxes(amount, region, useIGST);
-      return res.json(taxes);
-    } catch (error) {
-      logger.error("Calculate taxes error:", error);
-      return res.status(500).json({ error: error.message || "Failed to calculate taxes" });
-    }
-  });
-  app2.post("/api/pricing/calculate-total", authMiddleware, async (req, res) => {
-    try {
-      const { subtotal, region, useIGST, shippingCharges, customDiscount } = req.body;
-      if (!subtotal || !region) {
-        return res.status(400).json({ error: "Subtotal and region are required" });
-      }
-      const total = await pricingService.calculateQuoteTotal({
-        subtotal,
-        region,
-        useIGST,
-        shippingCharges,
-        customDiscount
-      });
-      return res.json(total);
-    } catch (error) {
-      logger.error("Calculate total error:", error);
-      return res.status(500).json({ error: error.message || "Failed to calculate total" });
-    }
-  });
-  app2.post("/api/pricing/convert-currency", authMiddleware, async (req, res) => {
-    try {
-      const { amount, fromCurrency, toCurrency } = req.body;
-      if (!amount || !fromCurrency || !toCurrency) {
-        return res.status(400).json({ error: "Amount, fromCurrency, and toCurrency are required" });
-      }
-      const converted = await pricingService.convertCurrency(amount, fromCurrency, toCurrency);
-      return res.json({ original: amount, converted, fromCurrency, toCurrency });
-    } catch (error) {
-      logger.error("Convert currency error:", error);
-      return res.status(500).json({ error: error.message || "Failed to convert currency" });
     }
   });
   app2.get("/api/admin/users", authMiddleware, async (req, res) => {
@@ -13274,7 +13754,7 @@ async function registerRoutes(app2) {
       return res.status(500).json({ error: error.message || "Failed to update user status" });
     }
   });
-  app2.use("/api", authMiddleware, analytics_routes_default);
+  app2.use("/api/analytics", authMiddleware, analytics_routes_default);
   app2.use("/api", authMiddleware, quote_workflow_routes_default);
   const httpServer = createServer(app2);
   return httpServer;

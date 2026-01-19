@@ -122,6 +122,8 @@ npx tsx verify_audit_fixes_v3.ts
 npx tsx reproduce_so_edit.ts
 npx tsx repro_clone_numbering.ts
 npx tsx check_settings.ts
+npx tsx scripts/test-pdf-worker.ts
+npx tsx debug_analytics_data.ts
 ```
 
 ### Expected Output

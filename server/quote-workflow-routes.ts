@@ -1323,7 +1323,7 @@ router.post("/quotes/:id/sales-orders",
       const quote = await storage.getQuote(quoteId);
 
       if (!quote) {
-        return res.status(404).json({ message: "Quote not found" });
+          return res.status(404).json({ error: "Quote not found" });
       }
 
       if (quote.status !== "approved") {

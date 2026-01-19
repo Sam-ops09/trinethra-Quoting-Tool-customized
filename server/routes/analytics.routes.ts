@@ -1,186 +1,421 @@
-/**
- * ANALYTICS & DASHBOARD ROUTES
- *
- * Comprehensive endpoints for dashboards and reporting
- */
 
 import { Router, Response } from "express";
-import { AuthRequest } from "./routes";
-import { storage } from "./storage";
-import { db } from "./db";
+import { authMiddleware, AuthRequest } from "../middleware";
+import { storage } from "../storage";
+import { logger } from "../utils/logger";
+import { analyticsService } from "../services/analytics.service";
+import { db } from "../db";
 import { sql } from "drizzle-orm";
-import { analyticsService } from "./services/analytics.service";
 import ExcelJS from "exceljs";
-import { toDecimal, add, subtract, divide, toMoneyString } from "./utils/financial";
-import { logger } from "./utils/logger";
+import { toDecimal, add, subtract, divide } from "../utils/financial";
 
 const router = Router();
 
-/**
- * Main Overview Analytics
- * Corresponds to /api/analytics
- */
-router.get("/analytics", async (req: AuthRequest, res: Response) => {
-  try {
-    const allQuotes = await storage.getAllQuotes();
-    const allClients = await storage.getAllClients();
-    const allInvoices = await storage.getAllInvoices();
+router.get("/dashboard", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const quotes = await storage.getAllQuotes();
+      const clients = await storage.getAllClients();
+      const invoices = await storage.getAllInvoices();
 
-    // 1. Overview stats
-    const totalQuotes = allQuotes.length;
-    
-    // Revenue from paid invoices
-    const totalRevenueVal = allInvoices.reduce((sum, inv) => {
-      if (inv.paymentStatus === 'paid' || inv.paymentStatus === 'partial') {
-        return add(sum, inv.paidAmount);
+      const totalQuotes = quotes.length;
+      const totalClients = clients.length;
+
+      const safeToNum = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        const str = String(val).replace(/[^0-9.-]+/g, "");
+        return parseFloat(str) || 0;
+      };
+
+      const approvedQuotes = quotes.filter(q => q.status === "approved" || q.status === "invoiced" || q.status === "closed_paid");
+      
+      // Calculate Total Revenue from Invoices (Collected Amount)
+      const totalRevenue = invoices.reduce((sum, inv) => sum + safeToNum(inv.paidAmount), 0);
+
+      const conversionRate = totalQuotes > 0
+        ? ((approvedQuotes.length / totalQuotes) * 100).toFixed(1)
+        : "0";
+
+      const recentQuotes = await Promise.all(
+        quotes.slice(0, 5).map(async (quote) => {
+          const client = await storage.getClient(quote.clientId);
+          return {
+            id: quote.id,
+            quoteNumber: quote.quoteNumber,
+            clientName: client?.name || "Unknown",
+            total: quote.total,
+            status: quote.status,
+            createdAt: quote.createdAt,
+          };
+        })
+      );
+
+      // Create client map for faster lookup
+      const clientMap = new Map(clients.map(c => [c.id, c]));
+
+      // Top clients (by Collected Amount)
+      const clientRevenue = new Map<string, { name: string; totalRevenue: number; quoteCount: number }>();
+      
+      for (const inv of invoices) {
+        if (!inv.clientId) continue;
+        const paid = safeToNum(inv.paidAmount);
+        if (paid <= 0) continue;
+
+        const client = clientMap.get(inv.clientId);
+        if (!client) continue;
+        
+        const existing = clientRevenue.get(inv.clientId);
+        if (existing) {
+          existing.totalRevenue += paid;
+          existing.quoteCount += 1;
+        } else {
+          clientRevenue.set(inv.clientId, {
+            name: client.name,
+            totalRevenue: paid,
+            quoteCount: 1,
+          });
+        }
       }
-      return sum;
-    }, toDecimal(0));
 
-    // Average Deal Size (from Quotes)
-    const totalQuoteValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
-    const avgQuoteValue = allQuotes.length > 0 ? divide(totalQuoteValue, allQuotes.length) : toDecimal(0);
+      const topClients = Array.from(clientRevenue.values())
+        .map(c => ({
+          name: c.name,
+          total: c.totalRevenue, // Send as number
+          quoteCount: c.quoteCount,
+        }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
 
-    // Conversion Rate (Invoices vs Quotes)
-    // Simple approximation: converted quotes / total quotes
-    const convertedQuotes = allQuotes.filter(q => q.status === 'invoiced' || q.status === 'closed_paid').length;
-    const conversionRate = allQuotes.length > 0 ? (convertedQuotes / allQuotes.length) * 100 : 0;
+      const quotesByStatus = quotes.reduce((acc: any[], quote) => {
+        const existing = acc.find(item => item.status === quote.status);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          acc.push({ status: quote.status, count: 1 });
+        }
+        return acc;
+      }, []);
 
-    const overview = {
-      totalQuotes,
-      totalRevenue: Math.round(totalRevenueVal.toNumber()).toLocaleString(),
-      avgQuoteValue: Math.round(avgQuoteValue.toNumber()).toLocaleString(),
-      conversionRate: conversionRate.toFixed(1),
-    };
+      // Monthly revenue (simplified - last 6 months)
+      const monthlyRevenue = [];
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const month = date.toLocaleDateString('en-US', { month: 'short' });
+        const monthQuotes = approvedQuotes.filter(q => {
+          const qDate = new Date(q.createdAt);
+          return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
+        });
+        const revenue = monthQuotes.reduce((sum, q) => sum + safeToNum(q.total), 0);
+        monthlyRevenue.push({ month, revenue });
+      }
 
-    // 2. Monthly Data (Last 12 months)
-    const monthlyDataMap = new Map<string, { quotes: number; revenue: number; conversions: number }>();
-    const now = new Date();
-    
-    // Initialize last 12 months
-    for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = d.toLocaleString('default', { month: 'short' });
-        monthlyDataMap.set(key, { quotes: 0, revenue: 0, conversions: 0 });
+      return res.json({
+        totalQuotes,
+        totalClients,
+        totalRevenue: totalRevenue.toFixed(2),
+        conversionRate,
+        recentQuotes,
+        topClients,
+        quotesByStatus,
+        monthlyRevenue,
+      });
+    } catch (error) {
+      logger.error("Analytics error:", error);
+      return res.status(500).json({ error: "Failed to fetch analytics" });
     }
+});
 
-    allQuotes.forEach(q => {
-        const d = new Date(q.createdAt);
-        const key = d.toLocaleString('default', { month: 'short' });
-        if (monthlyDataMap.has(key)) {
-            const entry = monthlyDataMap.get(key)!;
-            entry.quotes++;
-            if (q.status === 'invoiced' || q.status === 'closed_paid') {
-                entry.conversions++;
-            }
+router.get("/:timeRange(\\d+)", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
+      
+      const quotes = await storage.getAllQuotes();
+      const clients = await storage.getAllClients();
+
+      // Filter by time range
+      const cutoffDate = new Date();
+      cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
+      const filteredQuotes = quotes.filter(q => new Date(q.createdAt) >= cutoffDate);
+
+      const approvedQuotes = filteredQuotes.filter(q => q.status === "approved" || q.status === "invoiced");
+      const totalRevenue = approvedQuotes.reduce((sum, q) => sum + Number(q.total), 0);
+      const avgQuoteValue = filteredQuotes.length > 0
+        ? (filteredQuotes.reduce((sum, q) => sum + Number(q.total), 0) / filteredQuotes.length).toFixed(2)
+        : "0";
+
+      const conversionRate = filteredQuotes.length > 0
+        ? ((approvedQuotes.length / filteredQuotes.length) * 100).toFixed(1)
+        : "0";
+
+      // Monthly data
+      const monthlyData = [];
+      for (let i = timeRange - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const month = date.toLocaleDateString('en-US', { month: 'short' });
+        
+        const monthQuotes = filteredQuotes.filter(q => {
+          const qDate = new Date(q.createdAt);
+          return qDate.getMonth() === date.getMonth() && qDate.getFullYear() === date.getFullYear();
+        });
+        
+        const monthApproved = monthQuotes.filter(q => q.status === "approved" || q.status === "invoiced");
+        const revenue = monthApproved.reduce((sum, q) => sum + Number(q.total), 0);
+        
+        monthlyData.push({
+          month,
+          quotes: monthQuotes.length,
+          revenue,
+          conversions: monthApproved.length,
+        });
+      }
+
+      // Top clients
+      const clientRevenue = new Map<string, { name: string; totalRevenue: number; quoteCount: number }>();
+      
+      for (const quote of approvedQuotes) {
+        const client = await storage.getClient(quote.clientId);
+        if (!client) continue;
+        
+        const existing = clientRevenue.get(client.id);
+        if (existing) {
+          existing.totalRevenue += Number(quote.total);
+          existing.quoteCount += 1;
+        } else {
+          clientRevenue.set(client.id, {
+            name: client.name,
+            totalRevenue: Number(quote.total),
+            quoteCount: 1,
+          });
         }
-    });
+      }
 
-    allInvoices.forEach(inv => {
-        const d = new Date(inv.createdAt);
-        const key = d.toLocaleString('default', { month: 'short' });
-        if (monthlyDataMap.has(key)) {
-            const entry = monthlyDataMap.get(key)!;
-             if (inv.paymentStatus === 'paid' || inv.paymentStatus === 'partial') {
-                entry.revenue = add(entry.revenue, inv.paidAmount).toNumber();
-            }
+      const topClients = Array.from(clientRevenue.values())
+        .sort((a, b) => b.totalRevenue - a.totalRevenue)
+        .slice(0, 10)
+        .map(c => ({
+          name: c.name,
+          totalRevenue: c.totalRevenue.toFixed(2),
+          quoteCount: c.quoteCount,
+        }));
+
+      // Status breakdown
+      const statusBreakdown = filteredQuotes.reduce((acc: any[], quote) => {
+        const existing = acc.find(item => item.status === quote.status);
+        const value = Number(quote.total);
+        if (existing) {
+          existing.count += 1;
+          existing.value += value;
+        } else {
+          acc.push({ status: quote.status, count: 1, value });
         }
-    });
+        return acc;
+      }, []);
 
-    const monthlyData = Array.from(monthlyDataMap.entries()).map(([month, data]) => ({
-        month,
-        quotes: data.quotes,
-        revenue: Math.round(data.revenue),
-        conversions: data.conversions
-    }));
+      return res.json({
+        overview: {
+          totalQuotes: filteredQuotes.length,
+          totalRevenue: totalRevenue.toFixed(2),
+          avgQuoteValue,
+          conversionRate,
+        },
+        monthlyData,
+        topClients,
+        statusBreakdown,
+      });
+    } catch (error) {
+      logger.error("Analytics error:", error);
+      return res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+});
 
-    // 3. Top Clients
-    const clientRevenue = new Map<string, number>();
-    const clientQuotes = new Map<string, number>();
+// PHASE 3 - ADVANCED ANALYTICS ENDPOINTS
+router.get("/forecast", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const monthsAhead = req.query.months ? Number(req.query.months) : 3;
+      const forecast = await analyticsService.getRevenueForecast(monthsAhead);
+      return res.json(forecast);
+    } catch (error) {
+      logger.error("Forecast error:", error);
+      return res.status(500).json({ error: "Failed to fetch forecast" });
+    }
+});
 
-    allQuotes.forEach(q => {
-        const curr = clientQuotes.get(q.clientId) || 0;
-        clientQuotes.set(q.clientId, curr + 1);
-    });
+router.get("/deal-distribution", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const distribution = await analyticsService.getDealDistribution();
+      return res.json(distribution);
+    } catch (error) {
+      logger.error("Deal distribution error:", error);
+      return res.status(500).json({ error: "Failed to fetch deal distribution" });
+    }
+});
 
-    // We use quotes total for potential revenue (frontend shows "Total Revenue" but context implies "Total Business Volume" or "Potential")
-    // Or we can use actual revenue from invoices. Let's use Quote Total for "Top Accounts" context usually implies "Who we are quoting most to" or "Who pays most". 
-    // The previous implementation used Quote Total. Let's stick to Quote Total for consistency with "Top Customers" in previous route, but rename to match interface.
-    // Actually interface says `totalRevenue` string. Let's use Paid Invoice amount for actual revenue if possible, or Quote Total if not.
-    // Let's use Quote Total as it represents "Deal Value" for Sales.
-    const clientDealValue = new Map<string, number>();
-    allQuotes.forEach(q => {
-        const val = toDecimal(q.total);
-        const curr = toDecimal(clientDealValue.get(q.clientId) || 0);
-        clientDealValue.set(q.clientId, add(curr, val).toNumber());
-    });
+router.get("/regional", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const regionalData = await analyticsService.getRegionalDistribution();
+      return res.json(regionalData);
+    } catch (error) {
+      logger.error("Regional data error:", error);
+      return res.status(500).json({ error: "Failed to fetch regional data" });
+    }
+});
 
-    const topClients = Array.from(clientDealValue.entries()).map(([clientId, val]) => {
-        const client = allClients.find(c => c.id === clientId);
+router.post("/custom-report", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const { startDate, endDate, status, minAmount, maxAmount } = req.body;
+      const report = await analyticsService.getCustomReport({
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        status,
+        minAmount,
+        maxAmount,
+      });
+      return res.json(report);
+    } catch (error) {
+      logger.error("Custom report error:", error);
+      return res.status(500).json({ error: "Failed to generate custom report" });
+    }
+});
+
+router.get("/pipeline", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const pipeline = await analyticsService.getSalesPipeline();
+      return res.json(pipeline);
+    } catch (error) {
+      logger.error("Pipeline error:", error);
+      return res.status(500).json({ error: "Failed to fetch pipeline data" });
+    }
+});
+
+router.get("/client/:clientId/ltv", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
+      return res.json(ltv);
+    } catch (error) {
+      logger.error("LTV error:", error);
+      return res.status(500).json({ error: "Failed to fetch client LTV" });
+    }
+});
+
+router.get("/competitor-insights", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const insights = await analyticsService.getCompetitorInsights();
+      return res.json(insights);
+    } catch (error) {
+      logger.error("Competitor insights error:", error);
+      return res.status(500).json({ error: "Failed to fetch competitor insights" });
+    }
+});
+
+// VENDOR ANALYTICS ENDPOINTS
+router.get("/vendor-spend", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const timeRange = req.query.timeRange ? Number(req.query.timeRange) : 12;
+      const vendors = await storage.getAllVendors();
+      const vendorPos = await storage.getAllVendorPos();
+
+      // Filter by time range
+      const cutoffDate = new Date();
+      cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
+      const filteredPos = vendorPos.filter(po => new Date(po.createdAt) >= cutoffDate);
+
+      // Calculate vendor spend
+      const vendorSpend = new Map();
+      for (const po of filteredPos) {
+        const vendor = vendors.find(v => v.id === po.vendorId);
+        if (vendor) {
+          const existing = vendorSpend.get(po.vendorId);
+          const poTotal = Number(po.total);
+          if (existing) {
+            existing.totalSpend += poTotal;
+            existing.poCount += 1;
+          } else {
+            vendorSpend.set(po.vendorId, {
+              vendorId: po.vendorId,
+              vendorName: vendor.name,
+              totalSpend: poTotal,
+              poCount: 1,
+              status: po.status,
+            });
+          }
+        }
+      }
+
+      // Top vendors by spend
+      const topVendors = Array.from(vendorSpend.values())
+        .sort((a, b) => b.totalSpend - a.totalSpend)
+        .slice(0, 10)
+        .map(v => ({
+          vendorId: v.vendorId,
+          vendorName: v.vendorName,
+          totalSpend: v.totalSpend.toFixed(2),
+          poCount: v.poCount,
+          avgPoValue: (v.totalSpend / v.poCount).toFixed(2),
+        }));
+
+      // Total procurement spend
+      const totalSpend = filteredPos.reduce((sum, po) => sum + Number(po.total), 0);
+
+      // Procurement delays (POs not fulfilled on time)
+      const delayedPos = filteredPos.filter(po => {
+        if (po.status === "fulfilled" && po.expectedDeliveryDate && po.actualDeliveryDate) {
+          return new Date(po.actualDeliveryDate) > new Date(po.expectedDeliveryDate);
+        }
+        if (po.status !== "fulfilled" && po.expectedDeliveryDate) {
+          return new Date() > new Date(po.expectedDeliveryDate);
+        }
+        return false;
+      });
+
+      // Vendor performance metrics
+      const vendorPerformance = Array.from(vendorSpend.values()).map(v => {
+        const vendorPOs = filteredPos.filter(po => po.vendorId === v.vendorId);
+        const onTimePOs = vendorPOs.filter(po => {
+          if (po.status === "fulfilled" && po.expectedDeliveryDate && po.actualDeliveryDate) {
+            return new Date(po.actualDeliveryDate) <= new Date(po.expectedDeliveryDate);
+          }
+          return false;
+        });
+
+        const fulfilledCount = vendorPOs.filter(po => po.status === "fulfilled").length;
+        const onTimeRate = fulfilledCount > 0 ? ((onTimePOs.length / fulfilledCount) * 100).toFixed(1) : "0";
+
         return {
-            name: client?.name || "Unknown",
-            totalRevenue: Math.round(val).toLocaleString(),
-            quoteCount: clientQuotes.get(clientId) || 0
+          vendorName: v.vendorName,
+          totalPOs: vendorPOs.length,
+          fulfilledPOs: fulfilledCount,
+          onTimeDeliveryRate: onTimeRate + "%",
+          totalSpend: v.totalSpend.toFixed(2),
         };
-    }).sort((a, b) => parseFloat(b.totalRevenue.replace(/,/g, '')) - parseFloat(a.totalRevenue.replace(/,/g, ''))).slice(0, 5);
+      }).sort((a, b) => Number(b.totalSpend) - Number(a.totalSpend));
 
-
-    // 4. Status Breakdown
-    const statusMap = new Map<string, { count: number; value: number }>();
-    allQuotes.forEach(q => {
-        const status = q.status;
-        const val = toDecimal(q.total);
-        const entry = statusMap.get(status) || { count: 0, value: 0 };
-        entry.count++;
-        entry.value = add(entry.value, val).toNumber();
-        statusMap.set(status, entry);
-    });
-
-    const statusBreakdown = Array.from(statusMap.entries()).map(([status, data]) => ({
-        status: status.charAt(0).toUpperCase() + status.slice(1),
-        count: data.count,
-        value: Math.round(data.value)
-    }));
-
-    res.json({
-      overview,
-      monthlyData,
-      topClients,
-      statusBreakdown
-    });
-
-  } catch (error) {
-    logger.error("Error fetching analytics overview:", error);
-    res.status(500).json({ error: "Failed to fetch analytics" });
-  }
+      return res.json({
+        overview: {
+          totalSpend: totalSpend.toFixed(2),
+          totalPOs: filteredPos.length,
+          activeVendors: vendorSpend.size,
+          delayedPOs: delayedPos.length,
+          avgPoValue: filteredPos.length > 0 ? (totalSpend / filteredPos.length).toFixed(2) : "0",
+        },
+        topVendors,
+        vendorPerformance,
+        procurementDelays: {
+          count: delayedPos.length,
+          percentage: filteredPos.length > 0 ? ((delayedPos.length / filteredPos.length) * 100).toFixed(1) : "0",
+        },
+      });
+    } catch (error) {
+      logger.error("Vendor analytics error:", error);
+      return res.status(500).json({ error: "Failed to fetch vendor analytics" });
+    }
 });
 
-router.get("/analytics/forecast", async (req: AuthRequest, res: Response) => {
-    const data = await analyticsService.getRevenueForecast();
-    res.json(data);
-});
 
-router.get("/analytics/deal-distribution", async (req: AuthRequest, res: Response) => {
-    const data = await analyticsService.getDealDistribution();
-    res.json(data);
-});
+// --- LEGACY / ADDITIONAL ANALYTICS ROUTES MERGED FROM analytics-routes.ts ---
 
-router.get("/analytics/regional", async (req: AuthRequest, res: Response) => {
-    const data = await analyticsService.getRegionalDistribution();
-    res.json(data);
-});
-
-router.get("/analytics/pipeline", async (req: AuthRequest, res: Response) => {
-    const data = await analyticsService.getSalesPipeline();
-    res.json(data);
-});
-
-router.get("/analytics/competitor-insights", async (req: AuthRequest, res: Response) => {
-    const data = await analyticsService.getCompetitorInsights();
-    res.json(data);
-});
-
-router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
+router.get("/export", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const timeRange = req.query.timeRange as string || "12";
     let startDate: Date | undefined;
@@ -220,9 +455,8 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
     
     summarySheet.columns = [
         { header: 'Metric', key: 'metric', width: 25 },
-        { header: 'Value', key: 'value', width: 25, style: { numFmt: '#,##0.00' } }, // Use generic number format or dynamic currency
+        { header: 'Value', key: 'value', width: 25, style: { numFmt: '#,##0.00' } }, 
     ];
-    // Actually better to apply per-cell for mixed types, but let's try to handle the specific numeric rows.
 
     summarySheet.addRows([
         { metric: 'Report Date', value: new Date().toLocaleDateString() },
@@ -233,13 +467,11 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
         { metric: 'Average Deal Size', value: avgDealSize },
     ]);
 
-    // Fix formats for specific rows
-    summarySheet.getRow(2).getCell('value').numFmt = '@'; // Date/Text
+    summarySheet.getRow(2).getCell('value').numFmt = '@'; 
     summarySheet.getRow(3).getCell('value').numFmt = '@'; 
-    summarySheet.getRow(5).getCell('value').numFmt = '#,##0'; // Count
-    summarySheet.getRow(6).getCell('value').numFmt = '#,##0.00'; // Revenue
-    summarySheet.getRow(7).getCell('value').numFmt = '#,##0.00'; // Avg Deal
-
+    summarySheet.getRow(5).getCell('value').numFmt = '#,##0'; 
+    summarySheet.getRow(6).getCell('value').numFmt = '#,##0.00'; 
+    summarySheet.getRow(7).getCell('value').numFmt = '#,##0.00'; 
 
     summarySheet.getRow(1).font = { bold: true, size: 14 };
     
@@ -300,7 +532,6 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
         });
     });
 
-    // Response
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="Analytics_Report_${new Date().toISOString().split('T')[0]}.xlsx"`);
 
@@ -313,117 +544,11 @@ router.get("/analytics/export", async (req: AuthRequest, res: Response) => {
   }
 });
 
-
-/**
- * Vendor Analytics
- */
-router.get("/analytics/vendor-spend", async (req: AuthRequest, res: Response) => {
-  try {
-    const timeRange = req.query.timeRange as string || "12";
-    
-    const allPOs = await db.execute(sql`
-      SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
-    `);
-    
-    // Filter by time range if needed... currently getting all for simplicity or simple filter
-    // Converting timeRange to date logic could be done here.
-
-    const allVendors = await storage.getAllVendors();
-
-    let totalSpend = 0;
-    let totalPOs = 0;
-    let fulfilledPOs = 0;
-    let delayedPOs = 0;
-
-    const vendorStats = new Map<string, { spend: number; count: number; fulfilled: number }>();
-
-    allPOs.rows.forEach((po: any) => {
-        const val = toDecimal(po.total || po.total_amount); // Handle diza vs raw
-        totalSpend = add(totalSpend, val).toNumber();
-        totalPOs++;
-
-        if (po.status === 'fulfilled') fulfilledPOs++;
-        
-        // Check delay (if actual delivery > expected)
-        if (po.actual_delivery_date && po.expected_delivery_date) {
-            if (new Date(po.actual_delivery_date) > new Date(po.expected_delivery_date)) delayedPOs++;
-        }
-
-        const stats = vendorStats.get(po.vendor_id) || { spend: 0, count: 0, fulfilled: 0 };
-        stats.spend = add(stats.spend, val).toNumber();
-        stats.count++;
-        if (po.status === 'fulfilled') stats.fulfilled++;
-        vendorStats.set(po.vendor_id, stats);
-    });
-
-    const avgPoValue = totalPOs > 0 ? totalSpend / totalPOs : 0;
-
-    const topVendors = Array.from(vendorStats.entries()).map(([vid, stat]) => {
-        const v = allVendors.find(vend => vend.id === vid);
-        return {
-            vendorName: v?.name || "Unknown",
-            totalSpend: Math.round(stat.spend).toLocaleString(),
-            poCount: stat.count,
-            avgPoValue: stat.count > 0 ? Math.round(stat.spend / stat.count).toLocaleString() : "0"
-        };
-    }).sort((a,b) => parseFloat(b.totalSpend.replace(/,/g,'')) - parseFloat(a.totalSpend.replace(/,/g,''))).slice(0, 5);
-
-    const vendorPerformance = Array.from(vendorStats.entries()).map(([vid, stat]) => {
-         const v = allVendors.find(vend => vend.id === vid);
-         return {
-            vendorName: v?.name || "Unknown",
-            totalPOs: stat.count,
-            fulfilledPOs: stat.fulfilled,
-            onTimeDeliveryRate: "95%", // Placeholder - needs actual logic
-            totalSpend: Math.round(stat.spend).toLocaleString()
-         };
-    }).slice(0, 10);
-
-    const data = {
-        overview: {
-            totalSpend: Math.round(totalSpend).toLocaleString(),
-            totalPOs,
-            activeVendors: vendorStats.size,
-            delayedPOs,
-            avgPoValue: Math.round(avgPoValue).toLocaleString()
-        },
-        topVendors,
-        vendorPerformance,
-        procurementDelays: {
-            count: delayedPOs,
-            percentage: totalPOs > 0 ? ((delayedPOs / totalPOs) * 100).toFixed(1) : "0.0"
-        }
-    };
-
-    res.json(data);
-  } catch (error) {
-    logger.error("Error fetching vendor analytics:", error);
-    res.status(500).json({ error: "Failed to fetch vendor analytics" });
-  }
-});
-
-/**
- * KEEPING ORIGINAL ROUTES FOR BACKWARD COMPATIBILITY IF NEEDED BY OTHER DASHBOARDS
- * (Renamed to avoid conflict if paths overlap, but here paths are distinct enough except for overlaps)
- * Actually, frontend 'dashboards/sales-quotes' etc might use these.
- * 
- * /analytics/sales-quotes -> Used by Sales Quote Dashboard?
- * /analytics/vendor-po -> Used by Vendor PO Dashboard?
- * /analytics/invoice-collections -> Used by Invoice Dashboard?
- * /analytics/serial-tracking -> Used by Serial Dashboard?
- * 
- * I will preserve them below.
- */
-
-/**
- * Sales & Quote Dashboard Analytics
- */
-router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) => {
+router.get("/sales-quotes", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const allQuotes = await storage.getAllQuotes();
     const allClients = await storage.getAllClients();
 
-    // Quotes by status
     const quotesByStatus = {
       draft: 0,
       sent: 0,
@@ -448,16 +573,12 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
       }
     });
 
-    // Conversion rate
     const sentQuotes = quotesByStatus.sent + quotesByStatus.approved + quotesByStatus.rejected;
     const conversionRate = sentQuotes > 0 ? (quotesByStatus.approved / sentQuotes) * 100 : 0;
 
-    // Average quote value
-    // Average quote value
     const totalValue = allQuotes.reduce((sum, q) => add(sum, q.total), toDecimal(0));
     const averageQuoteValue = allQuotes.length > 0 ? divide(totalValue, allQuotes.length).toNumber() : 0;
 
-    // Top customers
     const customerQuotes = new Map<string, { name: string; count: number; value: number }>();
     allQuotes.forEach((quote) => {
       const existing = customerQuotes.get(quote.clientId);
@@ -487,7 +608,6 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
       .sort((a, b) => b.totalValue - a.totalValue)
       .slice(0, 10);
 
-    // Monthly trend
     const monthlyData = new Map<string, { quotes: number; value: number; approved: number }>();
     allQuotes.forEach((quote) => {
       const date = new Date(quote.createdAt);
@@ -527,10 +647,7 @@ router.get("/analytics/sales-quotes", async (req: AuthRequest, res: Response) =>
   }
 });
 
-/**
- * Vendor PO & Procurement Dashboard Analytics
- */
-router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
+router.get("/vendor-po", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const allPOs = await db.execute(sql`
       SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
@@ -538,7 +655,6 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
 
     const allVendors = await storage.getAllVendors();
 
-    // POs by status
     const posByStatus = {
       draft: 0,
       sent: 0,
@@ -560,7 +676,6 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
     const averagePOValue = allPOs.rows.length > 0 ? totalPOValue / allPOs.rows.length : 0;
     const fulfillmentRate = allPOs.rows.length > 0 ? (posByStatus.fulfilled / allPOs.rows.length) * 100 : 0;
 
-    // Spend by vendor
     const vendorSpend = new Map<string, { name: string; spend: number; count: number }>();
     allPOs.rows.forEach((po: any) => {
       const existing = vendorSpend.get(po.vendor_id);
@@ -589,7 +704,6 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
       }))
       .sort((a, b) => b.totalSpend - a.totalSpend);
 
-    // Monthly spend
     const monthlySpendMap = new Map<string, { spend: number; count: number }>();
     allPOs.rows.forEach((po: any) => {
       const date = new Date(po.created_at);
@@ -610,7 +724,6 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-12);
 
-    // PO vs GRN variance (placeholder - would need GRN integration)
     const poVsGrnVariance: any[] = [];
 
     res.json({
@@ -628,15 +741,11 @@ router.get("/analytics/vendor-po", async (req: AuthRequest, res: Response) => {
   }
 });
 
-/**
- * Invoice & Collections Dashboard Analytics
- */
-router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Response) => {
+router.get("/invoice-collections", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const allInvoices = await storage.getAllInvoices();
     const allClients = await storage.getAllClients();
 
-    // Invoices by status
     const invoicesByStatus = {
       draft: 0,
       sent: 0,
@@ -658,18 +767,14 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       const totalAmt = toDecimal(invoice.total);
       const remaining = subtract(totalAmt, paidAmt).toNumber();
       
-      const totalAmtVal = totalAmt.toNumber();
-
       if (invoice.paymentStatus === "paid") {
         invoicesByStatus.paid++;
         totalPaid = add(totalPaid, totalAmt).toNumber();
 
-        // Calculate collection days - use lastPaymentDate if available, otherwise updatedAt
         const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
         const paidDate = invoice.lastPaymentDate ? new Date(invoice.lastPaymentDate) : new Date(invoice.updatedAt);
         const days = Math.floor((paidDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
         
-        // Only count positive days (avoid negative values from data issues)
         if (days >= 0) {
           totalCollectionDays += days;
           paidInvoicesCount++;
@@ -693,16 +798,10 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
         }
         totalOutstanding += remaining;
       }
-
-      if (!invoice.isMaster) { // Only count non-master for status
-        // Invoice payment statuses are: pending, partial, paid, overdue
-        // No draft status for invoices
-      }
     });
 
     const averageCollectionDays = paidInvoicesCount > 0 ? Math.round(totalCollectionDays / paidInvoicesCount) : 0;
 
-    // Ageing buckets
     const ageingBuckets = [
       { bucket: "0-30 days", count: 0, amount: 0 },
       { bucket: "31-60 days", count: 0, amount: 0 },
@@ -736,7 +835,6 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       bucket.amount = Math.round(bucket.amount);
     });
 
-    // Monthly collections
     const monthlyMap = new Map<string, { invoiced: number; collected: number }>();
     allInvoices.forEach((invoice) => {
       const date = new Date(invoice.createdAt);
@@ -766,12 +864,10 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-12);
 
-    // Top debtors
     const debtorMap = new Map<string, { name: string; outstanding: number; count: number; oldestDays: number }>();
     
     allInvoices.forEach((invoice) => {
       const remaining = toDecimal(invoice.remainingAmount);
-      // Fallback for remainingAmount if not populated correctly (should be handled by business logic but safety check)
       const calcRemaining = subtract(invoice.total, invoice.paidAmount);
       
       const outstanding = Math.max(remaining.toNumber(), calcRemaining.toNumber());
@@ -825,10 +921,7 @@ router.get("/analytics/invoice-collections", async (req: AuthRequest, res: Respo
   }
 });
 
-/**
- * Serial Tracking Dashboard Analytics
- */
-router.get("/analytics/serial-tracking", async (req: AuthRequest, res: Response) => {
+router.get("/serial-tracking", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const serialNumbers = await db.execute(sql`
       SELECT * FROM serial_numbers ORDER BY created_at DESC
@@ -836,7 +929,6 @@ router.get("/analytics/serial-tracking", async (req: AuthRequest, res: Response)
 
     const totalSerials = serialNumbers.rows.length;
 
-    // Serials by status
     const serialsByStatus = {
       delivered: 0,
       in_stock: 0,
@@ -851,10 +943,8 @@ router.get("/analytics/serial-tracking", async (req: AuthRequest, res: Response)
       }
     });
 
-    // Serials by product (placeholder - would need product integration)
     const serialsByProduct: Array<{ productName: string; count: number }> = [];
 
-    // Warranty expiring
     const now = new Date();
     const warrantyExpiring = serialNumbers.rows
       .filter((serial: any) => serial.warranty_end_date)
@@ -864,8 +954,8 @@ router.get("/analytics/serial-tracking", async (req: AuthRequest, res: Response)
 
         return {
           serialNumber: serial.serial_number,
-          productName: "Product", // Would need actual product lookup
-          customerName: "Customer", // Would need actual customer lookup
+          productName: "Product", 
+          customerName: "Customer", 
           warrantyEndDate: serial.warranty_end_date,
           daysRemaining,
         };
@@ -886,4 +976,3 @@ router.get("/analytics/serial-tracking", async (req: AuthRequest, res: Response)
 });
 
 export default router;
-
