@@ -4,6 +4,7 @@ import { ZodSchema, ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import jwt from "jsonwebtoken";
 import { storage } from "./storage";
+import { cacheService } from "./services/cache.service";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -30,11 +31,33 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     }
 
     const decoded = jwt.verify(token, getJWTSecret()) as { id: string; email: string; role: string };
+    
+    // CAS CHING LAYER: Check cache first
+    const cacheKey = `user:${decoded.id}`;
+    const cachedUser = await cacheService.get<{id: string, email: string, role: string, status: string}>(cacheKey);
+    
+    if (cachedUser) {
+        if (cachedUser.status !== "active") {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        req.user = { id: cachedUser.id, email: cachedUser.email, role: cachedUser.role };
+        return next();
+    }
+
+    // Cache miss, fetch from DB
     const user = await storage.getUser(decoded.id);
     
     if (!user || user.status !== "active") {
       return res.status(401).json({ error: "Unauthorized" });
     }
+
+    // Update cache
+    await cacheService.set(cacheKey, {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        status: user.status
+    }, 300); // Cache: 5 minutes
 
     req.user = { id: user.id, email: user.email, role: user.role };
     next();

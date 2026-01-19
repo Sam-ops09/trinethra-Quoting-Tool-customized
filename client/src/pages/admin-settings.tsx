@@ -15,6 +15,8 @@ import { useAdminSettings } from "@/components/admin-settings/hooks";
 import { TaxSettings } from "@/components/admin-settings/TaxSettings";
 import { PricingSettings } from "@/components/admin-settings/PricingSettings";
 import { CurrencySettings } from "@/components/admin-settings/CurrencySettings";
+import { ApprovalSettings } from "@/components/admin-settings/ApprovalSettings";
+import { CheckCircle2 } from "lucide-react";
 
 export default function AdminSettings() {
     const { taxRates, pricingTiers, currencyForm } = useAdminSettings();
@@ -121,7 +123,7 @@ export default function AdminSettings() {
                 {/* Tabs: scrollable on mobile */}
                 <Tabs defaultValue="tax" className="w-full">
                     <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-                        <TabsList className="inline-flex sm:grid w-full sm:max-w-3xl grid-cols-3 h-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-1">
+                        <TabsList className="inline-flex sm:grid w-full sm:max-w-3xl grid-cols-4 h-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-1">
                             <TabsTrigger value="tax" data-testid="tab-tax" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                                 <Calculator className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                                 <span className="hidden xs:inline">Tax Rates</span>
@@ -133,6 +135,10 @@ export default function AdminSettings() {
                             <TabsTrigger value="currency" data-testid="tab-currency" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                                 <Globe2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                                 <span className="hidden xs:inline">Currency</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="approvals" data-testid="tab-approvals" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
+                                <CheckCircle2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                                <span className="hidden xs:inline">Approvals</span>
                             </TabsTrigger>
                         </TabsList>
                     </div>
@@ -147,6 +153,10 @@ export default function AdminSettings() {
 
                     <TabsContent value="currency" className="space-y-3">
                         <CurrencySettings />
+                    </TabsContent>
+
+                    <TabsContent value="approvals" className="space-y-3">
+                        <ApprovalSettings />
                     </TabsContent>
                 </Tabs>
             </div>

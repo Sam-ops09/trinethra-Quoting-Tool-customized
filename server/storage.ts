@@ -76,8 +76,10 @@ import {
   products,
   type Product,
   type InsertProduct,
+  approvalRules,
 } from "@shared/schema";
 import { version } from "os";
+import { cacheService } from "./services/cache.service";
 
 export interface IStorage {
   // Users
@@ -251,7 +253,12 @@ export interface IStorage {
   deleteSalesOrderItems(salesOrderId: string): Promise<void>;
   deleteSalesOrderItems(salesOrderId: string): Promise<void>;
 
-  // Products
+  // Approval Rules
+  getApprovalRules(): Promise<any[]>;
+  createApprovalRule(rule: any): Promise<any>;
+  updateApprovalRule(id: string, rule: any): Promise<any>;
+  deleteApprovalRule(id: string): Promise<void>;
+  
   getProduct(id: string): Promise<Product | undefined>;
   updateProduct(id: string, data: Partial<Product>): Promise<Product | undefined>;
 }
@@ -292,6 +299,10 @@ export class DatabaseStorage implements IStorage {
     .set({ ...data, updatedAt: new Date() })
     .where(eq(users.id, id))
     .returning();
+
+  if (updated) {
+    await cacheService.del(`user:${id}`);
+  }
   return updated || undefined;
 }
 
@@ -303,6 +314,10 @@ export class DatabaseStorage implements IStorage {
     .set({ ...data, updatedAt: new Date() })
     .where(and(eq(users.id, id), eq(users.resetToken, token)))
     .returning();
+
+  if (updated) {
+    await cacheService.del(`user:${id}`);
+  }
   return updated || undefined;
 }
 
@@ -329,6 +344,8 @@ export class DatabaseStorage implements IStorage {
     // Log the "deletion" (deactivation)
     // Note: We don't delete their created content.
     console.log(`[Storage] User ${id} soft-deleted (set to inactive).`);
+    
+    await cacheService.del(`user:${id}`);
   }
 
   async getAllUsers(): Promise < User[] > {
@@ -1128,6 +1145,28 @@ export class DatabaseStorage implements IStorage {
       .where(eq(products.id, id))
       .returning();
     return updated || undefined;
+  }
+  // Approval Rules
+  async getApprovalRules(): Promise<any[]> {
+    return await db.select().from(approvalRules).where(eq(approvalRules.isActive, true));
+  }
+
+  async createApprovalRule(rule: any): Promise<any> {
+    const [newRule] = await db.insert(approvalRules).values(rule).returning();
+    return newRule;
+  }
+
+  async updateApprovalRule(id: string, rule: any): Promise<any> {
+    const [updated] = await db
+      .update(approvalRules)
+      .set({ ...rule, updatedAt: new Date() })
+      .where(eq(approvalRules.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteApprovalRule(id: string): Promise<void> {
+    await db.delete(approvalRules).where(eq(approvalRules.id, id));
   }
 }
 

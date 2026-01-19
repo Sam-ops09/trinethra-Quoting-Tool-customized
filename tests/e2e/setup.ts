@@ -163,33 +163,42 @@ export async function createTestUser(
  * Test data generators
  */
 export const testData = {
-  user: (override?: any) => ({
-    name: 'Test User',
-    email: `test${Date.now()}@example.com`,
-    password: 'Test@123456',
-    role: 'admin' as const,
-    ...override,
-  }),
+  user: (override?: any) => {
+    const uniqueId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return {
+      name: `Test User ${uniqueId}`,
+      email: `test_${uniqueId}@example.com`,
+      password: 'Test@123456',
+      role: 'admin' as const,
+      ...override,
+    };
+  },
 
-  admin: (override?: any) => ({
-    name: 'Test Admin',
-    email: `admin${Date.now()}@example.com`,
-    password: 'Admin@123456',
-    role: 'admin' as const,
-    ...override,
-  }),
+  admin: (override?: any) => {
+    const uniqueId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return {
+      name: `Test Admin ${uniqueId}`,
+      email: `admin_${uniqueId}@example.com`,
+      password: 'Admin@123456',
+      role: 'admin' as const,
+      ...override,
+    };
+  },
 
-  client: (override?: any) => ({
-    name: `Test Client ${Date.now()}`,
-    email: `client${Date.now()}@example.com`,
-    phone: '+1234567890',
-    address: '123 Test St',
-    city: 'Test City',
-    state: 'TS',
-    country: 'Test Country',
-    postalCode: '12345',
-    ...override,
-  }),
+  client: (override?: any) => {
+    const uniqueId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return {
+      name: `Test Client ${uniqueId}`,
+      email: `client_${uniqueId}@example.com`,
+      phone: '+1234567890',
+      address: '123 Test St',
+      city: 'Test City',
+      state: 'TS',
+      country: 'Test Country',
+      postalCode: '12345',
+      ...override,
+    };
+  },
 
   quote: (override?: any) => ({
     quoteNumber: `QT${Date.now()}`,

@@ -105,10 +105,38 @@ export const quotes = pgTable("quotes", {
   // Public Sharing
   publicToken: text("public_token").unique(),
   tokenExpiresAt: timestamp("token_expires_at"),
+  // Rule-Based Approval Fields
+  approvalStatus: text("approval_status").notNull().default("none"), // none, pending, approved, rejected
+  approvalRequiredBy: userRoleEnum("approval_required_by"), // Role required to approve (e.g. sales_manager)
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const approvalRuleTriggerTypeEnum = pgEnum("approval_rule_trigger_type", ["discount_percentage", "total_amount"]);
+
+export const approvalRules = pgTable("approval_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: approvalRuleTriggerTypeEnum("trigger_type").notNull(),
+  thresholdValue: decimal("threshold_value", { precision: 12, scale: 2 }).notNull(),
+  requiredRole: userRoleEnum("required_role").notNull().default("sales_manager"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const approvalRulesRelations = relations(approvalRules, ({ one }) => ({
+  creator: one(users, {
+    fields: [approvalRules.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export type ApprovalRule = typeof approvalRules.$inferSelect;
+export type InsertApprovalRule = typeof approvalRules.$inferInsert;
 
 export const quoteVersions = pgTable("quote_versions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -793,6 +821,15 @@ export const insertClientSchema = createInsertSchema(clients).omit({
 export const insertQuoteSchema = createInsertSchema(quotes).omit({
   id: true,
   quoteNumber: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+  approvalStatus: true,
+  approvalRequiredBy: true,
+});
+
+export const insertApprovalRuleSchema = createInsertSchema(approvalRules).omit({
+  id: true,
   createdAt: true,
   updatedAt: true,
   createdBy: true,

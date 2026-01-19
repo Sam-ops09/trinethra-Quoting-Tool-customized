@@ -26,12 +26,14 @@ import productsRoutes from "./routes/products.routes";
 import vendorsRoutes from "./routes/vendors.routes";
 import settingsRoutes from "./routes/settings.routes";
 import serialNumbersRoutes from "./routes/serial-numbers.routes";
+import approvalRulesRoutes from "./routes/approval-rules.routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
 import { z } from "zod";
 import { toDecimal, add, subtract, toMoneyString, moneyGte, moneyGt } from "./utils/financial";
 import { logger } from "./utils/logger";
+import { cacheService } from "./services/cache.service";
 
 const JWT_EXPIRES_IN = "15m";
 const REFRESH_TOKEN_EXPIRES_IN = "7d";
@@ -77,6 +79,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serial Number Routes
   app.use("/api/serial-numbers", authMiddleware, serialNumbersRoutes);
 
+  // Approval Rules Routes
+  app.use("/api/approval-rules", authMiddleware, approvalRulesRoutes);
+
   // Moved to invoices.routes.ts
 
   // PDF Export for Quotes
@@ -91,6 +96,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const type = req.query.type as string | undefined;
       const style = req.query.style as string | undefined;
 
+      const cacheKey = `templates:list:${type || 'all'}:${style || 'all'}`;
+      const cached = await cacheService.get<any>(cacheKey);
+      if (cached) return res.json(cached);
+
       let templates;
       if (type) {
         templates = await storage.getTemplatesByType(type);
@@ -99,6 +108,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         templates = await storage.getAllTemplates();
       }
+
+      await cacheService.set(cacheKey, templates, 300); // 5 mins cache for lists
+
 
       return res.json(templates);
     } catch (error) {
@@ -129,10 +141,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/templates/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
+      const cacheKey = `templates:id:${req.params.id}`;
+      const cached = await cacheService.get<any>(cacheKey);
+      if (cached) return res.json(cached);
+
       const template = await storage.getTemplate(req.params.id);
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
       }
+
+      await cacheService.set(cacheKey, template, 3600); // 1 hour cache
       return res.json(template);
     } catch (error) {
       return res.status(500).json({ error: "Failed to fetch template" });
@@ -174,6 +192,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityId: template.id,
       });
 
+      // Invalidate cache
+      await cacheService.del(`templates:id:${req.params.id}`);
+      // Also potentially invalidate lists... leaving for TTL expiry for now
+
+
       return res.json(template);
     } catch (error: any) {
       logger.error("Update template error:", error);
@@ -191,6 +214,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "template",
         entityId: req.params.id,
       });
+
+      // Invalidate cache
+      await cacheService.del(`templates:id:${req.params.id}`);
 
       return res.json({ success: true });
     } catch (error) {

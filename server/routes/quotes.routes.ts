@@ -10,6 +10,8 @@ import { calculateSubtotal, calculateTotal, toMoneyString } from "../utils/finan
 import { EmailService } from "../services/email.service";
 import { PDFService } from "../services/pdf.service";
 
+import { ApprovalService } from "../services/approval.service";
+
 const router = Router();
 
 router.get("/", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
@@ -121,6 +123,10 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
         total: toMoneyString(total),
     };
 
+    // Rule-Based Approval Check
+    const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(finalQuoteData as any); // Type cast until full integration
+    Object.assign(finalQuoteData, { approvalStatus, approvalRequiredBy });
+
     // Create quote and items in transaction
     const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
 
@@ -131,7 +137,11 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
         entityId: quote.id,
     });
 
-    return res.json(quote);
+    console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2)); 
+    console.log("[DEBUG] Eval Result:", { approvalStatus, approvalRequiredBy });
+
+    // Explicitly return computed status in case DB insert returned restricted object
+    return res.json({ ...quote, approvalStatus, approvalRequiredBy });
   } catch (error: any) {
     logger.error("Create quote error:", error);
     return res.status(500).json({ error: error.message || "Failed to create quote" });
@@ -204,8 +214,80 @@ router.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async 
         hsnSac: item.hsnSac || null,
         }));
 
+        // Re-evaluate approval if contents changed
+        // We need to construct the full quote object to evaluate
+        // This is tricky because we need partial update applied to existing quote
+        
+        // Optimistic evaluation strategy:
+        // 1. Calculate new financials
+        const subtotal = calculateSubtotal(quoteItemsData);
+        const discount = updateData.discount !== undefined ? updateData.discount : existingQuote.discount;
+        // ... (other fields) ...
+        // For simplicity, we assume update applies to fields provided or falls back to existing.
+        
+        // Actually, easiest right now is to let the update happen, THEN re-evaluate? 
+        // No, we need to set status BEFORE saving if it changes.
+        
+        // Better: Construct the "proposed" quote data
+        const proposedQuote = {
+            ...existingQuote,
+            ...updateData,
+            subtotal: toMoneyString(subtotal),
+             // Recalculate total if items changed
+             // ...
+        };
+        // NOTE: Full Recalculation is ideal. For MVP, we'll re-evaluate AFTER update if possible, 
+        // or just apply logic here efficiently.
+        
+        // Let's do a simplified check for now: If items or financials updated, re-evaluate.
+        // We should really update the approval status based on the NEW values.
+        
+        // Just rely on the storage update to return the new quote, then we can check?
+        // No, we want to store the status.
+        
+        // Let's pass the responsibility to `ApprovalService` to check "proposed" values is best, 
+        // but `evaluateQuote` takes a `Quote` object.
+        
+        // Let's just update normally, then check if we need to flag it. 
+        // But `createQuoteTransaction` needs fields.
+        
+        // Let's do a simplified approach:
+        // If items are being updated, we recalculate totals anyway in frontend ideally, but here we trust input or recalculate.
+        // Let's just set `approvalStatus` to `pending` if it triggers rules, otherwise reset to `none`?
+        // Or should we only set to `pending` if it WAS `none`?
+        
+        // Let's just re-run evaluation on the merged data.
+        const mergedDataForEval = { ...existingQuote, ...updateData };
+        if(items) {
+             const sub = calculateSubtotal(quoteItemsData);
+             mergedDataForEval.subtotal = toMoneyString(sub);
+             mergedDataForEval.total = toMoneyString(calculateTotal({
+                 subtotal: sub,
+                 discount: mergedDataForEval.discount || 0,
+                 shippingCharges: mergedDataForEval.shippingCharges || 0,
+                 cgst: mergedDataForEval.cgst || 0,
+                 sgst: mergedDataForEval.sgst || 0,
+                 igst: mergedDataForEval.igst || 0
+             }));
+        }
+
+        const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(mergedDataForEval as any);
+        Object.assign(updateData, { approvalStatus, approvalRequiredBy });
+
         quote = await storage.updateQuoteTransaction(req.params.id, updateData, quoteItemsData);
     } else {
+        // Just updating fields like discount?
+        const mergedDataForEval = { ...existingQuote, ...updateData };
+        // If only updating status, skip eval?
+        // We only eval if financial fields are touched
+        const financialFields = ['discount', 'shippingCharges', 'items', 'total'];
+        const isFinancialUpdate = Object.keys(updateData).some(k => financialFields.includes(k));
+        
+        if (isFinancialUpdate) {
+             const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(mergedDataForEval as any);
+             Object.assign(updateData, { approvalStatus, approvalRequiredBy });
+        }
+        
         quote = await storage.updateQuote(req.params.id, updateData);
     }
 
@@ -325,6 +407,14 @@ router.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), a
       const quote = await storage.getQuote(req.params.id);
       if (!quote) {
         return res.status(404).json({ error: "Quote not found" });
+      }
+
+      // Block sending if pending approval
+      if (quote.approvalStatus === "pending") {
+          return res.status(400).json({ error: "Quote requires approval before it can be sent." });
+      }
+      if (quote.approvalStatus === "rejected") {
+          return res.status(400).json({ error: "Quote has been rejected and cannot be sent." });
       }
 
       const client = await storage.getClient(quote.clientId);
@@ -742,6 +832,85 @@ router.post("/public/:token/:action", async (req: any, res: Response) => {
     } catch (error) {
         logger.error("Public quote action error:", error);
         res.status(500).json({ error: "Failed to process " + req.params.action });
+    }
+});
+
+// Approval Routes
+router.post("/:id/approve", authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+    try {
+        const quote = await storage.getQuote(req.params.id);
+        if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+        if (quote.approvalStatus !== "pending") {
+            return res.status(400).json({ error: "Quote is not pending approval" });
+        }
+
+        // Check permissions: Req user role must match approvalRequiredBy (or be admin)
+        // Simple check:
+        const requiredRole = quote.approvalRequiredBy;
+        if (requiredRole && req.user!.role !== requiredRole && req.user!.role !== "admin") {
+             return res.status(403).json({ error: `You do not have permission to approve this quote. Required role: ${requiredRole}` });
+        }
+
+        const updated = await storage.updateQuote(quote.id, {
+            approvalStatus: "approved",
+            status: "approved", // Also update main status? Or keep as draft/sent? Usually 'approved' is internal.
+            // Let's map internal approval to main status 'approved' for now, but usually 'approved' in main status means Client Approved.
+            // Wait, `quoteStatusEnum` has `approved`. Is that for Client or Internal?
+            // Usually Client. 
+            // If we have internal approval, maybe we keep it as 'draft' or 'pending'?
+            // Let's keep main status as 'draft' (or whatever it was) but set `approvalStatus` to `approved`.
+            // When sending, we check `approvalStatus`.
+            // BUT, if the user manually sets status to 'Approved' (Client Approved), we might want to block that if internal approval is pending?
+            // For now, let's just update `approvalStatus`.
+            
+            // Actually, if it's "Approved" by manager, it's ready to be sent.
+        });
+
+        await storage.createActivityLog({
+            userId: req.user!.id,
+            action: "approve_quote_internal",
+            entityType: "quote",
+            entityId: quote.id,
+        });
+
+        res.json(updated);
+    } catch (error) {
+        logger.error("Approve quote error:", error);
+        res.status(500).json({ error: "Failed to approve quote" });
+    }
+});
+
+router.post("/:id/reject", authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+    try {
+        const quote = await storage.getQuote(req.params.id);
+        if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+        if (quote.approvalStatus !== "pending") {
+             return res.status(400).json({ error: "Quote is not pending approval" });
+        }
+        
+        const requiredRole = quote.approvalRequiredBy;
+        if (requiredRole && req.user!.role !== requiredRole && req.user!.role !== "admin") {
+             return res.status(403).json({ error: `You do not have permission to reject this quote. Required role: ${requiredRole}` });
+        }
+
+        const updated = await storage.updateQuote(quote.id, {
+            approvalStatus: "rejected",
+            status: "rejected", // Update main status to rejected too?
+        });
+
+        await storage.createActivityLog({
+            userId: req.user!.id,
+            action: "reject_quote_internal",
+            entityType: "quote",
+            entityId: quote.id,
+        });
+
+        res.json(updated);
+    } catch (error) {
+        logger.error("Reject quote error:", error);
+        res.status(500).json({ error: "Failed to reject quote" });
     }
 });
 

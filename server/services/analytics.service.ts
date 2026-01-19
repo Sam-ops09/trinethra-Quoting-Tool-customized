@@ -2,6 +2,7 @@ import { storage } from "../storage";
 import { eq, gte, lte } from "drizzle-orm";
 import { db } from "../db";
 import { quotes, invoices } from "@shared/schema";
+import { cacheService } from "./cache.service";
 
 export class AnalyticsService {
   /**
@@ -14,6 +15,10 @@ export class AnalyticsService {
       confidence: number;
     }>
   > {
+    const cacheKey = `analytics:forecast:${monthsAhead}`;
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached) return cached;
+
     try {
       const allQuotes = await storage.getAllQuotes();
       const allInvoices = await storage.getAllInvoices();
@@ -55,6 +60,7 @@ export class AnalyticsService {
         });
       }
 
+      await cacheService.set(cacheKey, forecast, 3600); // 1 hour cache
       return forecast;
     } catch (error) {
       console.error("Error getting revenue forecast:", error);
@@ -73,6 +79,10 @@ export class AnalyticsService {
       percentage: number;
     }>
   > {
+    const cacheKey = "analytics:deal_distribution";
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached) return cached;
+
     try {
       const allQuotes = await storage.getAllQuotes();
 
@@ -101,10 +111,13 @@ export class AnalyticsService {
       });
 
       const totalQuotes = distribution.reduce((sum, d) => sum + d.count, 0);
-      return distribution.map((d) => ({
+      const result = distribution.map((d) => ({
         ...d,
         percentage: totalQuotes > 0 ? (d.count / totalQuotes) * 100 : 0,
       }));
+
+      await cacheService.set(cacheKey, result, 900); // 15 minutes cache
+      return result;
     } catch (error) {
       console.error("Error getting deal distribution:", error);
       return [];
@@ -122,6 +135,10 @@ export class AnalyticsService {
       percentage: number;
     }>
   > {
+    const cacheKey = "analytics:regional_distribution";
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached) return cached;
+
     try {
       // Group quotes by region (from client's billing address or default)
       const allClients = await storage.getAllClients();
@@ -177,12 +194,15 @@ export class AnalyticsService {
 
       const totalQuotes = Object.values(regionData).reduce((sum, r) => sum + r.count, 0);
 
-      return Object.entries(regionData).map(([region, data]) => ({
+      const result = Object.entries(regionData).map(([region, data]) => ({
         region,
         quoteCount: data.count,
         totalRevenue: this.roundAmount(data.revenue),
         percentage: totalQuotes > 0 ? (data.count / totalQuotes) * 100 : 0,
       }));
+
+      await cacheService.set(cacheKey, result, 3600); // 1 hour cache
+      return result;
     } catch (error) {
       console.error("Error getting regional distribution:", error);
       return [];
@@ -259,6 +279,10 @@ export class AnalyticsService {
       avgDealValue: number;
     }>
   > {
+    const cacheKey = "analytics:sales_pipeline";
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached) return cached;
+
     try {
       const allQuotes = await storage.getAllQuotes();
 
@@ -276,6 +300,7 @@ export class AnalyticsService {
         };
       });
 
+      await cacheService.set(cacheKey, pipeline, 300); // 5 minutes cache
       return pipeline;
     } catch (error) {
       console.error("Error getting sales pipeline:", error);
@@ -336,6 +361,10 @@ export class AnalyticsService {
     quoteFrequency: number;
     conversionTrend: number;
   }> {
+    const cacheKey = "analytics:competitor_insights";
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached) return cached;
+
     try {
       const allQuotes = await storage.getAllQuotes();
       const allInvoices = await storage.getAllInvoices();
@@ -362,12 +391,15 @@ export class AnalyticsService {
       const conversionCount = allInvoices.length;
       const conversionTrend = allQuotes.length > 0 ? (conversionCount / allQuotes.length) * 100 : 0;
 
-      return {
+      const result = {
         avgQuoteValue: this.roundAmount(avgValue),
         medianQuoteValue: this.roundAmount(medianValue),
         quoteFrequency,
         conversionTrend: parseFloat(conversionTrend.toFixed(2)),
       };
+
+      await cacheService.set(cacheKey, result, 3600); // 1 hour cache
+      return result;
     } catch (error) {
       console.error("Error getting competitor insights:", error);
       return {

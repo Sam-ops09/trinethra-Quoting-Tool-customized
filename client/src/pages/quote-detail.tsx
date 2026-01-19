@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy, ShieldAlert, XCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,8 @@ interface QuoteDetail {
   timelineSection?: string; // JSON string
   createdByName?: string;
   updatedAt: string;
+  approvalStatus: string; // none, pending, approved, rejected
+  approvalRequiredBy?: string;
 }
 
 export default function QuoteDetail() {
@@ -76,6 +78,20 @@ export default function QuoteDetail() {
   const [showVendorPoDialog, setShowVendorPoDialog] = useState(false);
   const [comparingVersionNumber, setComparingVersionNumber] = useState<number | null>(null);
   const [viewingVersionNumber, setViewingVersionNumber] = useState<number | null>(null);
+
+  // Share Dialog State
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+
+  const copyToClipboard = () => {
+    if (shareLink) {
+      navigator.clipboard.writeText(shareLink);
+      toast({
+        title: "Copied!",
+        description: "Link copied to clipboard",
+      });
+    }
+  };
 
   // Feature flags
   const canCreateVendorPO = useFeatureFlag('vendorPO_create');
@@ -161,37 +177,7 @@ export default function QuoteDetail() {
     }
   });
 
-  // NEW: Share Quote Mutation
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
-  const shareMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/quotes/${params?.id}/share`, {});
-      return await res.json();
-    },
-    onSuccess: (data) => {
-      setShareLink(data.url);
-      setIsShareDialogOpen(true);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate share link",
-        variant: "destructive",
-      });
-    }
-  });
-
-  const copyToClipboard = () => {
-    if (shareLink) {
-      navigator.clipboard.writeText(shareLink);
-      toast({
-        title: "Copied!",
-        description: "Link copied to clipboard",
-      });
-    }
-  };
 
   const cloneQuoteMutation = useMutation({
     mutationFn: async () => {
@@ -254,6 +240,70 @@ export default function QuoteDetail() {
       });
       setLocation(`/invoices/${data.id}`);
     },
+  });
+
+  const approveQuoteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/approve`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", params?.id] });
+      toast({
+        title: "Quote Approved",
+        description: "Quote has been approved successfully.",
+      });
+    },
+    onError: (error: any) => {
+        toast({
+            title: "Error",
+            description: error.message || "Failed to approve quote",
+            variant: "destructive",
+        });
+    }
+  });
+
+  const rejectQuoteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/reject`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", params?.id] });
+      toast({
+        title: "Quote Rejected",
+        description: "Quote has been rejected.",
+      });
+    },
+    onError: (error: any) => {
+        toast({
+            title: "Error",
+            description: error.message || "Failed to reject quote",
+            variant: "destructive",
+        });
+    }
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/share`, {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      setShareLink(data.url);
+      setIsShareDialogOpen(true);
+      toast({
+        title: "Link Generated",
+        description: "Public link created successfully.",
+      });
+    },
+    onError: (error: any) => {
+        toast({
+            title: "Error",
+            description: error.message || "Failed to generate link",
+            variant: "destructive",
+        });
+    }
   });
 
   const downloadPdfMutation = useMutation({
@@ -490,6 +540,51 @@ export default function QuoteDetail() {
           </div>
         </div>
 
+        {/* Approval Banner */}
+        {quote.approvalStatus === "pending" && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start sm:items-center gap-3">
+                <ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+                <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-400">Approval Required</h3>
+                    <p className="text-xs text-amber-700 dark:text-amber-500 mt-1 sm:mt-0">
+                        This quote requires approval from a <strong>{(quote.approvalRequiredBy || "Manager").replace('_', ' ')}</strong> before it can be sent.
+                    </p>
+                </div>
+                {(user?.role === "admin" || user?.role === quote.approvalRequiredBy) && (
+                    <div className="flex gap-2">
+                         <Button 
+                            size="sm" 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
+                            onClick={() => approveQuoteMutation.mutate()}
+                            disabled={approveQuoteMutation.isPending}
+                         >
+                            {approveQuoteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin"/> : <Check className="h-3 w-3 mr-1"/>}
+                            Approve
+                         </Button>
+                         <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-8 border-amber-300 hover:bg-amber-100 text-amber-800 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/40"
+                            onClick={() => rejectQuoteMutation.mutate()}
+                            disabled={rejectQuoteMutation.isPending}
+                         >
+                             {rejectQuoteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin"/> : "Reject"}
+                         </Button>
+                    </div>
+                )}
+            </div>
+        )}
+        
+        {quote.approvalStatus === "rejected" && (
+            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-3 flex items-center gap-3">
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-500" />
+                <div>
+                     <h3 className="text-sm font-semibold text-red-800 dark:text-red-400">Quote Rejected</h3>
+                     <p className="text-xs text-red-700 dark:text-red-500">This quote was rejected by the approver. Please revise it.</p>
+                </div>
+            </div>
+        )}
+
         {/* Status Badge and Quick Actions Card */}
         <Card className="border-slate-200 dark:border-slate-800 border-l-4" style={{ borderLeftColor: quote.status === 'approved' ? 'rgb(34, 197, 94)' : quote.status === 'rejected' ? 'rgb(239, 68, 68)' : quote.status === 'invoiced' ? 'rgb(168, 85, 247)' : 'rgb(59, 130, 246)' }}>
           <CardContent className="p-3">
@@ -554,7 +649,7 @@ export default function QuoteDetail() {
                      variant="outline"
                      size="sm"
                      onClick={() => shareMutation.mutate()}
-                     disabled={shareMutation.isPending}
+                     disabled={shareMutation.isPending || quote.approvalStatus === "pending" || quote.approvalStatus === "rejected"}
                      className="flex-1 sm:flex-initial h-7 text-xs"
                    >
                      {shareMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
@@ -588,6 +683,7 @@ export default function QuoteDetail() {
                       variant="outline"
                       size="sm"
                       onClick={() => setShowEmailDialog(true)}
+                      disabled={quote.approvalStatus === "pending" || quote.approvalStatus === "rejected"}
                       data-testid="button-email-quote"
                       className="flex-1 sm:flex-initial h-7 text-xs"
                     >
@@ -609,7 +705,11 @@ export default function QuoteDetail() {
                     </Button>
                   </PermissionGuard>
                 )}
-                {quote.status === "sent" && (
+
+                
+                {/* Manual Approval Buttons (Override) - Only if not using rule-based pending flow OR if already approved locally */}
+                {/* Actually, if quote is 'pending' approval, we shouldn't show these generic buttons. */}
+                {quote.approvalStatus !== "pending" && quote.status === "sent" && (
                   <>
                     <PermissionGuard resource="quotes" action="approve" tooltipText="Only Sales Managers can approve quotes">
                       <Button
@@ -619,19 +719,7 @@ export default function QuoteDetail() {
                         className="flex-1 sm:flex-initial h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         <Check className="h-3 w-3 mr-1" />
-                        Approve
-                      </Button>
-                    </PermissionGuard>
-                    <PermissionGuard resource="quotes" action="cancel" tooltipText="Only Sales Managers can reject quotes">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateStatusMutation.mutate("rejected")}
-                        data-testid="button-reject-quote"
-                        className="flex-1 sm:flex-initial h-7 text-xs"
-                      >
-                        <X className="h-3 w-3 mr-1" />
-                        Reject
+                        Mark Approved
                       </Button>
                     </PermissionGuard>
                   </>
@@ -1073,6 +1161,7 @@ export default function QuoteDetail() {
                     </div>
                   </div>
                 </div>
+
               </CardContent>
             </Card>
           </div>
@@ -1140,6 +1229,7 @@ export default function QuoteDetail() {
           />
         )}
       </div>
+
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent>
           <DialogHeader>
