@@ -793,6 +793,32 @@ export const currencySettings = pgTable("currency_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// EMAIL TEMPLATES TABLE - Admin-configurable email templates
+export const emailTemplateTypeEnum = pgEnum("email_template_type", [
+  "quote", "invoice", "sales_order", "payment_reminder", "password_reset", "welcome"
+]);
+
+export const emailTemplates = pgTable("email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "Quote Email", "Invoice Reminder"
+  type: emailTemplateTypeEnum("type").notNull(), // quote, invoice, sales_order, etc.
+  subject: text("subject").notNull(), // Email subject with {{variables}}
+  body: text("body").notNull(), // HTML body with {{variables}}
+  availableVariables: text("available_variables").notNull(), // JSON array of allowed variables
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
+  creator: one(users, {
+    fields: [emailTemplates.createdBy],
+    references: [users.id],
+  }),
+}));
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -1069,4 +1095,17 @@ export const insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachmen
 
 export type InvoiceAttachment = typeof invoiceAttachments.$inferSelect;
 export type InsertInvoiceAttachment = z.infer<typeof insertInvoiceAttachmentSchema>;
+
+// EMAIL TEMPLATES INSERT SCHEMA
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+});
+
+// EMAIL TEMPLATES TYPES
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type EmailTemplateType = "quote" | "invoice" | "sales_order" | "payment_reminder" | "password_reset" | "welcome";
 

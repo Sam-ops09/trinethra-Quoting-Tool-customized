@@ -266,6 +266,9 @@ export interface FeatureFlags {
   email_overdueNotifications: boolean;
   email_vendorPO: boolean;
 
+  // Email Templates
+  email_templates_module: boolean;
+
   // ==================== ADMIN & CONFIGURATION ====================
 
   admin_userManagement: boolean;
@@ -409,7 +412,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   invoices_childInvoices: true,
   invoices_masterInvoices: true,
   invoices_milestoneInvoices: true,
-  invoices_emailSending: false,
+  invoices_emailSending: true,
   invoices_pdfGeneration: true,
   invoices_paymentTracking: true,
   invoices_paymentHistory: true,
@@ -532,15 +535,16 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   theme_education: true,
 
   // ==================== EMAIL INTEGRATION ====================
-  email_integration: false,
+  email_integration: true,
   email_resend: true,
   email_smtp: true,
-  email_welcome: true,
+  email_welcome: false,
   email_quoteSending: false,
   email_invoiceSending: false,
   email_paymentReminders: false,
   email_overdueNotifications: false,
   email_vendorPO: false,
+  email_templates_module: true,
 
   // ==================== ADMIN & CONFIGURATION ====================
   admin_userManagement: true,

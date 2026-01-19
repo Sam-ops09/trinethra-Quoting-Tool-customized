@@ -987,18 +987,22 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId || "");
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
+      // Try to get quote if it exists, but don't require it for standalone invoices
+      const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId) : null;
+
+      // Get client from invoice directly or fallback to quote
+      const clientId = invoice.clientId || quote?.clientId;
+      if (!clientId) {
+        return res.status(404).json({ error: "No client associated with this invoice" });
       }
 
-      const client = await storage.getClient(quote.clientId);
+      const client = await storage.getClient(clientId);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
       const items = await storage.getInvoiceItems(invoice.id);
 
-      const creator = await storage.getUser(quote.createdBy);
+      const creator = invoice.createdBy ? await storage.getUser(invoice.createdBy) : (quote ? await storage.getUser(quote.createdBy) : undefined);
 
       // Fetch company settings
       const settings = await storage.getAllSettings();
@@ -1058,12 +1062,16 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
         emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
       }
 
+      // Convert escaped newlines to actual newlines, then to HTML for email
+      emailBody = emailBody.replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
+      emailBody = emailBody.replace(/\n/g, '<br>');
+
       // Generate PDF for attachment
       const { PassThrough } = await import("stream");
       const pdfStream = new PassThrough();
 
       const pdfPromise = InvoicePDFService.generateInvoicePDF({
-        quote,
+        quote: quote || {} as any,
         client,
         items: items as any,
         companyName,
@@ -1157,12 +1165,16 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      const quote = await storage.getQuote(invoice.quoteId || "");
-      if (!quote) {
-        return res.status(404).json({ error: "Related quote not found" });
+      // Try to get quote if it exists, but don't require it for standalone invoices
+      const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId) : null;
+
+      // Get client from invoice directly or fallback to quote
+      const clientId = invoice.clientId || quote?.clientId;
+      if (!clientId) {
+        return res.status(404).json({ error: "No client associated with this invoice" });
       }
 
-      const client = await storage.getClient(quote.clientId);
+      const client = await storage.getClient(clientId);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -1208,6 +1220,10 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
       if (message) {
         emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
       }
+
+      // Convert escaped newlines to actual newlines, then to HTML for email
+      emailBody = emailBody.replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
+      emailBody = emailBody.replace(/\n/g, '<br>');
 
       // Send payment reminder email
       await EmailService.sendPaymentReminderEmail(

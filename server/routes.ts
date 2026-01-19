@@ -31,6 +31,7 @@ import pricingRoutes from "./routes/pricing.routes";
 import templatesRoutes from "./routes/templates.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import adminUsersRoutes from "./routes/users.admin.routes";
+import emailTemplatesRoutes from "./routes/email-templates.routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
@@ -85,6 +86,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Pricing Tiers Routes
   app.use("/api", authMiddleware, pricingRoutes);
+
+  // Email Templates Routes
+  app.use("/api/email-templates", emailTemplatesRoutes);
 
   // Moved to invoices.routes.ts
 

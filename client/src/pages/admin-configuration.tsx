@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { CounterManagement } from "@/components/counter-management";
+import { EmailTemplateSettings } from "@/components/admin-settings/EmailTemplateSettings";
 
 /* ────────────────────────────────────────────────────────────────────────────
    SCHEMAS
@@ -122,6 +123,7 @@ export default function AdminConfiguration() {
   const showBankDetails = useFeatureFlag('admin_bankDetails');
   const showNumberingSchemes = useFeatureFlag('admin_numberingSchemes');
   const showEmailTemplates = useFeatureFlag('email_integration');
+  const showAdvancedEmailTemplates = useFeatureFlag('email_templates_module');
 
   // Module-specific flags for numbering schemes
   const showQuotes = useFeatureFlag('quotes_module');
@@ -134,7 +136,8 @@ export default function AdminConfiguration() {
   const visibleTabsCount = 1 + // Company tab (always visible)
     (showNumberingSchemes ? 1 : 0) +
     (showBankDetails ? 1 : 0) +
-    (showEmailTemplates ? 1 : 0);
+    (showEmailTemplates ? 1 : 0) +
+    (showAdvancedEmailTemplates ? 1 : 0);
 
   // Fetch settings
   const { data: settings, isLoading: settingsLoading } = useQuery<Record<string, any>>({
@@ -660,7 +663,8 @@ export default function AdminConfiguration() {
               visibleTabsCount === 1 && "sm:grid-cols-1",
               visibleTabsCount === 2 && "sm:grid-cols-2",
               visibleTabsCount === 3 && "sm:grid-cols-3",
-              visibleTabsCount === 4 && "sm:grid-cols-4"
+              visibleTabsCount === 4 && "sm:grid-cols-4",
+              visibleTabsCount === 5 && "sm:grid-cols-5"
             )}>
               <TabsTrigger value="company" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                 <Building className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
@@ -682,6 +686,12 @@ export default function AdminConfiguration() {
                 <TabsTrigger value="email" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                   <Mail className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                   <span className="hidden xs:inline">Email</span>
+                </TabsTrigger>
+              )}
+              {showAdvancedEmailTemplates && (
+                <TabsTrigger value="email-templates" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
+                  <Mail className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                  <span className="hidden xs:inline">Templates</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -1897,6 +1907,13 @@ export default function AdminConfiguration() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
+        {/* Email Templates Tab (Advanced) */}
+        {showAdvancedEmailTemplates && (
+          <TabsContent value="email-templates" className="space-y-3">
+            <EmailTemplateSettings />
+          </TabsContent>
         )}
       </Tabs>
     </div>
