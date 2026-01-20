@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy, ShieldAlert, XCircle } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy, ShieldAlert, XCircle, MessageSquare } from "lucide-react";
+import type { QuoteComment } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -101,6 +102,10 @@ export default function QuoteDetail() {
   const canSendQuote = useFeatureFlag('quotes_sendQuote');
   const canClone = useFeatureFlag('quotes_clone');
 
+  // Comment state
+  const [newComment, setNewComment] = useState("");
+  const [isInternalComment, setIsInternalComment] = useState(false);
+
   const { data: quote, isLoading } = useQuery<QuoteDetail>({
     queryKey: ["/api/quotes", params?.id],
     enabled: !!params?.id,
@@ -132,6 +137,30 @@ export default function QuoteDetail() {
     enabled: !!params?.id,
   });
   const hasVendorPos = vendorPos && vendorPos.length > 0;
+
+  // Comments for this quote
+  const { data: comments = [] } = useQuery<QuoteComment[]>({
+    queryKey: [`/api/quotes/${params?.id}/comments`],
+    enabled: !!params?.id,
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/comments`, {
+        message: newComment,
+        isInternal: isInternalComment,
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${params?.id}/comments`] });
+      setNewComment("");
+      toast({ title: "Comment Added", description: "Your comment has been added." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to add comment", variant: "destructive" });
+    },
+  });
 
   const createSalesOrderMutation = useMutation({
     mutationFn: async () => {
@@ -1162,6 +1191,76 @@ export default function QuoteDetail() {
                   </div>
                 </div>
 
+              </CardContent>
+            </Card>
+
+            {/* Client Comments Section */}
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center shrink-0">
+                    <MessageSquare className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold">Comments</CardTitle>
+                    <p className="text-[10px] text-muted-foreground">{comments.length} comment{comments.length !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 space-y-3">
+                {/* Existing Comments */}
+                {comments.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {comments.map((comment) => (
+                      <div key={comment.id} className={`p-2.5 rounded-md border-l-4 ${comment.authorType === 'client' ? 'bg-blue-50 dark:bg-blue-950 border-blue-500' : comment.isInternal ? 'bg-amber-50 dark:bg-amber-950 border-amber-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-400'}`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-xs text-slate-900 dark:text-white">{comment.authorName}</span>
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                              {comment.authorType === 'client' ? 'Client' : comment.isInternal ? 'Internal' : 'Staff'}
+                            </Badge>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(comment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">{comment.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-4">No comments yet.</p>
+                )}
+
+                {/* Add Comment Form */}
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2">
+                  <Textarea
+                    placeholder="Add a reply..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="text-xs min-h-[60px]"
+                  />
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={isInternalComment}
+                        onChange={(e) => setIsInternalComment(e.target.checked)}
+                        className="rounded"
+                      />
+                      Internal only
+                    </label>
+                    <Button
+                      size="sm"
+                      onClick={() => addCommentMutation.mutate()}
+                      disabled={!newComment.trim() || addCommentMutation.isPending}
+                      className="h-7 text-xs"
+                    >
+                      {addCommentMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+                      Reply
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>

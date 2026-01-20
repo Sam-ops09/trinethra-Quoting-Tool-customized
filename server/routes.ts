@@ -53,8 +53,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/auth", authRoutes);
 
 
-    // Quote Workflow Routes
-    app.use("/api", authMiddleware, quoteWorkflowRoutes);
+
 
   // Users Routes (Admin only)
   app.use("/api/users", authMiddleware, usersRoutes);
@@ -63,7 +62,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/clients", authMiddleware, clientsRoutes);
 
   // Quotes Routes
-  app.use("/api/quotes", authMiddleware, quotesRoutes);
+  // NOTE: Public routes (/public/:token/*) in quotesRoutes handle their own auth check
+  app.use("/api/quotes", quotesRoutes);
 
   // Invoices Routes
   app.use("/api/invoices", authMiddleware, invoicesRoutes);

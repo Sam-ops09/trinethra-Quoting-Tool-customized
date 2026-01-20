@@ -77,6 +77,9 @@ import {
   type Product,
   type InsertProduct,
   approvalRules,
+  quoteComments,
+  type QuoteComment,
+  type InsertQuoteComment,
 } from "@shared/schema";
 import { version } from "os";
 import { cacheService } from "./services/cache.service";
@@ -1167,6 +1170,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteApprovalRule(id: string): Promise<void> {
     await db.delete(approvalRules).where(eq(approvalRules.id, id));
+  }
+
+  // Quote Comments for Interactive Public Quotes
+  async getQuoteComments(quoteId: string, includeInternal: boolean = false): Promise<QuoteComment[]> {
+    if (includeInternal) {
+      return await db.select().from(quoteComments).where(eq(quoteComments.quoteId, quoteId)).orderBy(quoteComments.createdAt);
+    }
+    return await db.select().from(quoteComments).where(
+      and(eq(quoteComments.quoteId, quoteId), eq(quoteComments.isInternal, false))
+    ).orderBy(quoteComments.createdAt);
+  }
+
+  async createQuoteComment(comment: InsertQuoteComment): Promise<QuoteComment> {
+    const [newComment] = await db.insert(quoteComments).values(comment).returning();
+    return newComment;
+  }
+
+  async updateQuoteItemSelection(itemId: string, isSelected: boolean): Promise<QuoteItem | undefined> {
+    const [updated] = await db
+      .update(quoteItems)
+      .set({ isSelected })
+      .where(eq(quoteItems.id, itemId))
+      .returning();
+    return updated || undefined;
   }
 }
 

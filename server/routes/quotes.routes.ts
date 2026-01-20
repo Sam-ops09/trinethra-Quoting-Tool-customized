@@ -39,6 +39,291 @@ router.get("/", requireFeature('quotes_module'), authMiddleware, async (req: Aut
   }
 });
 
+// ============================================
+// PUBLIC ROUTES - MUST BE DEFINED BEFORE /:id
+// These routes don't require authentication
+// ============================================
+
+// PUBLIC ROUTE: Get Quote by Token
+router.get("/public/:token", async (req: any, res: Response) => {
+    try {
+        const token = req.params.token;
+        if (!token) return res.status(400).json({ error: "Token required" });
+
+        const quote = await storage.getQuoteByToken(token);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found or link expired" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        const client = await storage.getClient(quote.clientId);
+        const items = await storage.getQuoteItems(quote.id);
+        const creator = await storage.getUser(quote.createdBy);
+
+        res.json({
+            id: quote.id,
+            quoteNumber: quote.quoteNumber,
+            version: quote.version,
+            status: quote.status,
+            quoteDate: quote.quoteDate,
+            validUntil: quote.validUntil,
+            currency: quote.currency,
+            items,
+            subtotal: quote.subtotal,
+            discount: quote.discount,
+            shippingCharges: quote.shippingCharges,
+            cgst: quote.cgst,
+            sgst: quote.sgst,
+            igst: quote.igst,
+            total: quote.total,
+            notes: quote.notes,
+            termsAndConditions: quote.termsAndConditions,
+            client: {
+                name: client?.name,
+                email: client?.email,
+                billingAddress: client?.billingAddress,
+                gstin: client?.gstin,
+                phone: client?.phone,
+            },
+            sender: {
+                name: creator?.name,
+                email: creator?.email
+            }
+        });
+    } catch (error) {
+        logger.error("Public quote fetch error:", error);
+        res.status(500).json({ error: "Failed to fetch quote" });
+    }
+});
+
+// PUBLIC ROUTE: Get Comments for Quote
+router.get("/public/:token/comments", async (req: any, res: Response) => {
+    try {
+        const quote = await storage.getQuoteByToken(req.params.token);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        const comments = await storage.getQuoteComments(quote.id, false);
+        res.json(comments);
+    } catch (error) {
+        logger.error("Public quote comments fetch error:", error);
+        res.status(500).json({ error: "Failed to fetch comments" });
+    }
+});
+
+// PUBLIC ROUTE: Add Client Comment
+router.post("/public/:token/comments", async (req: any, res: Response) => {
+    try {
+        const { authorName, authorEmail, message, parentCommentId } = req.body;
+        
+        if (!authorName || !message) {
+            return res.status(400).json({ error: "Author name and message are required" });
+        }
+
+        const quote = await storage.getQuoteByToken(req.params.token);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        const comment = await storage.createQuoteComment({
+            quoteId: quote.id,
+            authorType: "client",
+            authorName,
+            authorEmail: authorEmail || null,
+            message,
+            parentCommentId: parentCommentId || null,
+            isInternal: false,
+        });
+
+        await storage.createActivityLog({
+            userId: quote.createdBy,
+            action: "client_comment_public",
+            entityType: "quote",
+            entityId: quote.id,
+            metadata: { commentId: comment.id, via: "public_link" }
+        });
+
+        res.json(comment);
+    } catch (error) {
+        logger.error("Public quote comment error:", error);
+        res.status(500).json({ error: "Failed to add comment" });
+    }
+});
+
+// PUBLIC ROUTE: Update Optional Item Selections
+router.post("/public/:token/select-items", async (req: any, res: Response) => {
+    try {
+        const { selections } = req.body;
+
+        if (!Array.isArray(selections)) {
+            return res.status(400).json({ error: "Selections array is required" });
+        }
+
+        const quote = await storage.getQuoteByToken(req.params.token);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        if (!["sent", "draft"].includes(quote.status)) {
+            return res.status(400).json({ error: "Quote is no longer editable" });
+        }
+
+        const quoteItems = await storage.getQuoteItems(quote.id);
+        const optionalItemIds = quoteItems.filter(i => i.isOptional).map(i => i.id);
+
+        for (const sel of selections) {
+            if (!optionalItemIds.includes(sel.itemId)) {
+                return res.status(400).json({ error: `Item ${sel.itemId} is not an optional item` });
+            }
+        }
+
+        for (const sel of selections) {
+            await storage.updateQuoteItemSelection(sel.itemId, sel.isSelected);
+        }
+
+        const updatedItems = await storage.getQuoteItems(quote.id);
+        const selectedItems = updatedItems.filter(i => i.isSelected);
+        
+        let subtotal = 0;
+        for (const item of selectedItems) {
+            subtotal += Number(item.subtotal);
+        }
+
+        const discount = Number(quote.discount) || 0;
+        const cgst = Number(quote.cgst) || 0;
+        const sgst = Number(quote.sgst) || 0;
+        const igst = Number(quote.igst) || 0;
+        const shippingCharges = Number(quote.shippingCharges) || 0;
+        const total = subtotal - discount + cgst + sgst + igst + shippingCharges;
+
+        await storage.updateQuote(quote.id, {
+            subtotal: subtotal.toFixed(2),
+            total: total.toFixed(2),
+        });
+
+        res.json({ 
+            success: true, 
+            subtotal: subtotal.toFixed(2),
+            total: total.toFixed(2),
+            items: updatedItems
+        });
+    } catch (error) {
+        logger.error("Public quote item selection error:", error);
+        res.status(500).json({ error: "Failed to update selections" });
+    }
+});
+
+// PUBLIC ROUTE: Enhanced Accept with Signature
+router.post("/public/:token/accept", async (req: any, res: Response) => {
+    try {
+        const { clientName, clientSignature } = req.body;
+        
+        if (!clientName) {
+            return res.status(400).json({ error: "Client name is required for acceptance" });
+        }
+
+        const quote = await storage.getQuoteByToken(req.params.token);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        if (!["sent", "draft"].includes(quote.status)) {
+            return res.status(400).json({ error: "Quote is already processed" });
+        }
+
+        await storage.updateQuote(quote.id, {
+            status: "approved",
+            clientAcceptedName: clientName,
+            clientSignature: clientSignature || null,
+            clientAcceptedAt: new Date(),
+        });
+
+        await storage.createActivityLog({
+            userId: quote.createdBy,
+            action: "client_accept_with_signature",
+            entityType: "quote",
+            entityId: quote.id,
+            metadata: { 
+                via: "public_link",
+                clientName,
+                hasSignature: !!clientSignature,
+                ip: req.ip
+            }
+        });
+
+        res.json({ success: true, status: "approved" });
+    } catch (error) {
+        logger.error("Public quote accept error:", error);
+        res.status(500).json({ error: "Failed to accept quote" });
+    }
+});
+
+// PUBLIC ROUTE: Generic Client Action (Approve/Reject)
+router.post("/public/:token/:action", async (req: any, res: Response) => {
+    try {
+        const { token, action } = req.params;
+        const { reason } = req.body;
+
+        if (!["approve", "reject"].includes(action)) {
+            return res.status(400).json({ error: "Invalid action" });
+        }
+
+        const quote = await storage.getQuoteByToken(token);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+        }
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+        
+        if (["approved", "invoiced", "closed_paid"].includes(quote.status)) {
+             return res.status(400).json({ error: "Quote is already processed" });
+        }
+
+        const newStatus = action === "approve" ? "approved" : "rejected";
+        
+        await storage.updateQuote(quote.id, { status: newStatus });
+
+        await storage.createActivityLog({
+            userId: quote.createdBy,
+            action: `client_${action}_public`,
+            entityType: "quote",
+            entityId: quote.id,
+            metadata: { via: "public_link", reason, ip: req.ip }
+        });
+
+        res.json({ success: true, status: newStatus });
+    } catch (error) {
+        logger.error("Public quote action error:", error);
+        res.status(500).json({ error: "Failed to process " + req.params.action });
+    }
+});
+
+// ============================================
+// INTERNAL ROUTES - Require Authentication
+// ============================================
+
 router.get("/:id", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const quote = await storage.getQuote(req.params.id);
@@ -888,120 +1173,65 @@ router.delete("/:id/share", authMiddleware, requirePermission("quotes", "edit"),
   }
 });
 
-// PUBLIC ROUTE: Get Quote by Token
-// Note: This route does NOT have authMiddleware
-router.get("/public/:token", async (req: any, res: Response) => {
-    try {
-        const token = req.params.token;
-        if (!token) return res.status(400).json({ error: "Token required" });
+// ============================================
+// INTERNAL ROUTES - Require Authentication
+// ============================================
 
-        const quote = await storage.getQuoteByToken(token);
-
-        if (!quote) {
-            return res.status(404).json({ error: "Quote not found or link verified" });
-        }
-
-        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
-            return res.status(410).json({ error: "Quote link has expired" });
-        }
-
-        const client = await storage.getClient(quote.clientId);
-        const items = await storage.getQuoteItems(quote.id);
-        const creator = await storage.getUser(quote.createdBy);
-
-        // Return limited data for public view
-        res.json({
-            id: quote.id,
-            quoteNumber: quote.quoteNumber,
-            version: quote.version,
-            status: quote.status,
-            quoteDate: quote.quoteDate,
-            validUntil: quote.validUntil,
-            items,
-            subtotal: quote.subtotal,
-            discount: quote.discount,
-            shippingCharges: quote.shippingCharges,
-            cgst: quote.cgst,
-            sgst: quote.sgst,
-            igst: quote.igst,
-            total: quote.total,
-            notes: quote.notes,
-            termsAndConditions: quote.termsAndConditions,
-            client: {
-                name: client?.name,
-                email: client?.email,
-                billingAddress: client?.billingAddress,
-                gstin: client?.gstin,
-                phone: client?.phone,
-            },
-            sender: {
-                name: creator?.name,
-                email: creator?.email
-            }
-        });
-
-    } catch (error) {
-        logger.error("Public quote fetch error:", error);
-        res.status(500).json({ error: "Failed to fetch quote" });
+// INTERNAL ROUTE: Get All Comments for Quote (including internal comments)
+// NOTE: This must come AFTER public routes to avoid matching /public/:token/comments
+router.get("/:id/comments", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
     }
+
+    const comments = await storage.getQuoteComments(quote.id, true); // includeInternal = true
+    res.json(comments);
+  } catch (error) {
+    logger.error("Quote comments fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
 });
 
-// PUBLIC ROUTE: Client Action (Approve/Reject)
-router.post("/public/:token/:action", async (req: any, res: Response) => {
-    try {
-        const { token, action } = req.params;
-        const { reason } = req.body;
-
-        if (!["approve", "reject"].includes(action)) {
-            return res.status(400).json({ error: "Invalid action" });
-        }
-
-        const quote = await storage.getQuoteByToken(token);
-        if (!quote) {
-            return res.status(404).json({ error: "Quote not found" });
-        }
-
-        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
-            return res.status(410).json({ error: "Quote link has expired" });
-        }
-
-        if (quote.status !== "sent" && quote.status !== "draft") { 
-             // Allow approving 'draft' quotes directly via link? Maybe only 'sent'? 
-             // Let's allow 'sent' mainly. If 'draft', maybe auto-transition to sent then approved?
-             // For safety, let's only allow 'sent' or 'draft'.
-        }
-        
-        // Prevent re-approving
-        if (["approved", "invoiced", "closed_paid"].includes(quote.status)) {
-             return res.status(400).json({ error: "Quote is already processed" });
-        }
-
-        const newStatus = action === "approve" ? "approved" : "rejected";
-        
-        await storage.updateQuote(quote.id, {
-            status: newStatus,
-            // Logic to store client signature/reason could go here (e.g. Activity Log)
-        });
-
-        // Log the public action
-        await storage.createActivityLog({
-            userId: quote.createdBy, // Attributing to creator but noting it was client
-            action: `client_${action}_public`,
-            entityType: "quote",
-            entityId: quote.id,
-            metadata: { 
-                via: "public_link", 
-                reason, 
-                ip: req.ip 
-            }
-        });
-
-        res.json({ success: true, status: newStatus });
-
-    } catch (error) {
-        logger.error("Public quote action error:", error);
-        res.status(500).json({ error: "Failed to process " + req.params.action });
+// INTERNAL ROUTE: Add Staff Comment
+router.post("/:id/comments", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { message, isInternal } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
     }
+
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+
+    const user = await storage.getUser(req.user!.id);
+    const comment = await storage.createQuoteComment({
+      quoteId: quote.id,
+      authorType: "internal",
+      authorName: user?.name || req.user!.email,
+      authorEmail: req.user!.email,
+      message,
+      parentCommentId: null,
+      isInternal: isInternal || false,
+    });
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "staff_comment",
+      entityType: "quote",
+      entityId: quote.id,
+      metadata: { commentId: comment.id, isInternal }
+    });
+
+    res.json(comment);
+  } catch (error) {
+    logger.error("Quote comment create error:", error);
+    res.status(500).json({ error: "Failed to add comment" });
+  }
 });
 
 // Approval Routes

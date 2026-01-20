@@ -108,6 +108,10 @@ export const quotes = pgTable("quotes", {
   // Rule-Based Approval Fields
   approvalStatus: text("approval_status").notNull().default("none"), // none, pending, approved, rejected
   approvalRequiredBy: userRoleEnum("approval_required_by"), // Role required to approve (e.g. sales_manager)
+  // Client Acceptance Fields
+  clientSignature: text("client_signature"),
+  clientAcceptedAt: timestamp("client_accepted_at"),
+  clientAcceptedName: text("client_accepted_name"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -269,7 +273,34 @@ export const quoteItems = pgTable("quote_items", {
   subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
   hsnSac: varchar("hsn_sac", { length: 10 }),
   sortOrder: integer("sort_order").notNull().default(0),
+  // Optional item support - client can deselect optional items
+  isOptional: boolean("is_optional").notNull().default(false),
+  isSelected: boolean("is_selected").notNull().default(true),
 });
+
+// Quote Comments table for public comment thread
+export const quoteComments = pgTable("quote_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  authorType: text("author_type").notNull(), // 'client' or 'internal'
+  authorName: text("author_name").notNull(),
+  authorEmail: text("author_email"),
+  message: text("message").notNull(),
+  parentCommentId: varchar("parent_comment_id"),
+  isInternal: boolean("is_internal").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const quoteCommentsRelations = relations(quoteComments, ({ one }) => ({
+  quote: one(quotes, {
+    fields: [quoteComments.quoteId],
+    references: [quotes.id],
+  }),
+  parentComment: one(quoteComments, {
+    fields: [quoteComments.parentCommentId],
+    references: [quoteComments.id],
+  }),
+}));
 
 export const invoices = pgTable("invoices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1087,6 +1118,9 @@ export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 
 export type QuoteItem = typeof quoteItems.$inferSelect;
 export type InsertQuoteItem = z.infer<typeof insertQuoteItemSchema>;
+
+export type QuoteComment = typeof quoteComments.$inferSelect;
+export type InsertQuoteComment = Omit<typeof quoteComments.$inferInsert, 'id' | 'createdAt'>;
 
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
