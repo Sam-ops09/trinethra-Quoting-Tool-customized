@@ -13,6 +13,8 @@ import {
     Menu,
     ChevronDown,
     BarChart3,
+    CreditCard,
+    FileWarning,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLocation } from "wouter";
@@ -109,6 +111,28 @@ const menuItems = [
         ],
         description: "Invoice tracking",
         featureFlag: 'pages_invoices' as const,
+    },
+    {
+        title: "Credit Notes",
+        url: "/credit-notes",
+        icon: CreditCard,
+        roles: [
+            "admin",
+            "finance_accounts",
+        ],
+        description: "Refunds & returns",
+        featureFlag: 'creditNotes_module' as const,
+    },
+    {
+        title: "Debit Notes",
+        url: "/debit-notes",
+        icon: FileWarning,
+        roles: [
+            "admin",
+            "finance_accounts",
+        ],
+        description: "Additional charges",
+        featureFlag: 'debitNotes_module' as const,
     },
     {
         title: "Vendors",
@@ -259,7 +283,7 @@ export function AppSidebar() {
 
     // Grouping logic
     const salesItems = filteredMenuItems.filter((item) =>
-        ["Quotes", "Sales Orders", "Clients", "Invoices"].includes(item.title)
+        ["Quotes", "Sales Orders", "Clients", "Invoices", "Credit Notes", "Debit Notes"].includes(item.title)
     );
     const purchaseItems = filteredMenuItems.filter((item) =>
         ["Vendors", "Vendor POs", "Products", "GRN"].includes(item.title)

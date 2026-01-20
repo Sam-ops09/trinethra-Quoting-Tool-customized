@@ -80,6 +80,10 @@ const numberingSchemeSchema = z.object({
   grnFormat: z.string().min(1, "GRN format is required"),
   salesOrderPrefix: z.string().min(1, "Sales order prefix is required"),
   salesOrderFormat: z.string().min(1, "Sales order format is required"),
+  creditNotePrefix: z.string().min(1, "Credit note prefix is required"),
+  creditNoteFormat: z.string().min(1, "Credit note format is required"),
+  debitNotePrefix: z.string().min(1, "Debit note prefix is required"),
+  debitNoteFormat: z.string().min(1, "Debit note format is required"),
 });
 
 // Tax Rates Schema
@@ -131,6 +135,8 @@ export default function AdminConfiguration() {
   const showInvoices = useFeatureFlag('invoices_module');
   const showGRN = useFeatureFlag('grn_module');
   const showSalesOrders = useFeatureFlag('sales_orders_module');
+  const showCreditNotes = useFeatureFlag('creditNotes_module');
+  const showDebitNotes = useFeatureFlag('debitNotes_module');
 
   // Calculate number of visible tabs for responsive grid
   const visibleTabsCount = 1 + // Company tab (always visible)
@@ -313,6 +319,10 @@ export default function AdminConfiguration() {
       grnFormat: "{PREFIX}-{YEAR}-{COUNTER}",
       salesOrderPrefix: "SO",
       salesOrderFormat: "{PREFIX}-{YEAR}-{COUNTER}",
+      creditNotePrefix: "CN",
+      creditNoteFormat: "{PREFIX}-{YEAR}-{COUNTER}",
+      debitNotePrefix: "DN",
+      debitNoteFormat: "{PREFIX}-{YEAR}-{COUNTER}",
     },
   });
 
@@ -332,6 +342,10 @@ export default function AdminConfiguration() {
         grnFormat: settings?.grnFormat || "{PREFIX}-{YEAR}-{COUNTER}",
         salesOrderPrefix: settings?.salesOrderPrefix || "SO",
         salesOrderFormat: settings?.salesOrderFormat || "{PREFIX}-{YEAR}-{COUNTER}",
+        creditNotePrefix: settings?.creditNotePrefix || "CN",
+        creditNoteFormat: settings?.creditNoteFormat || "{PREFIX}-{YEAR}-{COUNTER}",
+        debitNotePrefix: settings?.debitNotePrefix || "DN",
+        debitNoteFormat: settings?.debitNoteFormat || "{PREFIX}-{YEAR}-{COUNTER}",
       });
     }
   }, [settings, numberingForm]);
@@ -348,6 +362,8 @@ export default function AdminConfiguration() {
         migrateMasterInvoices: true,
         migrateChildInvoices: true,
         migrateGrns: true,
+        migrateCreditNotes: true,
+        migrateDebitNotes: true,
       });
 
       return migrationResult;
@@ -1092,6 +1108,102 @@ export default function AdminConfiguration() {
                                 </FormControl>
                                 <FormDescription>
                                   Preview: {numberingForm.watch("salesOrderPrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+
+
+                  {/* Credit Note Numbering */}
+                  {showCreditNotes && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-teal-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Credit Notes</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="creditNotePrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="CN" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={numberingForm.control}
+                            name="creditNoteFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("creditNotePrefix")}-2025-001
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Debit Note Numbering */}
+                  {showDebitNotes && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4 text-rose-600" />
+                          </div>
+                          <h3 className="text-base sm:text-lg font-semibold">Debit Notes</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={numberingForm.control}
+                            name="debitNotePrefix"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Prefix</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="DN" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={numberingForm.control}
+                            name="debitNoteFormat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Format</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="{PREFIX}-{YEAR}-{COUNTER}" />
+                                </FormControl>
+                                <FormDescription>
+                                  Preview: {numberingForm.watch("debitNotePrefix")}-2025-001
                                 </FormDescription>
                                 <FormMessage />
                               </FormItem>

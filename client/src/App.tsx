@@ -42,6 +42,12 @@ import VendorPODashboard from "@/pages/vendor-po-dashboard";
 import InvoiceCollectionsDashboard from "@/pages/invoice-collections-dashboard";
 import SerialTrackingDashboard from "@/pages/serial-tracking-dashboard";
 import InvoiceAnalytics from "@/pages/invoice-analytics";
+import CreditNotes from "@/pages/credit-notes";
+import CreditNoteDetail from "@/pages/credit-note-detail";
+import CreditNoteCreate from "@/pages/credit-note-create";
+import DebitNotes from "@/pages/debit-notes";
+import DebitNoteDetail from "@/pages/debit-note-detail";
+import DebitNoteCreate from "@/pages/debit-note-create";
 import { Loader2, ShieldAlert } from "lucide-react";
 import React from "react";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
@@ -160,6 +166,26 @@ function AuthenticatedLayout() {
               <Route path="/invoices" component={() => <ProtectedRoute component={Invoices} requiredPath="/invoices" />} />
               <Route path="/invoices/analytics" component={() => <ProtectedRoute component={InvoiceAnalytics} requiredPath="/invoices" />} />
               <Route path="/invoices/:id" component={() => <ProtectedRoute component={InvoiceDetail} requiredPath="/invoices" />} />
+            </>
+          )}
+
+          {/* Credit Notes */}
+          {isFeatureEnabled('creditNotes_module') && (
+            <>
+              <Route path="/credit-notes" component={() => <ProtectedRoute component={CreditNotes} requiredPath="/invoices" />} />
+              <Route path="/credit-notes/new" component={() => <ProtectedRoute component={CreditNoteCreate} requiredPath="/invoices" />} />
+              <Route path="/credit-notes/:id/edit" component={() => <ProtectedRoute component={CreditNoteCreate} requiredPath="/invoices" />} />
+              <Route path="/credit-notes/:id" component={() => <ProtectedRoute component={CreditNoteDetail} requiredPath="/invoices" />} />
+            </>
+          )}
+
+          {/* Debit Notes */}
+          {isFeatureEnabled('debitNotes_module') && (
+            <>
+              <Route path="/debit-notes" component={() => <ProtectedRoute component={DebitNotes} requiredPath="/invoices" />} />
+              <Route path="/debit-notes/new" component={() => <ProtectedRoute component={DebitNoteCreate} requiredPath="/invoices" />} />
+              <Route path="/debit-notes/:id/edit" component={() => <ProtectedRoute component={DebitNoteCreate} requiredPath="/invoices" />} />
+              <Route path="/debit-notes/:id" component={() => <ProtectedRoute component={DebitNoteDetail} requiredPath="/invoices" />} />
             </>
           )}
 

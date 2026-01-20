@@ -314,6 +314,12 @@ router.get("/numbering/counters", authMiddleware, requireFeature('admin_settings
     if (featureFlags.sales_orders_module) {
       counters.sales_order = await NumberingService.getCounter("sales_order", year);
     }
+    if (featureFlags.creditNotes_module) {
+      counters.credit_note = await NumberingService.getCounter("credit_note", year);
+    }
+    if (featureFlags.debitNotes_module) {
+      counters.debit_note = await NumberingService.getCounter("debit_note", year);
+    }
 
     return res.json(counters);
   } catch (error: any) {
@@ -334,7 +340,7 @@ router.post("/numbering/reset-counter", authMiddleware, requireFeature('admin_se
       return res.status(400).json({ error: "Counter type is required" });
     }
 
-    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order", "credit_note", "debit_note"];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: "Invalid counter type" });
     }
@@ -347,6 +353,8 @@ router.post("/numbering/reset-counter", authMiddleware, requireFeature('admin_se
       invoice: featureFlags.invoices_module,
       grn: featureFlags.grn_module,
       sales_order: featureFlags.sales_orders_module,
+      credit_note: featureFlags.creditNotes_module,
+      debit_note: featureFlags.debitNotes_module,
     };
 
     if (!featureMap[type]) {
@@ -393,7 +401,7 @@ router.post("/numbering/set-counter", authMiddleware, requireFeature('admin_sett
         return res.status(400).json({ error: "Value must be a non-negative integer" });
     }
 
-    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order", "credit_note", "debit_note"];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: "Invalid counter type" });
     }
@@ -406,6 +414,8 @@ router.post("/numbering/set-counter", authMiddleware, requireFeature('admin_sett
       invoice: featureFlags.invoices_module,
       grn: featureFlags.grn_module,
       sales_order: featureFlags.sales_orders_module,
+      credit_note: featureFlags.creditNotes_module,
+      debit_note: featureFlags.debitNotes_module,
     };
 
     if (!featureMap[type]) {

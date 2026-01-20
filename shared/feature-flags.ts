@@ -119,6 +119,24 @@ export interface FeatureFlags {
   invoices_overdueNotifications: boolean;
   invoices_autoReminders: boolean;
 
+  // ==================== CREDIT NOTES ====================
+
+  creditNotes_module: boolean;
+  creditNotes_create: boolean;
+  creditNotes_edit: boolean;
+  creditNotes_delete: boolean;
+  creditNotes_issue: boolean;
+  creditNotes_apply: boolean;
+
+  // ==================== DEBIT NOTES ====================
+
+  debitNotes_module: boolean;
+  debitNotes_create: boolean;
+  debitNotes_edit: boolean;
+  debitNotes_delete: boolean;
+  debitNotes_issue: boolean;
+  debitNotes_apply: boolean;
+
   // ==================== CLIENT/CRM FEATURES ====================
 
   clients_module: boolean;
@@ -424,6 +442,22 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   invoices_paymentReminders: true,
   invoices_overdueNotifications: true,
   invoices_autoReminders: true,
+
+  // ==================== CREDIT NOTES ====================
+  creditNotes_module: true,
+  creditNotes_create: true,
+  creditNotes_edit: true,
+  creditNotes_delete: true,
+  creditNotes_issue: true,
+  creditNotes_apply: true,
+
+  // ==================== DEBIT NOTES ====================
+  debitNotes_module: true,
+  debitNotes_create: true,
+  debitNotes_edit: true,
+  debitNotes_delete: true,
+  debitNotes_issue: true,
+  debitNotes_apply: true,
 
   // ==================== CLIENT/CRM FEATURES ====================
   clients_module: true,

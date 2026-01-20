@@ -13,6 +13,8 @@ interface CounterData {
   invoice?: number;
   grn?: number;
   sales_order?: number;
+  credit_note?: number;
+  debit_note?: number;
   year: number;
 }
 
@@ -29,6 +31,8 @@ export function CounterManagement({}: CounterManagementProps) {
   const invoicesEnabled = useFeatureFlag('invoices_module');
   const grnEnabled = useFeatureFlag('grn_module');
   const salesOrdersEnabled = useFeatureFlag('sales_orders_module');
+  const creditNotesEnabled = useFeatureFlag('creditNotes_module');
+  const debitNotesEnabled = useFeatureFlag('debitNotes_module');
 
   const [customValues, setCustomValues] = useState<Record<string, string>>({
     quote: "",
@@ -36,6 +40,8 @@ export function CounterManagement({}: CounterManagementProps) {
     invoice: "",
     grn: "",
     sales_order: "",
+    credit_note: "",
+    debit_note: "",
   });
 
   // Fetch current counter values
@@ -135,6 +141,8 @@ export function CounterManagement({}: CounterManagementProps) {
       invoice: "Invoices",
       grn: "GRNs",
       sales_order: "Sales Orders",
+      credit_note: "Credit Notes",
+      debit_note: "Debit Notes",
     };
     return labels[type] || type;
   };
@@ -146,6 +154,8 @@ export function CounterManagement({}: CounterManagementProps) {
       invoice: "purple",
       grn: "indigo",
       sales_order: "orange",
+      credit_note: "teal",
+      debit_note: "rose",
     };
     return colors[type] || "gray";
   };
@@ -157,6 +167,8 @@ export function CounterManagement({}: CounterManagementProps) {
   if (invoicesEnabled && counters?.invoice !== undefined) availableTypes.push("invoice");
   if (grnEnabled && counters?.grn !== undefined) availableTypes.push("grn");
   if (salesOrdersEnabled && counters?.sales_order !== undefined) availableTypes.push("sales_order");
+  if (creditNotesEnabled && counters?.credit_note !== undefined) availableTypes.push("credit_note");
+  if (debitNotesEnabled && counters?.debit_note !== undefined) availableTypes.push("debit_note");
 
   if (isLoading) {
     return (
@@ -204,7 +216,7 @@ export function CounterManagement({}: CounterManagementProps) {
                       className={`h-8 w-8 rounded-lg bg-${color}-500/10 flex items-center justify-center shrink-0`}
                     >
                       <span className={`text-xs font-bold text-${color}-600`}>
-                        {type === "vendor_po" ? "PO" : type === "sales_order" ? "SO" : type.toUpperCase().slice(0, 2)}
+                        {type === "vendor_po" ? "PO" : type === "sales_order" ? "SO" : type === "credit_note" ? "CN" : type === "debit_note" ? "DN" : type.toUpperCase().slice(0, 2)}
                       </span>
                     </div>
                     <div>

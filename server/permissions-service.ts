@@ -16,6 +16,8 @@ export type UserRole =
 export type ResourceType =
   | "quotes"
   | "invoices"
+  | "credit_notes"
+  | "debit_notes"
   | "vendor_pos"
   | "grns"
   | "clients"
@@ -88,6 +90,14 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "sales_orders", action: "delete" },
       { resource: "sales_orders", action: "approve" },
       { resource: "sales_orders", action: "cancel" },
+      { resource: "credit_notes", action: "view" },
+      { resource: "credit_notes", action: "create" },
+      { resource: "credit_notes", action: "edit" },
+      { resource: "credit_notes", action: "delete" },
+      { resource: "debit_notes", action: "view" },
+      { resource: "debit_notes", action: "create" },
+      { resource: "debit_notes", action: "edit" },
+      { resource: "debit_notes", action: "delete" },
       { resource: "vendor_pos", action: "view" },
       { resource: "vendor_pos", action: "create" },
       { resource: "vendor_pos", action: "edit" },
@@ -213,6 +223,14 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "invoices", action: "finalize" },
       { resource: "invoices", action: "lock" },
       { resource: "invoices", action: "cancel" },
+      { resource: "credit_notes", action: "view" },
+      { resource: "credit_notes", action: "create" },
+      { resource: "credit_notes", action: "edit" },
+      { resource: "credit_notes", action: "delete" },
+      { resource: "debit_notes", action: "view" },
+      { resource: "debit_notes", action: "create" },
+      { resource: "debit_notes", action: "edit" },
+      { resource: "debit_notes", action: "delete" },
       { resource: "payments", action: "view" },
       { resource: "payments", action: "create" },
       { resource: "payments", action: "edit" },
@@ -671,6 +689,8 @@ export function getAuditableFields(resource: ResourceType): string[] {
   const auditableFieldsMap: Record<ResourceType, string[]> = {
     quotes: ["subtotal", "total", "discount", "cgst", "sgst", "igst", "status"],
     invoices: ["subtotal", "total", "discount", "cgst", "sgst", "igst", "paymentStatus", "paidAmount", "masterInvoiceStatus"],
+    credit_notes: ["total", "status", "appliedAmount"],
+    debit_notes: ["total", "status", "appliedAmount"],
     vendor_pos: ["totalAmount", "status"],
     grns: ["totalQuantity", "status"],
     clients: ["name", "email", "gstin"],

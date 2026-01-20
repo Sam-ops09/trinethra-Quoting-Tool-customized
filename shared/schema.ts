@@ -14,6 +14,8 @@ export const invoiceItemStatusEnum = pgEnum("invoice_item_status", ["pending", "
 export const masterInvoiceStatusEnum = pgEnum("master_invoice_status", ["draft", "confirmed", "locked"]);
 export const salesOrderStatusEnum = pgEnum("sales_order_status", ["draft", "confirmed", "fulfilled", "cancelled"]);
 export const salesOrderItemStatusEnum = pgEnum("sales_order_item_status", ["pending", "partial", "fulfilled"]);
+export const creditNoteStatusEnum = pgEnum("credit_note_status", ["draft", "issued", "applied", "cancelled"]);
+export const debitNoteStatusEnum = pgEnum("debit_note_status", ["draft", "issued", "applied", "cancelled"]);
 // Users table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1106,6 +1108,174 @@ export const insertCollaborationSessionSchema = createInsertSchema(collaboration
   lastActivity: true,
 });
 
+// ==================== CREDIT NOTES ====================
+
+// Credit Notes Table - For refunds/returns
+export const creditNotes = pgTable("credit_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creditNoteNumber: text("credit_note_number").notNull().unique(),
+  invoiceId: varchar("invoice_id").references(() => invoices.id), // Optional - can be standalone
+  clientId: varchar("client_id").notNull().references(() => clients.id),
+  status: creditNoteStatusEnum("status").notNull().default("draft"),
+  issueDate: timestamp("issue_date").notNull().defaultNow(),
+  reason: text("reason").notNull(), // Return, Damaged goods, Price adjustment, etc.
+  currency: text("currency").notNull().default("INR"),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+  cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+  sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+  igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+  appliedAmount: decimal("applied_amount", { precision: 12, scale: 2 }).default("0"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  invoiceIdx: index("idx_credit_notes_invoice_id").on(table.invoiceId),
+  clientIdx: index("idx_credit_notes_client_id").on(table.clientId),
+  statusIdx: index("idx_credit_notes_status").on(table.status),
+}));
+
+// Credit Note Items Table
+export const creditNoteItems = pgTable("credit_note_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creditNoteId: varchar("credit_note_id").notNull().references(() => creditNotes.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").references(() => products.id),
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  hsnSac: varchar("hsn_sac", { length: 10 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const creditNotesRelations = relations(creditNotes, ({ one, many }) => ({
+  invoice: one(invoices, {
+    fields: [creditNotes.invoiceId],
+    references: [invoices.id],
+  }),
+  client: one(clients, {
+    fields: [creditNotes.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [creditNotes.createdBy],
+    references: [users.id],
+  }),
+  items: many(creditNoteItems),
+}));
+
+export const creditNoteItemsRelations = relations(creditNoteItems, ({ one }) => ({
+  creditNote: one(creditNotes, {
+    fields: [creditNoteItems.creditNoteId],
+    references: [creditNotes.id],
+  }),
+  product: one(products, {
+    fields: [creditNoteItems.productId],
+    references: [products.id],
+  }),
+}));
+
+// ==================== DEBIT NOTES ====================
+
+// Debit Notes Table - For additional charges
+export const debitNotes = pgTable("debit_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  debitNoteNumber: text("debit_note_number").notNull().unique(),
+  invoiceId: varchar("invoice_id").references(() => invoices.id), // Optional - can be standalone
+  clientId: varchar("client_id").notNull().references(() => clients.id),
+  status: debitNoteStatusEnum("status").notNull().default("draft"),
+  issueDate: timestamp("issue_date").notNull().defaultNow(),
+  reason: text("reason").notNull(), // Additional charges, Price revision, etc.
+  currency: text("currency").notNull().default("INR"),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+  cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+  sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+  igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+  appliedAmount: decimal("applied_amount", { precision: 12, scale: 2 }).default("0"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  invoiceIdx: index("idx_debit_notes_invoice_id").on(table.invoiceId),
+  clientIdx: index("idx_debit_notes_client_id").on(table.clientId),
+  statusIdx: index("idx_debit_notes_status").on(table.status),
+}));
+
+// Debit Note Items Table
+export const debitNoteItems = pgTable("debit_note_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  debitNoteId: varchar("debit_note_id").notNull().references(() => debitNotes.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").references(() => products.id),
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  hsnSac: varchar("hsn_sac", { length: 10 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const debitNotesRelations = relations(debitNotes, ({ one, many }) => ({
+  invoice: one(invoices, {
+    fields: [debitNotes.invoiceId],
+    references: [invoices.id],
+  }),
+  client: one(clients, {
+    fields: [debitNotes.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [debitNotes.createdBy],
+    references: [users.id],
+  }),
+  items: many(debitNoteItems),
+}));
+
+export const debitNoteItemsRelations = relations(debitNoteItems, ({ one }) => ({
+  debitNote: one(debitNotes, {
+    fields: [debitNoteItems.debitNoteId],
+    references: [debitNotes.id],
+  }),
+  product: one(products, {
+    fields: [debitNoteItems.productId],
+    references: [products.id],
+  }),
+}));
+
+// CREDIT NOTE INSERT SCHEMAS
+export const insertCreditNoteSchema = createInsertSchema(creditNotes).omit({
+  id: true,
+  creditNoteNumber: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+  appliedAmount: true,
+});
+
+export const insertCreditNoteItemSchema = createInsertSchema(creditNoteItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+// DEBIT NOTE INSERT SCHEMAS
+export const insertDebitNoteSchema = createInsertSchema(debitNotes).omit({
+  id: true,
+  debitNoteNumber: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+  appliedAmount: true,
+});
+
+export const insertDebitNoteItemSchema = createInsertSchema(debitNoteItems).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1225,3 +1395,17 @@ export type NotificationType = "quote_status_change" | "approval_request" | "app
 
 export type CollaborationSession = typeof collaborationSessions.$inferSelect;
 export type InsertCollaborationSession = z.infer<typeof insertCollaborationSessionSchema>;
+
+// CREDIT NOTES TYPES
+export type CreditNote = typeof creditNotes.$inferSelect;
+export type InsertCreditNote = z.infer<typeof insertCreditNoteSchema>;
+export type CreditNoteItem = typeof creditNoteItems.$inferSelect;
+export type InsertCreditNoteItem = z.infer<typeof insertCreditNoteItemSchema>;
+export type CreditNoteStatus = "draft" | "issued" | "applied" | "cancelled";
+
+// DEBIT NOTES TYPES
+export type DebitNote = typeof debitNotes.$inferSelect;
+export type InsertDebitNote = z.infer<typeof insertDebitNoteSchema>;
+export type DebitNoteItem = typeof debitNoteItems.$inferSelect;
+export type InsertDebitNoteItem = z.infer<typeof insertDebitNoteItemSchema>;
+export type DebitNoteStatus = "draft" | "issued" | "applied" | "cancelled";

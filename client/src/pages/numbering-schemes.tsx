@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface NumberingScheme {
-  type: "quote" | "masterInvoice" | "childInvoice" | "vendorPo" | "grn";
+  type: "quote" | "masterInvoice" | "childInvoice" | "vendorPo" | "grn" | "creditNote" | "debitNote";
   label: string;
   prefix: string;
   format: string;
@@ -23,6 +23,8 @@ const getLabelForType = (type: string): string => {
     childInvoice: "Child Invoice",
     vendorPo: "Vendor Purchase Order (PO)",
     grn: "Goods Received Note (GRN)",
+    creditNote: "Credit Note",
+    debitNote: "Debit Note",
   };
   return labels[type] || type;
 };
@@ -34,6 +36,8 @@ const getDefaultPrefix = (type: string): string => {
     childInvoice: "INV",
     vendorPo: "PO",
     grn: "GRN",
+    creditNote: "CN",
+    debitNote: "DN",
   };
   return defaults[type] || type.toUpperCase();
 };
@@ -54,7 +58,7 @@ const generateExample = (prefix: string, format: string): string => {
   return result;
 };
 
-const SCHEME_TYPES: NumberingScheme["type"][] = ["quote", "masterInvoice", "childInvoice", "vendorPo", "grn"];
+const SCHEME_TYPES: NumberingScheme["type"][] = ["quote", "masterInvoice", "childInvoice", "vendorPo", "grn", "creditNote", "debitNote"];
 
 export default function NumberingSchemesPage() {
   const { toast } = useToast();

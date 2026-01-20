@@ -185,6 +185,54 @@ export class NumberingService {
   }
 
   /**
+   * Generate a formatted credit note number
+   * Example: CN-2025-001
+   */
+  static async generateCreditNoteNumber(): Promise<string> {
+    try {
+      let formatSetting = await storage.getSetting("creditNoteFormat");
+      if (!formatSetting) formatSetting = await storage.getSetting("credit_note_number_format");
+
+      let prefixSetting = await storage.getSetting("creditNotePrefix");
+      if (!prefixSetting) prefixSetting = await storage.getSetting("credit_note_prefix");
+
+      const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+      const prefix = prefixSetting?.value || "CN";
+
+      const counter = await this.getAndIncrementCounter("credit_note");
+      return this.applyFormat(format, prefix, counter);
+    } catch (error) {
+      console.error("Error generating credit note number:", error);
+      const counter = Math.floor(Math.random() * 10000);
+      return `CN-${String(counter).padStart(4, "0")}`;
+    }
+  }
+
+  /**
+   * Generate a formatted debit note number
+   * Example: DN-2025-001
+   */
+  static async generateDebitNoteNumber(): Promise<string> {
+    try {
+      let formatSetting = await storage.getSetting("debitNoteFormat");
+      if (!formatSetting) formatSetting = await storage.getSetting("debit_note_number_format");
+
+      let prefixSetting = await storage.getSetting("debitNotePrefix");
+      if (!prefixSetting) prefixSetting = await storage.getSetting("debit_note_prefix");
+
+      const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+      const prefix = prefixSetting?.value || "DN";
+
+      const counter = await this.getAndIncrementCounter("debit_note");
+      return this.applyFormat(format, prefix, counter);
+    } catch (error) {
+      console.error("Error generating debit note number:", error);
+      const counter = Math.floor(Math.random() * 10000);
+      return `DN-${String(counter).padStart(4, "0")}`;
+    }
+  }
+
+  /**
    * Get the next counter value and increment it
    * Uses year-based counter keys (e.g., quote_counter_2025)
    * Uses ATOMIC SQL UPDATE to prevent race conditions
