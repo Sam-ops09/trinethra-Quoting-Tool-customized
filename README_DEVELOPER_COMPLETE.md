@@ -1457,9 +1457,169 @@ For issues or questions:
 5. **Week 3**: Make first contribution
 6. **Week 4+**: Work on features independently
 
+### 3. Workflow States
+
+1.  **Trigger**: Sales Rep clicks "Mark as Approved".
+2.  **Intercept**: API calls `evaluateQuote()`.
+3.  **Branch**:
+    *   **No Trigger**: Status -> `approved`.
+    *   **Triggered**: Status -> `approval_pending`. Notification sent to `sales_manager`.
+4.  **Decision**: Manager clicks "Approve" -> Status -> `approved`.
+
+---
+
+## 🏗️ Frontend Architecture (White Box Implementation)
+
+### 1. Global State Management (`QueryClient`)
+
+The application uses **TanStack Query (React Query)** with a specific "Business App" configuration designed to minimize flickering while ensuring data consistency for numbered documents.
+
+```typescript
+// client/src/lib/queryClient.ts
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 5 Minute Stale Time: QUOTES/INVOICES don't change often from outside
+      staleTime: 5 * 60 * 1000, 
+      // User Interface Stability: Don't refetch just because user tabbed away
+      refetchOnWindowFocus: false, 
+      // Fail Fast: Don't retry on 404/500s, let the UI handle the error boundary
+      retry: false, 
+    },
+  },
+});
+```
+
+### 2. Authentication Concurrency (The "Refresh Mutex")
+
+The `apiClient` wrapper implements a custom **Mutex Lock** to prevent race conditions when an Access Token expires.
+
+**Problem**: If a page fires 5 requests simultaneously (Dashboard, Notifications, User Profile, etc.) and the token is expired, all 5 returns `401`. Primitive clients effectively DDOS the refresh endpoint.
+
+**Solution**:
+```typescript
+// client/src/lib/queryClient.ts
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+if (res.status === 401) {
+    if (!isRefreshing) {
+        isRefreshing = true;
+        // The FIRST request triggers the refresh
+        refreshPromise = refreshAccessToken();
+    }
+    
+    // The other 4 requests AWAIT the same promise
+    const success = await refreshPromise;
+    
+    if (success) {
+        // Retry original request with new cookie
+        return fetch(url, ...);
+    }
+}
+```
+
+---
+
+## 🔢 Sequence & Numbering Engine (White Box Implementation)
+
+### 1. Atomic Upsert Strategy
+
+To guarantee gapless, unique references (e.g., `INV-2025-0001`) without locking the entire table, the `NumberingService` uses a PostgreSQL atomic upsert pattern.
+
+**Mechanism**:
+1.  Attempt to insert `value=1` for key `quote_counter_2025`.
+2.  If key exists (Conflict), perform `UPDATE value = value + 1`.
+3.  Use `RETURNING value` to get the reserved number in the same cycle.
+
+```typescript
+// server/services/numbering.service.ts
+const result = await db.execute(sql`
+  INSERT INTO settings (key, value) 
+  VALUES (${counterKey}, '1')
+  ON CONFLICT (key) DO UPDATE 
+  SET value = (CAST(settings.value AS INTEGER) + 1)::text
+  RETURNING value
+`);
+```
+
+### 2. Format Specification
+
+The format is configurable per tenant but defaults to:
+`{PREFIX}-{YEAR}-{COUNTER:04d}`
+
+| Variable | Example Resolution |
+| :--- | :--- |
+| `{PREFIX}` | `QT`, `INV`, `SO` |
+| `{YEAR}` | `2025` |
+| `{COUNTER}` | `123` |
+| `{COUNTER:04d}` | `0123` (Zero Padded) |
+
+---
+
+## 🔐 Security & Permissions (White Box Implementation)
+
+### 1. Dynamic Circular Dependency Resolution
+
+The `permissions-middleware` needs to check logic in `permissions-service`, typically creating a circular dependency loop (Middleware -> Service -> Types -> Middleware).
+
+**Solution**: Lazy Import
+```typescript
+// server/permissions-middleware.ts
+export function requireQuoteApprovalPermission() {
+  return async (req, res, next) => {
+    // Dynamic import breaks the cycle at runtime
+    const { canApproveQuote } = await import("./permissions-service");
+    // ...
+  };
+}
+```
+
+### 2. Audit Interception Strategy
+
+Instead of remembering to log every successful action in every route, the `auditLog` middleware monkey-patches the `res.json` method.
+
+```typescript
+// server/permissions-middleware.ts
+const originalSend = res.json.bind(res);
+
+res.json = function(data) {
+    // Only log if the operation succeeded (2xx Status)
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+        storage.createActivityLog({ ... });
+    }
+    return originalSend(data);
+};
+```
+
+---
+
+## 📦 Inventory & Products (White Box Implementation)
+
+### 1. Strict Feature Guarding
+
+The API doesn't just hide UI elements; it actively sanitizes input payloads based on Feature Flags.
+
+```typescript
+// server/routes/products.routes.ts
+router.patch("/:id", async (req, res) => {
+    const updates = { ...req.body };
+    
+    // Hard Logic: If SKU feature is disabled, the SKU field is forcibly removed
+    // even if the user is an Admin sending raw JSON.
+    if (!isFeatureEnabled('products_sku')) delete updates.sku;
+    
+    // ... update DB ...
+});
+```
+
+### 2. Stock Logic
+
+*   **Initialization**: New products default to `stockQuantity: 0` and `availableQuantity: 0` unless explicitly set.
+*   **Decoupling**: The system tracks `stockQuantity` (Physical) and `availableQuantity` (Allocatable) separately, allowing for future "Reserved Stock" features (e.g., stock held in a Sales Order but not yet shipped).
+
 ### Key Files to Study
 
-1. \`server/routes.ts\` - All API logic
 2. \`shared/schema.ts\` - Database structure
 3. \`client/src/App.tsx\` - Routing
 4. \`server/permissions-middleware.ts\` - RBAC

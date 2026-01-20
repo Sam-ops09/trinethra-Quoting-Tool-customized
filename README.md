@@ -8,31 +8,34 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
 
 | Metric | Count | Description |
 |--------|-------|-------------|
-| **Total Lines of Code** | 60,000+ | Complete codebase |
-| **API Endpoints** | 130+ | RESTful API routes |
-| **Database Tables** | 29 | Comprehensive data model |
-| **Feature Flags** | 150+ | Granular feature control |
-| **UI Components** | 47 | shadcn/ui components |
-| **Pages/Views** | 35 | Complete application pages |
+| **Total Lines of Code** | 65,000+ | Complete codebase |
+| **API Endpoints** | 145+ | RESTful API routes |
+| **Database Tables** | 32 | Comprehensive data model |
+| **Feature Flags** | 160+ | Granular feature control |
+| **UI Components** | 52 | shadcn/ui components |
+| **Pages/Views** | 38 | Complete application pages |
 | **User Roles** | 6 | Granular access control |
 | **PDF Themes** | 7 | Professional document themes |
-| **Test Suites** | 14 | E2E test coverage |
+| **Test Suites** | 16 | E2E test coverage |
 | **Dependencies** | 145 | Production + dev packages |
-| **Services** | 11 | Backend business logic services |
-| **Migrations** | 15 | Database schema versions |
+| **Services** | 14 | Backend business logic services |
+| **Migrations** | 16 | Database schema versions |
 | **Documentation** | 50+ | Markdown documentation files |
 
 ### 🎯 Core Capabilities
 
-- ✅ **Complete Quote-to-Cash Workflow** - From quote creation to invoice payment
-- ✅ **Feature Flags System** - 150+ flags to enable/disable any feature without code deletion
+- ✅ **Complete Quote-to-Cash Workflow** - From quote to sales order to invoice payment
+- ✅ **Sales Order Management** - Dedicated workflow for confirmed orders
+- ✅ **Real-time Collaboration** - See who is viewing or editing documents in real-time
+- ✅ **Notification System** - In-app alerts for approvals, assignments, and updates
+- ✅ **Feature Flags System** - 160+ flags to enable/disable any feature without code deletion
 - ✅ **Supply Chain Management** - Vendor POs, GRN, serial number tracking
 - ✅ **CRM & Client Management** - Full customer relationship management
 - ✅ **Financial Operations** - Invoicing, payments, collections, analytics
 - ✅ **Multi-Role Access Control** - 6 roles with granular permissions
 - ✅ **Professional PDF Generation** - 7 themes with client-specific customization
 - ✅ **Email Integration** - Automated emails for quotes, invoices, reminders
-- ✅ **Advanced Analytics** - 15+ dashboard endpoints with forecasting
+- ✅ **Advanced Analytics** - 20+ dashboard endpoints with forecasting
 - ✅ **Inventory Management** - Products, stock tracking, serial numbers
 - ✅ **Audit & Compliance** - Complete activity logging and history
 - ✅ **Responsive Design** - Adaptive layouts for all screen sizes
@@ -60,6 +63,7 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
 ### 📝 Quote Management System
 - **Quote Creation & Editing** - Rich quote builder with line items, descriptions, and calculations
 - **Quote Status Tracking** - Draft, Sent, Approved, Rejected, Invoiced, Closed (Paid/Cancelled) states
+- **Rule-Based Approvals** - Configurable approval workflows based on discount percentage or total value thresholds
 - **Quote Numbering** - Auto-generated sequential quote numbers with configurable format
 - **Quote Versioning** - Track multiple versions of quotes
 - **Quote Templates** - Save and reuse quote structures for faster creation
@@ -80,8 +84,29 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
 - **Quote to Invoice** - Convert approved quotes to invoices with one click
 - **Quote to Vendor PO** - Create vendor purchase orders from approved quotes
 
+### 📦 Sales Order Management (New)
+- **Intermediate Workflow** - Adds a "Sales Order" stage between Quote and Invoice for better order tracking
+- **Partial Invoicing** - Create multiple partial invoices from a single Sales Order
+- **Order Tracking** - Track fulfilled vs. unfulfilled quantities per line item
+- **Order Status** - Monitor order progress from Confirmation to Full Delivery
+- **Strict Conversions** - Configurable rules to enforce Quote -> SO -> Invoice flow (via Feature Flags)
+
+### 🤝 Real-Time Collaboration (New)
+- **Presence Indicators** - See who else is currently viewing a quote or invoice
+- **Active Editor Locking** - Prevent overwrite conflicts by showing who is currently editing
+- **Live Updates** - Real-time status reflection across all connected clients
+
+### 🔔 Notification System (New)
+- **In-App Alerts** - Real-time bell notifications for critical actions
+- **Approval Requests** - Immediate notification for managers when quotes need approval
+- **Status Updates** - Notify sales reps when quotes are approved/rejected or invoices paid
+- **Unread Tracking** - Badge counters for unread notifications
+- **Action History** - Persistent log of all relevant notifications
+
 ### 💰 Invoice & Payment Management
 - **Invoice Generation** - Automatic invoice creation from approved quotes
+- **Sales Order to Invoice** - Create invoices directly from confirmed Sales Orders
+- **Partial Invoicing** - Create multiple invoices from a single Sales Order to support phased deliveries and billing
 - **Invoice Numbering** - Sequential invoice numbers with configurable format
 - **Child Invoice Support** - Create child invoices from parent invoices for milestone billing
 - **Master Invoice System** - Manage multiple child invoices under one master invoice
@@ -100,6 +125,7 @@ A comprehensive full-stack enterprise system for end-to-end quote-to-cash operat
 - **Payment Notes** - Add notes to each payment transaction
 - **Payment Analytics** - View payment trends and collection metrics
 - **Invoice PDFs** - Generate professional invoice PDFs with payment details and themes
+- **BOM Annexure** - Automatically appends a detailed Bill of Materials as 'Annexure - 1' to the end of invoice PDFs
 - **PDF Customization** - granular control over column visibility (stock, serials, etc.)
 - **Email Invoices** - Send invoices and payment reminders via email with PDF attachment
 - **Child Invoice Management** - Hierarchical invoice structure for complex projects
@@ -349,6 +375,15 @@ Multiple professional themes for quotes and invoices:
 - **Toast Notifications** - Success, error, warning messages
 - **Permission Guards** - UI elements hide based on user role
 
+### 🏳️ Feature Flags System (New)
+
+- **One-Click Toggles**: Enable/disable features without code changes
+- **Granular Controls**:
+  - `quotes_convertToSalesOrder`: Control strict quote-to-SO flow
+  - `sales_orders_convertToInvoice`: Control strict SO-to-Invoice flow
+- **Partial Invoicing**: Enabled via feature flag to allow flexible billing
+- **Approval Workflows**: Toggle rule-based approvals for quotes
+
 ---
 
 ## 🛠️ Tech Stack
@@ -455,6 +490,7 @@ Multiple professional themes for quotes and invoices:
   - @replit/vite-plugin-runtime-error-modal - Error overlay
 
 ### Performance & Optimization
+- **High-Performance PDFs** - Node.js Worker Threads for non-blocking, parallel PDF generation
 - **React Resizable Panels 2.1.7** - Split view layouts
 - **Memorystore 1.6.7** - In-memory session store (development)
 - **bufferutil 4.0.8** - WebSocket buffer utilities (optional dependency)
@@ -790,11 +826,11 @@ QuoteProGen/
 │
 ├── server/                          # Backend Express application
 │   ├── index.ts                     # Server entry point
-│   ├── routes.ts                    # Main API endpoints (5,559 lines, 126+ routes)
-│   ├── analytics-routes.ts          # Analytics endpoints (454 lines)
-│   ├── serial-number-routes.ts      # Serial number endpoints
-│   ├── reports-routes.ts            # Reporting endpoints
-│   ├── db.ts                        # Database connection (Neon PostgreSQL)
+│   ├── routes.ts                    # Main router aggregator
+│   ├── routes/                      # Modular API routes
+│   │   ├── quotes.routes.ts         # Quote operations
+│   │   ├── invoices.routes.ts       # Invoice operations
+│   │   └── ...                      # Feature-specific routes
 │   ├── storage.ts                   # Database query abstraction layer
 │   ├── permissions-middleware.ts    # Permission enforcement
 │   ├── permissions-service.ts       # Permission logic
