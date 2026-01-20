@@ -50,6 +50,7 @@ export default function SalesOrderDetail() {
     const isEnabled = useFeatureFlag("sales_orders_module");
     const canGeneratePDF = useFeatureFlag("sales_orders_pdfGeneration");
     const canSendEmail = useFeatureFlag("sales_orders_emailSending");
+    const canConvertToInvoice = useFeatureFlag("sales_orders_convertToInvoice");
     const { toast } = useToast();
 
     if (isEnabled === false) {
@@ -336,7 +337,7 @@ export default function SalesOrderDetail() {
                                     </Button>
                                 )}
                                 
-                                {order.status === "fulfilled" && !order.invoiceId && (
+                                {order.status === "fulfilled" && !order.invoiceId && canConvertToInvoice && (
                                     <Button
                                         size="sm"
                                         onClick={() => convertToInvoiceMutation.mutate()}

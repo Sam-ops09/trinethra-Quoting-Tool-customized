@@ -124,6 +124,7 @@ npx tsx repro_clone_numbering.ts
 npx tsx check_settings.ts
 npx tsx scripts/test-pdf-worker.ts
 npx tsx debug_analytics_data.ts
+npx tsx tests/verify_feature_flags.ts
 ```
 
 ### Expected Output

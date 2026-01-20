@@ -3,6 +3,7 @@ import { Router, Response } from "express";
 import { storage } from "../storage";
 import { authMiddleware, AuthRequest, validateRequest } from "../middleware";
 import { requireFeature } from "../feature-flags-middleware";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 import { requirePermission } from "../permissions-middleware";
 import * as schema from "../../shared/schema";
 
@@ -32,6 +33,17 @@ router.get("/:id", requireFeature('clients_module'), authMiddleware, async (req:
 router.post("/", requireFeature('clients_create'), authMiddleware, requirePermission("clients", "create"), validateRequest(schema.insertClientSchema), async (req: AuthRequest, res: Response) => {
   try {
     // req.body is now validated by Zod schema
+    
+    // Feature Guards
+    if (!isFeatureEnabled('clients_gstin') && req.body.gstin) {
+      return res.status(403).json({ error: "GSTIN feature is disabled" });
+    }
+    if (!isFeatureEnabled('clients_billingAddress') && req.body.billingAddress) {
+       return res.status(403).json({ error: "Billing Address feature is disabled" });
+    }
+    if (!isFeatureEnabled('clients_shippingAddress') && req.body.shippingAddress) {
+        return res.status(403).json({ error: "Shipping Address feature is disabled" });
+    }
 
     const client = await storage.createClient({
       ...req.body,
@@ -53,7 +65,18 @@ router.post("/", requireFeature('clients_create'), authMiddleware, requirePermis
 
 router.put("/:id", requireFeature('clients_edit'), authMiddleware, requirePermission("clients", "edit"), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, gstin, billingAddress, shippingAddress } = req.body;
+
+    // Feature Guards
+    if (!isFeatureEnabled('clients_gstin') && gstin) {
+      return res.status(403).json({ error: "GSTIN feature is disabled" });
+    }
+    if (!isFeatureEnabled('clients_billingAddress') && billingAddress) {
+       return res.status(403).json({ error: "Billing Address feature is disabled" });
+    }
+    if (!isFeatureEnabled('clients_shippingAddress') && shippingAddress) {
+        return res.status(403).json({ error: "Shipping Address feature is disabled" });
+    }
 
     // Validate required fields
     if (!name || !email) {
@@ -104,7 +127,7 @@ router.delete("/:id", requireFeature('clients_delete'), authMiddleware, requireP
 
 
 // PHASE 3 - CLIENT MANAGEMENT ENDPOINTS (Tags & Communications)
-router.get("/:clientId/tags", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/:clientId/tags", authMiddleware, requireFeature('clients_tags'), async (req: AuthRequest, res: Response) => {
   try {
     const tags = await storage.getClientTags(req.params.clientId);
     return res.json(tags);
@@ -113,7 +136,7 @@ router.get("/:clientId/tags", authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
-router.post("/:clientId/tags", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/:clientId/tags", authMiddleware, requireFeature('clients_tags'), async (req: AuthRequest, res: Response) => {
   try {
     const { tag } = req.body;
     if (!tag) {
@@ -138,7 +161,7 @@ router.post("/:clientId/tags", authMiddleware, async (req: AuthRequest, res: Res
   }
 });
 
-router.delete("/tags/:tagId", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.delete("/tags/:tagId", authMiddleware, requireFeature('clients_tags'), async (req: AuthRequest, res: Response) => {
   try {
     await storage.removeClientTag(req.params.tagId);
 
@@ -155,7 +178,7 @@ router.delete("/tags/:tagId", authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
-router.get("/:clientId/communications", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/:clientId/communications", authMiddleware, requireFeature('clients_communicationHistory'), async (req: AuthRequest, res: Response) => {
   try {
     const communications = await storage.getClientCommunications(req.params.clientId);
     return res.json(communications);
@@ -164,7 +187,7 @@ router.get("/:clientId/communications", authMiddleware, async (req: AuthRequest,
   }
 });
 
-router.post("/:clientId/communications", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/:clientId/communications", authMiddleware, requireFeature('clients_communicationHistory'), async (req: AuthRequest, res: Response) => {
   try {
     const { type, subject, message, attachments } = req.body;
 
@@ -195,7 +218,7 @@ router.post("/:clientId/communications", authMiddleware, async (req: AuthRequest
   }
 });
 
-router.delete("/communications/:commId", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.delete("/communications/:commId", authMiddleware, requireFeature('clients_communicationHistory'), async (req: AuthRequest, res: Response) => {
   try {
     await storage.deleteClientCommunication(req.params.commId);
 

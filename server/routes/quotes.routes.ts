@@ -11,6 +11,7 @@ import { logger } from "../utils/logger";
 import { calculateSubtotal, calculateTotal, toMoneyString } from "../utils/financial";
 import { EmailService } from "../services/email.service";
 import { PDFService } from "../services/pdf.service";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 import { ApprovalService } from "../services/approval.service";
 import { NotificationService } from "../services/notification.service";
@@ -350,6 +351,21 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
   try {
     const { items, ...quoteData } = req.body;
 
+    // Feature Flag Guards
+    if (!isFeatureEnabled('quotes_discount') && Number(quoteData.discount || 0) > 0) {
+      return res.status(403).json({ error: "Discounts are currently disabled" });
+    }
+    if (!isFeatureEnabled('quotes_shippingCharges') && Number(quoteData.shippingCharges || 0) > 0) {
+      return res.status(403).json({ error: "Shipping charges feature is disabled" });
+    }
+    if (!isFeatureEnabled('quotes_notes') && quoteData.notes) {
+      delete quoteData.notes; // Silently drop notes if disabled
+    }
+    if (!isFeatureEnabled('quotes_termsConditions') && quoteData.termsAndConditions) {
+       // Optional: Drop or Error. Let's drop.
+       delete quoteData.termsAndConditions;
+    }
+
     // Convert ISO string date to Date object
     if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
         const parsed = new Date(quoteData.quoteDate);
@@ -469,7 +485,7 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
   }
 });
 
-router.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     // Check if quote exists and is not invoiced
     const existingQuote = await storage.getQuote(req.params.id);
@@ -516,6 +532,15 @@ router.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async 
     };
 
     const { items, ...updateFields } = req.body;
+    
+    // Feature Flag Guards (Update)
+    if (!isFeatureEnabled('quotes_discount') && updateFields.discount && Number(updateFields.discount) > 0) {
+      return res.status(403).json({ error: "Discounts are currently disabled" });
+    }
+    if (!isFeatureEnabled('quotes_shippingCharges') && updateFields.shippingCharges && Number(updateFields.shippingCharges) > 0) {
+      return res.status(403).json({ error: "Shipping charges feature is disabled" });
+    }
+
     const updateData = { ...updateFields };
     if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
     if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
@@ -680,7 +705,7 @@ router.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async 
   }
 });
 
-router.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_convertToInvoice'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -763,7 +788,7 @@ router.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoic
 
 
 // Email Quote
-router.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/email", authMiddleware, requireFeature('quotes_emailSending'), requirePermission("quotes", "view"), async (req: AuthRequest, res: Response) => {
     try {
       const { recipientEmail, message } = req.body;
 
@@ -905,7 +930,7 @@ router.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), a
     }
 });
 
-router.get("/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/:id/pdf", authMiddleware, requireFeature('quotes_pdfGeneration'), async (req: AuthRequest, res: Response) => {
     logger.info(`[PDF Export START] Received request for quote: ${req.params.id}`);
     try {
       const quote = await storage.getQuote(req.params.id);
@@ -1235,7 +1260,7 @@ router.post("/:id/comments", requireFeature('quotes_module'), authMiddleware, as
 });
 
 // Approval Routes
-router.post("/:id/approve", authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/approve", authMiddleware, requireFeature('quotes_approve'), requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
     try {
         const quote = await storage.getQuote(req.params.id);
         if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -1280,7 +1305,7 @@ router.post("/:id/approve", authMiddleware, requirePermission("quotes", "edit"),
     }
 });
 
-router.post("/:id/reject", authMiddleware, requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/reject", authMiddleware, requireFeature('quotes_approve'), requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
     try {
         const quote = await storage.getQuote(req.params.id);
         if (!quote) return res.status(404).json({ error: "Quote not found" });

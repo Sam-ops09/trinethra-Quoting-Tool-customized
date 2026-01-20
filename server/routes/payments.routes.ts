@@ -15,7 +15,7 @@ const router = Router();
 // ==================== PAYMENTS ROUTES ====================
 
 // Update Invoice Payment Status and Amount
-router.put("/invoices/:id/payment-status", authMiddleware, requirePermission("payments", "create"), async (req: AuthRequest, res: Response) => {
+router.put("/invoices/:id/payment-status", authMiddleware, requireFeature('payments_create'), requirePermission("payments", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const { paymentStatus, paidAmount } = req.body;
 
@@ -158,7 +158,7 @@ router.put("/invoices/:id/payment-status", authMiddleware, requirePermission("pa
 });
 
 // Record Invoice Payment (incremental)
-router.post("/invoices/:id/payment", authMiddleware, requirePermission("payments", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/invoices/:id/payment", authMiddleware, requireFeature('payments_create'), requirePermission("payments", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const { amount, paymentMethod, transactionId, notes, paymentDate } = req.body;
 
@@ -328,7 +328,7 @@ router.post("/invoices/:id/payment", authMiddleware, requirePermission("payments
 });
 
 // Get Invoice Payment History (Detailed with actual payment records)
-router.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/invoices/:id/payment-history-detailed", authMiddleware, requireFeature('payments_module'), async (req: AuthRequest, res: Response) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -391,7 +391,7 @@ router.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req:
 });
 
 // Get Invoice Payment History (Legacy - for backward compatibility)
-router.get("/invoices/:id/payment-history", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/invoices/:id/payment-history", authMiddleware, requireFeature('payments_module'), async (req: AuthRequest, res: Response) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -426,7 +426,7 @@ router.get("/invoices/:id/payment-history", authMiddleware, async (req: AuthRequ
 });
 
 // Delete Payment History Record
-router.delete("/payment-history/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.delete("/payment-history/:id", authMiddleware, requireFeature('payments_delete'), async (req: AuthRequest, res: Response) => {
   try {
     // First get the payment record to get invoice details
     const payment = await storage.getPaymentById(req.params.id);

@@ -9,9 +9,11 @@ import { sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { toDecimal, add, subtract, divide } from "../utils/financial";
 
+import { requireFeature } from "../feature-flags-middleware";
+
 const router = Router();
 
-router.get("/dashboard", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/dashboard", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const quotes = await storage.getAllQuotes();
       const clients = await storage.getAllClients();
@@ -126,7 +128,7 @@ router.get("/dashboard", authMiddleware, async (req: AuthRequest, res: Response)
     }
 });
 
-router.get("/:timeRange(\\d+)", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/:timeRange(\\d+)", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
       
@@ -231,7 +233,7 @@ router.get("/:timeRange(\\d+)", authMiddleware, async (req: AuthRequest, res: Re
 });
 
 // PHASE 3 - ADVANCED ANALYTICS ENDPOINTS
-router.get("/forecast", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/forecast", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const monthsAhead = req.query.months ? Number(req.query.months) : 3;
       const forecast = await analyticsService.getRevenueForecast(monthsAhead);
@@ -242,7 +244,7 @@ router.get("/forecast", authMiddleware, async (req: AuthRequest, res: Response) 
     }
 });
 
-router.get("/deal-distribution", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/deal-distribution", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const distribution = await analyticsService.getDealDistribution();
       return res.json(distribution);
@@ -252,7 +254,7 @@ router.get("/deal-distribution", authMiddleware, async (req: AuthRequest, res: R
     }
 });
 
-router.get("/regional", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/regional", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const regionalData = await analyticsService.getRegionalDistribution();
       return res.json(regionalData);
@@ -262,7 +264,7 @@ router.get("/regional", authMiddleware, async (req: AuthRequest, res: Response) 
     }
 });
 
-router.post("/custom-report", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/custom-report", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const { startDate, endDate, status, minAmount, maxAmount } = req.body;
       const report = await analyticsService.getCustomReport({
@@ -279,7 +281,7 @@ router.post("/custom-report", authMiddleware, async (req: AuthRequest, res: Resp
     }
 });
 
-router.get("/pipeline", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/pipeline", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const pipeline = await analyticsService.getSalesPipeline();
       return res.json(pipeline);
@@ -289,7 +291,7 @@ router.get("/pipeline", authMiddleware, async (req: AuthRequest, res: Response) 
     }
 });
 
-router.get("/client/:clientId/ltv", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/client/:clientId/ltv", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
       return res.json(ltv);
@@ -299,7 +301,7 @@ router.get("/client/:clientId/ltv", authMiddleware, async (req: AuthRequest, res
     }
 });
 
-router.get("/competitor-insights", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/competitor-insights", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const insights = await analyticsService.getCompetitorInsights();
       return res.json(insights);
@@ -310,7 +312,7 @@ router.get("/competitor-insights", authMiddleware, async (req: AuthRequest, res:
 });
 
 // VENDOR ANALYTICS ENDPOINTS
-router.get("/vendor-spend", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/vendor-spend", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
     try {
       const timeRange = req.query.timeRange ? Number(req.query.timeRange) : 12;
       const vendors = await storage.getAllVendors();
@@ -415,7 +417,7 @@ router.get("/vendor-spend", authMiddleware, async (req: AuthRequest, res: Respon
 
 // --- LEGACY / ADDITIONAL ANALYTICS ROUTES MERGED FROM analytics-routes.ts ---
 
-router.get("/export", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/export", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
   try {
     const timeRange = req.query.timeRange as string || "12";
     let startDate: Date | undefined;
@@ -544,7 +546,8 @@ router.get("/export", authMiddleware, async (req: AuthRequest, res: Response) =>
   }
 });
 
-router.get("/sales-quotes", authMiddleware, async (req: AuthRequest, res: Response) => {
+// SALES QUOTES DASHBOARD
+router.get("/sales-quotes", authMiddleware, requireFeature('dashboard_salesQuotes'), async (req: AuthRequest, res: Response) => {
   try {
     const allQuotes = await storage.getAllQuotes();
     const allClients = await storage.getAllClients();
@@ -647,7 +650,7 @@ router.get("/sales-quotes", authMiddleware, async (req: AuthRequest, res: Respon
   }
 });
 
-router.get("/vendor-po", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/vendor-po", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
   try {
     const allPOs = await db.execute(sql`
       SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
@@ -741,7 +744,7 @@ router.get("/vendor-po", authMiddleware, async (req: AuthRequest, res: Response)
   }
 });
 
-router.get("/invoice-collections", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/invoice-collections", authMiddleware, requireFeature('analytics_module'), async (req: AuthRequest, res: Response) => {
   try {
     const allInvoices = await storage.getAllInvoices();
     const allClients = await storage.getAllClients();

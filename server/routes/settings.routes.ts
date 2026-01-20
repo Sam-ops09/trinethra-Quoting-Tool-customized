@@ -8,11 +8,12 @@ import * as schema from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import { NumberingService } from "../services/numbering.service";
 import { EmailService } from "../services/email.service";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
 
 // ==================== SETTINGS ROUTES ====================
-router.get("/settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access settings" });
@@ -30,7 +31,7 @@ router.get("/settings", authMiddleware, async (req: AuthRequest, res: Response) 
   }
 });
 
-router.post("/settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can update settings" });
@@ -123,7 +124,7 @@ router.post("/settings", authMiddleware, async (req: AuthRequest, res: Response)
 
 // ==================== BANK DETAILS ROUTES ====================
 
-router.get("/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/bank-details", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access bank details" });
@@ -144,7 +145,7 @@ router.get("/bank-details/active", authMiddleware, async (req: AuthRequest, res:
   }
 });
 
-router.post("/bank-details", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/bank-details", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can create bank details" });
@@ -180,7 +181,7 @@ router.post("/bank-details", authMiddleware, async (req: AuthRequest, res: Respo
   }
 });
 
-router.put("/bank-details/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.put("/bank-details/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can update bank details" });
@@ -219,7 +220,7 @@ router.put("/bank-details/:id", authMiddleware, async (req: AuthRequest, res: Re
   }
 });
 
-router.delete("/bank-details/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.delete("/bank-details/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can delete bank details" });
@@ -243,7 +244,7 @@ router.delete("/bank-details/:id", authMiddleware, async (req: AuthRequest, res:
 // ==================== DOCUMENT NUMBER MIGRATION ROUTES ====================
 // Note: Using dynamic import for services that might have circular dependencies or heavy initialization
 
-router.post("/settings/migrate-document-numbers", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/settings/migrate-document-numbers", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can migrate document numbers" });
@@ -285,7 +286,7 @@ router.post("/settings/migrate-document-numbers", authMiddleware, async (req: Au
 
 // ==================== NUMBERING COUNTER ROUTES ====================
 
-router.get("/numbering/counters", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/numbering/counters", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access counter values" });
@@ -321,7 +322,7 @@ router.get("/numbering/counters", authMiddleware, async (req: AuthRequest, res: 
   }
 });
 
-router.post("/numbering/reset-counter", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/numbering/reset-counter", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can reset counters" });
@@ -375,7 +376,7 @@ router.post("/numbering/reset-counter", authMiddleware, async (req: AuthRequest,
   }
 });
 
-router.post("/numbering/set-counter", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/numbering/set-counter", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Only admins can set counters" });
@@ -466,7 +467,7 @@ router.get("/tax-rates", authMiddleware, async (req: AuthRequest, res: Response)
 });
 
 // Create tax rate
-router.post("/tax-rates", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/tax-rates", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user!.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
@@ -514,7 +515,7 @@ router.post("/tax-rates", authMiddleware, async (req: AuthRequest, res: Response
 });
 
 // Delete tax rate
-router.delete("/tax-rates/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.delete("/tax-rates/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user!.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
@@ -548,7 +549,7 @@ router.get("/payment-terms", authMiddleware, async (req: AuthRequest, res: Respo
 });
 
 // Create payment term
-router.post("/payment-terms", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/payment-terms", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user!.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
@@ -588,7 +589,7 @@ router.post("/payment-terms", authMiddleware, async (req: AuthRequest, res: Resp
 });
 
 // Delete payment term
-router.delete("/payment-terms/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.delete("/payment-terms/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user!.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
@@ -625,7 +626,7 @@ router.get("/currency-settings", authMiddleware, async (req: AuthRequest, res: R
   }
 });
 
-router.post("/currency-settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/currency-settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -654,7 +655,7 @@ router.post("/currency-settings", authMiddleware, async (req: AuthRequest, res: 
 
 // ==================== ADMIN SETTINGS ROUTES ====================
 
-router.get("/admin/settings", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/admin/settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -712,7 +713,7 @@ router.get("/admin/settings", authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
-router.post("/admin/settings/company", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/admin/settings/company", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -739,7 +740,7 @@ router.post("/admin/settings/company", authMiddleware, async (req: AuthRequest, 
   }
 });
 
-router.post("/admin/settings/taxation", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/admin/settings/taxation", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -766,7 +767,7 @@ router.post("/admin/settings/taxation", authMiddleware, async (req: AuthRequest,
   }
 });
 
-router.post("/admin/settings/email", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/admin/settings/email", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
         return res.status(403).json({ error: "Forbidden" });

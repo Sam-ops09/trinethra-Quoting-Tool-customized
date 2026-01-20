@@ -75,6 +75,8 @@ export interface FeatureFlags {
 
   // Quote Actions
   quotes_convertToInvoice: boolean;
+  quotes_convertToSalesOrder: boolean; // Added for flow control
+  sales_orders_convertToInvoice: boolean; // Added for flow control
   quotes_convertToVendorPO: boolean;
   quotes_sendQuote: boolean;
   quotes_emailSending: boolean;
@@ -388,6 +390,8 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_slaSection: true,
   quotes_timelineSection: true,
   quotes_convertToInvoice: true,
+  quotes_convertToSalesOrder: true,
+  sales_orders_convertToInvoice: true,
   quotes_convertToVendorPO: true,
   quotes_sendQuote: true,
   quotes_emailSending: false,

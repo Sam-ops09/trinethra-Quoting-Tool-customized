@@ -99,6 +99,7 @@ export default function QuoteDetail() {
   const canSendEmail = useFeatureFlag('quotes_emailSending');
   const canGeneratePDF = useFeatureFlag('quotes_pdfGeneration');
   const canConvertToInvoice = useFeatureFlag('quotes_convertToInvoice');
+  const canConvertToSalesOrder = useFeatureFlag('quotes_convertToSalesOrder');
   const canSendQuote = useFeatureFlag('quotes_sendQuote');
   const canClone = useFeatureFlag('quotes_clone');
 
@@ -826,7 +827,7 @@ export default function QuoteDetail() {
                     )}
                     
                     {/* Show Create Sales Order button if NO sales order exists */}
-                    {!hasSalesOrder && (
+                    {!hasSalesOrder && canConvertToSalesOrder && (
                       <PermissionGuard resource="sales-orders" action="create" tooltipText="Only authorized users can create Sales Orders">
                         <Button
                           size="sm"

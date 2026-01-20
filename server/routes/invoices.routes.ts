@@ -16,7 +16,7 @@ const router = Router();
 
 // ==================== INVOICES ROUTES ====================
 
-router.get("/", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/", requireFeature('invoices_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const invoices = await storage.getAllInvoices();
     const invoicesWithDetails = await Promise.all(
@@ -34,7 +34,7 @@ router.get("/", requireFeature('quotes_module'), authMiddleware, async (req: Aut
   }
 });
 
-router.get("/:id", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/:id", requireFeature('invoices_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -89,7 +89,7 @@ router.get("/:id", requireFeature('quotes_module'), authMiddleware, async (req: 
 });
 
 // Update Master Invoice Status (Draft -> Confirmed -> Locked)
-router.put("/:id/master-status", authMiddleware, requirePermission("invoices", "finalize"), async (req: AuthRequest, res: Response) => {
+router.put("/:id/master-status", authMiddleware, requireFeature('invoices_finalize'), requirePermission("invoices", "finalize"), async (req: AuthRequest, res: Response) => {
   try {
     const { masterInvoiceStatus } = req.body;
 
@@ -140,7 +140,7 @@ router.put("/:id/master-status", authMiddleware, requirePermission("invoices", "
 
 // Update Master Invoice (with edit restrictions based on status)
 // Also works for Child Invoices (editable until paid)
-router.put("/:id/master-details", authMiddleware, requirePermission("invoices", "edit"), async (req: AuthRequest, res: Response) => {
+router.put("/:id/master-details", authMiddleware, requireFeature('invoices_edit'), requirePermission("invoices", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -292,7 +292,7 @@ router.put("/:id/master-details", authMiddleware, requirePermission("invoices", 
 });
 
 // Finalize Invoice
-router.put("/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req: AuthRequest, res: Response) => {
+router.put("/:id/finalize", authMiddleware, requireFeature('invoices_finalize'), requirePermission("invoices", "finalize"), async (req: AuthRequest, res: Response) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -335,7 +335,7 @@ router.put("/:id/finalize", authMiddleware, requirePermission("invoices", "final
 });
 
 // Lock/Unlock Invoice
-router.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req: AuthRequest, res: Response) => {
+router.put("/:id/lock", authMiddleware, requireFeature('invoices_lock'), requirePermission("invoices", "lock"), async (req: AuthRequest, res: Response) => {
   try {
     const { isLocked } = req.body;
 
@@ -372,7 +372,7 @@ router.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), a
 });
 
 // Cancel Invoice
-router.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req: AuthRequest, res: Response) => {
+router.put("/:id/cancel", authMiddleware, requireFeature('invoices_cancel'), requirePermission("invoices", "cancel"), async (req: AuthRequest, res: Response) => {
   try {
     const { cancellationReason } = req.body;
 
@@ -538,7 +538,7 @@ router.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"
 });
 
 // Delete Invoice (Soft Delete)
-router.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authMiddleware, requireFeature('invoices_delete'), requirePermission("invoices", "delete"), async (req: AuthRequest, res: Response) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -583,7 +583,7 @@ router.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), a
 
 
 // Create Child Invoice from Master Invoice
-router.post("/:id/create-child-invoice", authMiddleware, requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoices_childInvoices'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
 
@@ -829,7 +829,7 @@ router.get("/:id/master-summary", authMiddleware, async (req: AuthRequest, res: 
 });
 
 // PDF Export for Invoices
-router.get("/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/:id/pdf", authMiddleware, requireFeature('invoices_pdfGeneration'), async (req: AuthRequest, res: Response) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -974,7 +974,7 @@ router.get("/:id/pdf", authMiddleware, async (req: AuthRequest, res: Response) =
 });
 
 // Email Invoice
-router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'), requirePermission("invoices", "view"), async (req: AuthRequest, res: Response) => {
     try {
       const { recipientEmail, message } = req.body;
 
@@ -1152,7 +1152,7 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
   });
 
   // Send Payment Reminder
-  router.post("/:id/payment-reminder", authMiddleware, requirePermission("invoices", "view"), async (req: AuthRequest, res: Response) => {
+  router.post("/:id/payment-reminder", authMiddleware, requireFeature('invoices_paymentReminders'), requirePermission("invoices", "view"), async (req: AuthRequest, res: Response) => {
     try {
       const { recipientEmail, message } = req.body;
 
@@ -1248,7 +1248,7 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
 
 
   // PATCH: Update Serial Numbers for an Item
-  router.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req: AuthRequest, res: Response) => {
+  router.patch("/:id/items/:itemId/serials", authMiddleware, requireFeature('serialNumber_tracking'), requirePermission("serial_numbers", "edit"), async (req: AuthRequest, res: Response) => {
     try {
       const { serialNumbers } = req.body;
 
@@ -1333,7 +1333,7 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
   });
 
   // POST: Create/Validate Serial Numbers (Specific to Invoice Item)
-  router.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermission("serial_numbers", "view"), async (req: AuthRequest, res: Response) => {
+  router.post("/:id/items/:itemId/serials/validate", authMiddleware, requireFeature('serialNumber_tracking'), requirePermission("serial_numbers", "view"), async (req: AuthRequest, res: Response) => {
     try {
       const { validateSerialNumbers } = await import("../serial-number-service");
       const { serials, expectedQuantity } = req.body;
@@ -1367,7 +1367,7 @@ router.post("/:id/email", authMiddleware, requirePermission("invoices", "view"),
   });
 
   // GET: Check Serial Edit Permissions
-  router.get("/:id/serials/permissions", authMiddleware, async (req: AuthRequest, res: Response) => {
+  router.get("/:id/serials/permissions", authMiddleware, requireFeature('serialNumber_tracking'), async (req: AuthRequest, res: Response) => {
     try {
       const { canEditSerialNumbers } = await import("../serial-number-service");
       const { id: invoiceId } = req.params;

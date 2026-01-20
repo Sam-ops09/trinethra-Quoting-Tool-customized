@@ -343,7 +343,7 @@ export function AppSidebar() {
                             )}
 
                             {/* Sales Dropdown */}
-                            {salesItems.length > 0 && (
+                            {salesItems.length > 0 && isFeatureEnabled('nav_salesDropdown') && (
                                 <DropdownNav
                                     title="Sales"
                                     icon={FileText}
@@ -358,7 +358,7 @@ export function AppSidebar() {
                             )}
 
                             {/* Purchase Dropdown */}
-                            {purchaseItems.length > 0 && (
+                            {purchaseItems.length > 0 && isFeatureEnabled('nav_purchaseDropdown') && (
                                 <DropdownNav
                                     title="Purchase"
                                     icon={Package}
@@ -384,7 +384,7 @@ export function AppSidebar() {
                             ))}
 
                             {/* Admin Dropdown */}
-                            {filteredAdminItems.length > 0 && (
+                            {filteredAdminItems.length > 0 && isFeatureEnabled('nav_adminDropdown') && (
                                 <>
                                     <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
                                     <DropdownNav

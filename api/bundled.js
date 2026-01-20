@@ -1,5 +1,11 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -23,7 +29,12 @@ __export(schema_exports, {
   clientTagsRelations: () => clientTagsRelations,
   clients: () => clients,
   clientsRelations: () => clientsRelations,
+  collaborationSessions: () => collaborationSessions,
+  collaborationSessionsRelations: () => collaborationSessionsRelations,
   currencySettings: () => currencySettings,
+  emailTemplateTypeEnum: () => emailTemplateTypeEnum,
+  emailTemplates: () => emailTemplates,
+  emailTemplatesRelations: () => emailTemplatesRelations,
   goodsReceivedNotes: () => goodsReceivedNotes,
   goodsReceivedNotesRelations: () => goodsReceivedNotesRelations,
   insertActivityLogSchema: () => insertActivityLogSchema,
@@ -32,11 +43,14 @@ __export(schema_exports, {
   insertClientCommunicationSchema: () => insertClientCommunicationSchema,
   insertClientSchema: () => insertClientSchema,
   insertClientTagSchema: () => insertClientTagSchema,
+  insertCollaborationSessionSchema: () => insertCollaborationSessionSchema,
   insertCurrencySettingSchema: () => insertCurrencySettingSchema,
+  insertEmailTemplateSchema: () => insertEmailTemplateSchema,
   insertGrnSchema: () => insertGrnSchema,
   insertInvoiceAttachmentSchema: () => insertInvoiceAttachmentSchema,
   insertInvoiceItemSchema: () => insertInvoiceItemSchema,
   insertInvoiceSchema: () => insertInvoiceSchema,
+  insertNotificationSchema: () => insertNotificationSchema,
   insertPaymentHistorySchema: () => insertPaymentHistorySchema,
   insertPricingTierSchema: () => insertPricingTierSchema,
   insertProductSchema: () => insertProductSchema,
@@ -60,6 +74,9 @@ __export(schema_exports, {
   invoices: () => invoices,
   invoicesRelations: () => invoicesRelations,
   masterInvoiceStatusEnum: () => masterInvoiceStatusEnum,
+  notificationTypeEnum: () => notificationTypeEnum,
+  notifications: () => notifications,
+  notificationsRelations: () => notificationsRelations,
   paymentHistory: () => paymentHistory,
   paymentHistoryRelations: () => paymentHistoryRelations,
   paymentStatusEnum: () => paymentStatusEnum,
@@ -67,6 +84,8 @@ __export(schema_exports, {
   pricingTiers: () => pricingTiers,
   products: () => products,
   productsRelations: () => productsRelations,
+  quoteComments: () => quoteComments,
+  quoteCommentsRelations: () => quoteCommentsRelations,
   quoteItems: () => quoteItems,
   quoteStatusEnum: () => quoteStatusEnum,
   quoteVersions: () => quoteVersions,
@@ -102,7 +121,7 @@ import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, i
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, users, usersRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, insertInvoiceAttachmentSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, users, usersRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -209,6 +228,10 @@ var init_schema = __esm({
       // none, pending, approved, rejected
       approvalRequiredBy: userRoleEnum("approval_required_by"),
       // Role required to approve (e.g. sales_manager)
+      // Client Acceptance Fields
+      clientSignature: text("client_signature"),
+      clientAcceptedAt: timestamp("client_accepted_at"),
+      clientAcceptedName: text("client_accepted_name"),
       createdBy: varchar("created_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
@@ -360,8 +383,33 @@ var init_schema = __esm({
       unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
       subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
       hsnSac: varchar("hsn_sac", { length: 10 }),
-      sortOrder: integer("sort_order").notNull().default(0)
+      sortOrder: integer("sort_order").notNull().default(0),
+      // Optional item support - client can deselect optional items
+      isOptional: boolean("is_optional").notNull().default(false),
+      isSelected: boolean("is_selected").notNull().default(true)
     });
+    quoteComments = pgTable("quote_comments", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+      authorType: text("author_type").notNull(),
+      // 'client' or 'internal'
+      authorName: text("author_name").notNull(),
+      authorEmail: text("author_email"),
+      message: text("message").notNull(),
+      parentCommentId: varchar("parent_comment_id"),
+      isInternal: boolean("is_internal").notNull().default(false),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    quoteCommentsRelations = relations(quoteComments, ({ one }) => ({
+      quote: one(quotes, {
+        fields: [quoteComments.quoteId],
+        references: [quotes.id]
+      }),
+      parentComment: one(quoteComments, {
+        fields: [quoteComments.parentCommentId],
+        references: [quoteComments.id]
+      })
+    }));
     invoices = pgTable("invoices", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       invoiceNumber: text("invoice_number").notNull().unique(),
@@ -860,6 +908,38 @@ var init_schema = __esm({
       // JSON object of rates
       updatedAt: timestamp("updated_at").notNull().defaultNow()
     });
+    emailTemplateTypeEnum = pgEnum("email_template_type", [
+      "quote",
+      "invoice",
+      "sales_order",
+      "payment_reminder",
+      "password_reset",
+      "welcome"
+    ]);
+    emailTemplates = pgTable("email_templates", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      name: text("name").notNull(),
+      // e.g., "Quote Email", "Invoice Reminder"
+      type: emailTemplateTypeEnum("type").notNull(),
+      // quote, invoice, sales_order, etc.
+      subject: text("subject").notNull(),
+      // Email subject with {{variables}}
+      body: text("body").notNull(),
+      // HTML body with {{variables}}
+      availableVariables: text("available_variables").notNull(),
+      // JSON array of allowed variables
+      isActive: boolean("is_active").notNull().default(true),
+      isDefault: boolean("is_default").notNull().default(false),
+      createdBy: varchar("created_by").references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    });
+    emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
+      creator: one(users, {
+        fields: [emailTemplates.createdBy],
+        references: [users.id]
+      })
+    }));
     insertUserSchema = createInsertSchema(users).pick({
       email: true,
       backupEmail: true,
@@ -1006,9 +1086,82 @@ var init_schema = __esm({
       createdAt: true,
       updatedAt: true
     });
+    notificationTypeEnum = pgEnum("notification_type", [
+      "quote_status_change",
+      "approval_request",
+      "approval_decision",
+      "payment_received",
+      "payment_overdue",
+      "collaboration_joined",
+      "collaboration_edit",
+      "system_announcement"
+    ]);
+    notifications = pgTable("notifications", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+      type: notificationTypeEnum("type").notNull(),
+      title: text("title").notNull(),
+      message: text("message").notNull(),
+      entityType: text("entity_type"),
+      // quote, invoice, payment, sales_order, etc.
+      entityId: varchar("entity_id"),
+      isRead: boolean("is_read").notNull().default(false),
+      readAt: timestamp("read_at"),
+      metadata: jsonb("metadata"),
+      // Additional context data (e.g., old/new status, amount, etc.)
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    }, (table) => ({
+      userIdx: index("idx_notifications_user_id").on(table.userId),
+      userUnreadIdx: index("idx_notifications_user_unread").on(table.userId, table.isRead)
+    }));
+    notificationsRelations = relations(notifications, ({ one }) => ({
+      user: one(users, {
+        fields: [notifications.userId],
+        references: [users.id]
+      })
+    }));
+    collaborationSessions = pgTable("collaboration_sessions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      entityType: text("entity_type").notNull(),
+      // quote, sales_order, invoice
+      entityId: varchar("entity_id").notNull(),
+      userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+      socketId: text("socket_id").notNull(),
+      cursorPosition: jsonb("cursor_position"),
+      // { field: string, line: number }
+      isEditing: boolean("is_editing").notNull().default(false),
+      lastActivity: timestamp("last_activity").notNull().defaultNow(),
+      joinedAt: timestamp("joined_at").notNull().defaultNow()
+    }, (table) => ({
+      entityIdx: index("idx_collab_sessions_entity").on(table.entityType, table.entityId),
+      userSocketIdx: index("idx_collab_sessions_socket").on(table.socketId)
+    }));
+    collaborationSessionsRelations = relations(collaborationSessions, ({ one }) => ({
+      user: one(users, {
+        fields: [collaborationSessions.userId],
+        references: [users.id]
+      })
+    }));
+    insertNotificationSchema = createInsertSchema(notifications).omit({
+      id: true,
+      createdAt: true,
+      isRead: true,
+      readAt: true
+    });
+    insertCollaborationSessionSchema = createInsertSchema(collaborationSessions).omit({
+      id: true,
+      joinedAt: true,
+      lastActivity: true
+    });
     insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments).omit({
       id: true,
       createdAt: true
+    });
+    insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      createdBy: true
     });
   }
 });
@@ -1804,6 +1957,23 @@ var init_storage = __esm({
       async deleteApprovalRule(id) {
         await db.delete(approvalRules).where(eq(approvalRules.id, id));
       }
+      // Quote Comments for Interactive Public Quotes
+      async getQuoteComments(quoteId, includeInternal = false) {
+        if (includeInternal) {
+          return await db.select().from(quoteComments).where(eq(quoteComments.quoteId, quoteId)).orderBy(quoteComments.createdAt);
+        }
+        return await db.select().from(quoteComments).where(
+          and(eq(quoteComments.quoteId, quoteId), eq(quoteComments.isInternal, false))
+        ).orderBy(quoteComments.createdAt);
+      }
+      async createQuoteComment(comment) {
+        const [newComment] = await db.insert(quoteComments).values(comment).returning();
+        return newComment;
+      }
+      async updateQuoteItemSelection(itemId, isSelected) {
+        const [updated] = await db.update(quoteItems).set({ isSelected }).where(eq(quoteItems.id, itemId)).returning();
+        return updated || void 0;
+      }
     };
     storage = new DatabaseStorage();
   }
@@ -2119,6 +2289,8 @@ var init_feature_flags = __esm({
       quotes_slaSection: true,
       quotes_timelineSection: true,
       quotes_convertToInvoice: true,
+      quotes_convertToSalesOrder: true,
+      sales_orders_convertToInvoice: true,
       quotes_convertToVendorPO: true,
       quotes_sendQuote: true,
       quotes_emailSending: false,
@@ -2142,7 +2314,7 @@ var init_feature_flags = __esm({
       invoices_childInvoices: true,
       invoices_masterInvoices: true,
       invoices_milestoneInvoices: true,
-      invoices_emailSending: false,
+      invoices_emailSending: true,
       invoices_pdfGeneration: true,
       invoices_paymentTracking: true,
       invoices_paymentHistory: true,
@@ -2257,15 +2429,16 @@ var init_feature_flags = __esm({
       theme_government: true,
       theme_education: true,
       // ==================== EMAIL INTEGRATION ====================
-      email_integration: false,
+      email_integration: true,
       email_resend: true,
       email_smtp: true,
-      email_welcome: true,
+      email_welcome: false,
       email_quoteSending: false,
       email_invoiceSending: false,
       email_paymentReminders: false,
       email_overdueNotifications: false,
       email_vendorPO: false,
+      email_templates_module: true,
       // ==================== ADMIN & CONFIGURATION ====================
       admin_userManagement: true,
       admin_settings: true,
@@ -2557,7 +2730,7 @@ __export(serial_number_service_exports, {
   logSerialNumberChange: () => logSerialNumberChange,
   validateSerialNumbers: () => validateSerialNumbers
 });
-import { eq as eq3, and as and2, sql as sql5 } from "drizzle-orm";
+import { eq as eq6, and as and4, sql as sql6 } from "drizzle-orm";
 async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expectedQuantity, options = {
   checkInvoiceScope: true,
   checkQuoteScope: true,
@@ -2591,9 +2764,9 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
   }
   if (options.checkInvoiceScope) {
     const invoiceItemsList = await db.select().from(invoiceItems).where(
-      and2(
-        eq3(invoiceItems.invoiceId, invoiceId),
-        sql5`${invoiceItems.id} != ${invoiceItemId}`
+      and4(
+        eq6(invoiceItems.invoiceId, invoiceId),
+        sql6`${invoiceItems.id} != ${invoiceItemId}`
       )
     );
     const existingSerialsInInvoice = [];
@@ -2618,19 +2791,19 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
     }
   }
   if (options.checkQuoteScope) {
-    const invoice = await db.select().from(invoices).where(eq3(invoices.id, invoiceId)).limit(1);
+    const invoice = await db.select().from(invoices).where(eq6(invoices.id, invoiceId)).limit(1);
     if (invoice.length > 0) {
       const quoteId = invoice[0].quoteId;
       if (quoteId) {
         const relatedInvoices = await db.select().from(invoices).where(
-          and2(
-            eq3(invoices.quoteId, quoteId),
-            sql5`${invoices.id} != ${invoiceId}`
+          and4(
+            eq6(invoices.quoteId, quoteId),
+            sql6`${invoices.id} != ${invoiceId}`
           )
         );
         const existingSerialsInQuote = [];
         for (const relInvoice of relatedInvoices) {
-          const items = await db.select().from(invoiceItems).where(eq3(invoiceItems.invoiceId, relInvoice.id));
+          const items = await db.select().from(invoiceItems).where(eq6(invoiceItems.invoiceId, relInvoice.id));
           for (const item of items) {
             if (item.serialNumbers) {
               try {
@@ -2656,7 +2829,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
   }
   if (options.checkSystemWide) {
     const existingSerials = await db.select({ serialNumber: serialNumbers.serialNumber }).from(serialNumbers).where(
-      sql5`${serialNumbers.serialNumber} IN (${sql5.join(validSerials.map((s) => sql5`${s}`), sql5`, `)})`
+      sql6`${serialNumbers.serialNumber} IN (${sql6.join(validSerials.map((s) => sql6`${s}`), sql6`, `)})`
     );
     const duplicatesInSystem = existingSerials.map((s) => s.serialNumber);
     if (duplicatesInSystem.length > 0) {
@@ -2674,31 +2847,31 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
 }
 async function getSerialTraceability(serialNumberValue) {
   console.log("[Serial Traceability] Searching for:", serialNumberValue);
-  const [serial2] = await db.select().from(serialNumbers).where(eq3(serialNumbers.serialNumber, serialNumberValue)).limit(1);
+  const [serial2] = await db.select().from(serialNumbers).where(eq6(serialNumbers.serialNumber, serialNumberValue)).limit(1);
   if (serial2) {
     console.log("[Serial Traceability] Found in serialNumbers table:", serial2.id);
-    const invoice = serial2.invoiceId ? await db.select().from(invoices).where(eq3(invoices.id, serial2.invoiceId)).limit(1) : [];
+    const invoice = serial2.invoiceId ? await db.select().from(invoices).where(eq6(invoices.id, serial2.invoiceId)).limit(1) : [];
     if (invoice.length === 0) {
       console.log("[Serial Traceability] No invoice found for serial");
       return null;
     }
-    const quote = invoice[0].quoteId ? await db.select().from(quotes).where(eq3(quotes.id, invoice[0].quoteId)).limit(1) : [];
-    const customer = quote.length > 0 ? await db.select().from(clients).where(eq3(clients.id, quote[0].clientId)).limit(1) : [];
-    const salesOrder = invoice[0].salesOrderId ? await db.select().from(salesOrders).where(eq3(salesOrders.id, invoice[0].salesOrderId)).limit(1) : [];
-    const invoiceItem = serial2.invoiceItemId ? await db.select().from(invoiceItems).where(eq3(invoiceItems.id, serial2.invoiceItemId)).limit(1) : [];
+    const quote = invoice[0].quoteId ? await db.select().from(quotes).where(eq6(quotes.id, invoice[0].quoteId)).limit(1) : [];
+    const customer = quote.length > 0 ? await db.select().from(clients).where(eq6(clients.id, quote[0].clientId)).limit(1) : [];
+    const salesOrder = invoice[0].salesOrderId ? await db.select().from(salesOrders).where(eq6(salesOrders.id, invoice[0].salesOrderId)).limit(1) : [];
+    const invoiceItem = serial2.invoiceItemId ? await db.select().from(invoiceItems).where(eq6(invoiceItems.id, serial2.invoiceItemId)).limit(1) : [];
     const history = await db.select({
       action: activityLogs.action,
       userId: activityLogs.userId,
       timestamp: activityLogs.timestamp
     }).from(activityLogs).where(
-      and2(
-        eq3(activityLogs.entityType, "serial_number"),
-        eq3(activityLogs.entityId, serial2.id)
+      and4(
+        eq6(activityLogs.entityType, "serial_number"),
+        eq6(activityLogs.entityId, serial2.id)
       )
     ).orderBy(activityLogs.timestamp);
     const historyWithUsers = await Promise.all(
       history.map(async (h) => {
-        const user = await db.select().from(users).where(eq3(users.id, h.userId)).limit(1);
+        const user = await db.select().from(users).where(eq6(users.id, h.userId)).limit(1);
         return {
           action: h.action,
           user: user.length > 0 ? user[0].name : "Unknown",
@@ -2774,11 +2947,11 @@ async function getSerialTraceability(serialNumberValue) {
   return null;
 }
 async function constructTraceabilityFromInvoiceItem(serialNumberValue, item) {
-  const invoice = await db.select().from(invoices).where(eq3(invoices.id, item.invoiceId)).limit(1);
+  const invoice = await db.select().from(invoices).where(eq6(invoices.id, item.invoiceId)).limit(1);
   if (invoice.length === 0) return null;
-  const quote = invoice[0].quoteId ? await db.select().from(quotes).where(eq3(quotes.id, invoice[0].quoteId)).limit(1) : [];
-  const customer = quote.length > 0 ? await db.select().from(clients).where(eq3(clients.id, quote[0].clientId)).limit(1) : [];
-  const salesOrder = invoice[0].salesOrderId ? await db.select().from(salesOrders).where(eq3(salesOrders.id, invoice[0].salesOrderId)).limit(1) : [];
+  const quote = invoice[0].quoteId ? await db.select().from(quotes).where(eq6(quotes.id, invoice[0].quoteId)).limit(1) : [];
+  const customer = quote.length > 0 ? await db.select().from(clients).where(eq6(clients.id, quote[0].clientId)).limit(1) : [];
+  const salesOrder = invoice[0].salesOrderId ? await db.select().from(salesOrders).where(eq6(salesOrders.id, invoice[0].salesOrderId)).limit(1) : [];
   return {
     serialNumber: serialNumberValue,
     status: "delivered",
@@ -2826,11 +2999,11 @@ async function logSerialNumberChange(userId, action, serialId) {
   });
 }
 async function canEditSerialNumbers(userId, invoiceId) {
-  const invoice = await db.select().from(invoices).where(eq3(invoices.id, invoiceId)).limit(1);
+  const invoice = await db.select().from(invoices).where(eq6(invoices.id, invoiceId)).limit(1);
   if (invoice.length === 0) {
     return { canEdit: false, reason: "Invoice not found" };
   }
-  const user = await db.select().from(users).where(eq3(users.id, userId)).limit(1);
+  const user = await db.select().from(users).where(eq6(users.id, userId)).limit(1);
   if (user.length === 0) {
     return { canEdit: false, reason: "User not found" };
   }
@@ -3706,7 +3879,7 @@ var InvoicePDFService = class _InvoicePDFService {
     for (let idx = 0; idx < items.length; idx++) {
       const it = items[idx];
       const descRaw = String(it.description ?? "").trim();
-      const desc3 = descRaw || "-";
+      const desc4 = descRaw || "-";
       const qty = Number(it.quantity ?? 0);
       const unit = String(it.unit ?? "pcs");
       const rate = Number(it.unitPrice ?? 0);
@@ -3717,7 +3890,7 @@ var InvoicePDFService = class _InvoicePDFService {
       const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
       doc.save();
       doc.font("Helvetica").fontSize(8).fillColor(this.INK);
-      const allDescLines = this.wrapTextLines(doc, desc3, col.desc - 12, 50);
+      const allDescLines = this.wrapTextLines(doc, desc4, col.desc - 12, 50);
       let descLines = allDescLines;
       if (allDescLines.length > this.TABLE_DESC_MAX_LINES) {
         descLines = allDescLines.slice(0, this.TABLE_DESC_MAX_LINES);
@@ -3804,7 +3977,7 @@ var InvoicePDFService = class _InvoicePDFService {
         align: "right",
         lineBreak: false
       });
-      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc3, serials });
+      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc4, serials });
       y += rowH;
     }
     doc.y = y + 8;
@@ -4830,7 +5003,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     for (let idx = 0; idx < items.length; idx++) {
       const it = items[idx];
       const descRaw = String(it.description ?? "").trim();
-      const desc3 = descRaw || "-";
+      const desc4 = descRaw || "-";
       const qty = Number(it.quantity ?? 0);
       const unit = String(it.unit ?? "pcs");
       const rate = Number(it.unitPrice ?? 0);
@@ -4841,7 +5014,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
       doc.save();
       doc.font("Helvetica").fontSize(8).fillColor(this.INK);
-      const descLinesAll = this.wrapTextLines(doc, desc3, col.desc - 12, 30);
+      const descLinesAll = this.wrapTextLines(doc, desc4, col.desc - 12, 30);
       const descLines = descLinesAll;
       const descH = descLines.length * 11;
       let serialLines = [];
@@ -4916,7 +5089,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       doc.strokeColor(this.LINE).lineWidth(0.8);
       doc.moveTo(x0, y + rowH).lineTo(cx.right, y + rowH).stroke();
       doc.restore();
-      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc3, serials });
+      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc4, serials });
       y += rowH;
     }
     doc.y = y + 8;
@@ -6306,6 +6479,7 @@ router.patch(
 router.post(
   "/sales-orders/:id/convert-to-invoice",
   requireFeature("invoices_module"),
+  requireFeature("sales_orders_convertToInvoice"),
   requirePermission("invoices", "create"),
   async (req, res) => {
     try {
@@ -6769,6 +6943,7 @@ router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view")
 router.post(
   "/quotes/:id/sales-orders",
   requireFeature("sales_orders_module"),
+  requireFeature("quotes_convertToSalesOrder"),
   requirePermission("sales_orders", "create"),
   async (req, res) => {
     try {
@@ -6875,7 +7050,9 @@ router2.post("/signup", async (req, res) => {
       entityId: user.id
     });
     try {
-      await EmailService.sendWelcomeEmail(email, name);
+      if (__require("../shared/feature-flags").isFeatureEnabled("email_welcome")) {
+        await EmailService.sendWelcomeEmail(email, name);
+      }
     } catch (error) {
       logger.error("Failed to send welcome email:", error);
     }
@@ -7120,6 +7297,23 @@ router2.post("/refresh", async (req, res) => {
     return res.status(500).json({ error: "Failed to refresh token" });
   }
 });
+router2.get("/ws-token", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const wsToken = jwt2.sign(
+      { id: req.user.id, email: req.user.email },
+      getJWTSecret(),
+      { expiresIn: "5m" }
+      // Short-lived for initial connection only
+    );
+    return res.json({ token: wsToken });
+  } catch (error) {
+    logger.error("WebSocket token error:", error);
+    return res.status(500).json({ error: "Failed to generate WebSocket token" });
+  }
+});
 var auth_routes_default = router2;
 
 // server/routes/users.routes.ts
@@ -7250,6 +7444,7 @@ var users_routes_default = router3;
 // server/routes/clients.routes.ts
 init_storage();
 import { Router as Router4 } from "express";
+init_feature_flags();
 init_schema();
 var router4 = Router4();
 router4.get("/", requireFeature("clients_module"), authMiddleware, async (req, res) => {
@@ -7273,6 +7468,15 @@ router4.get("/:id", requireFeature("clients_module"), authMiddleware, async (req
 });
 router4.post("/", requireFeature("clients_create"), authMiddleware, requirePermission("clients", "create"), validateRequest(insertClientSchema), async (req, res) => {
   try {
+    if (!isFeatureEnabled("clients_gstin") && req.body.gstin) {
+      return res.status(403).json({ error: "GSTIN feature is disabled" });
+    }
+    if (!isFeatureEnabled("clients_billingAddress") && req.body.billingAddress) {
+      return res.status(403).json({ error: "Billing Address feature is disabled" });
+    }
+    if (!isFeatureEnabled("clients_shippingAddress") && req.body.shippingAddress) {
+      return res.status(403).json({ error: "Shipping Address feature is disabled" });
+    }
     const client = await storage.createClient({
       ...req.body,
       createdBy: req.user.id
@@ -7290,7 +7494,16 @@ router4.post("/", requireFeature("clients_create"), authMiddleware, requirePermi
 });
 router4.put("/:id", requireFeature("clients_edit"), authMiddleware, requirePermission("clients", "edit"), async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, gstin, billingAddress, shippingAddress } = req.body;
+    if (!isFeatureEnabled("clients_gstin") && gstin) {
+      return res.status(403).json({ error: "GSTIN feature is disabled" });
+    }
+    if (!isFeatureEnabled("clients_billingAddress") && billingAddress) {
+      return res.status(403).json({ error: "Billing Address feature is disabled" });
+    }
+    if (!isFeatureEnabled("clients_shippingAddress") && shippingAddress) {
+      return res.status(403).json({ error: "Shipping Address feature is disabled" });
+    }
     if (!name || !email) {
       return res.status(400).json({ error: "Client name and email are required" });
     }
@@ -7327,7 +7540,7 @@ router4.delete("/:id", requireFeature("clients_delete"), authMiddleware, require
     return res.status(500).json({ error: "Failed to delete client" });
   }
 });
-router4.get("/:clientId/tags", authMiddleware, async (req, res) => {
+router4.get("/:clientId/tags", authMiddleware, requireFeature("clients_tags"), async (req, res) => {
   try {
     const tags = await storage.getClientTags(req.params.clientId);
     return res.json(tags);
@@ -7335,7 +7548,7 @@ router4.get("/:clientId/tags", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch client tags" });
   }
 });
-router4.post("/:clientId/tags", authMiddleware, async (req, res) => {
+router4.post("/:clientId/tags", authMiddleware, requireFeature("clients_tags"), async (req, res) => {
   try {
     const { tag } = req.body;
     if (!tag) {
@@ -7356,7 +7569,7 @@ router4.post("/:clientId/tags", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to add tag" });
   }
 });
-router4.delete("/tags/:tagId", authMiddleware, async (req, res) => {
+router4.delete("/tags/:tagId", authMiddleware, requireFeature("clients_tags"), async (req, res) => {
   try {
     await storage.removeClientTag(req.params.tagId);
     await storage.createActivityLog({
@@ -7370,7 +7583,7 @@ router4.delete("/tags/:tagId", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to remove tag" });
   }
 });
-router4.get("/:clientId/communications", authMiddleware, async (req, res) => {
+router4.get("/:clientId/communications", authMiddleware, requireFeature("clients_communicationHistory"), async (req, res) => {
   try {
     const communications = await storage.getClientCommunications(req.params.clientId);
     return res.json(communications);
@@ -7378,7 +7591,7 @@ router4.get("/:clientId/communications", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch communications" });
   }
 });
-router4.post("/:clientId/communications", authMiddleware, async (req, res) => {
+router4.post("/:clientId/communications", authMiddleware, requireFeature("clients_communicationHistory"), async (req, res) => {
   try {
     const { type, subject, message, attachments } = req.body;
     if (!type || !["email", "call", "meeting", "note"].includes(type)) {
@@ -7404,7 +7617,7 @@ router4.post("/:clientId/communications", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create communication" });
   }
 });
-router4.delete("/communications/:commId", authMiddleware, async (req, res) => {
+router4.delete("/communications/:commId", authMiddleware, requireFeature("clients_communicationHistory"), async (req, res) => {
   try {
     await storage.deleteClientCommunication(req.params.commId);
     await storage.createActivityLog({
@@ -8140,14 +8353,14 @@ var PDFService = class _PDFService {
     const unit = 40;
     const rate = 72;
     const amt = 86;
-    const desc3 = w - (sl + qty + unit + rate + amt);
+    const desc4 = w - (sl + qty + unit + rate + amt);
     const cx = {
       sl: x,
       desc: x + sl,
-      qty: x + sl + desc3,
-      unit: x + sl + desc3 + qty,
-      rate: x + sl + desc3 + qty + unit,
-      amt: x + sl + desc3 + qty + unit + rate,
+      qty: x + sl + desc4,
+      unit: x + sl + desc4 + qty,
+      rate: x + sl + desc4 + qty + unit,
+      amt: x + sl + desc4 + qty + unit + rate,
       right: x + w
     };
     const drawHeader = (yy) => {
@@ -8160,7 +8373,7 @@ var PDFService = class _PDFService {
       doc.restore();
       doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
       doc.text("SL", cx.sl, yy + 7, { width: sl, align: "center", characterSpacing: 0.6, lineBreak: false });
-      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc3 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
+      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc4 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
       doc.text("QTY", cx.qty, yy + 7, { width: qty, align: "center", characterSpacing: 0.6, lineBreak: false });
       doc.text("UNIT", cx.unit, yy + 7, { width: unit, align: "center", characterSpacing: 0.6, lineBreak: false });
       doc.text("RATE", cx.rate, yy + 7, { width: rate - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
@@ -8180,7 +8393,7 @@ var PDFService = class _PDFService {
       const amtVal = Number(it.subtotal ?? qtyVal * rateVal) || 0;
       doc.save();
       doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      const descLines = this.wrapLines(doc, descText, desc3 - 8, 30);
+      const descLines = this.wrapLines(doc, descText, desc4 - 8, 30);
       doc.restore();
       const rowH = Math.max(minRowH, 8 + descLines.length * 11);
       if (y + rowH > this.bottomY() - 6) {
@@ -8205,7 +8418,7 @@ var PDFService = class _PDFService {
       doc.text(String(i + 1), cx.sl, y + 6, { width: sl, align: "center", lineBreak: false });
       let dy = y + 6;
       for (const ln of descLines) {
-        doc.text(ln, cx.desc + 4, dy, { width: desc3 - 8, lineBreak: false });
+        doc.text(ln, cx.desc + 4, dy, { width: desc4 - 8, lineBreak: false });
         dy += 11;
       }
       const midY = y + 6;
@@ -8488,6 +8701,9 @@ var PDFService = class _PDFService {
   }
 };
 
+// server/routes/quotes.routes.ts
+init_feature_flags();
+
 // server/services/approval.service.ts
 init_storage();
 import { Decimal as Decimal2 } from "decimal.js";
@@ -8535,7 +8751,593 @@ var ApprovalService = class {
   }
 };
 
+// server/services/notification.service.ts
+init_db();
+init_schema();
+import { eq as eq4, and as and3, desc as desc2, sql as sql5, lt } from "drizzle-orm";
+
+// server/services/websocket.service.ts
+init_db();
+init_schema();
+import { Server } from "socket.io";
+import jwt3 from "jsonwebtoken";
+import { eq as eq3, and as and2 } from "drizzle-orm";
+var WebSocketServiceClass = class {
+  io = null;
+  userConnections = /* @__PURE__ */ new Map();
+  // userId -> connections
+  /**
+   * Initialize WebSocket server with authentication middleware
+   */
+  initialize(httpServer) {
+    this.io = new Server(httpServer, {
+      cors: {
+        origin: process.env.NODE_ENV === "production" ? process.env.CLIENT_URL : ["http://localhost:3000", "http://localhost:5000", "http://127.0.0.1:5000"],
+        credentials: true
+      },
+      pingTimeout: 6e4,
+      pingInterval: 25e3
+    });
+    this.io.use(async (socket, next) => {
+      try {
+        const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace("Bearer ", "");
+        if (!token) {
+          return next(new Error("Authentication required"));
+        }
+        const decoded = jwt3.verify(token, getJWTSecret());
+        const [user] = await db.select().from(users).where(eq3(users.id, decoded.id)).limit(1);
+        if (!user) {
+          return next(new Error("User not found"));
+        }
+        socket.userId = user.id;
+        socket.userName = user.name;
+        socket.userRole = user.role;
+        next();
+      } catch (error) {
+        console.error("WebSocket auth error:", error);
+        next(new Error("Invalid token"));
+      }
+    });
+    this.io.on("connection", (socket) => {
+      console.log(`[WebSocket] User ${socket.userName} (${socket.userId}) connected - Socket: ${socket.id}`);
+      this.addConnection(socket);
+      if (socket.userId) {
+        socket.join(`user:${socket.userId}`);
+      }
+      socket.on("join:collaboration", async (data) => {
+        await this.handleJoinCollaboration(socket, data);
+      });
+      socket.on("leave:collaboration", async (data) => {
+        await this.handleLeaveCollaboration(socket, data);
+      });
+      socket.on("cursor:update", (data) => {
+        this.handleCursorUpdate(socket, data);
+      });
+      socket.on("editing:start", (data) => {
+        this.handleEditingState(socket, data, true);
+      });
+      socket.on("editing:stop", (data) => {
+        this.handleEditingState(socket, data, false);
+      });
+      socket.on("document:change", (data) => {
+        this.handleDocumentChange(socket, data);
+      });
+      socket.on("disconnect", async (reason) => {
+        console.log(`[WebSocket] User ${socket.userName} disconnected - Reason: ${reason}`);
+        await this.handleDisconnect(socket);
+      });
+      socket.emit("connected", {
+        userId: socket.userId,
+        userName: socket.userName,
+        socketId: socket.id
+      });
+    });
+    console.log("\u2713 WebSocket service initialized");
+    return this.io;
+  }
+  /**
+   * Track user connection
+   */
+  addConnection(socket) {
+    if (!socket.userId) return;
+    const connection = {
+      socketId: socket.id,
+      userId: socket.userId,
+      userName: socket.userName || "Unknown",
+      userRole: socket.userRole || "viewer",
+      connectedAt: /* @__PURE__ */ new Date()
+    };
+    const existing = this.userConnections.get(socket.userId) || [];
+    existing.push(connection);
+    this.userConnections.set(socket.userId, existing);
+  }
+  /**
+   * Remove user connection on disconnect
+   */
+  removeConnection(socket) {
+    if (!socket.userId) return;
+    const connections = this.userConnections.get(socket.userId) || [];
+    const updated = connections.filter((c) => c.socketId !== socket.id);
+    if (updated.length === 0) {
+      this.userConnections.delete(socket.userId);
+    } else {
+      this.userConnections.set(socket.userId, updated);
+    }
+  }
+  /**
+   * Handle joining a collaboration room
+   */
+  async handleJoinCollaboration(socket, data) {
+    if (!socket.userId) return;
+    const roomName = `collab:${data.entityType}:${data.entityId}`;
+    socket.join(roomName);
+    try {
+      await db.delete(collaborationSessions).where(
+        and2(
+          eq3(collaborationSessions.entityType, data.entityType),
+          eq3(collaborationSessions.entityId, data.entityId),
+          eq3(collaborationSessions.userId, socket.userId)
+        )
+      );
+      await db.insert(collaborationSessions).values({
+        entityType: data.entityType,
+        entityId: data.entityId,
+        userId: socket.userId,
+        socketId: socket.id,
+        isEditing: false
+      });
+    } catch (error) {
+      console.error("[WebSocket] Failed to store collaboration session:", error);
+    }
+    socket.to(roomName).emit("collaborator:joined", {
+      userId: socket.userId,
+      userName: socket.userName,
+      entityType: data.entityType,
+      entityId: data.entityId
+    });
+    const collaborators = await this.getCollaborators(data.entityType, data.entityId);
+    socket.emit("collaborators:list", {
+      entityType: data.entityType,
+      entityId: data.entityId,
+      collaborators
+    });
+    console.log(`[WebSocket] User ${socket.userName} joined room ${roomName}`);
+  }
+  /**
+   * Handle leaving a collaboration room
+   */
+  async handleLeaveCollaboration(socket, data) {
+    if (!socket.userId) return;
+    const roomName = `collab:${data.entityType}:${data.entityId}`;
+    socket.leave(roomName);
+    try {
+      await db.delete(collaborationSessions).where(
+        and2(
+          eq3(collaborationSessions.socketId, socket.id),
+          eq3(collaborationSessions.entityType, data.entityType),
+          eq3(collaborationSessions.entityId, data.entityId)
+        )
+      );
+    } catch (error) {
+      console.error("[WebSocket] Failed to remove collaboration session:", error);
+    }
+    socket.to(roomName).emit("collaborator:left", {
+      userId: socket.userId,
+      userName: socket.userName,
+      entityType: data.entityType,
+      entityId: data.entityId
+    });
+    console.log(`[WebSocket] User ${socket.userName} left room ${roomName}`);
+  }
+  /**
+   * Handle cursor position updates
+   */
+  handleCursorUpdate(socket, data) {
+    if (!socket.userId) return;
+    const roomName = `collab:${data.entityType}:${data.entityId}`;
+    socket.to(roomName).emit("cursor:moved", {
+      userId: socket.userId,
+      userName: socket.userName,
+      position: data.position
+    });
+  }
+  /**
+   * Handle editing state changes
+   */
+  async handleEditingState(socket, data, isEditing) {
+    if (!socket.userId) return;
+    const roomName = `collab:${data.entityType}:${data.entityId}`;
+    try {
+      await db.update(collaborationSessions).set({
+        isEditing,
+        lastActivity: /* @__PURE__ */ new Date(),
+        cursorPosition: data.field ? { field: data.field } : null
+      }).where(eq3(collaborationSessions.socketId, socket.id));
+    } catch (error) {
+      console.error("[WebSocket] Failed to update editing state:", error);
+    }
+    socket.to(roomName).emit("editing:changed", {
+      userId: socket.userId,
+      userName: socket.userName,
+      isEditing,
+      field: data.field
+    });
+  }
+  /**
+   * Handle document changes broadcast
+   */
+  handleDocumentChange(socket, data) {
+    if (!socket.userId) return;
+    const roomName = `collab:${data.entityType}:${data.entityId}`;
+    socket.to(roomName).emit("document:updated", {
+      userId: socket.userId,
+      userName: socket.userName,
+      changes: data.changes,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  /**
+   * Handle socket disconnect
+   */
+  async handleDisconnect(socket) {
+    this.removeConnection(socket);
+    try {
+      const sessions = await db.select().from(collaborationSessions).where(eq3(collaborationSessions.socketId, socket.id));
+      for (const session of sessions) {
+        const roomName = `collab:${session.entityType}:${session.entityId}`;
+        this.io?.to(roomName).emit("collaborator:left", {
+          userId: socket.userId,
+          userName: socket.userName,
+          entityType: session.entityType,
+          entityId: session.entityId
+        });
+      }
+      await db.delete(collaborationSessions).where(eq3(collaborationSessions.socketId, socket.id));
+    } catch (error) {
+      console.error("[WebSocket] Failed to clean up sessions on disconnect:", error);
+    }
+  }
+  /**
+   * Get active collaborators for an entity
+   */
+  async getCollaborators(entityType, entityId) {
+    try {
+      const sessions = await db.select({
+        userId: collaborationSessions.userId,
+        socketId: collaborationSessions.socketId,
+        isEditing: collaborationSessions.isEditing,
+        cursorPosition: collaborationSessions.cursorPosition,
+        joinedAt: collaborationSessions.joinedAt,
+        userName: users.name
+      }).from(collaborationSessions).innerJoin(users, eq3(collaborationSessions.userId, users.id)).where(
+        and2(
+          eq3(collaborationSessions.entityType, entityType),
+          eq3(collaborationSessions.entityId, entityId)
+        )
+      );
+      return sessions;
+    } catch (error) {
+      console.error("[WebSocket] Failed to get collaborators:", error);
+      return [];
+    }
+  }
+  /**
+   * Send notification to specific user(s)
+   */
+  sendNotification(userId, notification) {
+    if (!this.io) return;
+    this.io.to(`user:${userId}`).emit("notification:new", notification);
+  }
+  /**
+   * Send notification to multiple users
+   */
+  sendNotificationToMany(userIds, notification) {
+    userIds.forEach((userId) => this.sendNotification(userId, notification));
+  }
+  /**
+   * Broadcast to all connected users (e.g., system announcements)
+   */
+  broadcast(event, data) {
+    if (!this.io) return;
+    this.io.emit(event, data);
+  }
+  /**
+   * Get connection count for a user
+   */
+  getUserConnectionCount(userId) {
+    return this.userConnections.get(userId)?.length || 0;
+  }
+  /**
+   * Check if a user is online
+   */
+  isUserOnline(userId) {
+    return this.getUserConnectionCount(userId) > 0;
+  }
+  /**
+   * Get the Socket.io server instance
+   */
+  getIO() {
+    return this.io;
+  }
+};
+var WebSocketService = new WebSocketServiceClass();
+
+// server/services/notification.service.ts
+var NotificationServiceClass = class {
+  /**
+   * Create a new notification and deliver via WebSocket
+   */
+  async create(options) {
+    try {
+      const [notification] = await db.insert(notifications).values({
+        userId: options.userId,
+        type: options.type,
+        title: options.title,
+        message: options.message,
+        entityType: options.entityType,
+        entityId: options.entityId,
+        metadata: options.metadata
+      }).returning();
+      if (notification) {
+        WebSocketService.sendNotification(options.userId, {
+          id: notification.id,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          entityType: notification.entityType || void 0,
+          entityId: notification.entityId || void 0,
+          metadata: notification.metadata,
+          createdAt: notification.createdAt
+        });
+      }
+      return notification;
+    } catch (error) {
+      console.error("[NotificationService] Failed to create notification:", error);
+      return null;
+    }
+  }
+  /**
+   * Create notifications for multiple users
+   */
+  async createForMany(userIds, options) {
+    for (const userId of userIds) {
+      await this.create({ ...options, userId });
+    }
+  }
+  /**
+   * Create notification for all users with a specific role
+   */
+  async createForRole(role, options) {
+    try {
+      const usersWithRole = await db.select({ id: users.id }).from(users).where(eq4(users.role, role));
+      const userIds = usersWithRole.map((u) => u.id);
+      await this.createForMany(userIds, options);
+    } catch (error) {
+      console.error("[NotificationService] Failed to create notifications for role:", error);
+    }
+  }
+  /**
+   * Get notifications for a user
+   */
+  async getNotifications(options) {
+    try {
+      const conditions = [eq4(notifications.userId, options.userId)];
+      if (options.unreadOnly) {
+        conditions.push(eq4(notifications.isRead, false));
+      }
+      const result = await db.select().from(notifications).where(and3(...conditions)).orderBy(desc2(notifications.createdAt)).limit(options.limit || 50).offset(options.offset || 0);
+      return result;
+    } catch (error) {
+      console.error("[NotificationService] Failed to get notifications:", error);
+      return [];
+    }
+  }
+  /**
+   * Get count of unread notifications for a user
+   */
+  async getUnreadCount(userId) {
+    try {
+      const [result] = await db.select({ count: sql5`count(*)` }).from(notifications).where(and3(
+        eq4(notifications.userId, userId),
+        eq4(notifications.isRead, false)
+      ));
+      return Number(result?.count || 0);
+    } catch (error) {
+      console.error("[NotificationService] Failed to get unread count:", error);
+      return 0;
+    }
+  }
+  /**
+   * Mark a notification as read
+   */
+  async markAsRead(notificationId, userId) {
+    try {
+      const [updated] = await db.update(notifications).set({
+        isRead: true,
+        readAt: /* @__PURE__ */ new Date()
+      }).where(and3(
+        eq4(notifications.id, notificationId),
+        eq4(notifications.userId, userId)
+      )).returning();
+      return !!updated;
+    } catch (error) {
+      console.error("[NotificationService] Failed to mark as read:", error);
+      return false;
+    }
+  }
+  /**
+   * Mark all notifications as read for a user
+   */
+  async markAllAsRead(userId) {
+    try {
+      const result = await db.update(notifications).set({
+        isRead: true,
+        readAt: /* @__PURE__ */ new Date()
+      }).where(and3(
+        eq4(notifications.userId, userId),
+        eq4(notifications.isRead, false)
+      )).returning();
+      return result.length;
+    } catch (error) {
+      console.error("[NotificationService] Failed to mark all as read:", error);
+      return 0;
+    }
+  }
+  /**
+   * Delete a notification
+   */
+  async delete(notificationId, userId) {
+    try {
+      const [deleted] = await db.delete(notifications).where(and3(
+        eq4(notifications.id, notificationId),
+        eq4(notifications.userId, userId)
+      )).returning();
+      return !!deleted;
+    } catch (error) {
+      console.error("[NotificationService] Failed to delete notification:", error);
+      return false;
+    }
+  }
+  /**
+   * Delete all notifications for a user
+   */
+  async deleteAll(userId) {
+    try {
+      const result = await db.delete(notifications).where(eq4(notifications.userId, userId)).returning();
+      return result.length;
+    } catch (error) {
+      console.error("[NotificationService] Failed to delete all notifications:", error);
+      return 0;
+    }
+  }
+  /**
+   * Clean up old notifications (older than 30 days)
+   */
+  async cleanup(daysOld = 30) {
+    try {
+      const cutoffDate = /* @__PURE__ */ new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+      const result = await db.delete(notifications).where(lt(notifications.createdAt, cutoffDate)).returning();
+      console.log(`[NotificationService] Cleaned up ${result.length} old notifications`);
+      return result.length;
+    } catch (error) {
+      console.error("[NotificationService] Failed to cleanup old notifications:", error);
+      return 0;
+    }
+  }
+  // ============================================
+  // Convenience methods for common notification types
+  // ============================================
+  /**
+   * Notify when quote status changes
+   */
+  async notifyQuoteStatusChange(userId, quoteNumber, quoteId, oldStatus, newStatus) {
+    await this.create({
+      userId,
+      type: "quote_status_change",
+      title: `Quote ${quoteNumber} Status Updated`,
+      message: `Quote status changed from "${oldStatus}" to "${newStatus}"`,
+      entityType: "quote",
+      entityId: quoteId,
+      metadata: { oldStatus, newStatus, quoteNumber }
+    });
+  }
+  /**
+   * Notify when approval is required
+   */
+  async notifyApprovalRequest(approverId, quoteNumber, quoteId, requesterName, reason) {
+    await this.create({
+      userId: approverId,
+      type: "approval_request",
+      title: `Approval Required: Quote ${quoteNumber}`,
+      message: `${requesterName} has requested your approval. Reason: ${reason}`,
+      entityType: "quote",
+      entityId: quoteId,
+      metadata: { requesterName, reason, quoteNumber }
+    });
+  }
+  /**
+   * Notify when approval decision is made
+   */
+  async notifyApprovalDecision(userId, quoteNumber, quoteId, approverName, decision, comments) {
+    await this.create({
+      userId,
+      type: "approval_decision",
+      title: `Quote ${quoteNumber} ${decision === "approved" ? "Approved" : "Rejected"}`,
+      message: `${approverName} has ${decision} your quote${comments ? `: ${comments}` : ""}`,
+      entityType: "quote",
+      entityId: quoteId,
+      metadata: { approverName, decision, comments, quoteNumber }
+    });
+  }
+  /**
+   * Notify when payment is received
+   */
+  async notifyPaymentReceived(userId, invoiceNumber, invoiceId, amount, currency) {
+    await this.create({
+      userId,
+      type: "payment_received",
+      title: `Payment Received: ${currency} ${amount}`,
+      message: `Payment of ${currency} ${amount} received for Invoice ${invoiceNumber}`,
+      entityType: "invoice",
+      entityId: invoiceId,
+      metadata: { amount, currency, invoiceNumber }
+    });
+  }
+  /**
+   * Notify when payment is overdue
+   */
+  async notifyPaymentOverdue(userId, invoiceNumber, invoiceId, daysOverdue, amount) {
+    await this.create({
+      userId,
+      type: "payment_overdue",
+      title: `Invoice ${invoiceNumber} Overdue`,
+      message: `Invoice is ${daysOverdue} days overdue. Outstanding amount: ${amount}`,
+      entityType: "invoice",
+      entityId: invoiceId,
+      metadata: { daysOverdue, amount, invoiceNumber }
+    });
+  }
+  /**
+   * Notify when someone joins a document
+   */
+  async notifyCollaboratorJoined(userId, joinerName, entityType, entityId, entityNumber) {
+    await this.create({
+      userId,
+      type: "collaboration_joined",
+      title: `${joinerName} Joined Your Document`,
+      message: `${joinerName} is now viewing ${entityType} ${entityNumber}`,
+      entityType,
+      entityId,
+      metadata: { joinerName, entityNumber }
+    });
+  }
+  /**
+   * Send system announcement to all users
+   */
+  async sendSystemAnnouncement(title, message, metadata) {
+    try {
+      const allUsers = await db.select({ id: users.id }).from(users);
+      await this.createForMany(
+        allUsers.map((u) => u.id),
+        {
+          type: "system_announcement",
+          title,
+          message,
+          metadata
+        }
+      );
+    } catch (error) {
+      console.error("[NotificationService] Failed to send system announcement:", error);
+    }
+  }
+};
+var NotificationService = new NotificationServiceClass();
+
 // server/routes/quotes.routes.ts
+init_schema();
+init_db();
+import { eq as eq5 } from "drizzle-orm";
 var router5 = Router5();
 router5.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
@@ -8553,6 +9355,231 @@ router5.get("/", requireFeature("quotes_module"), authMiddleware, async (req, re
     res.json(quotesWithClients);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch quotes" });
+  }
+});
+router5.get("/public/:token", async (req, res) => {
+  try {
+    const token = req.params.token;
+    if (!token) return res.status(400).json({ error: "Token required" });
+    const quote = await storage.getQuoteByToken(token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found or link expired" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    const client = await storage.getClient(quote.clientId);
+    const items = await storage.getQuoteItems(quote.id);
+    const creator = await storage.getUser(quote.createdBy);
+    res.json({
+      id: quote.id,
+      quoteNumber: quote.quoteNumber,
+      version: quote.version,
+      status: quote.status,
+      quoteDate: quote.quoteDate,
+      validUntil: quote.validUntil,
+      currency: quote.currency,
+      items,
+      subtotal: quote.subtotal,
+      discount: quote.discount,
+      shippingCharges: quote.shippingCharges,
+      cgst: quote.cgst,
+      sgst: quote.sgst,
+      igst: quote.igst,
+      total: quote.total,
+      notes: quote.notes,
+      termsAndConditions: quote.termsAndConditions,
+      client: {
+        name: client?.name,
+        email: client?.email,
+        billingAddress: client?.billingAddress,
+        gstin: client?.gstin,
+        phone: client?.phone
+      },
+      sender: {
+        name: creator?.name,
+        email: creator?.email
+      }
+    });
+  } catch (error) {
+    logger.error("Public quote fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch quote" });
+  }
+});
+router5.get("/public/:token/comments", async (req, res) => {
+  try {
+    const quote = await storage.getQuoteByToken(req.params.token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    const comments = await storage.getQuoteComments(quote.id, false);
+    res.json(comments);
+  } catch (error) {
+    logger.error("Public quote comments fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
+router5.post("/public/:token/comments", async (req, res) => {
+  try {
+    const { authorName, authorEmail, message, parentCommentId } = req.body;
+    if (!authorName || !message) {
+      return res.status(400).json({ error: "Author name and message are required" });
+    }
+    const quote = await storage.getQuoteByToken(req.params.token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    const comment = await storage.createQuoteComment({
+      quoteId: quote.id,
+      authorType: "client",
+      authorName,
+      authorEmail: authorEmail || null,
+      message,
+      parentCommentId: parentCommentId || null,
+      isInternal: false
+    });
+    await storage.createActivityLog({
+      userId: quote.createdBy,
+      action: "client_comment_public",
+      entityType: "quote",
+      entityId: quote.id,
+      metadata: { commentId: comment.id, via: "public_link" }
+    });
+    res.json(comment);
+  } catch (error) {
+    logger.error("Public quote comment error:", error);
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
+router5.post("/public/:token/select-items", async (req, res) => {
+  try {
+    const { selections } = req.body;
+    if (!Array.isArray(selections)) {
+      return res.status(400).json({ error: "Selections array is required" });
+    }
+    const quote = await storage.getQuoteByToken(req.params.token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    if (!["sent", "draft"].includes(quote.status)) {
+      return res.status(400).json({ error: "Quote is no longer editable" });
+    }
+    const quoteItems2 = await storage.getQuoteItems(quote.id);
+    const optionalItemIds = quoteItems2.filter((i) => i.isOptional).map((i) => i.id);
+    for (const sel of selections) {
+      if (!optionalItemIds.includes(sel.itemId)) {
+        return res.status(400).json({ error: `Item ${sel.itemId} is not an optional item` });
+      }
+    }
+    for (const sel of selections) {
+      await storage.updateQuoteItemSelection(sel.itemId, sel.isSelected);
+    }
+    const updatedItems = await storage.getQuoteItems(quote.id);
+    const selectedItems = updatedItems.filter((i) => i.isSelected);
+    let subtotal = 0;
+    for (const item of selectedItems) {
+      subtotal += Number(item.subtotal);
+    }
+    const discount = Number(quote.discount) || 0;
+    const cgst = Number(quote.cgst) || 0;
+    const sgst = Number(quote.sgst) || 0;
+    const igst = Number(quote.igst) || 0;
+    const shippingCharges = Number(quote.shippingCharges) || 0;
+    const total = subtotal - discount + cgst + sgst + igst + shippingCharges;
+    await storage.updateQuote(quote.id, {
+      subtotal: subtotal.toFixed(2),
+      total: total.toFixed(2)
+    });
+    res.json({
+      success: true,
+      subtotal: subtotal.toFixed(2),
+      total: total.toFixed(2),
+      items: updatedItems
+    });
+  } catch (error) {
+    logger.error("Public quote item selection error:", error);
+    res.status(500).json({ error: "Failed to update selections" });
+  }
+});
+router5.post("/public/:token/accept", async (req, res) => {
+  try {
+    const { clientName, clientSignature } = req.body;
+    if (!clientName) {
+      return res.status(400).json({ error: "Client name is required for acceptance" });
+    }
+    const quote = await storage.getQuoteByToken(req.params.token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    if (!["sent", "draft"].includes(quote.status)) {
+      return res.status(400).json({ error: "Quote is already processed" });
+    }
+    await storage.updateQuote(quote.id, {
+      status: "approved",
+      clientAcceptedName: clientName,
+      clientSignature: clientSignature || null,
+      clientAcceptedAt: /* @__PURE__ */ new Date()
+    });
+    await storage.createActivityLog({
+      userId: quote.createdBy,
+      action: "client_accept_with_signature",
+      entityType: "quote",
+      entityId: quote.id,
+      metadata: {
+        via: "public_link",
+        clientName,
+        hasSignature: !!clientSignature,
+        ip: req.ip
+      }
+    });
+    res.json({ success: true, status: "approved" });
+  } catch (error) {
+    logger.error("Public quote accept error:", error);
+    res.status(500).json({ error: "Failed to accept quote" });
+  }
+});
+router5.post("/public/:token/:action", async (req, res) => {
+  try {
+    const { token, action } = req.params;
+    const { reason } = req.body;
+    if (!["approve", "reject"].includes(action)) {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+    const quote = await storage.getQuoteByToken(token);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
+      return res.status(410).json({ error: "Quote link has expired" });
+    }
+    if (["approved", "invoiced", "closed_paid"].includes(quote.status)) {
+      return res.status(400).json({ error: "Quote is already processed" });
+    }
+    const newStatus = action === "approve" ? "approved" : "rejected";
+    await storage.updateQuote(quote.id, { status: newStatus });
+    await storage.createActivityLog({
+      userId: quote.createdBy,
+      action: `client_${action}_public`,
+      entityType: "quote",
+      entityId: quote.id,
+      metadata: { via: "public_link", reason, ip: req.ip }
+    });
+    res.json({ success: true, status: newStatus });
+  } catch (error) {
+    logger.error("Public quote action error:", error);
+    res.status(500).json({ error: "Failed to process " + req.params.action });
   }
 });
 router5.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
@@ -8577,6 +9604,18 @@ router5.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req,
 router5.post("/", requireFeature("quotes_create"), authMiddleware, requirePermission("quotes", "create"), async (req, res) => {
   try {
     const { items, ...quoteData } = req.body;
+    if (!isFeatureEnabled("quotes_discount") && Number(quoteData.discount || 0) > 0) {
+      return res.status(403).json({ error: "Discounts are currently disabled" });
+    }
+    if (!isFeatureEnabled("quotes_shippingCharges") && Number(quoteData.shippingCharges || 0) > 0) {
+      return res.status(403).json({ error: "Shipping charges feature is disabled" });
+    }
+    if (!isFeatureEnabled("quotes_notes") && quoteData.notes) {
+      delete quoteData.notes;
+    }
+    if (!isFeatureEnabled("quotes_termsConditions") && quoteData.termsAndConditions) {
+      delete quoteData.termsAndConditions;
+    }
     if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
       const parsed = new Date(quoteData.quoteDate);
       if (!isNaN(parsed.getTime())) {
@@ -8635,13 +9674,37 @@ router5.post("/", requireFeature("quotes_create"), authMiddleware, requirePermis
     });
     console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2));
     console.log("[DEBUG] Eval Result:", { approvalStatus, approvalRequiredBy });
+    try {
+      await NotificationService.create({
+        userId: req.user.id,
+        type: "quote_status_change",
+        title: "Quote Created",
+        message: `Quote #${quoteNumber} has been created successfully.`,
+        entityType: "quote",
+        entityId: quote.id
+      });
+      if (approvalStatus === "pending") {
+        const admins = await db.select().from(users).where(eq5(users.role, "admin"));
+        for (const admin of admins) {
+          await NotificationService.notifyApprovalRequest(
+            admin.id,
+            quoteNumber,
+            quote.id,
+            req.user.email || "User",
+            "Quote creation triggered approval rules"
+          );
+        }
+      }
+    } catch (notifError) {
+      logger.error("Failed to send notifications for new quote:", notifError);
+    }
     return res.json({ ...quote, approvalStatus, approvalRequiredBy });
   } catch (error) {
     logger.error("Create quote error:", error);
     return res.status(500).json({ error: error.message || "Failed to create quote" });
   }
 });
-router5.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePermission("quotes", "edit"), async (req, res) => {
   try {
     const existingQuote = await storage.getQuote(req.params.id);
     if (!existingQuote) {
@@ -8676,6 +9739,12 @@ router5.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async
       return void 0;
     };
     const { items, ...updateFields } = req.body;
+    if (!isFeatureEnabled("quotes_discount") && updateFields.discount && Number(updateFields.discount) > 0) {
+      return res.status(403).json({ error: "Discounts are currently disabled" });
+    }
+    if (!isFeatureEnabled("quotes_shippingCharges") && updateFields.shippingCharges && Number(updateFields.shippingCharges) > 0) {
+      return res.status(403).json({ error: "Shipping charges feature is disabled" });
+    }
     const updateData = { ...updateFields };
     if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
     if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
@@ -8735,13 +9804,51 @@ router5.patch("/:id", authMiddleware, requirePermission("quotes", "edit"), async
       entityType: "quote",
       entityId: quote.id
     });
+    try {
+      if (updateData.approvalStatus && updateData.approvalStatus !== existingQuote.approvalStatus) {
+        if (["approved", "rejected"].includes(updateData.approvalStatus)) {
+          const action = updateData.approvalStatus === "approved" ? "approved" : "rejected";
+          await NotificationService.notifyApprovalDecision(
+            existingQuote.createdBy,
+            quote.quoteNumber,
+            quote.id,
+            req.user.email || "Approver",
+            action
+          );
+        }
+        if (updateData.approvalStatus === "pending") {
+          const admins = await db.select().from(users).where(eq5(users.role, "admin"));
+          for (const admin of admins) {
+            await NotificationService.notifyApprovalRequest(
+              admin.id,
+              quote.quoteNumber,
+              quote.id,
+              req.user.email || "User",
+              "Quote update triggered approval rules"
+            );
+          }
+        }
+      } else if (updateData.status && updateData.status !== existingQuote.status) {
+        if (updateData.status === "sent") {
+          await NotificationService.notifyQuoteStatusChange(
+            existingQuote.createdBy,
+            quote.quoteNumber,
+            quote.id,
+            existingQuote.status,
+            "sent"
+          );
+        }
+      }
+    } catch (notifError) {
+      logger.error("Failed to send notifications for updated quote:", notifError);
+    }
     return res.json(quote);
   } catch (error) {
     logger.error("Update quote error:", error);
     res.status(500).json({ error: "Failed to update quote" });
   }
 });
-router5.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
+router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_convertToInvoice"), requirePermission("invoices", "create"), async (req, res) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -8806,7 +9913,7 @@ router5.post("/:id/convert-to-invoice", authMiddleware, requirePermission("invoi
     return res.status(500).json({ error: error.message || "Failed to convert quote" });
   }
 });
-router5.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), async (req, res) => {
+router5.post("/:id/email", authMiddleware, requireFeature("quotes_emailSending"), requirePermission("quotes", "view"), async (req, res) => {
   try {
     const { recipientEmail, message } = req.body;
     if (!recipientEmail) {
@@ -8915,7 +10022,7 @@ router5.post("/:id/email", authMiddleware, requirePermission("quotes", "view"), 
     return res.status(500).json({ error: error.message || "Failed to send quote email" });
   }
 });
-router5.get("/:id/pdf", authMiddleware, async (req, res) => {
+router5.get("/:id/pdf", authMiddleware, requireFeature("quotes_pdfGeneration"), async (req, res) => {
   logger.info(`[PDF Export START] Received request for quote: ${req.params.id}`);
   try {
     const quote = await storage.getQuote(req.params.id);
@@ -9131,97 +10238,53 @@ router5.delete("/:id/share", authMiddleware, requirePermission("quotes", "edit")
     return res.status(500).json({ error: "Failed to remove share link" });
   }
 });
-router5.get("/public/:token", async (req, res) => {
+router5.get("/:id/comments", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
-    const token = req.params.token;
-    if (!token) return res.status(400).json({ error: "Token required" });
-    const quote = await storage.getQuoteByToken(token);
-    if (!quote) {
-      return res.status(404).json({ error: "Quote not found or link verified" });
-    }
-    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
-      return res.status(410).json({ error: "Quote link has expired" });
-    }
-    const client = await storage.getClient(quote.clientId);
-    const items = await storage.getQuoteItems(quote.id);
-    const creator = await storage.getUser(quote.createdBy);
-    res.json({
-      id: quote.id,
-      quoteNumber: quote.quoteNumber,
-      version: quote.version,
-      status: quote.status,
-      quoteDate: quote.quoteDate,
-      validUntil: quote.validUntil,
-      items,
-      subtotal: quote.subtotal,
-      discount: quote.discount,
-      shippingCharges: quote.shippingCharges,
-      cgst: quote.cgst,
-      sgst: quote.sgst,
-      igst: quote.igst,
-      total: quote.total,
-      notes: quote.notes,
-      termsAndConditions: quote.termsAndConditions,
-      client: {
-        name: client?.name,
-        email: client?.email,
-        billingAddress: client?.billingAddress,
-        gstin: client?.gstin,
-        phone: client?.phone
-      },
-      sender: {
-        name: creator?.name,
-        email: creator?.email
-      }
-    });
-  } catch (error) {
-    logger.error("Public quote fetch error:", error);
-    res.status(500).json({ error: "Failed to fetch quote" });
-  }
-});
-router5.post("/public/:token/:action", async (req, res) => {
-  try {
-    const { token, action } = req.params;
-    const { reason } = req.body;
-    if (!["approve", "reject"].includes(action)) {
-      return res.status(400).json({ error: "Invalid action" });
-    }
-    const quote = await storage.getQuoteByToken(token);
+    const quote = await storage.getQuote(req.params.id);
     if (!quote) {
       return res.status(404).json({ error: "Quote not found" });
     }
-    if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < /* @__PURE__ */ new Date()) {
-      return res.status(410).json({ error: "Quote link has expired" });
-    }
-    if (quote.status !== "sent" && quote.status !== "draft") {
-    }
-    if (["approved", "invoiced", "closed_paid"].includes(quote.status)) {
-      return res.status(400).json({ error: "Quote is already processed" });
-    }
-    const newStatus = action === "approve" ? "approved" : "rejected";
-    await storage.updateQuote(quote.id, {
-      status: newStatus
-      // Logic to store client signature/reason could go here (e.g. Activity Log)
-    });
-    await storage.createActivityLog({
-      userId: quote.createdBy,
-      // Attributing to creator but noting it was client
-      action: `client_${action}_public`,
-      entityType: "quote",
-      entityId: quote.id,
-      metadata: {
-        via: "public_link",
-        reason,
-        ip: req.ip
-      }
-    });
-    res.json({ success: true, status: newStatus });
+    const comments = await storage.getQuoteComments(quote.id, true);
+    res.json(comments);
   } catch (error) {
-    logger.error("Public quote action error:", error);
-    res.status(500).json({ error: "Failed to process " + req.params.action });
+    logger.error("Quote comments fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch comments" });
   }
 });
-router5.post("/:id/approve", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+router5.post("/:id/comments", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+  try {
+    const { message, isInternal } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+    const quote = await storage.getQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+    const user = await storage.getUser(req.user.id);
+    const comment = await storage.createQuoteComment({
+      quoteId: quote.id,
+      authorType: "internal",
+      authorName: user?.name || req.user.email,
+      authorEmail: req.user.email,
+      message,
+      parentCommentId: null,
+      isInternal: isInternal || false
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "staff_comment",
+      entityType: "quote",
+      entityId: quote.id,
+      metadata: { commentId: comment.id, isInternal }
+    });
+    res.json(comment);
+  } catch (error) {
+    logger.error("Quote comment create error:", error);
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
+router5.post("/:id/approve", authMiddleware, requireFeature("quotes_approve"), requirePermission("quotes", "edit"), async (req, res) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -9258,7 +10321,7 @@ router5.post("/:id/approve", authMiddleware, requirePermission("quotes", "edit")
     res.status(500).json({ error: "Failed to approve quote" });
   }
 });
-router5.post("/:id/reject", authMiddleware, requirePermission("quotes", "edit"), async (req, res) => {
+router5.post("/:id/reject", authMiddleware, requireFeature("quotes_approve"), requirePermission("quotes", "edit"), async (req, res) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -9295,9 +10358,9 @@ init_logger();
 init_db();
 init_schema();
 init_numbering_service();
-import { eq as eq4, sql as sql6 } from "drizzle-orm";
+import { eq as eq7, sql as sql7 } from "drizzle-orm";
 var router6 = Router6();
-router6.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+router6.get("/", requireFeature("invoices_module"), authMiddleware, async (req, res) => {
   try {
     const invoices2 = await storage.getAllInvoices();
     const invoicesWithDetails = await Promise.all(
@@ -9314,7 +10377,7 @@ router6.get("/", requireFeature("quotes_module"), authMiddleware, async (req, re
     res.status(500).json({ error: "Failed to fetch invoices" });
   }
 });
-router6.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
+router6.get("/:id", requireFeature("invoices_module"), authMiddleware, async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -9359,7 +10422,7 @@ router6.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req,
     res.status(500).json({ error: "Failed to fetch invoice" });
   }
 });
-router6.put("/:id/master-status", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
+router6.put("/:id/master-status", authMiddleware, requireFeature("invoices_finalize"), requirePermission("invoices", "finalize"), async (req, res) => {
   try {
     const { masterInvoiceStatus } = req.body;
     if (!["draft", "confirmed", "locked"].includes(masterInvoiceStatus)) {
@@ -9399,7 +10462,7 @@ router6.put("/:id/master-status", authMiddleware, requirePermission("invoices", 
     return res.status(500).json({ error: error.message || "Failed to update master invoice status" });
   }
 });
-router6.put("/:id/master-details", authMiddleware, requirePermission("invoices", "edit"), async (req, res) => {
+router6.put("/:id/master-details", authMiddleware, requireFeature("invoices_edit"), requirePermission("invoices", "edit"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -9527,7 +10590,7 @@ router6.put("/:id/master-details", authMiddleware, requirePermission("invoices",
     return res.status(500).json({ error: error.message || "Failed to update master invoice" });
   }
 });
-router6.put("/:id/finalize", authMiddleware, requirePermission("invoices", "finalize"), async (req, res) => {
+router6.put("/:id/finalize", authMiddleware, requireFeature("invoices_finalize"), requirePermission("invoices", "finalize"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -9559,7 +10622,7 @@ router6.put("/:id/finalize", authMiddleware, requirePermission("invoices", "fina
     return res.status(500).json({ error: error.message || "Failed to finalize invoice" });
   }
 });
-router6.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), async (req, res) => {
+router6.put("/:id/lock", authMiddleware, requireFeature("invoices_lock"), requirePermission("invoices", "lock"), async (req, res) => {
   try {
     const { isLocked } = req.body;
     if (typeof isLocked !== "boolean") {
@@ -9587,7 +10650,7 @@ router6.put("/:id/lock", authMiddleware, requirePermission("invoices", "lock"), 
     return res.status(500).json({ error: error.message || "Failed to lock/unlock invoice" });
   }
 });
-router6.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel"), async (req, res) => {
+router6.put("/:id/cancel", authMiddleware, requireFeature("invoices_cancel"), requirePermission("invoices", "cancel"), async (req, res) => {
   try {
     const { cancellationReason } = req.body;
     if (!cancellationReason || cancellationReason.trim().length === 0) {
@@ -9615,7 +10678,7 @@ router6.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
     const result = await db.transaction(async (tx) => {
       const reverseStockForInvoice = async (invoiceId) => {
         const restoredViaSerials = /* @__PURE__ */ new Set();
-        const serialsResult = await tx.select().from(serialNumbers).where(eq4(serialNumbers.invoiceId, invoiceId));
+        const serialsResult = await tx.select().from(serialNumbers).where(eq7(serialNumbers.invoiceId, invoiceId));
         const productStockUpdatesFromSerials = {};
         for (const serial2 of serialsResult) {
           if (serial2.productId) {
@@ -9627,25 +10690,25 @@ router6.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
             invoiceId: null,
             invoiceItemId: null,
             updatedAt: /* @__PURE__ */ new Date()
-          }).where(eq4(serialNumbers.id, serial2.id));
+          }).where(eq7(serialNumbers.id, serial2.id));
         }
         for (const [productId, quantityToRestore] of Object.entries(productStockUpdatesFromSerials)) {
           await tx.update(products).set({
-            stockQuantity: sql6`${products.stockQuantity} + ${quantityToRestore}`,
-            availableQuantity: sql6`${products.availableQuantity} + ${quantityToRestore}`,
+            stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
+            availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
             updatedAt: /* @__PURE__ */ new Date()
-          }).where(eq4(products.id, productId));
+          }).where(eq7(products.id, productId));
         }
-        const invoiceItems2 = await tx.select().from(invoiceItems).where(eq4(invoiceItems.invoiceId, invoiceId));
+        const invoiceItems2 = await tx.select().from(invoiceItems).where(eq7(invoiceItems.invoiceId, invoiceId));
         for (const item of invoiceItems2) {
           if (item.productId && !restoredViaSerials.has(item.productId)) {
             const quantityToRestore = Number(item.quantity) || 0;
             if (quantityToRestore > 0) {
               await tx.update(products).set({
-                stockQuantity: sql6`${products.stockQuantity} + ${quantityToRestore}`,
-                availableQuantity: sql6`${products.availableQuantity} + ${quantityToRestore}`,
+                stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
+                availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
                 updatedAt: /* @__PURE__ */ new Date()
-              }).where(eq4(products.id, item.productId));
+              }).where(eq7(products.id, item.productId));
             }
           }
         }
@@ -9664,7 +10727,7 @@ router6.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
               cancelledBy: req.user.id,
               cancellationReason: `Parent invoice cancelled: ${cancellationReason}`,
               updatedAt: /* @__PURE__ */ new Date()
-            }).where(eq4(invoices.id, child.id));
+            }).where(eq7(invoices.id, child.id));
           }
         }
       }
@@ -9676,7 +10739,7 @@ router6.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
         cancelledBy: req.user.id,
         cancellationReason,
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq4(invoices.id, req.params.id)).returning();
+      }).where(eq7(invoices.id, req.params.id)).returning();
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "invoice_cancelled",
@@ -9692,7 +10755,7 @@ router6.put("/:id/cancel", authMiddleware, requirePermission("invoices", "cancel
     return res.status(500).json({ error: error.message || "Failed to cancel invoice" });
   }
 });
-router6.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), async (req, res) => {
+router6.delete("/:id", authMiddleware, requireFeature("invoices_delete"), requirePermission("invoices", "delete"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -9726,7 +10789,7 @@ router6.delete("/:id", authMiddleware, requirePermission("invoices", "delete"), 
     return res.status(500).json({ error: error.message || "Failed to delete invoice" });
   }
 });
-router6.post("/:id/create-child-invoice", authMiddleware, requirePermission("invoices", "create"), async (req, res) => {
+router6.post("/:id/create-child-invoice", authMiddleware, requireFeature("invoices_childInvoices"), requirePermission("invoices", "create"), async (req, res) => {
   try {
     const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
     const masterInvoice = await storage.getInvoice(req.params.id);
@@ -9915,7 +10978,7 @@ router6.get("/:id/master-summary", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to get master invoice summary" });
   }
 });
-router6.get("/:id/pdf", authMiddleware, async (req, res) => {
+router6.get("/:id/pdf", authMiddleware, requireFeature("invoices_pdfGeneration"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -10034,7 +11097,7 @@ router6.get("/:id/pdf", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to generate PDF" });
   }
 });
-router6.post("/:id/email", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
+router6.post("/:id/email", authMiddleware, requireFeature("invoices_emailSending"), requirePermission("invoices", "view"), async (req, res) => {
   try {
     const { recipientEmail, message } = req.body;
     if (!recipientEmail) {
@@ -10044,16 +11107,17 @@ router6.post("/:id/email", authMiddleware, requirePermission("invoices", "view")
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
-    const quote = await storage.getQuote(invoice.quoteId || "");
-    if (!quote) {
-      return res.status(404).json({ error: "Related quote not found" });
+    const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId) : null;
+    const clientId = invoice.clientId || quote?.clientId;
+    if (!clientId) {
+      return res.status(404).json({ error: "No client associated with this invoice" });
     }
-    const client = await storage.getClient(quote.clientId);
+    const client = await storage.getClient(clientId);
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
     const items = await storage.getInvoiceItems(invoice.id);
-    const creator = await storage.getUser(quote.createdBy);
+    const creator = invoice.createdBy ? await storage.getUser(invoice.createdBy) : quote ? await storage.getUser(quote.createdBy) : void 0;
     const settings2 = await storage.getAllSettings();
     const companyName = settings2.find((s) => s.key === "company_companyName")?.value || "OPTIVALUE TEK";
     const addr = settings2.find((s) => s.key === "company_address")?.value || "";
@@ -10093,10 +11157,12 @@ router6.post("/:id/email", authMiddleware, requirePermission("invoices", "view")
     if (message) {
       emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
     }
+    emailBody = emailBody.replace(/\\\\n/g, "\n").replace(/\\n/g, "\n");
+    emailBody = emailBody.replace(/\n/g, "<br>");
     const { PassThrough } = await import("stream");
     const pdfStream = new PassThrough();
     const pdfPromise = InvoicePDFService.generateInvoicePDF({
-      quote,
+      quote: quote || {},
       client,
       items,
       companyName,
@@ -10169,7 +11235,7 @@ router6.post("/:id/email", authMiddleware, requirePermission("invoices", "view")
     return res.status(500).json({ error: error.message || "Failed to send invoice email" });
   }
 });
-router6.post("/:id/payment-reminder", authMiddleware, requirePermission("invoices", "view"), async (req, res) => {
+router6.post("/:id/payment-reminder", authMiddleware, requireFeature("invoices_paymentReminders"), requirePermission("invoices", "view"), async (req, res) => {
   try {
     const { recipientEmail, message } = req.body;
     if (!recipientEmail) {
@@ -10179,11 +11245,12 @@ router6.post("/:id/payment-reminder", authMiddleware, requirePermission("invoice
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
-    const quote = await storage.getQuote(invoice.quoteId || "");
-    if (!quote) {
-      return res.status(404).json({ error: "Related quote not found" });
+    const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId) : null;
+    const clientId = invoice.clientId || quote?.clientId;
+    if (!clientId) {
+      return res.status(404).json({ error: "No client associated with this invoice" });
     }
-    const client = await storage.getClient(quote.clientId);
+    const client = await storage.getClient(clientId);
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
@@ -10215,6 +11282,8 @@ router6.post("/:id/payment-reminder", authMiddleware, requirePermission("invoice
     if (message) {
       emailBody = `${emailBody}\\n\\n---\\nAdditional Note:\\n${message}`;
     }
+    emailBody = emailBody.replace(/\\\\n/g, "\n").replace(/\\n/g, "\n");
+    emailBody = emailBody.replace(/\n/g, "<br>");
     await EmailService.sendPaymentReminderEmail(
       recipientEmail,
       emailSubject,
@@ -10232,7 +11301,7 @@ router6.post("/:id/payment-reminder", authMiddleware, requirePermission("invoice
     return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
   }
 });
-router6.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("serial_numbers", "edit"), async (req, res) => {
+router6.patch("/:id/items/:itemId/serials", authMiddleware, requireFeature("serialNumber_tracking"), requirePermission("serial_numbers", "edit"), async (req, res) => {
   try {
     const { serialNumbers: serialNumbers2 } = req.body;
     logger.info(`Updating serial numbers for item ${req.params.itemId} in invoice ${req.params.id}`);
@@ -10288,7 +11357,7 @@ router6.patch("/:id/items/:itemId/serials", authMiddleware, requirePermission("s
     res.status(500).json({ error: "Failed to update serial numbers" });
   }
 });
-router6.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermission("serial_numbers", "view"), async (req, res) => {
+router6.post("/:id/items/:itemId/serials/validate", authMiddleware, requireFeature("serialNumber_tracking"), requirePermission("serial_numbers", "view"), async (req, res) => {
   try {
     const { validateSerialNumbers: validateSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
     const { serials, expectedQuantity } = req.body;
@@ -10316,7 +11385,7 @@ router6.post("/:id/items/:itemId/serials/validate", authMiddleware, requirePermi
     return res.status(500).json({ error: error.message || "Failed to validate serial numbers" });
   }
 });
-router6.get("/:id/serials/permissions", authMiddleware, async (req, res) => {
+router6.get("/:id/serials/permissions", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
   try {
     const { canEditSerialNumbers: canEditSerialNumbers2 } = await Promise.resolve().then(() => (init_serial_number_service(), serial_number_service_exports));
     const { id: invoiceId } = req.params;
@@ -10335,9 +11404,9 @@ import { Router as Router7 } from "express";
 init_logger();
 init_db();
 init_schema();
-import { eq as eq5 } from "drizzle-orm";
+import { eq as eq8 } from "drizzle-orm";
 var router7 = Router7();
-router7.put("/invoices/:id/payment-status", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
+router7.put("/invoices/:id/payment-status", authMiddleware, requireFeature("payments_create"), requirePermission("payments", "create"), async (req, res) => {
   try {
     const { paymentStatus, paidAmount } = req.body;
     const invoice = await storage.getInvoice(req.params.id);
@@ -10444,7 +11513,7 @@ router7.put("/invoices/:id/payment-status", authMiddleware, requirePermission("p
     return res.status(500).json({ error: error.message || "Failed to update payment status" });
   }
 });
-router7.post("/invoices/:id/payment", authMiddleware, requirePermission("payments", "create"), async (req, res) => {
+router7.post("/invoices/:id/payment", authMiddleware, requireFeature("payments_create"), requirePermission("payments", "create"), async (req, res) => {
   try {
     const { amount, paymentMethod, transactionId, notes, paymentDate } = req.body;
     if (!amount || amount <= 0) {
@@ -10491,17 +11560,17 @@ router7.post("/invoices/:id/payment", authMiddleware, requirePermission("payment
         paymentStatus: newPaymentStatus,
         lastPaymentDate: /* @__PURE__ */ new Date(),
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq5(invoices.id, req.params.id)).returning();
+      }).where(eq8(invoices.id, req.params.id)).returning();
       if (invoice.parentInvoiceId) {
-        const [masterInvoice] = await tx.select().from(invoices).where(eq5(invoices.id, invoice.parentInvoiceId));
+        const [masterInvoice] = await tx.select().from(invoices).where(eq8(invoices.id, invoice.parentInvoiceId));
         if (masterInvoice) {
-          const childInvoices = await tx.select().from(invoices).where(eq5(invoices.parentInvoiceId, masterInvoice.id));
+          const childInvoices = await tx.select().from(invoices).where(eq8(invoices.parentInvoiceId, masterInvoice.id));
           let totalChildPaidAmount = toDecimal(0);
           for (const child of childInvoices) {
             const childPaid = child.id === invoice.id ? newPaidAmount : toDecimal(child.paidAmount);
             totalChildPaidAmount = totalChildPaidAmount.plus(childPaid);
           }
-          const masterDirectPayments = await tx.select().from(paymentHistory).where(eq5(paymentHistory.invoiceId, masterInvoice.id));
+          const masterDirectPayments = await tx.select().from(paymentHistory).where(eq8(paymentHistory.invoiceId, masterInvoice.id));
           let totalMasterDirect = toDecimal(0);
           for (const p of masterDirectPayments) {
             totalMasterDirect = totalMasterDirect.plus(toDecimal(p.amount));
@@ -10519,7 +11588,7 @@ router7.post("/invoices/:id/payment", authMiddleware, requirePermission("payment
             paymentStatus: masterPaymentStatus,
             lastPaymentDate: /* @__PURE__ */ new Date(),
             updatedAt: /* @__PURE__ */ new Date()
-          }).where(eq5(invoices.id, masterInvoice.id));
+          }).where(eq8(invoices.id, masterInvoice.id));
         }
       }
       await tx.insert(activityLogs).values({
@@ -10530,9 +11599,9 @@ router7.post("/invoices/:id/payment", authMiddleware, requirePermission("payment
         timestamp: /* @__PURE__ */ new Date()
       });
       if (invoice.quoteId) {
-        const [currentQuote] = await tx.select().from(quotes).where(eq5(quotes.id, invoice.quoteId));
+        const [currentQuote] = await tx.select().from(quotes).where(eq8(quotes.id, invoice.quoteId));
         if (currentQuote && currentQuote.status === "invoiced") {
-          const allInvoicesForQuote = await tx.select().from(invoices).where(eq5(invoices.quoteId, invoice.quoteId));
+          const allInvoicesForQuote = await tx.select().from(invoices).where(eq8(invoices.quoteId, invoice.quoteId));
           const relevantInvoices = allInvoicesForQuote.filter((inv) => !inv.parentInvoiceId);
           const allPaid = relevantInvoices.every((inv) => inv.paymentStatus === "paid");
           if (allPaid && relevantInvoices.length > 0) {
@@ -10541,7 +11610,7 @@ router7.post("/invoices/:id/payment", authMiddleware, requirePermission("payment
               closedAt: /* @__PURE__ */ new Date(),
               closedBy: req.user.id,
               updatedAt: /* @__PURE__ */ new Date()
-            }).where(eq5(quotes.id, invoice.quoteId));
+            }).where(eq8(quotes.id, invoice.quoteId));
             await tx.insert(activityLogs).values({
               userId: req.user.id,
               action: "close_quote",
@@ -10560,7 +11629,7 @@ router7.post("/invoices/:id/payment", authMiddleware, requirePermission("payment
     return res.status(500).json({ error: error.message || "Failed to record payment" });
   }
 });
-router7.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req, res) => {
+router7.get("/invoices/:id/payment-history-detailed", authMiddleware, requireFeature("payments_module"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -10606,7 +11675,7 @@ router7.get("/invoices/:id/payment-history-detailed", authMiddleware, async (req
     return res.status(500).json({ error: "Failed to fetch payment history" });
   }
 });
-router7.get("/invoices/:id/payment-history", authMiddleware, async (req, res) => {
+router7.get("/invoices/:id/payment-history", authMiddleware, requireFeature("payments_module"), async (req, res) => {
   try {
     const invoice = await storage.getInvoice(req.params.id);
     if (!invoice) {
@@ -10635,7 +11704,7 @@ router7.get("/invoices/:id/payment-history", authMiddleware, async (req, res) =>
     return res.status(500).json({ error: "Failed to fetch payment history" });
   }
 });
-router7.delete("/payment-history/:id", authMiddleware, async (req, res) => {
+router7.delete("/payment-history/:id", authMiddleware, requireFeature("payments_delete"), async (req, res) => {
   try {
     const payment = await storage.getPaymentById(req.params.id);
     if (!payment) {
@@ -10722,9 +11791,10 @@ import { Router as Router8 } from "express";
 init_logger();
 init_db();
 init_schema();
-import { eq as eq6 } from "drizzle-orm";
+import { eq as eq9 } from "drizzle-orm";
+init_feature_flags();
 var router8 = Router8();
-router8.get("/", authMiddleware, async (req, res) => {
+router8.get("/", authMiddleware, requireFeature("products_module"), async (req, res) => {
   try {
     const products2 = await db.select().from(products).orderBy(products.name);
     res.json(products2);
@@ -10733,9 +11803,9 @@ router8.get("/", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch products" });
   }
 });
-router8.get("/:id", authMiddleware, async (req, res) => {
+router8.get("/:id", authMiddleware, requireFeature("products_module"), async (req, res) => {
   try {
-    const [product] = await db.select().from(products).where(eq6(products.id, req.params.id));
+    const [product] = await db.select().from(products).where(eq9(products.id, req.params.id));
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -10745,10 +11815,20 @@ router8.get("/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch product" });
   }
 });
-router8.post("/", authMiddleware, async (req, res) => {
+router8.post("/", authMiddleware, requireFeature("products_create"), async (req, res) => {
   try {
     if (req.body && typeof req.body.unitPrice === "number") {
       req.body.unitPrice = String(req.body.unitPrice);
+    }
+    if (!isFeatureEnabled("products_sku") && req.body.sku) {
+      return res.status(403).json({ error: "SKU feature is disabled" });
+    }
+    if (!isFeatureEnabled("products_stock_tracking") && (req.body.stockQuantity || req.body.minStockLevel)) {
+      delete req.body.stockQuantity;
+      delete req.body.minStockLevel;
+    }
+    if (!isFeatureEnabled("products_pricing") && req.body.unitPrice) {
+      delete req.body.unitPrice;
     }
     const parseResult = insertProductSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -10769,9 +11849,16 @@ router8.post("/", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to create product" });
   }
 });
-router8.patch("/:id", authMiddleware, async (req, res) => {
+router8.patch("/:id", authMiddleware, requireFeature("products_edit"), async (req, res) => {
   try {
-    const [updated] = await db.update(products).set({ ...req.body, updatedAt: /* @__PURE__ */ new Date() }).where(eq6(products.id, req.params.id)).returning();
+    const updates = { ...req.body, updatedAt: /* @__PURE__ */ new Date() };
+    if (!isFeatureEnabled("products_sku") && updates.sku) delete updates.sku;
+    if (!isFeatureEnabled("products_stock_tracking")) {
+      delete updates.stockQuantity;
+      delete updates.availableQuantity;
+      delete updates.minStockLevel;
+    }
+    const [updated] = await db.update(products).set(updates).where(eq9(products.id, req.params.id)).returning();
     if (!updated) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -10791,9 +11878,9 @@ init_db();
 init_schema();
 init_numbering_service();
 init_feature_flags();
-import { eq as eq7, sql as sql8, desc as desc2 } from "drizzle-orm";
+import { eq as eq10, sql as sql9, desc as desc3 } from "drizzle-orm";
 var router9 = Router9();
-router9.get("/vendors", authMiddleware, async (req, res) => {
+router9.get("/vendors", authMiddleware, requireFeature("vendors_module"), async (req, res) => {
   try {
     const vendors2 = await storage.getAllVendors();
     res.json(vendors2);
@@ -10802,7 +11889,7 @@ router9.get("/vendors", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendors" });
   }
 });
-router9.get("/vendors/:id", authMiddleware, async (req, res) => {
+router9.get("/vendors/:id", authMiddleware, requireFeature("vendors_module"), async (req, res) => {
   try {
     const vendor = await storage.getVendor(req.params.id);
     if (!vendor) {
@@ -10814,7 +11901,7 @@ router9.get("/vendors/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendor" });
   }
 });
-router9.post("/vendors", authMiddleware, requirePermission("vendors", "create"), async (req, res) => {
+router9.post("/vendors", authMiddleware, requireFeature("vendors_create"), requirePermission("vendors", "create"), async (req, res) => {
   try {
     const vendor = await storage.createVendor({
       ...req.body,
@@ -10826,7 +11913,7 @@ router9.post("/vendors", authMiddleware, requirePermission("vendors", "create"),
     res.status(500).json({ error: "Failed to create vendor" });
   }
 });
-router9.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edit"), async (req, res) => {
+router9.patch("/vendors/:id", authMiddleware, requireFeature("vendors_edit"), requirePermission("vendors", "edit"), async (req, res) => {
   try {
     const updated = await storage.updateVendor(req.params.id, req.body);
     if (!updated) {
@@ -10838,7 +11925,7 @@ router9.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edit
     res.status(500).json({ error: "Failed to update vendor" });
   }
 });
-router9.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "delete"), async (req, res) => {
+router9.delete("/vendors/:id", authMiddleware, requireFeature("vendors_delete"), requirePermission("vendors", "delete"), async (req, res) => {
   try {
     await storage.deleteVendor(req.params.id);
     res.json({ success: true });
@@ -10847,7 +11934,7 @@ router9.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "del
     res.status(500).json({ error: "Failed to delete vendor" });
   }
 });
-router9.get("/vendor-pos", authMiddleware, async (req, res) => {
+router9.get("/vendor-pos", authMiddleware, requireFeature("vendorPO_module"), async (req, res) => {
   try {
     const quoteId = req.query.quoteId;
     let pos;
@@ -10873,7 +11960,7 @@ router9.get("/vendor-pos", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendor POs" });
   }
 });
-router9.get("/vendor-pos/:id", authMiddleware, async (req, res) => {
+router9.get("/vendor-pos/:id", authMiddleware, requireFeature("vendorPO_module"), async (req, res) => {
   try {
     const po = await storage.getVendorPo(req.params.id);
     if (!po) {
@@ -10893,7 +11980,7 @@ router9.get("/vendor-pos/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch vendor PO" });
   }
 });
-router9.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
+router9.post("/quotes/:id/create-vendor-po", authMiddleware, requireFeature("vendorPO_create"), requirePermission("vendor_pos", "create"), async (req, res) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) {
@@ -10937,7 +12024,7 @@ router9.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission("
     res.status(500).json({ error: "Failed to create vendor PO" });
   }
 });
-router9.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req, res) => {
+router9.post("/vendor-pos", authMiddleware, requireFeature("vendorPO_create"), requirePermission("vendor_pos", "create"), async (req, res) => {
   try {
     const {
       vendorId,
@@ -11004,7 +12091,7 @@ router9.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "cre
     res.status(500).json({ error: error.message || "Failed to create vendor PO" });
   }
 });
-router9.patch("/vendor-pos/:id", authMiddleware, async (req, res) => {
+router9.patch("/vendor-pos/:id", authMiddleware, requireFeature("vendorPO_edit"), async (req, res) => {
   try {
     const updated = await storage.updateVendorPo(req.params.id, req.body);
     if (!updated) {
@@ -11016,7 +12103,7 @@ router9.patch("/vendor-pos/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to update vendor PO" });
   }
 });
-router9.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, async (req, res) => {
+router9.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, requireFeature("vendorPO_edit"), async (req, res) => {
   try {
     const { serialNumbers: serialNumbers2 } = req.body;
     const updated = await storage.updateVendorPoItem(req.params.itemId, {
@@ -11049,11 +12136,11 @@ router9.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, r
       vendorName: vendors.name
     }).from(goodsReceivedNotes).leftJoin(
       vendorPurchaseOrders,
-      eq7(goodsReceivedNotes.vendorPoId, vendorPurchaseOrders.id)
+      eq10(goodsReceivedNotes.vendorPoId, vendorPurchaseOrders.id)
     ).leftJoin(
       vendors,
-      eq7(vendorPurchaseOrders.vendorId, vendors.id)
-    ).orderBy(desc2(goodsReceivedNotes.receivedDate));
+      eq10(vendorPurchaseOrders.vendorId, vendors.id)
+    ).orderBy(desc3(goodsReceivedNotes.receivedDate));
     res.json(grns);
   } catch (error) {
     logger.error("Error fetching GRNs:", error);
@@ -11062,16 +12149,16 @@ router9.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, r
 });
 router9.get("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
   try {
-    const [grn] = await db.select().from(goodsReceivedNotes).where(eq7(goodsReceivedNotes.id, req.params.id));
+    const [grn] = await db.select().from(goodsReceivedNotes).where(eq10(goodsReceivedNotes.id, req.params.id));
     if (!grn) {
       return res.status(404).json({ error: "GRN not found" });
     }
-    const [po] = await db.select().from(vendorPurchaseOrders).where(eq7(vendorPurchaseOrders.id, grn.vendorPoId));
-    const [vendor] = await db.select().from(vendors).where(eq7(vendors.id, po.vendorId));
-    const [poItem] = await db.select().from(vendorPoItems).where(eq7(vendorPoItems.id, grn.vendorPoItemId));
+    const [po] = await db.select().from(vendorPurchaseOrders).where(eq10(vendorPurchaseOrders.id, grn.vendorPoId));
+    const [vendor] = await db.select().from(vendors).where(eq10(vendors.id, po.vendorId));
+    const [poItem] = await db.select().from(vendorPoItems).where(eq10(vendorPoItems.id, grn.vendorPoItemId));
     let inspector = null;
     if (grn.inspectedBy) {
-      [inspector] = await db.select({ id: users.id, name: users.name }).from(users).where(eq7(users.id, grn.inspectedBy));
+      [inspector] = await db.select({ id: users.id, name: users.name }).from(users).where(eq10(users.id, grn.inspectedBy));
     }
     res.json({
       ...grn,
@@ -11092,7 +12179,7 @@ router9.get("/grns/:id", authMiddleware, requireFeature("grn_module"), async (re
     res.status(500).json({ error: "Failed to fetch GRN" });
   }
 });
-router9.post("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+router9.post("/grns", authMiddleware, requireFeature("grn_create"), async (req, res) => {
   try {
     const {
       vendorPoId,
@@ -11120,19 +12207,19 @@ router9.post("/grns", authMiddleware, requireFeature("grn_module"), async (req, 
       batchNumber,
       createdBy: req.user.id
     }).returning();
-    const [poItem] = await db.select().from(vendorPoItems).where(eq7(vendorPoItems.id, vendorPoItemId));
+    const [poItem] = await db.select().from(vendorPoItems).where(eq10(vendorPoItems.id, vendorPoItemId));
     await db.update(vendorPoItems).set({
       receivedQuantity: (poItem.receivedQuantity || 0) + quantityReceived,
       updatedAt: /* @__PURE__ */ new Date()
-    }).where(eq7(vendorPoItems.id, vendorPoItemId));
+    }).where(eq10(vendorPoItems.id, vendorPoItemId));
     if (poItem.productId && isFeatureEnabled("products_stock_tracking")) {
       const quantityAccepted = quantityReceived - (quantityRejected || 0);
       if (quantityAccepted > 0) {
         await db.update(products).set({
-          stockQuantity: sql8`${products.stockQuantity} + ${quantityAccepted}`,
-          availableQuantity: sql8`${products.availableQuantity} + ${quantityAccepted}`,
+          stockQuantity: sql9`${products.stockQuantity} + ${quantityAccepted}`,
+          availableQuantity: sql9`${products.availableQuantity} + ${quantityAccepted}`,
           updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq7(products.id, poItem.productId));
+        }).where(eq10(products.id, poItem.productId));
         logger.info(`[GRN] Updated product ${poItem.productId} stock: +${quantityAccepted}`);
       }
     } else if (poItem.productId && !isFeatureEnabled("products_stock_tracking")) {
@@ -11163,7 +12250,7 @@ router9.post("/grns", authMiddleware, requireFeature("grn_module"), async (req, 
     res.status(500).json({ error: error.message || "Failed to create GRN" });
   }
 });
-router9.patch("/grns/:id", authMiddleware, requireFeature("grn_module"), async (req, res) => {
+router9.patch("/grns/:id", authMiddleware, requireFeature("grn_edit"), async (req, res) => {
   try {
     const {
       quantityReceived,
@@ -11182,7 +12269,7 @@ router9.patch("/grns/:id", authMiddleware, requireFeature("grn_module"), async (
       deliveryNoteNumber,
       batchNumber,
       updatedAt: /* @__PURE__ */ new Date()
-    }).where(eq7(goodsReceivedNotes.id, req.params.id)).returning();
+    }).where(eq10(goodsReceivedNotes.id, req.params.id)).returning();
     if (!grn) {
       return res.status(404).json({ error: "GRN not found" });
     }
@@ -11207,9 +12294,9 @@ init_storage();
 init_db();
 init_schema();
 init_numbering_service();
-import { eq as eq8 } from "drizzle-orm";
+import { eq as eq11 } from "drizzle-orm";
 var router10 = Router10();
-router10.get("/settings", authMiddleware, async (req, res) => {
+router10.get("/settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access settings" });
@@ -11225,7 +12312,7 @@ router10.get("/settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch settings" });
   }
 });
-router10.post("/settings", authMiddleware, async (req, res) => {
+router10.post("/settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can update settings" });
@@ -11331,7 +12418,7 @@ router10.post("/settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update setting" });
   }
 });
-router10.get("/bank-details", authMiddleware, async (req, res) => {
+router10.get("/bank-details", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access bank details" });
@@ -11350,7 +12437,7 @@ router10.get("/bank-details/active", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch active bank details" });
   }
 });
-router10.post("/bank-details", authMiddleware, async (req, res) => {
+router10.post("/bank-details", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can create bank details" });
@@ -11380,7 +12467,7 @@ router10.post("/bank-details", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create bank details" });
   }
 });
-router10.put("/bank-details/:id", authMiddleware, async (req, res) => {
+router10.put("/bank-details/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can update bank details" });
@@ -11413,7 +12500,7 @@ router10.put("/bank-details/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update bank details" });
   }
 });
-router10.delete("/bank-details/:id", authMiddleware, async (req, res) => {
+router10.delete("/bank-details/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can delete bank details" });
@@ -11430,7 +12517,7 @@ router10.delete("/bank-details/:id", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to delete bank details" });
   }
 });
-router10.post("/settings/migrate-document-numbers", authMiddleware, async (req, res) => {
+router10.post("/settings/migrate-document-numbers", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can migrate document numbers" });
@@ -11464,7 +12551,7 @@ router10.post("/settings/migrate-document-numbers", authMiddleware, async (req, 
     });
   }
 });
-router10.get("/numbering/counters", authMiddleware, async (req, res) => {
+router10.get("/numbering/counters", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can access counter values" });
@@ -11494,7 +12581,7 @@ router10.get("/numbering/counters", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to get counters" });
   }
 });
-router10.post("/numbering/reset-counter", authMiddleware, async (req, res) => {
+router10.post("/numbering/reset-counter", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can reset counters" });
@@ -11537,7 +12624,7 @@ router10.post("/numbering/reset-counter", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to reset counter" });
   }
 });
-router10.post("/numbering/set-counter", authMiddleware, async (req, res) => {
+router10.post("/numbering/set-counter", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Only admins can set counters" });
@@ -11588,7 +12675,7 @@ router10.post("/numbering/set-counter", authMiddleware, async (req, res) => {
 });
 router10.get("/tax-rates", authMiddleware, async (req, res) => {
   try {
-    const rates = await db.select().from(taxRates).where(eq8(taxRates.isActive, true));
+    const rates = await db.select().from(taxRates).where(eq11(taxRates.isActive, true));
     const simplifiedRates = rates.map((rate) => ({
       id: rate.id,
       name: `${rate.taxType} ${rate.region}`,
@@ -11609,7 +12696,7 @@ router10.get("/tax-rates", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch tax rates" });
   }
 });
-router10.post("/tax-rates", authMiddleware, async (req, res) => {
+router10.post("/tax-rates", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
@@ -11649,12 +12736,12 @@ router10.post("/tax-rates", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create tax rate" });
   }
 });
-router10.delete("/tax-rates/:id", authMiddleware, async (req, res) => {
+router10.delete("/tax-rates/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
     }
-    await db.delete(taxRates).where(eq8(taxRates.id, req.params.id));
+    await db.delete(taxRates).where(eq11(taxRates.id, req.params.id));
     await storage.createActivityLog({
       userId: req.user.id,
       action: "delete_tax_rate",
@@ -11669,14 +12756,14 @@ router10.delete("/tax-rates/:id", authMiddleware, async (req, res) => {
 });
 router10.get("/payment-terms", authMiddleware, async (req, res) => {
   try {
-    const terms = await db.select().from(paymentTerms).where(eq8(paymentTerms.isActive, true));
+    const terms = await db.select().from(paymentTerms).where(eq11(paymentTerms.isActive, true));
     return res.json(terms);
   } catch (error) {
     logger.error("Error fetching payment terms:", error);
     return res.status(500).json({ error: "Failed to fetch payment terms" });
   }
 });
-router10.post("/payment-terms", authMiddleware, async (req, res) => {
+router10.post("/payment-terms", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
@@ -11686,7 +12773,7 @@ router10.post("/payment-terms", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Name and days are required" });
     }
     if (isDefault) {
-      await db.update(paymentTerms).set({ isDefault: false }).where(eq8(paymentTerms.isDefault, true));
+      await db.update(paymentTerms).set({ isDefault: false }).where(eq11(paymentTerms.isDefault, true));
     }
     const newTerm = await db.insert(paymentTerms).values({
       name,
@@ -11707,12 +12794,12 @@ router10.post("/payment-terms", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to create payment term" });
   }
 });
-router10.delete("/payment-terms/:id", authMiddleware, async (req, res) => {
+router10.delete("/payment-terms/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (!["admin", "finance_accounts"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
     }
-    await db.delete(paymentTerms).where(eq8(paymentTerms.id, req.params.id));
+    await db.delete(paymentTerms).where(eq11(paymentTerms.id, req.params.id));
     await storage.createActivityLog({
       userId: req.user.id,
       action: "delete_payment_term",
@@ -11737,7 +12824,7 @@ router10.get("/currency-settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch currency settings" });
   }
 });
-router10.post("/currency-settings", authMiddleware, async (req, res) => {
+router10.post("/currency-settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -11759,7 +12846,7 @@ router10.post("/currency-settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update currency settings" });
   }
 });
-router10.get("/admin/settings", authMiddleware, async (req, res) => {
+router10.get("/admin/settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -11813,7 +12900,7 @@ router10.get("/admin/settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch admin settings" });
   }
 });
-router10.post("/admin/settings/company", authMiddleware, async (req, res) => {
+router10.post("/admin/settings/company", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -11836,7 +12923,7 @@ router10.post("/admin/settings/company", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update company settings" });
   }
 });
-router10.post("/admin/settings/taxation", authMiddleware, async (req, res) => {
+router10.post("/admin/settings/taxation", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -11859,7 +12946,7 @@ router10.post("/admin/settings/taxation", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: error.message || "Failed to update tax settings" });
   }
 });
-router10.post("/admin/settings/email", authMiddleware, async (req, res) => {
+router10.post("/admin/settings/email", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -11965,7 +13052,7 @@ import { Router as Router11 } from "express";
 init_logger();
 init_db();
 init_schema();
-import { eq as eq9, sql as sql9 } from "drizzle-orm";
+import { eq as eq12, sql as sql10 } from "drizzle-orm";
 var router11 = Router11();
 router11.get("/search", authMiddleware, async (req, res) => {
   try {
@@ -12019,7 +13106,7 @@ router11.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), 
     if (!Array.isArray(serialNumbers2) || serialNumbers2.length === 0) {
       return res.status(400).json({ error: "Serial numbers array is required" });
     }
-    const existing = await db.select().from(serialNumbers).where(sql9`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
+    const existing = await db.select().from(serialNumbers).where(sql10`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
     if (existing.length > 0) {
       return res.status(400).json({
         error: "Duplicate serial numbers found",
@@ -12050,17 +13137,17 @@ router11.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), 
 });
 router11.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_tracking"), async (req, res) => {
   try {
-    const [serial2] = await db.select().from(serialNumbers).where(eq9(serialNumbers.serialNumber, req.params.serialNumber));
+    const [serial2] = await db.select().from(serialNumbers).where(eq12(serialNumbers.serialNumber, req.params.serialNumber));
     if (!serial2) {
       return res.status(404).json({ error: "Serial number not found" });
     }
     let product = null;
     if (serial2.productId) {
-      [product] = await db.select({ id: products.id, name: products.name, sku: products.sku }).from(products).where(eq9(products.id, serial2.productId));
+      [product] = await db.select({ id: products.id, name: products.name, sku: products.sku }).from(products).where(eq12(products.id, serial2.productId));
     }
     let vendor = null;
     if (serial2.vendorId) {
-      [vendor] = await db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq9(vendors.id, serial2.vendorId));
+      [vendor] = await db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq12(vendors.id, serial2.vendorId));
     }
     let vendorPo = null;
     if (serial2.vendorPoId) {
@@ -12068,7 +13155,7 @@ router11.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_trac
         id: vendorPurchaseOrders.id,
         poNumber: vendorPurchaseOrders.poNumber,
         orderDate: vendorPurchaseOrders.orderDate
-      }).from(vendorPurchaseOrders).where(eq9(vendorPurchaseOrders.id, serial2.vendorPoId));
+      }).from(vendorPurchaseOrders).where(eq12(vendorPurchaseOrders.id, serial2.vendorPoId));
     }
     let grn = null;
     if (serial2.grnId) {
@@ -12077,7 +13164,7 @@ router11.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_trac
         grnNumber: goodsReceivedNotes.grnNumber,
         receivedDate: goodsReceivedNotes.receivedDate,
         inspectionStatus: goodsReceivedNotes.inspectionStatus
-      }).from(goodsReceivedNotes).where(eq9(goodsReceivedNotes.id, serial2.grnId));
+      }).from(goodsReceivedNotes).where(eq12(goodsReceivedNotes.id, serial2.grnId));
     }
     let invoice = null;
     if (serial2.invoiceId) {
@@ -12085,7 +13172,7 @@ router11.get("/:serialNumber", authMiddleware, requireFeature("serialNumber_trac
         id: invoices.id,
         invoiceNumber: invoices.invoiceNumber,
         createdAt: invoices.createdAt
-      }).from(invoices).where(eq9(invoices.id, serial2.invoiceId));
+      }).from(invoices).where(eq12(invoices.id, serial2.invoiceId));
     }
     return res.json({
       ...serial2,
@@ -12782,10 +13869,10 @@ var analyticsService = new AnalyticsService();
 
 // server/routes/analytics.routes.ts
 init_db();
-import { sql as sql10 } from "drizzle-orm";
+import { sql as sql11 } from "drizzle-orm";
 import ExcelJS2 from "exceljs";
 var router14 = Router14();
-router14.get("/dashboard", authMiddleware, async (req, res) => {
+router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const quotes2 = await storage.getAllQuotes();
     const clients2 = await storage.getAllClients();
@@ -12876,7 +13963,7 @@ router14.get("/dashboard", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/:timeRange(\\d+)", authMiddleware, async (req, res) => {
+router14.get("/:timeRange(\\d+)", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
     const quotes2 = await storage.getAllQuotes();
@@ -12954,7 +14041,7 @@ router14.get("/:timeRange(\\d+)", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/forecast", authMiddleware, async (req, res) => {
+router14.get("/forecast", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const monthsAhead = req.query.months ? Number(req.query.months) : 3;
     const forecast = await analyticsService.getRevenueForecast(monthsAhead);
@@ -12964,7 +14051,7 @@ router14.get("/forecast", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch forecast" });
   }
 });
-router14.get("/deal-distribution", authMiddleware, async (req, res) => {
+router14.get("/deal-distribution", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const distribution = await analyticsService.getDealDistribution();
     return res.json(distribution);
@@ -12973,7 +14060,7 @@ router14.get("/deal-distribution", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch deal distribution" });
   }
 });
-router14.get("/regional", authMiddleware, async (req, res) => {
+router14.get("/regional", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const regionalData = await analyticsService.getRegionalDistribution();
     return res.json(regionalData);
@@ -12982,7 +14069,7 @@ router14.get("/regional", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch regional data" });
   }
 });
-router14.post("/custom-report", authMiddleware, async (req, res) => {
+router14.post("/custom-report", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const { startDate, endDate, status, minAmount, maxAmount } = req.body;
     const report = await analyticsService.getCustomReport({
@@ -12998,7 +14085,7 @@ router14.post("/custom-report", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to generate custom report" });
   }
 });
-router14.get("/pipeline", authMiddleware, async (req, res) => {
+router14.get("/pipeline", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const pipeline = await analyticsService.getSalesPipeline();
     return res.json(pipeline);
@@ -13007,7 +14094,7 @@ router14.get("/pipeline", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch pipeline data" });
   }
 });
-router14.get("/client/:clientId/ltv", authMiddleware, async (req, res) => {
+router14.get("/client/:clientId/ltv", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
     return res.json(ltv);
@@ -13016,7 +14103,7 @@ router14.get("/client/:clientId/ltv", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch client LTV" });
   }
 });
-router14.get("/competitor-insights", authMiddleware, async (req, res) => {
+router14.get("/competitor-insights", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const insights = await analyticsService.getCompetitorInsights();
     return res.json(insights);
@@ -13025,7 +14112,7 @@ router14.get("/competitor-insights", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch competitor insights" });
   }
 });
-router14.get("/vendor-spend", authMiddleware, async (req, res) => {
+router14.get("/vendor-spend", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const timeRange = req.query.timeRange ? Number(req.query.timeRange) : 12;
     const vendors2 = await storage.getAllVendors();
@@ -13108,7 +14195,7 @@ router14.get("/vendor-spend", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch vendor analytics" });
   }
 });
-router14.get("/export", authMiddleware, async (req, res) => {
+router14.get("/export", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const timeRange = req.query.timeRange || "12";
     let startDate;
@@ -13210,7 +14297,7 @@ router14.get("/export", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to export report" });
   }
 });
-router14.get("/sales-quotes", authMiddleware, async (req, res) => {
+router14.get("/sales-quotes", authMiddleware, requireFeature("dashboard_salesQuotes"), async (req, res) => {
   try {
     const allQuotes = await storage.getAllQuotes();
     const allClients = await storage.getAllClients();
@@ -13295,9 +14382,9 @@ router14.get("/sales-quotes", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/vendor-po", authMiddleware, async (req, res) => {
+router14.get("/vendor-po", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
-    const allPOs = await db.execute(sql10`
+    const allPOs = await db.execute(sql11`
       SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
     `);
     const allVendors = await storage.getAllVendors();
@@ -13371,7 +14458,7 @@ router14.get("/vendor-po", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/invoice-collections", authMiddleware, async (req, res) => {
+router14.get("/invoice-collections", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const allInvoices = await storage.getAllInvoices();
     const allClients = await storage.getAllClients();
@@ -13521,7 +14608,7 @@ router14.get("/invoice-collections", authMiddleware, async (req, res) => {
 });
 router14.get("/serial-tracking", authMiddleware, async (req, res) => {
   try {
-    const serialNumbers2 = await db.execute(sql10`
+    const serialNumbers2 = await db.execute(sql11`
       SELECT * FROM serial_numbers ORDER BY created_at DESC
     `);
     const totalSerials = serialNumbers2.rows.length;
@@ -13563,15 +14650,757 @@ router14.get("/serial-tracking", authMiddleware, async (req, res) => {
 });
 var analytics_routes_default = router14;
 
+// server/routes/email-templates.routes.ts
+import { Router as Router15 } from "express";
+init_logger();
+init_db();
+init_schema();
+import { eq as eq14 } from "drizzle-orm";
+
+// server/services/email-template.service.ts
+init_db();
+init_schema();
+init_logger();
+import { eq as eq13, and as and5 } from "drizzle-orm";
+var TEMPLATE_VARIABLES = {
+  quote: [
+    { name: "quote_number", description: "Quote reference number" },
+    { name: "client_name", description: "Client company/person name" },
+    { name: "client_email", description: "Client email address" },
+    { name: "total", description: "Quote total amount" },
+    { name: "valid_until", description: "Quote validity date" },
+    { name: "company_name", description: "Your company name" },
+    { name: "attention_to", description: "Attention to person" },
+    { name: "currency", description: "Currency code (e.g., INR, USD)" }
+  ],
+  invoice: [
+    { name: "invoice_number", description: "Invoice reference number" },
+    { name: "client_name", description: "Client company/person name" },
+    { name: "client_email", description: "Client email address" },
+    { name: "total", description: "Invoice total amount" },
+    { name: "due_date", description: "Payment due date" },
+    { name: "paid_amount", description: "Amount already paid" },
+    { name: "remaining_amount", description: "Remaining balance" },
+    { name: "company_name", description: "Your company name" },
+    { name: "currency", description: "Currency code" }
+  ],
+  sales_order: [
+    { name: "order_number", description: "Sales order number" },
+    { name: "client_name", description: "Client company/person name" },
+    { name: "client_email", description: "Client email address" },
+    { name: "total", description: "Order total amount" },
+    { name: "expected_delivery", description: "Expected delivery date" },
+    { name: "company_name", description: "Your company name" },
+    { name: "currency", description: "Currency code" }
+  ],
+  payment_reminder: [
+    { name: "invoice_number", description: "Invoice reference number" },
+    { name: "client_name", description: "Client company/person name" },
+    { name: "remaining_amount", description: "Remaining balance" },
+    { name: "due_date", description: "Payment due date" },
+    { name: "days_overdue", description: "Number of days past due" },
+    { name: "company_name", description: "Your company name" },
+    { name: "currency", description: "Currency code" }
+  ],
+  password_reset: [
+    { name: "user_name", description: "User's display name" },
+    { name: "reset_link", description: "Password reset URL" },
+    { name: "expiry_hours", description: "Hours until link expires" }
+  ],
+  welcome: [
+    { name: "user_name", description: "User's display name" },
+    { name: "login_url", description: "Application login URL" },
+    { name: "company_name", description: "Your company name" }
+  ]
+};
+var DEFAULT_TEMPLATES = {
+  quote: {
+    subject: "Quote {{quote_number}} from {{company_name}}",
+    body: `<h2>Quote {{quote_number}}</h2>
+<p>Dear {{client_name}},</p>
+<p>Please find attached your quotation for the requested items/services.</p>
+<p><strong>Total Amount:</strong> {{currency}} {{total}}</p>
+<p><strong>Valid Until:</strong> {{valid_until}}</p>
+<p>If you have any questions or require modifications, please don't hesitate to contact us.</p>
+<p>Best regards,<br>{{company_name}}</p>`
+  },
+  invoice: {
+    subject: "Invoice {{invoice_number}} from {{company_name}}",
+    body: `<h2>Invoice {{invoice_number}}</h2>
+<p>Dear {{client_name}},</p>
+<p>Please find attached your invoice for recent services/products.</p>
+<p><strong>Total Amount:</strong> {{currency}} {{total}}</p>
+<p><strong>Due Date:</strong> {{due_date}}</p>
+<p>Please process this invoice at your earliest convenience.</p>
+<p>Best regards,<br>{{company_name}}</p>`
+  },
+  sales_order: {
+    subject: "Sales Order {{order_number}} Confirmation from {{company_name}}",
+    body: `<h2>Sales Order Confirmation</h2>
+<p>Dear {{client_name}},</p>
+<p>Thank you for your order. Please find attached your sales order confirmation.</p>
+<p><strong>Order Number:</strong> {{order_number}}</p>
+<p><strong>Total:</strong> {{currency}} {{total}}</p>
+<p><strong>Expected Delivery:</strong> {{expected_delivery}}</p>
+<p>We will notify you once your order has been shipped.</p>
+<p>Best regards,<br>{{company_name}}</p>`
+  },
+  payment_reminder: {
+    subject: "Payment Reminder - Invoice {{invoice_number}}",
+    body: `<h2>Payment Reminder</h2>
+<p>Dear {{client_name}},</p>
+<p>This is a friendly reminder that Invoice {{invoice_number}} is pending payment.</p>
+<p><strong>Amount Due:</strong> {{currency}} {{remaining_amount}}</p>
+<p><strong>Due Date:</strong> {{due_date}}</p>
+{{#if days_overdue}}<p><strong>Days Overdue:</strong> {{days_overdue}}</p>{{/if}}
+<p>Please process this payment at your earliest convenience.</p>
+<p>Best regards,<br>{{company_name}}</p>`
+  },
+  password_reset: {
+    subject: "Password Reset Request",
+    body: `<h2>Password Reset Request</h2>
+<p>Hi {{user_name}},</p>
+<p>You requested a password reset. Click the link below to reset your password:</p>
+<p><a href="{{reset_link}}" style="display: inline-block; padding: 10px 20px; background-color: #0046FF; color: white; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
+<p>This link will expire in {{expiry_hours}} hour(s).</p>
+<p>If you didn't request this, you can safely ignore this email.</p>`
+  },
+  welcome: {
+    subject: "Welcome to {{company_name}}!",
+    body: `<h2>Welcome to {{company_name}}!</h2>
+<p>Hi {{user_name}},</p>
+<p>Your account has been successfully created. You can now login and start using the platform.</p>
+<p><a href="{{login_url}}" style="display: inline-block; padding: 10px 20px; background-color: #0046FF; color: white; text-decoration: none; border-radius: 5px;">Login Now</a></p>
+<p>If you have any questions, please don't hesitate to contact us.</p>
+<p>Best regards,<br>{{company_name}} Team</p>`
+  }
+};
+var EmailTemplateService = class {
+  /**
+   * Get active template by type (returns default if none found)
+   */
+  static async getTemplate(type) {
+    try {
+      const [template] = await db.select().from(emailTemplates).where(and5(
+        eq13(emailTemplates.type, type),
+        eq13(emailTemplates.isActive, true),
+        eq13(emailTemplates.isDefault, true)
+      )).limit(1);
+      if (template) return template;
+      const [anyTemplate] = await db.select().from(emailTemplates).where(and5(
+        eq13(emailTemplates.type, type),
+        eq13(emailTemplates.isActive, true)
+      )).limit(1);
+      return anyTemplate || null;
+    } catch (error) {
+      logger.error(`Error getting email template for type ${type}:`, error);
+      return null;
+    }
+  }
+  /**
+   * Create a virtual template from defaults (for fallback)
+   */
+  static getDefaultTemplate(type) {
+    return DEFAULT_TEMPLATES[type] || DEFAULT_TEMPLATES.quote;
+  }
+  /**
+   * Render template with variable substitution
+   */
+  static renderTemplate(template, variables) {
+    let subject = template.subject;
+    let body = template.body;
+    for (const [key, value] of Object.entries(variables)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+      const safeValue = value !== void 0 ? String(value) : "";
+      subject = subject.replace(regex, safeValue);
+      body = body.replace(regex, safeValue);
+    }
+    body = body.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, varName, content) => {
+      const value = variables[varName];
+      return value && value !== "" && value !== "0" ? content : "";
+    });
+    return { subject, body };
+  }
+  /**
+   * Get template and render with variables (with fallback)
+   */
+  static async renderTemplateByType(type, variables) {
+    const template = await this.getTemplate(type);
+    if (template) {
+      return this.renderTemplate(
+        { subject: template.subject, body: template.body },
+        variables
+      );
+    }
+    return this.renderTemplate(this.getDefaultTemplate(type), variables);
+  }
+  /**
+   * Get available variables for a template type
+   */
+  static getAvailableVariables(type) {
+    return TEMPLATE_VARIABLES[type] || [];
+  }
+  /**
+   * Validate that template uses valid variables
+   */
+  static validateTemplate(templateContent, type) {
+    const errors = [];
+    const warnings = [];
+    const validVars = TEMPLATE_VARIABLES[type].map((v) => v.name);
+    const variablePattern = /\{\{(?!#|\/)([\w]+)\}\}/g;
+    let match;
+    while ((match = variablePattern.exec(templateContent)) !== null) {
+      const varName = match[1];
+      if (!validVars.includes(varName)) {
+        warnings.push(`Unknown variable: {{${varName}}}. Available: ${validVars.join(", ")}`);
+      }
+    }
+    const ifCount = (templateContent.match(/\{\{#if/g) || []).length;
+    const endIfCount = (templateContent.match(/\{\{\/if\}\}/g) || []).length;
+    if (ifCount !== endIfCount) {
+      errors.push(`Mismatched conditional blocks: ${ifCount} {{#if}} vs ${endIfCount} {{/if}}`);
+    }
+    return { valid: errors.length === 0, errors, warnings };
+  }
+  /**
+   * Preview template with sample data
+   */
+  static previewTemplate(template, type) {
+    const sampleData = {
+      quote_number: "QT-2026-001",
+      invoice_number: "INV-2026-001",
+      order_number: "SO-2026-001",
+      client_name: "Acme Corporation",
+      client_email: "contact@acme.com",
+      total: "50,000.00",
+      valid_until: "February 28, 2026",
+      due_date: "February 15, 2026",
+      paid_amount: "25,000.00",
+      remaining_amount: "25,000.00",
+      expected_delivery: "February 20, 2026",
+      days_overdue: "5",
+      company_name: "Your Company",
+      attention_to: "John Smith",
+      currency: "INR",
+      user_name: "John Doe",
+      reset_link: "https://example.com/reset?token=sample",
+      login_url: "https://example.com/login",
+      expiry_hours: "1"
+    };
+    return this.renderTemplate(template, sampleData);
+  }
+  /**
+   * Seed default templates for all types
+   */
+  static async seedDefaultTemplates(userId) {
+    const types = [
+      "quote",
+      "invoice",
+      "sales_order",
+      "payment_reminder",
+      "password_reset",
+      "welcome"
+    ];
+    for (const type of types) {
+      try {
+        const [existing] = await db.select().from(emailTemplates).where(and5(
+          eq13(emailTemplates.type, type),
+          eq13(emailTemplates.isDefault, true)
+        )).limit(1);
+        if (existing) {
+          logger.info(`Default email template for ${type} already exists, skipping`);
+          continue;
+        }
+        const defaultTemplate = DEFAULT_TEMPLATES[type];
+        const availableVars = TEMPLATE_VARIABLES[type];
+        await db.insert(emailTemplates).values({
+          name: `Default ${type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} Template`,
+          type,
+          subject: defaultTemplate.subject,
+          body: defaultTemplate.body,
+          availableVariables: JSON.stringify(availableVars),
+          isActive: true,
+          isDefault: true,
+          createdBy: userId
+        });
+        logger.info(`Created default email template for ${type}`);
+      } catch (error) {
+        logger.error(`Error seeding email template for ${type}:`, error);
+      }
+    }
+  }
+};
+
+// server/routes/email-templates.routes.ts
+init_storage();
+var router15 = Router15();
+router15.get(
+  "/",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const templates2 = await db.select().from(emailTemplates).orderBy(emailTemplates.type);
+      res.json(templates2);
+    } catch (error) {
+      logger.error("Error fetching email templates:", error);
+      res.status(500).json({ error: "Failed to fetch email templates" });
+    }
+  }
+);
+router15.get(
+  "/types",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const types = Object.keys(TEMPLATE_VARIABLES).map((type) => ({
+        type,
+        variables: TEMPLATE_VARIABLES[type],
+        defaultTemplate: DEFAULT_TEMPLATES[type]
+      }));
+      res.json(types);
+    } catch (error) {
+      logger.error("Error fetching template types:", error);
+      res.status(500).json({ error: "Failed to fetch template types" });
+    }
+  }
+);
+router15.get(
+  "/:id",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const [template] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      logger.error("Error fetching email template:", error);
+      res.status(500).json({ error: "Failed to fetch email template" });
+    }
+  }
+);
+router15.get(
+  "/type/:type",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const type = req.params.type;
+      const template = await EmailTemplateService.getTemplate(type);
+      if (!template) {
+        const defaultTemplate = EmailTemplateService.getDefaultTemplate(type);
+        return res.json({
+          id: null,
+          type,
+          name: `Default ${type} Template`,
+          subject: defaultTemplate.subject,
+          body: defaultTemplate.body,
+          isDefault: true,
+          isActive: true,
+          availableVariables: JSON.stringify(TEMPLATE_VARIABLES[type])
+        });
+      }
+      res.json(template);
+    } catch (error) {
+      logger.error("Error fetching template by type:", error);
+      res.status(500).json({ error: "Failed to fetch template" });
+    }
+  }
+);
+router15.post(
+  "/",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can create email templates" });
+      }
+      const { name, type, subject, body, isActive, isDefault } = req.body;
+      if (!name || !type || !subject || !body) {
+        return res.status(400).json({ error: "Name, type, subject, and body are required" });
+      }
+      const validTypes = ["quote", "invoice", "sales_order", "payment_reminder", "password_reset", "welcome"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
+      }
+      const validation = EmailTemplateService.validateTemplate(subject + body, type);
+      if (!validation.valid) {
+        return res.status(400).json({ error: "Template validation failed", details: validation.errors });
+      }
+      if (isDefault) {
+        await db.update(emailTemplates).set({ isDefault: false }).where(eq14(emailTemplates.type, type));
+      }
+      const [template] = await db.insert(emailTemplates).values({
+        name,
+        type,
+        subject,
+        body,
+        availableVariables: JSON.stringify(TEMPLATE_VARIABLES[type]),
+        isActive: isActive ?? true,
+        isDefault: isDefault ?? false,
+        createdBy: req.user.id
+      }).returning();
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "create_email_template",
+        entityType: "email_template",
+        entityId: template.id
+      });
+      res.status(201).json(template);
+    } catch (error) {
+      logger.error("Error creating email template:", error);
+      res.status(500).json({ error: error.message || "Failed to create email template" });
+    }
+  }
+);
+router15.put(
+  "/:id",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can update email templates" });
+      }
+      const [existing] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      if (!existing) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      const { name, subject, body, isActive, isDefault } = req.body;
+      const type = existing.type;
+      if (subject || body) {
+        const validation = EmailTemplateService.validateTemplate(
+          (subject || existing.subject) + (body || existing.body),
+          type
+        );
+        if (!validation.valid) {
+          return res.status(400).json({ error: "Template validation failed", details: validation.errors });
+        }
+      }
+      if (isDefault && !existing.isDefault) {
+        await db.update(emailTemplates).set({ isDefault: false }).where(eq14(emailTemplates.type, existing.type));
+      }
+      const [template] = await db.update(emailTemplates).set({
+        ...name !== void 0 && { name },
+        ...subject !== void 0 && { subject },
+        ...body !== void 0 && { body },
+        ...isActive !== void 0 && { isActive },
+        ...isDefault !== void 0 && { isDefault },
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq14(emailTemplates.id, req.params.id)).returning();
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "update_email_template",
+        entityType: "email_template",
+        entityId: template.id
+      });
+      res.json(template);
+    } catch (error) {
+      logger.error("Error updating email template:", error);
+      res.status(500).json({ error: error.message || "Failed to update email template" });
+    }
+  }
+);
+router15.delete(
+  "/:id",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can delete email templates" });
+      }
+      const [existing] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      if (!existing) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      await db.delete(emailTemplates).where(eq14(emailTemplates.id, req.params.id));
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "delete_email_template",
+        entityType: "email_template",
+        entityId: req.params.id
+      });
+      res.json({ success: true });
+    } catch (error) {
+      logger.error("Error deleting email template:", error);
+      res.status(500).json({ error: error.message || "Failed to delete email template" });
+    }
+  }
+);
+router15.post(
+  "/:id/preview",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const [template] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      const preview = EmailTemplateService.previewTemplate(
+        { subject: template.subject, body: template.body },
+        template.type
+      );
+      res.json(preview);
+    } catch (error) {
+      logger.error("Error previewing template:", error);
+      res.status(500).json({ error: "Failed to preview template" });
+    }
+  }
+);
+router15.post(
+  "/preview-draft",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { subject, body, type } = req.body;
+      if (!subject || !body || !type) {
+        return res.status(400).json({ error: "Subject, body, and type are required" });
+      }
+      const preview = EmailTemplateService.previewTemplate(
+        { subject, body },
+        type
+      );
+      const validation = EmailTemplateService.validateTemplate(subject + body, type);
+      res.json({ ...preview, validation });
+    } catch (error) {
+      logger.error("Error previewing draft template:", error);
+      res.status(500).json({ error: "Failed to preview template" });
+    }
+  }
+);
+router15.post(
+  "/seed-defaults",
+  requireFeature("email_templates_module"),
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can seed default templates" });
+      }
+      await EmailTemplateService.seedDefaultTemplates(req.user.id);
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "seed_email_templates",
+        entityType: "email_template",
+        entityId: "system"
+      });
+      res.json({ success: true, message: "Default templates seeded successfully" });
+    } catch (error) {
+      logger.error("Error seeding default templates:", error);
+      res.status(500).json({ error: error.message || "Failed to seed default templates" });
+    }
+  }
+);
+var email_templates_routes_default = router15;
+
+// server/routes/notification.routes.ts
+import { Router as Router16 } from "express";
+var router16 = Router16();
+router16.get("/", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const unreadOnly = req.query.unreadOnly === "true";
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    const notifications2 = await NotificationService.getNotifications({
+      userId,
+      unreadOnly,
+      limit,
+      offset
+    });
+    res.json({
+      notifications: notifications2,
+      pagination: {
+        limit,
+        offset,
+        hasMore: notifications2.length === limit
+      }
+    });
+  } catch (error) {
+    console.error("[NotificationRoutes] Failed to get notifications:", error);
+    res.status(500).json({ error: "Failed to get notifications" });
+  }
+});
+router16.get("/unread-count", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const count = await NotificationService.getUnreadCount(userId);
+    res.json({ count });
+  } catch (error) {
+    console.error("[NotificationRoutes] Failed to get unread count:", error);
+    res.status(500).json({ error: "Failed to get unread count" });
+  }
+});
+router16.post("/:id/read", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const notificationId = req.params.id;
+    const success = await NotificationService.markAsRead(notificationId, userId);
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: "Notification not found" });
+    }
+  } catch (error) {
+    console.error("[NotificationRoutes] Failed to mark as read:", error);
+    res.status(500).json({ error: "Failed to mark notification as read" });
+  }
+});
+router16.post("/read-all", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const count = await NotificationService.markAllAsRead(userId);
+    res.json({ success: true, count });
+  } catch (error) {
+    console.error("[NotificationRoutes] Failed to mark all as read:", error);
+    res.status(500).json({ error: "Failed to mark all notifications as read" });
+  }
+});
+router16.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const notificationId = req.params.id;
+    const success = await NotificationService.delete(notificationId, userId);
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: "Notification not found" });
+    }
+  } catch (error) {
+    console.error("[NotificationRoutes] Failed to delete notification:", error);
+    res.status(500).json({ error: "Failed to delete notification" });
+  }
+});
+router16.delete("/", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const count = await NotificationService.deleteAll(userId);
+    res.json({ success: true, count });
+  } catch (error) {
+    console.error("[NotificationRoutes] Failed to delete all notifications:", error);
+    res.status(500).json({ error: "Failed to delete all notifications" });
+  }
+});
+var notificationRoutes = router16;
+
+// server/routes/collaboration.routes.ts
+import { Router as Router17 } from "express";
+init_db();
+init_schema();
+import { eq as eq15, and as and7 } from "drizzle-orm";
+var router17 = Router17();
+router17.get("/:entityType/:entityId/presence", authMiddleware, async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const collaborators = await WebSocketService.getCollaborators(entityType, entityId);
+    res.json({
+      entityType,
+      entityId,
+      collaborators,
+      count: collaborators.length
+    });
+  } catch (error) {
+    console.error("[CollaborationRoutes] Failed to get presence:", error);
+    res.status(500).json({ error: "Failed to get collaboration presence" });
+  }
+});
+router17.get("/:entityType/:entityId/is-editing", authMiddleware, async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const userId = req.user.id;
+    const sessions = await db.select({
+      userId: collaborationSessions.userId,
+      userName: users.name,
+      isEditing: collaborationSessions.isEditing,
+      cursorPosition: collaborationSessions.cursorPosition
+    }).from(collaborationSessions).innerJoin(users, eq15(collaborationSessions.userId, users.id)).where(
+      and7(
+        eq15(collaborationSessions.entityType, entityType),
+        eq15(collaborationSessions.entityId, entityId),
+        eq15(collaborationSessions.isEditing, true)
+      )
+    );
+    const othersEditing = sessions.filter((s) => s.userId !== userId);
+    res.json({
+      isBeingEdited: othersEditing.length > 0,
+      editors: othersEditing.map((s) => ({
+        userId: s.userId,
+        userName: s.userName,
+        cursorPosition: s.cursorPosition
+      }))
+    });
+  } catch (error) {
+    console.error("[CollaborationRoutes] Failed to check editing status:", error);
+    res.status(500).json({ error: "Failed to check editing status" });
+  }
+});
+router17.post("/:entityType/:entityId/heartbeat", authMiddleware, async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const userId = req.user.id;
+    await db.update(collaborationSessions).set({ lastActivity: /* @__PURE__ */ new Date() }).where(
+      and7(
+        eq15(collaborationSessions.entityType, entityType),
+        eq15(collaborationSessions.entityId, entityId),
+        eq15(collaborationSessions.userId, userId)
+      )
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[CollaborationRoutes] Failed to update heartbeat:", error);
+    res.status(500).json({ error: "Failed to update heartbeat" });
+  }
+});
+router17.get("/user/:userId/status", authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const isOnline = WebSocketService.isUserOnline(userId);
+    const connectionCount = WebSocketService.getUserConnectionCount(userId);
+    res.json({
+      userId,
+      isOnline,
+      connectionCount
+    });
+  } catch (error) {
+    console.error("[CollaborationRoutes] Failed to get user status:", error);
+    res.status(500).json({ error: "Failed to get user status" });
+  }
+});
+router17.delete("/:entityType/:entityId/leave", authMiddleware, async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const userId = req.user.id;
+    await db.delete(collaborationSessions).where(
+      and7(
+        eq15(collaborationSessions.entityType, entityType),
+        eq15(collaborationSessions.entityId, entityId),
+        eq15(collaborationSessions.userId, userId)
+      )
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[CollaborationRoutes] Failed to leave session:", error);
+    res.status(500).json({ error: "Failed to leave collaboration session" });
+  }
+});
+var collaborationRoutes = router17;
+
 // server/routes.ts
 init_logger();
 init_cache_service();
 async function registerRoutes(app2) {
   app2.use("/api/auth", auth_routes_default);
-  app2.use("/api", authMiddleware, quote_workflow_routes_default);
   app2.use("/api/users", authMiddleware, users_routes_default);
   app2.use("/api/clients", authMiddleware, clients_routes_default);
-  app2.use("/api/quotes", authMiddleware, quotes_routes_default);
+  app2.use("/api/quotes", quotes_routes_default);
   app2.use("/api/invoices", authMiddleware, invoices_routes_default);
   app2.use("/api", authMiddleware, payments_routes_default);
   app2.use("/api/products", authMiddleware, products_routes_default);
@@ -13580,6 +15409,9 @@ async function registerRoutes(app2) {
   app2.use("/api/serial-numbers", authMiddleware, serial_numbers_routes_default);
   app2.use("/api/approval-rules", authMiddleware, approval_rules_routes_default);
   app2.use("/api", authMiddleware, pricing_routes_default);
+  app2.use("/api/email-templates", email_templates_routes_default);
+  app2.use("/api/notifications", notificationRoutes);
+  app2.use("/api/collaboration", authMiddleware, collaborationRoutes);
   app2.get("/api/templates", authMiddleware, async (req, res) => {
     try {
       const type = req.query.type;

@@ -47,7 +47,9 @@ router.post("/signup", async (req: Request, res: Response) => {
 
     // Send welcome email
     try {
-      await EmailService.sendWelcomeEmail(email, name);
+      if (require("../shared/feature-flags").isFeatureEnabled('email_welcome')) {
+        await EmailService.sendWelcomeEmail(email, name);
+      }
     } catch (error) {
       logger.error("Failed to send welcome email:", error);
       // Don't fail signup if email fails

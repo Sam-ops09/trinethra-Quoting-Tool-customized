@@ -734,6 +734,7 @@ router.patch("/sales-orders/:id",
 router.post(
   "/sales-orders/:id/convert-to-invoice",
   requireFeature('invoices_module'),
+  requireFeature('sales_orders_convertToInvoice'),
   requirePermission("invoices", "create"),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -1316,6 +1317,7 @@ router.post("/sales-orders/:id/email", requirePermission("sales_orders", "view")
 // Convert Quote to Sales Order
 router.post("/quotes/:id/sales-orders",
   requireFeature('sales_orders_module'),
+  requireFeature('quotes_convertToSalesOrder'),
   requirePermission("sales_orders", "create"),
   async (req: AuthRequest, res: Response) => {
     try {

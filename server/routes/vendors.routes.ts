@@ -14,7 +14,7 @@ import { isFeatureEnabled } from "@shared/feature-flags";
 const router = Router();
 
 // ==================== VENDORS ROUTES ====================
-router.get("/vendors", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/vendors", authMiddleware, requireFeature('vendors_module'), async (req: AuthRequest, res: Response) => {
   try {
     const vendors = await storage.getAllVendors();
     res.json(vendors);
@@ -24,7 +24,7 @@ router.get("/vendors", authMiddleware, async (req: AuthRequest, res: Response) =
   }
 });
 
-router.get("/vendors/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/vendors/:id", authMiddleware, requireFeature('vendors_module'), async (req: AuthRequest, res: Response) => {
   try {
     const vendor = await storage.getVendor(req.params.id);
     if (!vendor) {
@@ -37,7 +37,7 @@ router.get("/vendors/:id", authMiddleware, async (req: AuthRequest, res: Respons
   }
 });
 
-router.post("/vendors", authMiddleware, requirePermission("vendors", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/vendors", authMiddleware, requireFeature('vendors_create'), requirePermission("vendors", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const vendor = await storage.createVendor({
       ...req.body,
@@ -50,7 +50,7 @@ router.post("/vendors", authMiddleware, requirePermission("vendors", "create"), 
   }
 });
 
-router.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edit"), async (req: AuthRequest, res: Response) => {
+router.patch("/vendors/:id", authMiddleware, requireFeature('vendors_edit'), requirePermission("vendors", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const updated = await storage.updateVendor(req.params.id, req.body);
     if (!updated) {
@@ -63,7 +63,7 @@ router.patch("/vendors/:id", authMiddleware, requirePermission("vendors", "edit"
   }
 });
 
-router.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "delete"), async (req: AuthRequest, res: Response) => {
+router.delete("/vendors/:id", authMiddleware, requireFeature('vendors_delete'), requirePermission("vendors", "delete"), async (req: AuthRequest, res: Response) => {
   try {
     await storage.deleteVendor(req.params.id);
     res.json({ success: true });
@@ -74,7 +74,7 @@ router.delete("/vendors/:id", authMiddleware, requirePermission("vendors", "dele
 });
 
 // ==================== VENDOR PURCHASE ORDERS ROUTES ====================
-router.get("/vendor-pos", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/vendor-pos", authMiddleware, requireFeature('vendorPO_module'), async (req: AuthRequest, res: Response) => {
   try {
     const quoteId = req.query.quoteId as string | undefined;
     
@@ -104,7 +104,7 @@ router.get("/vendor-pos", authMiddleware, async (req: AuthRequest, res: Response
   }
 });
 
-router.get("/vendor-pos/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/vendor-pos/:id", authMiddleware, requireFeature('vendorPO_module'), async (req: AuthRequest, res: Response) => {
   try {
     const po = await storage.getVendorPo(req.params.id);
     if (!po) {
@@ -127,7 +127,7 @@ router.get("/vendor-pos/:id", authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
-router.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission("vendor_pos", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/quotes/:id/create-vendor-po", authMiddleware, requireFeature('vendorPO_create'), requirePermission("vendor_pos", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const quote = await storage.getQuote(req.params.id);
     if (!quote) {
@@ -176,7 +176,7 @@ router.post("/quotes/:id/create-vendor-po", authMiddleware, requirePermission("v
   }
 });
 
-router.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/vendor-pos", authMiddleware, requireFeature('vendorPO_create'), requirePermission("vendor_pos", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const { 
       vendorId, 
@@ -253,7 +253,7 @@ router.post("/vendor-pos", authMiddleware, requirePermission("vendor_pos", "crea
   }
 });
 
-router.patch("/vendor-pos/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.patch("/vendor-pos/:id", authMiddleware, requireFeature('vendorPO_edit'), async (req: AuthRequest, res: Response) => {
   try {
     const updated = await storage.updateVendorPo(req.params.id, req.body);
     if (!updated) {
@@ -266,7 +266,7 @@ router.patch("/vendor-pos/:id", authMiddleware, async (req: AuthRequest, res: Re
   }
 });
 
-router.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, requireFeature('vendorPO_edit'), async (req: AuthRequest, res: Response) => {
   try {
     const { serialNumbers } = req.body;
     const updated = await storage.updateVendorPoItem(req.params.itemId, {
@@ -376,7 +376,7 @@ router.get("/grns/:id", authMiddleware, requireFeature('grn_module'), async (req
   }
 });
 
-router.post("/grns", authMiddleware, requireFeature('grn_module'), async (req: AuthRequest, res: Response) => {
+router.post("/grns", authMiddleware, requireFeature('grn_create'), async (req: AuthRequest, res: Response) => {
   try {
     const {
       vendorPoId,
@@ -475,7 +475,7 @@ router.post("/grns", authMiddleware, requireFeature('grn_module'), async (req: A
   }
 });
 
-router.patch("/grns/:id", authMiddleware, requireFeature('grn_module'), async (req: AuthRequest, res: Response) => {
+router.patch("/grns/:id", authMiddleware, requireFeature('grn_edit'), async (req: AuthRequest, res: Response) => {
   try {
     const {
       quantityReceived,
