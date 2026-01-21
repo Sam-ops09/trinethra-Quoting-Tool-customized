@@ -23,6 +23,7 @@ __export(schema_exports, {
   approvalRules: () => approvalRules,
   approvalRulesRelations: () => approvalRulesRelations,
   bankDetails: () => bankDetails,
+  billingCycleEnum: () => billingCycleEnum,
   clientCommunications: () => clientCommunications,
   clientCommunicationsRelations: () => clientCommunicationsRelations,
   clientTags: () => clientTags,
@@ -31,7 +32,17 @@ __export(schema_exports, {
   clientsRelations: () => clientsRelations,
   collaborationSessions: () => collaborationSessions,
   collaborationSessionsRelations: () => collaborationSessionsRelations,
+  creditNoteItems: () => creditNoteItems,
+  creditNoteItemsRelations: () => creditNoteItemsRelations,
+  creditNoteStatusEnum: () => creditNoteStatusEnum,
+  creditNotes: () => creditNotes,
+  creditNotesRelations: () => creditNotesRelations,
   currencySettings: () => currencySettings,
+  debitNoteItems: () => debitNoteItems,
+  debitNoteItemsRelations: () => debitNoteItemsRelations,
+  debitNoteStatusEnum: () => debitNoteStatusEnum,
+  debitNotes: () => debitNotes,
+  debitNotesRelations: () => debitNotesRelations,
   emailTemplateTypeEnum: () => emailTemplateTypeEnum,
   emailTemplates: () => emailTemplates,
   emailTemplatesRelations: () => emailTemplatesRelations,
@@ -44,7 +55,11 @@ __export(schema_exports, {
   insertClientSchema: () => insertClientSchema,
   insertClientTagSchema: () => insertClientTagSchema,
   insertCollaborationSessionSchema: () => insertCollaborationSessionSchema,
+  insertCreditNoteItemSchema: () => insertCreditNoteItemSchema,
+  insertCreditNoteSchema: () => insertCreditNoteSchema,
   insertCurrencySettingSchema: () => insertCurrencySettingSchema,
+  insertDebitNoteItemSchema: () => insertDebitNoteItemSchema,
+  insertDebitNoteSchema: () => insertDebitNoteSchema,
   insertEmailTemplateSchema: () => insertEmailTemplateSchema,
   insertGrnSchema: () => insertGrnSchema,
   insertInvoiceAttachmentSchema: () => insertInvoiceAttachmentSchema,
@@ -101,6 +116,9 @@ __export(schema_exports, {
   serialNumbers: () => serialNumbers,
   serialNumbersRelations: () => serialNumbersRelations,
   settings: () => settings,
+  subscriptionStatusEnum: () => subscriptionStatusEnum,
+  subscriptions: () => subscriptions,
+  subscriptionsRelations: () => subscriptionsRelations,
   taxRates: () => taxRates,
   templates: () => templates,
   templatesRelations: () => templatesRelations,
@@ -121,7 +139,7 @@ import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, i
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, users, usersRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, users, usersRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -134,6 +152,10 @@ var init_schema = __esm({
     masterInvoiceStatusEnum = pgEnum("master_invoice_status", ["draft", "confirmed", "locked"]);
     salesOrderStatusEnum = pgEnum("sales_order_status", ["draft", "confirmed", "fulfilled", "cancelled"]);
     salesOrderItemStatusEnum = pgEnum("sales_order_item_status", ["pending", "partial", "fulfilled"]);
+    creditNoteStatusEnum = pgEnum("credit_note_status", ["draft", "issued", "applied", "cancelled"]);
+    debitNoteStatusEnum = pgEnum("debit_note_status", ["draft", "issued", "applied", "cancelled"]);
+    subscriptionStatusEnum = pgEnum("subscription_status", ["active", "paused", "cancelled", "expired"]);
+    billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "annually"]);
     users = pgTable("users", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       email: text("email").notNull().unique(),
@@ -410,6 +432,39 @@ var init_schema = __esm({
         references: [quoteComments.id]
       })
     }));
+    subscriptions = pgTable("subscriptions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      subscriptionNumber: text("subscription_number").notNull().unique(),
+      // SUB-2025-001
+      clientId: varchar("client_id").notNull().references(() => clients.id),
+      planName: text("plan_name").notNull(),
+      status: subscriptionStatusEnum("status").notNull().default("active"),
+      billingCycle: billingCycleEnum("billing_cycle").notNull().default("monthly"),
+      startDate: timestamp("start_date").notNull().defaultNow(),
+      nextBillingDate: timestamp("next_billing_date").notNull(),
+      amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+      currency: text("currency").notNull().default("INR"),
+      autoRenew: boolean("auto_renew").notNull().default(true),
+      itemsSnapshot: text("items_snapshot").notNull(),
+      // JSON
+      lastInvoiceDate: timestamp("last_invoice_date"),
+      prorataCredit: decimal("prorata_credit", { precision: 12, scale: 2 }).default("0"),
+      notes: text("notes"),
+      createdBy: varchar("created_by").notNull().references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    });
+    subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
+      client: one(clients, {
+        fields: [subscriptions.clientId],
+        references: [clients.id]
+      }),
+      creator: one(users, {
+        fields: [subscriptions.createdBy],
+        references: [users.id]
+      }),
+      invoices: many(invoices)
+    }));
     invoices = pgTable("invoices", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       invoiceNumber: text("invoice_number").notNull().unique(),
@@ -417,6 +472,7 @@ var init_schema = __esm({
       salesOrderId: varchar("sales_order_id").references(() => salesOrders.id),
       clientId: varchar("client_id").references(() => clients.id),
       parentInvoiceId: varchar("parent_invoice_id"),
+      subscriptionId: varchar("subscription_id").references(() => subscriptions.id),
       status: text("status").notNull().default("draft"),
       masterInvoiceStatus: text("master_invoice_status").default("draft"),
       paymentStatus: text("payment_status").default("pending"),
@@ -454,6 +510,7 @@ var init_schema = __esm({
     }, (table) => {
       return {
         parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId),
+        subscriptionIdx: index("idx_invoices_subscription_id").on(table.subscriptionId),
         // REMOVED unique constraint to allow partial invoicing (multiple invoices per SO)
         // uniqueSalesOrder: uniqueIndex("idx_invoices_sales_order_unique").on(table.salesOrderId).where(sql`sales_order_id IS NOT NULL`),
         clientIdx: index("idx_invoices_client_id").on(table.clientId),
@@ -495,6 +552,10 @@ var init_schema = __esm({
       }),
       childInvoices: many(invoices, {
         relationName: "invoiceHierarchy"
+      }),
+      subscription: one(subscriptions, {
+        fields: [invoices.subscriptionId],
+        references: [subscriptions.id]
       }),
       creator: one(users, {
         fields: [invoices.createdBy],
@@ -1152,6 +1213,156 @@ var init_schema = __esm({
       id: true,
       joinedAt: true,
       lastActivity: true
+    });
+    creditNotes = pgTable("credit_notes", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      creditNoteNumber: text("credit_note_number").notNull().unique(),
+      invoiceId: varchar("invoice_id").references(() => invoices.id),
+      // Optional - can be standalone
+      clientId: varchar("client_id").notNull().references(() => clients.id),
+      status: creditNoteStatusEnum("status").notNull().default("draft"),
+      issueDate: timestamp("issue_date").notNull().defaultNow(),
+      reason: text("reason").notNull(),
+      // Return, Damaged goods, Price adjustment, etc.
+      currency: text("currency").notNull().default("INR"),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+      cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+      sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+      igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+      total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+      appliedAmount: decimal("applied_amount", { precision: 12, scale: 2 }).default("0"),
+      notes: text("notes"),
+      createdBy: varchar("created_by").notNull().references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    }, (table) => ({
+      invoiceIdx: index("idx_credit_notes_invoice_id").on(table.invoiceId),
+      clientIdx: index("idx_credit_notes_client_id").on(table.clientId),
+      statusIdx: index("idx_credit_notes_status").on(table.status)
+    }));
+    creditNoteItems = pgTable("credit_note_items", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      creditNoteId: varchar("credit_note_id").notNull().references(() => creditNotes.id, { onDelete: "cascade" }),
+      productId: varchar("product_id").references(() => products.id),
+      description: text("description").notNull(),
+      quantity: integer("quantity").notNull().default(1),
+      unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+      hsnSac: varchar("hsn_sac", { length: 10 }),
+      sortOrder: integer("sort_order").notNull().default(0),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    creditNotesRelations = relations(creditNotes, ({ one, many }) => ({
+      invoice: one(invoices, {
+        fields: [creditNotes.invoiceId],
+        references: [invoices.id]
+      }),
+      client: one(clients, {
+        fields: [creditNotes.clientId],
+        references: [clients.id]
+      }),
+      creator: one(users, {
+        fields: [creditNotes.createdBy],
+        references: [users.id]
+      }),
+      items: many(creditNoteItems)
+    }));
+    creditNoteItemsRelations = relations(creditNoteItems, ({ one }) => ({
+      creditNote: one(creditNotes, {
+        fields: [creditNoteItems.creditNoteId],
+        references: [creditNotes.id]
+      }),
+      product: one(products, {
+        fields: [creditNoteItems.productId],
+        references: [products.id]
+      })
+    }));
+    debitNotes = pgTable("debit_notes", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      debitNoteNumber: text("debit_note_number").notNull().unique(),
+      invoiceId: varchar("invoice_id").references(() => invoices.id),
+      // Optional - can be standalone
+      clientId: varchar("client_id").notNull().references(() => clients.id),
+      status: debitNoteStatusEnum("status").notNull().default("draft"),
+      issueDate: timestamp("issue_date").notNull().defaultNow(),
+      reason: text("reason").notNull(),
+      // Additional charges, Price revision, etc.
+      currency: text("currency").notNull().default("INR"),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+      cgst: decimal("cgst", { precision: 12, scale: 2 }).default("0"),
+      sgst: decimal("sgst", { precision: 12, scale: 2 }).default("0"),
+      igst: decimal("igst", { precision: 12, scale: 2 }).default("0"),
+      total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+      appliedAmount: decimal("applied_amount", { precision: 12, scale: 2 }).default("0"),
+      notes: text("notes"),
+      createdBy: varchar("created_by").notNull().references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    }, (table) => ({
+      invoiceIdx: index("idx_debit_notes_invoice_id").on(table.invoiceId),
+      clientIdx: index("idx_debit_notes_client_id").on(table.clientId),
+      statusIdx: index("idx_debit_notes_status").on(table.status)
+    }));
+    debitNoteItems = pgTable("debit_note_items", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      debitNoteId: varchar("debit_note_id").notNull().references(() => debitNotes.id, { onDelete: "cascade" }),
+      productId: varchar("product_id").references(() => products.id),
+      description: text("description").notNull(),
+      quantity: integer("quantity").notNull().default(1),
+      unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+      subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+      hsnSac: varchar("hsn_sac", { length: 10 }),
+      sortOrder: integer("sort_order").notNull().default(0),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    debitNotesRelations = relations(debitNotes, ({ one, many }) => ({
+      invoice: one(invoices, {
+        fields: [debitNotes.invoiceId],
+        references: [invoices.id]
+      }),
+      client: one(clients, {
+        fields: [debitNotes.clientId],
+        references: [clients.id]
+      }),
+      creator: one(users, {
+        fields: [debitNotes.createdBy],
+        references: [users.id]
+      }),
+      items: many(debitNoteItems)
+    }));
+    debitNoteItemsRelations = relations(debitNoteItems, ({ one }) => ({
+      debitNote: one(debitNotes, {
+        fields: [debitNoteItems.debitNoteId],
+        references: [debitNotes.id]
+      }),
+      product: one(products, {
+        fields: [debitNoteItems.productId],
+        references: [products.id]
+      })
+    }));
+    insertCreditNoteSchema = createInsertSchema(creditNotes).omit({
+      id: true,
+      creditNoteNumber: true,
+      createdAt: true,
+      updatedAt: true,
+      createdBy: true,
+      appliedAmount: true
+    });
+    insertCreditNoteItemSchema = createInsertSchema(creditNoteItems).omit({
+      id: true,
+      createdAt: true
+    });
+    insertDebitNoteSchema = createInsertSchema(debitNotes).omit({
+      id: true,
+      debitNoteNumber: true,
+      createdAt: true,
+      updatedAt: true,
+      createdBy: true,
+      appliedAmount: true
+    });
+    insertDebitNoteItemSchema = createInsertSchema(debitNoteItems).omit({
+      id: true,
+      createdAt: true
     });
     insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments).omit({
       id: true,
@@ -2035,6 +2246,14 @@ var init_permissions_service = __esm({
           { resource: "sales_orders", action: "delete" },
           { resource: "sales_orders", action: "approve" },
           { resource: "sales_orders", action: "cancel" },
+          { resource: "credit_notes", action: "view" },
+          { resource: "credit_notes", action: "create" },
+          { resource: "credit_notes", action: "edit" },
+          { resource: "credit_notes", action: "delete" },
+          { resource: "debit_notes", action: "view" },
+          { resource: "debit_notes", action: "create" },
+          { resource: "debit_notes", action: "edit" },
+          { resource: "debit_notes", action: "delete" },
           { resource: "vendor_pos", action: "view" },
           { resource: "vendor_pos", action: "create" },
           { resource: "vendor_pos", action: "edit" },
@@ -2066,7 +2285,12 @@ var init_permissions_service = __esm({
           { resource: "users", action: "edit" },
           { resource: "users", action: "delete" },
           { resource: "settings", action: "view" },
-          { resource: "settings", action: "manage" }
+          { resource: "settings", action: "manage" },
+          { resource: "subscriptions", action: "view" },
+          { resource: "subscriptions", action: "create" },
+          { resource: "subscriptions", action: "edit" },
+          { resource: "subscriptions", action: "delete" },
+          { resource: "subscriptions", action: "cancel" }
         ]
       },
       sales_executive: {
@@ -2094,7 +2318,8 @@ var init_permissions_service = __esm({
           { resource: "clients", action: "create" },
           { resource: "clients", action: "edit" },
           { resource: "products", action: "view" },
-          { resource: "serial_numbers", action: "view" }
+          { resource: "serial_numbers", action: "view" },
+          { resource: "subscriptions", action: "view" }
         ]
       },
       sales_manager: {
@@ -2121,8 +2346,11 @@ var init_permissions_service = __esm({
           { resource: "clients", action: "edit" },
           { resource: "products", action: "view" },
           { resource: "payments", action: "view" },
-          { resource: "serial_numbers", action: "view" },
-          { resource: "serial_numbers", action: "edit" }
+          { resource: "serial_numbers", action: "edit" },
+          { resource: "subscriptions", action: "view" },
+          { resource: "subscriptions", action: "create" },
+          { resource: "subscriptions", action: "edit" },
+          { resource: "subscriptions", action: "cancel" }
         ]
       },
       purchase_operations: {
@@ -2160,6 +2388,14 @@ var init_permissions_service = __esm({
           { resource: "invoices", action: "finalize" },
           { resource: "invoices", action: "lock" },
           { resource: "invoices", action: "cancel" },
+          { resource: "credit_notes", action: "view" },
+          { resource: "credit_notes", action: "create" },
+          { resource: "credit_notes", action: "edit" },
+          { resource: "credit_notes", action: "delete" },
+          { resource: "debit_notes", action: "view" },
+          { resource: "debit_notes", action: "create" },
+          { resource: "debit_notes", action: "edit" },
+          { resource: "debit_notes", action: "delete" },
           { resource: "payments", action: "view" },
           { resource: "payments", action: "create" },
           { resource: "payments", action: "edit" },
@@ -2167,7 +2403,11 @@ var init_permissions_service = __esm({
           { resource: "sales_orders", action: "view" },
           { resource: "quotes", action: "view" },
           { resource: "clients", action: "view" },
-          { resource: "serial_numbers", action: "view" }
+          { resource: "serial_numbers", action: "view" },
+          { resource: "subscriptions", action: "view" },
+          { resource: "subscriptions", action: "create" },
+          { resource: "subscriptions", action: "edit" },
+          { resource: "subscriptions", action: "cancel" }
         ]
       },
       viewer: {
@@ -2322,6 +2562,22 @@ var init_feature_flags = __esm({
       invoices_paymentReminders: true,
       invoices_overdueNotifications: true,
       invoices_autoReminders: true,
+      // ==================== CREDIT NOTES ====================
+      creditNotes_module: true,
+      creditNotes_create: true,
+      creditNotes_edit: true,
+      creditNotes_delete: true,
+      creditNotes_issue: true,
+      creditNotes_apply: true,
+      // ==================== DEBIT NOTES ====================
+      debitNotes_module: true,
+      debitNotes_create: true,
+      debitNotes_edit: true,
+      debitNotes_delete: true,
+      debitNotes_issue: true,
+      debitNotes_apply: true,
+      // ==================== SUBSCRIPTIONS ====================
+      subscriptions_module: true,
       // ==================== CLIENT/CRM FEATURES ====================
       clients_module: true,
       clients_create: true,
@@ -2439,6 +2695,7 @@ var init_feature_flags = __esm({
       email_overdueNotifications: false,
       email_vendorPO: false,
       email_templates_module: true,
+      email_subscriptionRenewed: false,
       // ==================== ADMIN & CONFIGURATION ====================
       admin_userManagement: true,
       admin_settings: true,
@@ -2637,6 +2894,46 @@ var init_numbering_service = __esm({
           console.error("Error generating sales order number:", error);
           const counter = Math.floor(Math.random() * 1e4);
           return `SO-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted credit note number
+       * Example: CN-2025-001
+       */
+      static async generateCreditNoteNumber() {
+        try {
+          let formatSetting = await storage.getSetting("creditNoteFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("credit_note_number_format");
+          let prefixSetting = await storage.getSetting("creditNotePrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("credit_note_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "CN";
+          const counter = await this.getAndIncrementCounter("credit_note");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating credit note number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `CN-${String(counter).padStart(4, "0")}`;
+        }
+      }
+      /**
+       * Generate a formatted debit note number
+       * Example: DN-2025-001
+       */
+      static async generateDebitNoteNumber() {
+        try {
+          let formatSetting = await storage.getSetting("debitNoteFormat");
+          if (!formatSetting) formatSetting = await storage.getSetting("debit_note_number_format");
+          let prefixSetting = await storage.getSetting("debitNotePrefix");
+          if (!prefixSetting) prefixSetting = await storage.getSetting("debit_note_prefix");
+          const format = formatSetting?.value || "{PREFIX}-{YEAR}-{COUNTER:04d}";
+          const prefix = prefixSetting?.value || "DN";
+          const counter = await this.getAndIncrementCounter("debit_note");
+          return this.applyFormat(format, prefix, counter);
+        } catch (error) {
+          console.error("Error generating debit note number:", error);
+          const counter = Math.floor(Math.random() * 1e4);
+          return `DN-${String(counter).padStart(4, "0")}`;
         }
       }
       /**
@@ -3879,7 +4176,7 @@ var InvoicePDFService = class _InvoicePDFService {
     for (let idx = 0; idx < items.length; idx++) {
       const it = items[idx];
       const descRaw = String(it.description ?? "").trim();
-      const desc4 = descRaw || "-";
+      const desc6 = descRaw || "-";
       const qty = Number(it.quantity ?? 0);
       const unit = String(it.unit ?? "pcs");
       const rate = Number(it.unitPrice ?? 0);
@@ -3890,7 +4187,7 @@ var InvoicePDFService = class _InvoicePDFService {
       const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
       doc.save();
       doc.font("Helvetica").fontSize(8).fillColor(this.INK);
-      const allDescLines = this.wrapTextLines(doc, desc4, col.desc - 12, 50);
+      const allDescLines = this.wrapTextLines(doc, desc6, col.desc - 12, 50);
       let descLines = allDescLines;
       if (allDescLines.length > this.TABLE_DESC_MAX_LINES) {
         descLines = allDescLines.slice(0, this.TABLE_DESC_MAX_LINES);
@@ -3977,7 +4274,7 @@ var InvoicePDFService = class _InvoicePDFService {
         align: "right",
         lineBreak: false
       });
-      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc4, serials });
+      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc6, serials });
       y += rowH;
     }
     doc.y = y + 8;
@@ -5003,7 +5300,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     for (let idx = 0; idx < items.length; idx++) {
       const it = items[idx];
       const descRaw = String(it.description ?? "").trim();
-      const desc4 = descRaw || "-";
+      const desc6 = descRaw || "-";
       const qty = Number(it.quantity ?? 0);
       const unit = String(it.unit ?? "pcs");
       const rate = Number(it.unitPrice ?? 0);
@@ -5014,7 +5311,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
       doc.save();
       doc.font("Helvetica").fontSize(8).fillColor(this.INK);
-      const descLinesAll = this.wrapTextLines(doc, desc4, col.desc - 12, 30);
+      const descLinesAll = this.wrapTextLines(doc, desc6, col.desc - 12, 30);
       const descLines = descLinesAll;
       const descH = descLines.length * 11;
       let serialLines = [];
@@ -5089,7 +5386,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       doc.strokeColor(this.LINE).lineWidth(0.8);
       doc.moveTo(x0, y + rowH).lineTo(cx.right, y + rowH).stroke();
       doc.restore();
-      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc4, serials });
+      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc6, serials });
       y += rowH;
     }
     doc.y = y + 8;
@@ -5894,6 +6191,45 @@ This link will expire in 1 hour.`
       }
     } catch (error) {
       console.error("Failed to send welcome email:", error);
+    }
+  }
+  static async sendSubscriptionRenewedEmail(to, clientName, planName, invoiceNumber, amount, nextDate) {
+    const htmlContent = `
+      <h2>Subscription Renewed</h2>
+      <p>Hello ${clientName},</p>
+      <p>Your subscription for <strong>${planName}</strong> has been successfully renewed.</p>
+      <p>Order Details:</p>
+      <ul>
+        <li><strong>Invoice:</strong> ${invoiceNumber}</li>
+        <li><strong>Amount:</strong> ${amount}</li>
+        <li><strong>Next Renewal:</strong> ${nextDate.toLocaleDateString()}</li>
+      </ul>
+      <p>Thank you for your business!</p>
+    `;
+    try {
+      if (this.useResend && this.resend) {
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          fromEmail = "onboarding@resend.dev";
+        }
+        await this.resend.emails.send({
+          from: fromEmail,
+          to,
+          subject: `Subscription Renewed: ${planName}`,
+          html: htmlContent
+        });
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
+          to,
+          subject: `Subscription Renewed: ${planName}`,
+          html: htmlContent
+        });
+      }
+      console.log(`[EmailService] Subscription renewal email sent to ${to}`);
+    } catch (error) {
+      console.error("Failed to send subscription renewal email:", error);
     }
   }
 };
@@ -7449,8 +7785,8 @@ init_schema();
 var router4 = Router4();
 router4.get("/", requireFeature("clients_module"), authMiddleware, async (req, res) => {
   try {
-    const clients2 = await storage.getAllClients();
-    res.json(clients2);
+    const clients3 = await storage.getAllClients();
+    res.json(clients3);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch clients" });
   }
@@ -8353,14 +8689,14 @@ var PDFService = class _PDFService {
     const unit = 40;
     const rate = 72;
     const amt = 86;
-    const desc4 = w - (sl + qty + unit + rate + amt);
+    const desc6 = w - (sl + qty + unit + rate + amt);
     const cx = {
       sl: x,
       desc: x + sl,
-      qty: x + sl + desc4,
-      unit: x + sl + desc4 + qty,
-      rate: x + sl + desc4 + qty + unit,
-      amt: x + sl + desc4 + qty + unit + rate,
+      qty: x + sl + desc6,
+      unit: x + sl + desc6 + qty,
+      rate: x + sl + desc6 + qty + unit,
+      amt: x + sl + desc6 + qty + unit + rate,
       right: x + w
     };
     const drawHeader = (yy) => {
@@ -8373,7 +8709,7 @@ var PDFService = class _PDFService {
       doc.restore();
       doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
       doc.text("SL", cx.sl, yy + 7, { width: sl, align: "center", characterSpacing: 0.6, lineBreak: false });
-      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc4 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
+      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc6 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
       doc.text("QTY", cx.qty, yy + 7, { width: qty, align: "center", characterSpacing: 0.6, lineBreak: false });
       doc.text("UNIT", cx.unit, yy + 7, { width: unit, align: "center", characterSpacing: 0.6, lineBreak: false });
       doc.text("RATE", cx.rate, yy + 7, { width: rate - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
@@ -8393,7 +8729,7 @@ var PDFService = class _PDFService {
       const amtVal = Number(it.subtotal ?? qtyVal * rateVal) || 0;
       doc.save();
       doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      const descLines = this.wrapLines(doc, descText, desc4 - 8, 30);
+      const descLines = this.wrapLines(doc, descText, desc6 - 8, 30);
       doc.restore();
       const rowH = Math.max(minRowH, 8 + descLines.length * 11);
       if (y + rowH > this.bottomY() - 6) {
@@ -8418,7 +8754,7 @@ var PDFService = class _PDFService {
       doc.text(String(i + 1), cx.sl, y + 6, { width: sl, align: "center", lineBreak: false });
       let dy = y + 6;
       for (const ln of descLines) {
-        doc.text(ln, cx.desc + 4, dy, { width: desc4 - 8, lineBreak: false });
+        doc.text(ln, cx.desc + 4, dy, { width: desc6 - 8, lineBreak: false });
         dy += 11;
       }
       const midY = y + 6;
@@ -12575,6 +12911,12 @@ router10.get("/numbering/counters", authMiddleware, requireFeature("admin_settin
     if (featureFlags2.sales_orders_module) {
       counters.sales_order = await NumberingService2.getCounter("sales_order", year);
     }
+    if (featureFlags2.creditNotes_module) {
+      counters.credit_note = await NumberingService2.getCounter("credit_note", year);
+    }
+    if (featureFlags2.debitNotes_module) {
+      counters.debit_note = await NumberingService2.getCounter("debit_note", year);
+    }
     return res.json(counters);
   } catch (error) {
     logger.error("Get counters error:", error);
@@ -12590,7 +12932,7 @@ router10.post("/numbering/reset-counter", authMiddleware, requireFeature("admin_
     if (!type) {
       return res.status(400).json({ error: "Counter type is required" });
     }
-    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order", "credit_note", "debit_note"];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: "Invalid counter type" });
     }
@@ -12600,7 +12942,9 @@ router10.post("/numbering/reset-counter", authMiddleware, requireFeature("admin_
       vendor_po: featureFlags2.vendorPO_module,
       invoice: featureFlags2.invoices_module,
       grn: featureFlags2.grn_module,
-      sales_order: featureFlags2.sales_orders_module
+      sales_order: featureFlags2.sales_orders_module,
+      credit_note: featureFlags2.creditNotes_module,
+      debit_note: featureFlags2.debitNotes_module
     };
     if (!featureMap[type]) {
       return res.status(403).json({ error: `Feature for ${type} is not enabled` });
@@ -12637,7 +12981,7 @@ router10.post("/numbering/set-counter", authMiddleware, requireFeature("admin_se
     if (isNaN(numValue) || numValue < 0) {
       return res.status(400).json({ error: "Value must be a non-negative integer" });
     }
-    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order"];
+    const validTypes = ["quote", "vendor_po", "invoice", "grn", "sales_order", "credit_note", "debit_note"];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: "Invalid counter type" });
     }
@@ -12647,7 +12991,9 @@ router10.post("/numbering/set-counter", authMiddleware, requireFeature("admin_se
       vendor_po: featureFlags2.vendorPO_module,
       invoice: featureFlags2.invoices_module,
       grn: featureFlags2.grn_module,
-      sales_order: featureFlags2.sales_orders_module
+      sales_order: featureFlags2.sales_orders_module,
+      credit_note: featureFlags2.creditNotes_module,
+      debit_note: featureFlags2.debitNotes_module
     };
     if (!featureMap[type]) {
       return res.status(403).json({ error: `Feature for ${type} is not enabled` });
@@ -13724,7 +14070,7 @@ var AnalyticsService = class {
   async getCustomReport(params) {
     try {
       let quotes2 = await storage.getAllQuotes();
-      const clients2 = await storage.getAllClients();
+      const clients3 = await storage.getAllClients();
       if (params.startDate) {
         quotes2 = quotes2.filter((q) => new Date(q.createdAt) >= params.startDate);
       }
@@ -13741,7 +14087,7 @@ var AnalyticsService = class {
         quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) <= params.maxAmount);
       }
       return quotes2.map((q) => {
-        const client = clients2.find((c) => c.id === q.clientId);
+        const client = clients3.find((c) => c.id === q.clientId);
         return {
           quoteNumber: q.quoteNumber,
           clientName: client?.name || "Unknown",
@@ -13875,10 +14221,10 @@ var router14 = Router14();
 router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
   try {
     const quotes2 = await storage.getAllQuotes();
-    const clients2 = await storage.getAllClients();
+    const clients3 = await storage.getAllClients();
     const invoices2 = await storage.getAllInvoices();
     const totalQuotes = quotes2.length;
-    const totalClients = clients2.length;
+    const totalClients = clients3.length;
     const safeToNum = (val) => {
       if (typeof val === "number") return val;
       if (!val) return 0;
@@ -13901,7 +14247,7 @@ router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), a
         };
       })
     );
-    const clientMap = new Map(clients2.map((c) => [c.id, c]));
+    const clientMap = new Map(clients3.map((c) => [c.id, c]));
     const clientRevenue = /* @__PURE__ */ new Map();
     for (const inv of invoices2) {
       if (!inv.clientId) continue;
@@ -13967,7 +14313,7 @@ router14.get("/:timeRange(\\d+)", authMiddleware, requireFeature("analytics_modu
   try {
     const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
     const quotes2 = await storage.getAllQuotes();
-    const clients2 = await storage.getAllClients();
+    const clients3 = await storage.getAllClients();
     const cutoffDate = /* @__PURE__ */ new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
     const filteredQuotes = quotes2.filter((q) => new Date(q.createdAt) >= cutoffDate);
@@ -15393,6 +15739,1148 @@ router17.delete("/:entityType/:entityId/leave", authMiddleware, async (req, res)
 });
 var collaborationRoutes = router17;
 
+// server/routes/credit-notes.routes.ts
+import { Router as Router18 } from "express";
+init_logger();
+init_db();
+init_schema();
+init_numbering_service();
+import { eq as eq16, desc as desc4 } from "drizzle-orm";
+var router18 = Router18();
+router18.get("/credit-notes", authMiddleware, requireFeature("creditNotes_module"), async (req, res) => {
+  try {
+    const creditNotes2 = await db.select().from(creditNotes).leftJoin(invoices, eq16(creditNotes.invoiceId, invoices.id)).leftJoin(clients, eq16(creditNotes.clientId, clients.id)).leftJoin(users, eq16(creditNotes.createdBy, users.id)).orderBy(desc4(creditNotes.createdAt));
+    const formattedNotes = creditNotes2.map((row) => ({
+      ...row.credit_notes,
+      invoice: row.invoices ? {
+        id: row.invoices.id,
+        invoiceNumber: row.invoices.invoiceNumber
+      } : null,
+      client: row.clients ? {
+        id: row.clients.id,
+        name: row.clients.name,
+        email: row.clients.email
+      } : null,
+      createdByUser: row.users ? {
+        id: row.users.id,
+        name: row.users.name
+      } : null
+    }));
+    return res.json(formattedNotes);
+  } catch (error) {
+    logger.error("Get credit notes error:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch credit notes" });
+  }
+});
+router18.get("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_module"), async (req, res) => {
+  try {
+    const [creditNote] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    if (!creditNote) {
+      return res.status(404).json({ error: "Credit note not found" });
+    }
+    const items = await db.select().from(creditNoteItems).where(eq16(creditNoteItems.creditNoteId, req.params.id)).orderBy(creditNoteItems.sortOrder);
+    let invoice = null;
+    if (creditNote.invoiceId) {
+      const [foundInvoice] = await db.select().from(invoices).where(eq16(invoices.id, creditNote.invoiceId));
+      invoice = foundInvoice || null;
+    }
+    const [client] = await db.select().from(clients).where(eq16(clients.id, creditNote.clientId));
+    const [creator] = await db.select().from(users).where(eq16(users.id, creditNote.createdBy));
+    return res.json({
+      ...creditNote,
+      items,
+      invoice: invoice ? {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        total: invoice.total,
+        paidAmount: invoice.paidAmount,
+        paymentStatus: invoice.paymentStatus
+      } : null,
+      client: client ? {
+        id: client.id,
+        name: client.name,
+        email: client.email
+      } : null,
+      createdByUser: creator ? {
+        id: creator.id,
+        name: creator.name
+      } : null
+    });
+  } catch (error) {
+    logger.error("Get credit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch credit note" });
+  }
+});
+router18.get("/invoices/:invoiceId/credit-notes", authMiddleware, requireFeature("creditNotes_module"), async (req, res) => {
+  try {
+    const creditNotes2 = await db.select().from(creditNotes).where(eq16(creditNotes.invoiceId, req.params.invoiceId)).orderBy(desc4(creditNotes.createdAt));
+    return res.json(creditNotes2);
+  } catch (error) {
+    logger.error("Get invoice credit notes error:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch credit notes" });
+  }
+});
+router18.post("/credit-notes", authMiddleware, requireFeature("creditNotes_create"), requirePermission("credit_notes", "create"), async (req, res) => {
+  try {
+    const { invoiceId, clientId: directClientId, reason, items, notes, currency = "INR", cgst = "0", sgst = "0", igst = "0" } = req.body;
+    if (!reason || !items || items.length === 0) {
+      return res.status(400).json({ error: "Reason and at least one item are required" });
+    }
+    let resolvedClientId;
+    let invoice = null;
+    if (invoiceId) {
+      const [foundInvoice] = await db.select().from(invoices).where(eq16(invoices.id, invoiceId));
+      if (!foundInvoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      invoice = foundInvoice;
+      resolvedClientId = invoice.clientId;
+    } else if (directClientId) {
+      const [client] = await db.select().from(clients).where(eq16(clients.id, directClientId));
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+      resolvedClientId = directClientId;
+    } else {
+      return res.status(400).json({ error: "Either invoiceId or clientId is required" });
+    }
+    const creditNoteNumber = await NumberingService.generateCreditNoteNumber();
+    let subtotal = toDecimal(0);
+    for (const item of items) {
+      const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+      subtotal = subtotal.plus(itemSubtotal);
+    }
+    const total = subtotal.plus(toDecimal(cgst)).plus(toDecimal(sgst)).plus(toDecimal(igst));
+    const result = await db.transaction(async (tx) => {
+      const [creditNote] = await tx.insert(creditNotes).values({
+        creditNoteNumber,
+        invoiceId: invoiceId || null,
+        clientId: resolvedClientId,
+        status: "draft",
+        issueDate: /* @__PURE__ */ new Date(),
+        reason,
+        currency,
+        subtotal: toMoneyString(subtotal),
+        cgst,
+        sgst,
+        igst,
+        total: toMoneyString(total),
+        notes,
+        createdBy: req.user.id
+      }).returning();
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+        await tx.insert(creditNoteItems).values({
+          creditNoteId: creditNote.id,
+          productId: item.productId || null,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: String(item.unitPrice),
+          subtotal: toMoneyString(itemSubtotal),
+          hsnSac: item.hsnSac || null,
+          sortOrder: i
+        });
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "create_credit_note",
+        entityType: "credit_note",
+        entityId: creditNote.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return creditNote;
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    logger.error("Create credit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to create credit note" });
+  }
+});
+router18.put("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_edit"), requirePermission("credit_notes", "edit"), async (req, res) => {
+  try {
+    const { reason, items, notes, cgst = "0", sgst = "0", igst = "0", invoiceId } = req.body;
+    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Credit note not found" });
+    }
+    if (existing.status !== "draft") {
+      return res.status(400).json({ error: "Only draft credit notes can be edited" });
+    }
+    let subtotal = toDecimal(0);
+    if (items) {
+      for (const item of items) {
+        const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+        subtotal = subtotal.plus(itemSubtotal);
+      }
+    }
+    let finalInvoiceId = existing.invoiceId;
+    if (invoiceId !== void 0) {
+      if (invoiceId === null) {
+        finalInvoiceId = null;
+      } else {
+        const [targetInvoice] = await db.select().from(invoices).where(eq16(invoices.id, invoiceId));
+        if (!targetInvoice) {
+          return res.status(404).json({ error: "Target invoice not found" });
+        }
+        if (targetInvoice.clientId !== existing.clientId) {
+          return res.status(400).json({ error: "Target invoice must belong to the same client" });
+        }
+        finalInvoiceId = invoiceId;
+      }
+    }
+    const total = subtotal.plus(toDecimal(cgst)).plus(toDecimal(sgst)).plus(toDecimal(igst));
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(creditNotes).set({
+        reason: reason || existing.reason,
+        invoiceId: finalInvoiceId,
+        notes: notes !== void 0 ? notes : existing.notes,
+        cgst,
+        sgst,
+        igst,
+        subtotal: toMoneyString(subtotal),
+        total: toMoneyString(total),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      if (items) {
+        await tx.delete(creditNoteItems).where(eq16(creditNoteItems.creditNoteId, req.params.id));
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+          await tx.insert(creditNoteItems).values({
+            creditNoteId: req.params.id,
+            productId: item.productId || null,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: String(item.unitPrice),
+            subtotal: toMoneyString(itemSubtotal),
+            hsnSac: item.hsnSac || null,
+            sortOrder: i
+          });
+        }
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_credit_note",
+        entityType: "credit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updated;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Update credit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update credit note" });
+  }
+});
+router18.delete("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_delete"), requirePermission("credit_notes", "delete"), async (req, res) => {
+  try {
+    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Credit note not found" });
+    }
+    if (existing.status !== "draft") {
+      return res.status(400).json({ error: "Only draft credit notes can be deleted" });
+    }
+    await db.transaction(async (tx) => {
+      await tx.delete(creditNoteItems).where(eq16(creditNoteItems.creditNoteId, req.params.id));
+      await tx.delete(creditNotes).where(eq16(creditNotes.id, req.params.id));
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "delete_credit_note",
+        entityType: "credit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Delete credit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete credit note" });
+  }
+});
+router18.post("/credit-notes/:id/issue", authMiddleware, requireFeature("creditNotes_issue"), requirePermission("credit_notes", "edit"), async (req, res) => {
+  try {
+    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Credit note not found" });
+    }
+    if (existing.status !== "draft") {
+      return res.status(400).json({ error: "Credit note has already been issued" });
+    }
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(creditNotes).set({
+        status: "issued",
+        issueDate: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "issue_credit_note",
+        entityType: "credit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updated;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Issue credit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to issue credit note" });
+  }
+});
+router18.post("/credit-notes/:id/apply", authMiddleware, requireFeature("creditNotes_apply"), requirePermission("credit_notes", "edit"), async (req, res) => {
+  try {
+    const [creditNote] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    if (!creditNote) {
+      return res.status(404).json({ error: "Credit note not found" });
+    }
+    if (creditNote.status !== "issued") {
+      return res.status(400).json({ error: "Credit note must be issued before applying" });
+    }
+    if (!creditNote.invoiceId) {
+      return res.status(400).json({ error: "Cannot apply a standalone credit note without an invoice" });
+    }
+    const [invoice] = await db.select().from(invoices).where(eq16(invoices.id, creditNote.invoiceId));
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const creditAmount = toDecimal(creditNote.total);
+    const currentPaid = toDecimal(invoice.paidAmount);
+    const invoiceTotal = toDecimal(invoice.total);
+    const newPaidAmount = currentPaid.plus(creditAmount);
+    const newRemainingAmount = invoiceTotal.minus(newPaidAmount);
+    let newPaymentStatus = invoice.paymentStatus || "pending";
+    if (moneyGte(newPaidAmount, invoiceTotal)) {
+      newPaymentStatus = "paid";
+    } else if (moneyGt(newPaidAmount, 0)) {
+      newPaymentStatus = "partial";
+    }
+    const result = await db.transaction(async (tx) => {
+      const [updatedCreditNote] = await tx.update(creditNotes).set({
+        status: "applied",
+        appliedAmount: creditNote.total,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      await tx.update(invoices).set({
+        paidAmount: toMoneyString(newPaidAmount),
+        remainingAmount: toMoneyString(newRemainingAmount.isNegative() ? toDecimal(0) : newRemainingAmount),
+        paymentStatus: newPaymentStatus,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq16(invoices.id, creditNote.invoiceId));
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "apply_credit_note",
+        entityType: "credit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updatedCreditNote;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Apply credit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to apply credit note" });
+  }
+});
+router18.post("/credit-notes/:id/cancel", authMiddleware, requireFeature("creditNotes_edit"), requirePermission("credit_notes", "edit"), async (req, res) => {
+  try {
+    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Credit note not found" });
+    }
+    if (existing.status === "applied") {
+      return res.status(400).json({ error: "Applied credit notes cannot be cancelled" });
+    }
+    if (existing.status === "cancelled") {
+      return res.status(400).json({ error: "Credit note is already cancelled" });
+    }
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(creditNotes).set({
+        status: "cancelled",
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "cancel_credit_note",
+        entityType: "credit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updated;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Cancel credit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to cancel credit note" });
+  }
+});
+var credit_notes_routes_default = router18;
+
+// server/routes/debit-notes.routes.ts
+import { Router as Router19 } from "express";
+init_logger();
+init_db();
+init_schema();
+init_numbering_service();
+import { eq as eq17, desc as desc5 } from "drizzle-orm";
+var router19 = Router19();
+router19.get("/debit-notes", authMiddleware, requireFeature("debitNotes_module"), async (req, res) => {
+  try {
+    const debitNotes2 = await db.select().from(debitNotes).leftJoin(invoices, eq17(debitNotes.invoiceId, invoices.id)).leftJoin(clients, eq17(debitNotes.clientId, clients.id)).leftJoin(users, eq17(debitNotes.createdBy, users.id)).orderBy(desc5(debitNotes.createdAt));
+    const formattedNotes = debitNotes2.map((row) => ({
+      ...row.debit_notes,
+      invoice: row.invoices ? {
+        id: row.invoices.id,
+        invoiceNumber: row.invoices.invoiceNumber
+      } : null,
+      client: row.clients ? {
+        id: row.clients.id,
+        name: row.clients.name,
+        email: row.clients.email
+      } : null,
+      createdByUser: row.users ? {
+        id: row.users.id,
+        name: row.users.name
+      } : null
+    }));
+    return res.json(formattedNotes);
+  } catch (error) {
+    logger.error("Get debit notes error:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch debit notes" });
+  }
+});
+router19.get("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_module"), async (req, res) => {
+  try {
+    const [debitNote] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    if (!debitNote) {
+      return res.status(404).json({ error: "Debit note not found" });
+    }
+    const items = await db.select().from(debitNoteItems).where(eq17(debitNoteItems.debitNoteId, req.params.id)).orderBy(debitNoteItems.sortOrder);
+    let invoice = null;
+    if (debitNote.invoiceId) {
+      const [foundInvoice] = await db.select().from(invoices).where(eq17(invoices.id, debitNote.invoiceId));
+      invoice = foundInvoice || null;
+    }
+    const [client] = await db.select().from(clients).where(eq17(clients.id, debitNote.clientId));
+    const [creator] = await db.select().from(users).where(eq17(users.id, debitNote.createdBy));
+    return res.json({
+      ...debitNote,
+      items,
+      invoice: invoice ? {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        total: invoice.total,
+        paidAmount: invoice.paidAmount,
+        paymentStatus: invoice.paymentStatus
+      } : null,
+      client: client ? {
+        id: client.id,
+        name: client.name,
+        email: client.email
+      } : null,
+      createdByUser: creator ? {
+        id: creator.id,
+        name: creator.name
+      } : null
+    });
+  } catch (error) {
+    logger.error("Get debit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch debit note" });
+  }
+});
+router19.get("/invoices/:invoiceId/debit-notes", authMiddleware, requireFeature("debitNotes_module"), async (req, res) => {
+  try {
+    const debitNotes2 = await db.select().from(debitNotes).where(eq17(debitNotes.invoiceId, req.params.invoiceId)).orderBy(desc5(debitNotes.createdAt));
+    return res.json(debitNotes2);
+  } catch (error) {
+    logger.error("Get invoice debit notes error:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch debit notes" });
+  }
+});
+router19.post("/debit-notes", authMiddleware, requireFeature("debitNotes_create"), requirePermission("debit_notes", "create"), async (req, res) => {
+  try {
+    const { invoiceId, reason, items, notes, currency = "INR", cgst = "0", sgst = "0", igst = "0" } = req.body;
+    if (!reason || !items || items.length === 0) {
+      return res.status(400).json({ error: "Reason and at least one item are required" });
+    }
+    let resolvedClientId;
+    let invoice = null;
+    if (invoiceId) {
+      const [foundInvoice] = await db.select().from(invoices).where(eq17(invoices.id, invoiceId));
+      if (!foundInvoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      invoice = foundInvoice;
+      resolvedClientId = invoice.clientId;
+    } else if (req.body.clientId) {
+      const [client] = await db.select().from(clients).where(eq17(clients.id, req.body.clientId));
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+      resolvedClientId = req.body.clientId;
+    } else {
+      return res.status(400).json({ error: "Either invoiceId or clientId is required" });
+    }
+    const debitNoteNumber = await NumberingService.generateDebitNoteNumber();
+    let subtotal = toDecimal(0);
+    for (const item of items) {
+      const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+      subtotal = subtotal.plus(itemSubtotal);
+    }
+    const total = subtotal.plus(toDecimal(cgst)).plus(toDecimal(sgst)).plus(toDecimal(igst));
+    const result = await db.transaction(async (tx) => {
+      const [debitNote] = await tx.insert(debitNotes).values({
+        debitNoteNumber,
+        invoiceId: invoiceId || null,
+        clientId: resolvedClientId,
+        status: "draft",
+        issueDate: /* @__PURE__ */ new Date(),
+        reason,
+        currency,
+        subtotal: toMoneyString(subtotal),
+        cgst,
+        sgst,
+        igst,
+        total: toMoneyString(total),
+        notes,
+        createdBy: req.user.id
+      }).returning();
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+        await tx.insert(debitNoteItems).values({
+          debitNoteId: debitNote.id,
+          productId: item.productId || null,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: String(item.unitPrice),
+          subtotal: toMoneyString(itemSubtotal),
+          hsnSac: item.hsnSac || null,
+          sortOrder: i
+        });
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "create_debit_note",
+        entityType: "debit_note",
+        entityId: debitNote.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return debitNote;
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    logger.error("Create debit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to create debit note" });
+  }
+});
+router19.put("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_edit"), requirePermission("debit_notes", "edit"), async (req, res) => {
+  try {
+    const { reason, items, notes, cgst = "0", sgst = "0", igst = "0", invoiceId } = req.body;
+    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Debit note not found" });
+    }
+    if (existing.status !== "draft") {
+      return res.status(400).json({ error: "Only draft debit notes can be edited" });
+    }
+    let subtotal = toDecimal(0);
+    if (items) {
+      for (const item of items) {
+        const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+        subtotal = subtotal.plus(itemSubtotal);
+      }
+    }
+    let finalInvoiceId = existing.invoiceId;
+    if (invoiceId !== void 0) {
+      if (invoiceId === null) {
+        finalInvoiceId = null;
+      } else {
+        const [targetInvoice] = await db.select().from(invoices).where(eq17(invoices.id, invoiceId));
+        if (!targetInvoice) {
+          return res.status(404).json({ error: "Target invoice not found" });
+        }
+        if (targetInvoice.clientId !== existing.clientId) {
+          return res.status(400).json({ error: "Target invoice must belong to the same client" });
+        }
+        finalInvoiceId = invoiceId;
+      }
+    }
+    const total = subtotal.plus(toDecimal(cgst)).plus(toDecimal(sgst)).plus(toDecimal(igst));
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(debitNotes).set({
+        reason: reason || existing.reason,
+        invoiceId: finalInvoiceId,
+        notes: notes !== void 0 ? notes : existing.notes,
+        cgst,
+        sgst,
+        igst,
+        subtotal: toMoneyString(subtotal),
+        total: toMoneyString(total),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      if (items) {
+        await tx.delete(debitNoteItems).where(eq17(debitNoteItems.debitNoteId, req.params.id));
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
+          await tx.insert(debitNoteItems).values({
+            debitNoteId: req.params.id,
+            productId: item.productId || null,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: String(item.unitPrice),
+            subtotal: toMoneyString(itemSubtotal),
+            hsnSac: item.hsnSac || null,
+            sortOrder: i
+          });
+        }
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_debit_note",
+        entityType: "debit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updated;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Update debit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update debit note" });
+  }
+});
+router19.delete("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_delete"), requirePermission("debit_notes", "delete"), async (req, res) => {
+  try {
+    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Debit note not found" });
+    }
+    if (existing.status !== "draft") {
+      return res.status(400).json({ error: "Only draft debit notes can be deleted" });
+    }
+    await db.transaction(async (tx) => {
+      await tx.delete(debitNoteItems).where(eq17(debitNoteItems.debitNoteId, req.params.id));
+      await tx.delete(debitNotes).where(eq17(debitNotes.id, req.params.id));
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "delete_debit_note",
+        entityType: "debit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Delete debit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete debit note" });
+  }
+});
+router19.post("/debit-notes/:id/issue", authMiddleware, requireFeature("debitNotes_issue"), requirePermission("debit_notes", "edit"), async (req, res) => {
+  try {
+    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Debit note not found" });
+    }
+    if (existing.status !== "draft") {
+      return res.status(400).json({ error: "Debit note has already been issued" });
+    }
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(debitNotes).set({
+        status: "issued",
+        issueDate: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "issue_debit_note",
+        entityType: "debit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updated;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Issue debit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to issue debit note" });
+  }
+});
+router19.post("/debit-notes/:id/apply", authMiddleware, requireFeature("debitNotes_apply"), requirePermission("debit_notes", "edit"), async (req, res) => {
+  try {
+    const [debitNote] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    if (!debitNote) {
+      return res.status(404).json({ error: "Debit note not found" });
+    }
+    if (debitNote.status !== "issued") {
+      return res.status(400).json({ error: "Debit note must be issued before applying" });
+    }
+    if (!debitNote.invoiceId) {
+      return res.status(400).json({ error: "Cannot apply a standalone debit note without an invoice" });
+    }
+    const [invoice] = await db.select().from(invoices).where(eq17(invoices.id, debitNote.invoiceId));
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const debitAmount = toDecimal(debitNote.total);
+    const invoiceTotal = toDecimal(invoice.total);
+    const currentPaid = toDecimal(invoice.paidAmount);
+    const newInvoiceTotal = invoiceTotal.plus(debitAmount);
+    const newRemainingAmount = newInvoiceTotal.minus(currentPaid);
+    let newPaymentStatus = invoice.paymentStatus || "pending";
+    if (moneyGte(currentPaid, newInvoiceTotal)) {
+      newPaymentStatus = "paid";
+    } else if (moneyGt(currentPaid, 0)) {
+      newPaymentStatus = "partial";
+    } else {
+      newPaymentStatus = "pending";
+    }
+    const result = await db.transaction(async (tx) => {
+      const [updatedDebitNote] = await tx.update(debitNotes).set({
+        status: "applied",
+        appliedAmount: debitNote.total,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      await tx.update(invoices).set({
+        total: toMoneyString(newInvoiceTotal),
+        remainingAmount: toMoneyString(newRemainingAmount),
+        paymentStatus: newPaymentStatus,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq17(invoices.id, debitNote.invoiceId));
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "apply_debit_note",
+        entityType: "debit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updatedDebitNote;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Apply debit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to apply debit note" });
+  }
+});
+router19.post("/debit-notes/:id/cancel", authMiddleware, requireFeature("debitNotes_edit"), requirePermission("debit_notes", "edit"), async (req, res) => {
+  try {
+    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    if (!existing) {
+      return res.status(404).json({ error: "Debit note not found" });
+    }
+    if (existing.status === "applied") {
+      return res.status(400).json({ error: "Applied debit notes cannot be cancelled" });
+    }
+    if (existing.status === "cancelled") {
+      return res.status(400).json({ error: "Debit note is already cancelled" });
+    }
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(debitNotes).set({
+        status: "cancelled",
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "cancel_debit_note",
+        entityType: "debit_note",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updated;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Cancel debit note error:", error);
+    return res.status(500).json({ error: error.message || "Failed to cancel debit note" });
+  }
+});
+var debit_notes_routes_default = router19;
+
+// server/routes/subscriptions.routes.ts
+import { Router as Router20 } from "express";
+init_logger();
+
+// server/services/subscription.service.ts
+init_db();
+init_schema();
+init_numbering_service();
+init_logger();
+import { eq as eq18, and as and10, lte } from "drizzle-orm";
+import { addMonths, addYears, startOfDay, differenceInDays } from "date-fns";
+init_feature_flags();
+var SubscriptionService = class {
+  /**
+   * Get all subscriptions
+   */
+  static async getAllSubscriptions() {
+    return await db.query.subscriptions.findMany({
+      with: {
+        client: true
+      },
+      orderBy: (subscriptions2, { desc: desc6 }) => [desc6(subscriptions2.createdAt)]
+    });
+  }
+  /**
+   * Get subscription by ID
+   */
+  static async getSubscriptionById(id) {
+    return await db.query.subscriptions.findFirst({
+      where: eq18(subscriptions.id, id),
+      with: {
+        client: true,
+        invoices: {
+          orderBy: (invoices2, { desc: desc6 }) => [desc6(invoices2.issueDate)]
+        }
+      }
+    });
+  }
+  /**
+   * Create a new subscription
+   */
+  static async createSubscription(data, userId) {
+    const year = (/* @__PURE__ */ new Date()).getFullYear();
+    const subNumber = `SUB-${year}-${Math.floor(Math.random() * 1e4).toString().padStart(4, "0")}`;
+    console.log(`[SubscriptionService] Creating subscription. Payload:`, JSON.stringify(data, null, 2));
+    const startDate = new Date(data.startDate);
+    console.log(`[SubscriptionService] Parsed Start Date: ${startDate.toISOString()}`);
+    const [newSubscription] = await db.insert(subscriptions).values({
+      clientId: data.clientId,
+      planName: data.planName,
+      billingCycle: data.billingCycle,
+      startDate,
+      nextBillingDate: startDate,
+      amount: data.amount,
+      // Ensure decimal/string format is handled by driver
+      currency: data.currency,
+      itemsSnapshot: data.itemsSnapshot,
+      notes: data.notes,
+      autoRenew: data.autoRenew !== void 0 ? data.autoRenew : true,
+      subscriptionNumber: subNumber,
+      status: "active",
+      createdBy: userId
+    }).returning();
+    if (newSubscription.status === "active" && newSubscription.nextBillingDate <= /* @__PURE__ */ new Date()) {
+      logger.info(`[SubscriptionService] New subscription ${newSubscription.id} starts in past/today. Processing immediate renewal.`);
+      const subWithClient = await db.query.subscriptions.findFirst({
+        where: eq18(subscriptions.id, newSubscription.id),
+        with: { client: true }
+      });
+      if (subWithClient) {
+        await this.processSubscriptionRenewal(subWithClient);
+      }
+    }
+    return newSubscription;
+  }
+  /**
+   * Update subscription
+   */
+  static async updateSubscription(id, data) {
+    const [updated] = await db.update(subscriptions).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq18(subscriptions.id, id)).returning();
+    return updated;
+  }
+  /**
+   * Cancel subscription
+   */
+  static async cancelSubscription(id) {
+    const [updated] = await db.update(subscriptions).set({ status: "cancelled", autoRenew: false, updatedAt: /* @__PURE__ */ new Date() }).where(eq18(subscriptions.id, id)).returning();
+    return updated;
+  }
+  /**
+   * Process due subscriptions and generate invoices
+   */
+  static async processDueSubscriptions() {
+    const today = startOfDay(/* @__PURE__ */ new Date());
+    const dueSubscriptions = await db.query.subscriptions.findMany({
+      where: and10(
+        eq18(subscriptions.status, "active"),
+        lte(subscriptions.nextBillingDate, today)
+      ),
+      with: {
+        client: true
+      }
+    });
+    logger.info(`[SubscriptionService] Found ${dueSubscriptions.length} due subscriptions.`);
+    const results = [];
+    for (const sub of dueSubscriptions) {
+      const result = await this.processSubscriptionRenewal(sub);
+      results.push(result);
+    }
+    return results;
+  }
+  /**
+   * Process subscription renewal(s) until up to date
+   */
+  static async processSubscriptionRenewal(sub) {
+    const MAX_CYCLES = 12;
+    let cyclesProcessed = 0;
+    let currentNextBilling = new Date(sub.nextBillingDate);
+    const today = startOfDay(/* @__PURE__ */ new Date());
+    const results = [];
+    while (currentNextBilling <= today && cyclesProcessed < MAX_CYCLES) {
+      cyclesProcessed++;
+      try {
+        console.log(`[SubscriptionService] Processing renewal cycle #${cyclesProcessed} for ${sub.id}. Current Billing: ${currentNextBilling.toISOString()}`);
+        const invoice = await this.generateInvoiceForSubscription(sub);
+        const nextDate = this.calculateNextBillingDate(currentNextBilling, sub.billingCycle);
+        console.log(`[SubscriptionService] New Next Date: ${nextDate.toISOString()}`);
+        await db.update(subscriptions).set({
+          nextBillingDate: nextDate,
+          lastInvoiceDate: /* @__PURE__ */ new Date(),
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq18(subscriptions.id, sub.id));
+        if (isFeatureEnabled("email_subscriptionRenewed")) {
+          if (sub.client && sub.client.email) {
+            await EmailService.sendSubscriptionRenewedEmail(
+              sub.client.email,
+              sub.client.name,
+              sub.planName,
+              invoice.invoiceNumber,
+              `${sub.currency} ${sub.amount}`,
+              nextDate
+            );
+          }
+        }
+        results.push({ subscriptionId: sub.id, invoiceId: invoice.id, status: "success", billingDate: currentNextBilling });
+        currentNextBilling = nextDate;
+      } catch (error) {
+        logger.error(`[SubscriptionService] Failed to process subscription ${sub.id} cycle ${cyclesProcessed}:`, error);
+        return { subscriptionId: sub.id, error: error.message, status: "failed" };
+      }
+    }
+    if (cyclesProcessed >= MAX_CYCLES) {
+      logger.warn(`[SubscriptionService] Hit max renewal cycles (${MAX_CYCLES}) for ${sub.id}. Stopping catch-up.`);
+    }
+    return { subscriptionId: sub.id, processedcount: results.length, status: "success", details: results };
+  }
+  /**
+   * Generate Invoice for a Subscription
+   */
+  static async generateInvoiceForSubscription(sub) {
+    logger.info(`[SubscriptionService] Generating invoice for subscription ${sub.id}`);
+    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+    const items = JSON.parse(sub.itemsSnapshot || "[]");
+    const [newInvoice] = await db.insert(invoices).values({
+      invoiceNumber,
+      clientId: sub.clientId,
+      subscriptionId: sub.id,
+      status: "draft",
+      // Auto-draft? Or sent? Usually draft for review or auto-send.
+      issueDate: /* @__PURE__ */ new Date(),
+      dueDate: addMonths(/* @__PURE__ */ new Date(), 1),
+      // Default net 30?
+      currency: sub.currency,
+      subtotal: sub.amount.toString(),
+      // Assuming amount is subtotal? Or total? 
+      // Simplified: amount is total for now, logic below
+      total: sub.amount.toString(),
+      notes: `Recurring invoice for ${sub.planName} (${sub.billingCycle})`,
+      createdBy: sub.createdBy
+      // Attributed to creator of sub? Or system?
+    }).returning();
+    if (items.length > 0) {
+      for (const item of items) {
+        const itemSubtotal = item.subtotal || (Number(item.quantity) * Number(item.unitPrice)).toString();
+        await db.insert(invoiceItems).values({
+          invoiceId: newInvoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice.toString(),
+          subtotal: itemSubtotal
+          // ... other fields
+        });
+      }
+    }
+    return newInvoice;
+  }
+  /**
+   * Calculate Proration for plan change
+   */
+  static calculateProration(currentAmount, newAmount, nextBillingDate, billingCycle) {
+    const today = startOfDay(/* @__PURE__ */ new Date());
+    const daysRemaining = differenceInDays(new Date(nextBillingDate), today);
+    if (daysRemaining <= 0) return { amount: 0, description: "No proration needed" };
+    let totalDays = 30;
+    if (billingCycle === "quarterly") totalDays = 90;
+    if (billingCycle === "annually") totalDays = 365;
+    const oldDailyRate = currentAmount / totalDays;
+    const newDailyRate = newAmount / totalDays;
+    const adjustment = (newDailyRate - oldDailyRate) * daysRemaining;
+    return {
+      amount: parseFloat(adjustment.toFixed(2)),
+      daysRemaining,
+      description: `Proration for ${daysRemaining} remaining days`
+    };
+  }
+  /**
+   * Helper: Calculate next billing date
+   */
+  static calculateNextBillingDate(currentDate, cycle) {
+    const date = new Date(currentDate);
+    switch (cycle) {
+      case "monthly":
+        return addMonths(date, 1);
+      case "quarterly":
+        return addMonths(date, 3);
+      case "annually":
+        return addYears(date, 1);
+      default:
+        return addMonths(date, 1);
+    }
+  }
+};
+
+// server/routes/subscriptions.routes.ts
+init_numbering_service();
+init_db();
+init_schema();
+import { eq as eq19 } from "drizzle-orm";
+var router20 = Router20();
+router20.get("/subscriptions", authMiddleware, requireFeature("subscriptions_module"), async (req, res) => {
+  try {
+    const subs = await SubscriptionService.getAllSubscriptions();
+    return res.json(subs);
+  } catch (error) {
+    logger.error("Error fetching subscriptions:", error);
+    return res.status(500).json({ error: "Failed to fetch subscriptions" });
+  }
+});
+router20.post("/subscriptions", authMiddleware, requireFeature("subscriptions_module"), async (req, res) => {
+  try {
+    const sub = await SubscriptionService.createSubscription(req.body, req.user.id);
+    return res.status(201).json(sub);
+  } catch (error) {
+    logger.error("Error creating subscription:", error);
+    return res.status(500).json({ error: "Failed to create subscription" });
+  }
+});
+router20.get("/subscriptions/:id", authMiddleware, requireFeature("subscriptions_module"), async (req, res) => {
+  try {
+    const sub = await SubscriptionService.getSubscriptionById(req.params.id);
+    if (!sub) {
+      return res.status(404).json({ error: "Subscription not found" });
+    }
+    return res.json(sub);
+  } catch (error) {
+    logger.error("Error fetching subscription:", error);
+    return res.status(500).json({ error: "Failed to fetch subscription" });
+  }
+});
+router20.post("/subscriptions/:id/preview-update", authMiddleware, requireFeature("subscriptions_module"), async (req, res) => {
+  try {
+    const { amount, billingCycle } = req.body;
+    const subscription = await SubscriptionService.getSubscriptionById(req.params.id);
+    if (!subscription) {
+      return res.status(404).json({ error: "Subscription not found" });
+    }
+    if (subscription.status !== "active") {
+      return res.json({ amount: 0, description: "Subscription not active", daysRemaining: 0 });
+    }
+    const proration = SubscriptionService.calculateProration(
+      parseFloat(subscription.amount),
+      parseFloat(amount),
+      new Date(subscription.nextBillingDate),
+      subscription.billingCycle
+      // Use current cycle for calc comparison
+    );
+    return res.json(proration);
+  } catch (error) {
+    logger.error("Preview subscription update error:", error);
+    return res.status(500).json({ error: error.message || "Failed to preview update" });
+  }
+});
+router20.put("/subscriptions/:id", authMiddleware, requireFeature("subscriptions_module"), requirePermission("subscriptions", "edit"), async (req, res) => {
+  try {
+    const { planName, billingCycle, startDate, amount, currency, autoRenew, itemsSnapshot, notes, applyProration } = req.body;
+    const existing = await SubscriptionService.getSubscriptionById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: "Subscription not found" });
+    }
+    const result = await db.transaction(async (tx) => {
+      if (applyProration && existing.status === "active") {
+        const proration = SubscriptionService.calculateProration(
+          parseFloat(existing.amount),
+          parseFloat(amount),
+          new Date(existing.nextBillingDate),
+          existing.billingCycle
+        );
+        if (proration.amount !== 0) {
+          if (proration.amount > 0) {
+            const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+            const [invoice] = await tx.insert(invoices).values({
+              invoiceNumber,
+              clientId: existing.clientId,
+              subscriptionId: existing.id,
+              status: "draft",
+              issueDate: /* @__PURE__ */ new Date(),
+              dueDate: /* @__PURE__ */ new Date(),
+              // Immediate
+              currency: currency || existing.currency,
+              subtotal: toMoneyString(proration.amount),
+              total: toMoneyString(proration.amount),
+              notes: `Proration charge for plan change: ${proration.description}`,
+              createdBy: req.user.id
+            }).returning();
+            await tx.insert(invoiceItems).values({
+              invoiceId: invoice.id,
+              description: `Proration Adjustment (${proration.description})`,
+              quantity: 1,
+              unitPrice: proration.amount.toString(),
+              subtotal: proration.amount.toString()
+            });
+          } else {
+            const creditAmount = Math.abs(proration.amount);
+            const currentCredit = parseFloat(existing.prorataCredit || "0");
+            await tx.update(subscriptions).set({
+              prorataCredit: (currentCredit + creditAmount).toString(),
+              notes: (existing.notes || "") + `
+[${(/* @__PURE__ */ new Date()).toISOString()}] Applied proration credit: ${creditAmount}`
+            }).where(eq19(subscriptions.id, req.params.id));
+          }
+        }
+      }
+      const updateData = {
+        planName,
+        billingCycle,
+        amount: amount.toString(),
+        currency,
+        autoRenew,
+        itemsSnapshot: JSON.stringify(itemsSnapshot),
+        // Ensure string format
+        notes
+      };
+      if (startDate) {
+        updateData.startDate = new Date(startDate);
+      }
+      const [updated] = await tx.update(subscriptions).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq19(subscriptions.id, req.params.id)).returning();
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_subscription",
+        entityType: "subscription",
+        entityId: req.params.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return updated;
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error("Update subscription error:", error);
+    return res.status(500).json({ error: error.message || "Failed to update subscription" });
+  }
+});
+router20.post("/subscriptions/:id/cancel", authMiddleware, requireFeature("subscriptions_module"), async (req, res) => {
+  try {
+    const sub = await SubscriptionService.cancelSubscription(req.params.id);
+    return res.json(sub);
+  } catch (error) {
+    logger.error("Error cancelling subscription:", error);
+    return res.status(500).json({ error: "Failed to cancel subscription" });
+  }
+});
+var subscriptionRoutes = router20;
+
 // server/routes.ts
 init_logger();
 init_cache_service();
@@ -15412,6 +16900,9 @@ async function registerRoutes(app2) {
   app2.use("/api/email-templates", email_templates_routes_default);
   app2.use("/api/notifications", notificationRoutes);
   app2.use("/api/collaboration", authMiddleware, collaborationRoutes);
+  app2.use("/api", credit_notes_routes_default);
+  app2.use("/api", debit_notes_routes_default);
+  app2.use("/api", subscriptionRoutes);
   app2.get("/api/templates", authMiddleware, async (req, res) => {
     try {
       const type = req.query.type;
