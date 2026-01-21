@@ -14,7 +14,7 @@ import {
     ChevronDown,
     BarChart3,
     CreditCard,
-
+    Zap,
     FileWarning,
     Repeat,
 } from "lucide-react";
@@ -212,6 +212,14 @@ const adminItems = [
         roles: ["admin"],
         description: "Manage users",
         featureFlag: 'pages_adminUsers' as const,
+    },
+    {
+        title: "Workflows",
+        url: "/workflows",
+        icon: Zap,
+        roles: ["admin"],
+        description: "Automation workflows",
+        featureFlag: 'pages_workflows' as const,
     },
     {
         title: "Governance",

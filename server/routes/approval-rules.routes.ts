@@ -2,10 +2,14 @@ import { Router, Response } from "express";
 import { storage } from "../storage";
 import { authMiddleware, AuthRequest } from "../middleware";
 import { requirePermission } from "../permissions-middleware";
+import { requireFeature } from "../feature-flags-middleware";
 import { insertApprovalRuleSchema } from "@shared/schema";
 import { logger } from "../utils/logger";
 
 const router = Router();
+
+// Apply approval rules module feature flag to all routes
+router.use(requireFeature("approvalRules_module"));
 
 // Get all rules
 router.get("/", authMiddleware, requirePermission("settings", "view"), async (req: AuthRequest, res: Response) => {

@@ -37,6 +37,7 @@ import { collaborationRoutes } from "./routes/collaboration.routes";
 import creditNotesRoutes from "./routes/credit-notes.routes";
 import debitNotesRoutes from "./routes/debit-notes.routes";
 import { subscriptionRoutes } from "./routes/subscriptions.routes";
+import workflowsRoutes from "./routes/workflows.routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
@@ -109,6 +110,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Subscriptions Routes
   app.use("/api", subscriptionRoutes);
+
+  // Workflow Automation Routes
+  app.use("/api/workflows", authMiddleware, workflowsRoutes);
 
   // Moved to invoices.routes.ts
 

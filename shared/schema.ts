@@ -1451,3 +1451,242 @@ export type InsertDebitNote = z.infer<typeof insertDebitNoteSchema>;
 export type DebitNoteItem = typeof debitNoteItems.$inferSelect;
 export type InsertDebitNoteItem = z.infer<typeof insertDebitNoteItemSchema>;
 export type DebitNoteStatus = "draft" | "issued" | "applied" | "cancelled";
+
+// ==================== WORKFLOW AUTOMATION ====================
+
+// Workflow Status Enum
+export const workflowStatusEnum = pgEnum("workflow_status", ["active", "inactive", "draft"]);
+
+// Workflow Trigger Type Enum
+export const workflowTriggerTypeEnum = pgEnum("workflow_trigger_type", [
+  "status_change",
+  "amount_threshold",
+  "date_based",
+  "field_change",
+  "time_based",
+  "manual"
+]);
+
+// Workflow Action Type Enum
+export const workflowActionTypeEnum = pgEnum("workflow_action_type", [
+  "send_email",
+  "create_notification",
+  "update_field",
+  "assign_user",
+  "create_task",
+  "escalate",
+  "webhook",
+  "create_activity_log"
+]);
+
+// Workflows Table - Main workflow definitions
+export const workflows = pgTable("workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  entityType: text("entity_type").notNull(), // quote, invoice, sales_order, payment, client, vendor, etc.
+  status: workflowStatusEnum("status").notNull().default("draft"),
+  priority: integer("priority").notNull().default(0), // Higher number = higher priority
+  triggerLogic: text("trigger_logic").default("AND"), // AND, OR for multiple triggers
+  isSystem: boolean("is_system").notNull().default(false), // System workflows vs user-created
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  entityTypeIdx: index("idx_workflows_entity_type").on(table.entityType),
+  statusIdx: index("idx_workflows_status").on(table.status),
+}));
+
+export const workflowsRelations = relations(workflows, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [workflows.createdBy],
+    references: [users.id],
+  }),
+  triggers: many(workflowTriggers),
+  actions: many(workflowActions),
+  executions: many(workflowExecutions),
+}));
+
+// Workflow Triggers Table - Conditions that trigger workflows
+export const workflowTriggers = pgTable("workflow_triggers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+  triggerType: workflowTriggerTypeEnum("trigger_type").notNull(),
+  
+  // Condition Configuration (JSON)
+  // Examples:
+  // status_change: { field: "status", from: "draft", to: "approved" }
+  // amount_threshold: { field: "total", operator: "greater_than", value: 10000 }
+  // date_based: { field: "dueDate", operator: "days_before", value: 7 }
+  // field_change: { field: "discount", operator: "greater_than", value: 20 }
+  // time_based: { schedule: "0 9 * * *", timezone: "Asia/Kolkata" } // cron expression
+  conditions: jsonb("conditions").notNull(),
+  
+  // For complex conditions
+  conditionLogic: text("condition_logic"), // Custom logic expression for advanced conditions
+  
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  workflowIdx: index("idx_workflow_triggers_workflow_id").on(table.workflowId),
+  triggerTypeIdx: index("idx_workflow_triggers_type").on(table.triggerType),
+}));
+
+export const workflowTriggersRelations = relations(workflowTriggers, ({ one }) => ({
+  workflow: one(workflows, {
+    fields: [workflowTriggers.workflowId],
+    references: [workflows.id],
+  }),
+}));
+
+// Workflow Actions Table - Actions to execute when workflow triggers
+export const workflowActions = pgTable("workflow_actions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+  actionType: workflowActionTypeEnum("action_type").notNull(),
+  
+  // Action Configuration (JSON)
+  // Examples:
+  // send_email: { template: "payment_reminder", to: "{{client.email}}", cc: "{{user.email}}" }
+  // create_notification: { title: "Approval Required", message: "Quote {{quoteNumber}} needs approval", userId: "{{managerId}}" }
+  // update_field: { field: "status", value: "pending_approval" }
+  // assign_user: { field: "assignedTo", userId: "{{managerId}}" }
+  // create_task: { title: "Follow up on quote", dueDate: "{{quote.validUntil}}", assignTo: "{{quote.createdBy}}" }
+  // escalate: { to: "admin", message: "Quote overdue for {{days}} days" }
+  // webhook: { url: "https://api.example.com/webhook", method: "POST", headers: {...}, body: {...} }
+  actionConfig: jsonb("action_config").notNull(),
+  
+  // Execution order (lower number executes first)
+  executionOrder: integer("execution_order").notNull().default(0),
+  
+  // Optional delay before execution (in minutes)
+  delayMinutes: integer("delay_minutes").default(0),
+  
+  // Conditional execution (if-then logic)
+  conditionExpression: text("condition_expression"), // e.g., "{{quote.total}} > 50000"
+  
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  workflowIdx: index("idx_workflow_actions_workflow_id").on(table.workflowId),
+  executionOrderIdx: index("idx_workflow_actions_execution_order").on(table.executionOrder),
+}));
+
+export const workflowActionsRelations = relations(workflowActions, ({ one }) => ({
+  workflow: one(workflows, {
+    fields: [workflowActions.workflowId],
+    references: [workflows.id],
+  }),
+}));
+
+// Workflow Executions Table - Audit trail of workflow executions
+export const workflowExecutions = pgTable("workflow_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull().references(() => workflows.id),
+  entityType: text("entity_type").notNull(),
+  entityId: varchar("entity_id").notNull(),
+  
+  // Execution status
+  status: text("status").notNull(), // pending, running, completed, failed, partially_completed
+  
+  // Who/what triggered this execution
+  triggeredBy: text("triggered_by").notNull(), // system, user:{userId}, schedule, manual
+  triggeredAt: timestamp("triggered_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  
+  // Execution details
+  executionLog: jsonb("execution_log"), // Detailed log of each action execution
+  // Example: [
+  //   { step: 1, action: "send_email", status: "success", timestamp: "...", details: "..." },
+  //   { step: 2, action: "create_notification", status: "success", timestamp: "...", details: "..." }
+  // ]
+  
+  errorMessage: text("error_message"),
+  errorStack: text("error_stack"),
+  
+  // Performance tracking
+  executionTimeMs: integer("execution_time_ms"),
+}, (table) => ({
+  workflowIdx: index("idx_workflow_executions_workflow_id").on(table.workflowId),
+  entityIdx: index("idx_workflow_executions_entity").on(table.entityType, table.entityId),
+  statusIdx: index("idx_workflow_executions_status").on(table.status),
+  triggeredAtIdx: index("idx_workflow_executions_triggered_at").on(table.triggeredAt),
+}));
+
+export const workflowExecutionsRelations = relations(workflowExecutions, ({ one }) => ({
+  workflow: one(workflows, {
+    fields: [workflowExecutions.workflowId],
+    references: [workflows.id],
+  }),
+}));
+
+// Workflow Schedules Table - For scheduled/recurring workflows
+export const workflowSchedules = pgTable("workflow_schedules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+  cronExpression: text("cron_expression").notNull(), // e.g., "0 9 * * *" for daily at 9 AM
+  timezone: text("timezone").notNull().default("UTC"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  workflowIdx: index("idx_workflow_schedules_workflow_id").on(table.workflowId),
+  nextRunIdx: index("idx_workflow_schedules_next_run").on(table.nextRunAt),
+}));
+
+export const workflowSchedulesRelations = relations(workflowSchedules, ({ one }) => ({
+  workflow: one(workflows, {
+    fields: [workflowSchedules.workflowId],
+    references: [workflows.id],
+  }),
+}));
+
+// INSERT SCHEMAS FOR WORKFLOWS
+
+export const insertWorkflowSchema = createInsertSchema(workflows).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+});
+
+export const insertWorkflowTriggerSchema = createInsertSchema(workflowTriggers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertWorkflowActionSchema = createInsertSchema(workflowActions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).omit({
+  id: true,
+});
+
+export const insertWorkflowScheduleSchema = createInsertSchema(workflowSchedules).omit({
+  id: true,
+  createdAt: true,
+});
+
+// WORKFLOW TYPES
+
+export type Workflow = typeof workflows.$inferSelect;
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+
+export type WorkflowTrigger = typeof workflowTriggers.$inferSelect;
+export type InsertWorkflowTrigger = z.infer<typeof insertWorkflowTriggerSchema>;
+
+export type WorkflowAction = typeof workflowActions.$inferSelect;
+export type InsertWorkflowAction = z.infer<typeof insertWorkflowActionSchema>;
+
+export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
+export type InsertWorkflowExecution = z.infer<typeof insertWorkflowExecutionSchema>;
+
+export type WorkflowSchedule = typeof workflowSchedules.$inferSelect;
+export type InsertWorkflowSchedule = z.infer<typeof insertWorkflowScheduleSchema>;
+
+export type WorkflowStatus = "active" | "inactive" | "draft";
+export type WorkflowTriggerType = "status_change" | "amount_threshold" | "date_based" | "field_change" | "time_based" | "manual";
+export type WorkflowActionType = "send_email" | "create_notification" | "update_field" | "assign_user" | "create_task" | "escalate" | "webhook" | "create_activity_log";

@@ -52,6 +52,8 @@ import DebitNoteCreate from "@/pages/debit-note-create";
 import Subscriptions from "@/pages/subscriptions";
 import SubscriptionCreate from "@/pages/subscription-create";
 import SubscriptionDetail from "@/pages/subscription-detail";
+import Workflows from "@/pages/workflows";
+import WorkflowBuilder from "@/pages/workflow-builder";
 import { Loader2, ShieldAlert } from "lucide-react";
 import React from "react";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
@@ -267,6 +269,17 @@ function AuthenticatedLayout() {
           )}
           {isFeatureEnabled('pages_governanceDashboard') && (
             <Route path="/admin/governance" component={() => <ProtectedRoute component={GovernanceDashboard} requiredPath="/admin/governance" />} />
+          )}
+
+          {/* Workflows */}
+          {isFeatureEnabled('pages_workflows') && (
+            <Route path="/workflows" component={() => <ProtectedRoute component={Workflows} requiredPath="/admin/settings" />} />
+          )}
+          {isFeatureEnabled('pages_workflows') && (
+            <Route path="/workflows/create" component={() => <ProtectedRoute component={WorkflowBuilder} requiredPath="/admin/settings" />} />
+          )}
+          {isFeatureEnabled('pages_workflows') && (
+            <Route path="/workflows/:id" component={() => <ProtectedRoute component={WorkflowBuilder} requiredPath="/admin/settings" />} />
           )}
 
           <Route component={NotFound} />

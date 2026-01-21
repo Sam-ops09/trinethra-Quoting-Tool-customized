@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Quotation & Invoice Management Tool — Codebase Overview</title>
+  <style>
+:root{
+  --bg:#0b1020;
+  --card:#0f172a;
+  --text:#e5e7eb;
+  --muted:#a1a1aa;
+  --accent:#60a5fa;
+  --border:rgba(148,163,184,.18);
+  --code:#0b1224;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background: radial-gradient(1100px 600px at 20% -10%, rgba(96,165,250,.25), transparent 60%),
+              radial-gradient(900px 500px at 100% 10%, rgba(34,211,238,.18), transparent 55%),
+              var(--bg);
+  color:var(--text);
+  line-height:1.55;
+}
+header{
+  position:sticky; top:0; z-index:10;
+  backdrop-filter: blur(10px);
+  background: rgba(11,16,32,.65);
+  border-bottom:1px solid var(--border);
+}
+.header-inner{
+  max-width:1050px; margin:0 auto;
+  padding:16px 20px;
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px;
+}
+h1{
+  font-size:18px; margin:0;
+  letter-spacing:.2px;
+}
+.badge{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 10px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  color:var(--muted);
+  font-size:12px;
+}
+main{max-width:1050px; margin:0 auto; padding:26px 20px 60px;}
+article{
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:22px 22px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+h2, h3, h4{
+  scroll-margin-top:90px;
+}
+h2{
+  font-size:18px;
+  margin-top:26px;
+  padding-top:14px;
+  border-top:1px dashed rgba(148,163,184,.25);
+}
+h3{font-size:15px; margin-top:18px;}
+p{color:var(--text); margin: 10px 0;}
+ul,ol{margin: 10px 0 10px 22px;}
+li{margin: 6px 0;}
+strong{color:#f8fafc}
+code{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: rgba(96,165,250,.10);
+  border:1px solid rgba(96,165,250,.18);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 0.95em;
+}
+pre{
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 14px;
+  overflow:auto;
+}
+pre code{
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  color:#dbeafe;
+}
+blockquote{
+  margin: 14px 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: rgba(96,165,250,.07);
+  border-radius: 10px;
+  color: var(--muted);
+}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+hr{border:none; border-top:1px solid var(--border); margin:18px 0;}
+table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  overflow:hidden;
+  border:1px solid var(--border);
+  border-radius:14px;
+}
+th,td{
+  text-align:left;
+  padding:10px 12px;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+th{color:#f8fafc; background: rgba(148,163,184,.08); font-weight:600}
+tr:last-child td{border-bottom:none}
+footer{
+  max-width:1050px; margin:0 auto;
+  padding: 18px 20px 32px;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media print{
+  header{position:static; background:#fff; color:#000; border:none}
+  body{background:#fff; color:#000}
+  article{box-shadow:none}
+  a{color:#000}
+  code, pre{background:#f5f5f5}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <h1>Quotation & Invoice Management Tool — Codebase Overview</h1>
+    <div class="badge">Client view • codebase overview</div>
+  </div>
+</header>
+<main>
+  <article>
+    <h1>Complete Codebase Analysis: Quotation &amp; Invoice Management Tool</h1>
+
+<h2>Executive Summary</h2>
+
+<p>This is a <strong>comprehensive enterprise-grade quotation and invoice management system</strong> built with modern technologies. The application features extensive functionality for sales operations, procurement, inventory management, and financial tracking.</p>
+
+<p><strong>Technology Stack:</strong>
+- <strong>Frontend</strong>: React 18, TypeScript, Wouter (routing), TanStack Query, Radix UI components
+- <strong>Backend</strong>: Node.js, Express, TypeScript
+- <strong>Database</strong>: PostgreSQL with Drizzle ORM
+- <strong>Real-time</strong>: Socket.IO for collaboration
+- <strong>PDF Generation</strong>: PDFKit with worker thread optimization
+- <strong>Email</strong>: Resend/Nodemailer integration
+- <strong>Authentication</strong>: Passport.js with session management
+- <strong>State Management</strong>: TanStack Query with caching
+- <strong>Styling</strong>: Tailwind CSS with custom themes</p>
+
+<hr />
+
+<h2><strong>EXISTING FEATURES - DETAILED BREAKDOWN</strong></h2>
+
+<h3><strong>1. CORE QUOTATION MANAGEMENT</strong> ⭐</h3>
+
+<h4><strong>1.1 Quote Creation &amp; Management</strong></h4>
+
+<ul>
+<li><strong>Multi-version Quote System</strong>: Create, edit, clone, and version quotes with complete history tracking</li>
+<li><strong>Advanced Sections</strong>: Bill of Materials (BOM), Service Level Agreements (SLA), Project Timeline sections</li>
+<li><strong>Smart Numbering</strong>: Configurable auto-incrementing quote numbers (QT-2025-001)</li>
+<li><strong>Status Workflow</strong>: Draft → Sent → Approved → Rejected → Invoiced → Closed (Paid/Cancelled)</li>
+<li><strong>Template System</strong>: Multiple pre-designed templates (Professional, Modern, Minimal, Creative, Premium, Government, Education)</li>
+<li><strong>Client-specific Theming</strong>: Automatic theme selection based on client segment</li>
+<li><strong>Multi-currency Support</strong>: INR default with support for multiple currencies</li>
+<li><strong>Tax Calculations</strong>: Automated CGST, SGST, IGST calculations with HSN/SAC codes</li>
+<li><strong>Discounts &amp; Shipping</strong>: Flexible discount application and shipping charge management</li>
+</ul>
+
+<h4><strong>1.2 Public Quote Sharing</strong></h4>
+
+<ul>
+<li><strong>Secure Token-based Links</strong>: Time-limited public quote access without authentication</li>
+<li><strong>Client Acceptance</strong>: Digital signature capture with client name and timestamp</li>
+<li><strong>Comment Threads</strong>: Two-way communication between internal team and clients</li>
+<li><strong>Optional Items Selection</strong>: Clients can select/deselect optional items and see live total recalculation</li>
+<li><strong>Quote Approval/Rejection</strong>: Clients can accept or reject quotes with reason notes</li>
+</ul>
+
+<h4><strong>1.3 Quote Conversion Flows</strong></h4>
+
+<ul>
+<li><strong>Quote → Invoice</strong>: Direct conversion with full data mapping</li>
+<li><strong>Quote → Sales Order</strong>: Create confirmed sales orders from approved quotes</li>
+<li><strong>Quote → Vendor PO</strong>: Generate purchase orders from quote requirements</li>
+<li><strong>Feature Flag Control</strong>: Each conversion flow can be enabled/disabled independently</li>
+</ul>
+
+<hr />
+
+<h3><strong>2. SALES ORDER MANAGEMENT</strong> ⭐</h3>
+
+<h4><strong>2.1 Sales Order Features</strong></h4>
+
+<ul>
+<li><strong>Order Confirmation</strong>: Convert quotes to confirmed sales orders</li>
+<li><strong>Fulfillment Tracking</strong>: Track order status (Draft → Confirmed → Fulfilled → Cancelled)</li>
+<li><strong>Item-level Tracking</strong>: Monitor fulfilled quantity vs ordered quantity for each line item</li>
+<li><strong>Delivery Management</strong>: Expected and actual delivery date tracking</li>
+<li><strong>BOM Integration</strong>: Bill of Materials section included in sales orders</li>
+<li><strong>PDF Generation</strong>: Professional PDF documents for sales orders</li>
+<li><strong>Sales Order → Invoice</strong>: Convert SO to single or multiple invoices (partial invoicing)</li>
+</ul>
+
+<h4><strong>2.2 Partial Invoicing</strong></h4>
+
+<ul>
+<li><strong>Multiple Invoices per SO</strong>: Create multiple invoices against a single sales order</li>
+<li><strong>Milestone-based Billing</strong>: Track invoice creation by project milestones</li>
+<li><strong>Delivery-based Billing</strong>: Invoice based on partial deliveries</li>
+</ul>
+
+<hr />
+
+<h3><strong>3. INVOICE MANAGEMENT SYSTEM</strong> ⭐⭐</h3>
+
+<h4><strong>3.1 Advanced Invoicing</strong></h4>
+
+<ul>
+<li><strong>Master/Child Invoice Hierarchy</strong>: Parent invoices with multiple child invoices</li>
+<li><strong>Master Invoice States</strong>: Draft → Confirmed → Locked (prevents further editing)</li>
+<li><strong>Partial Invoice Support</strong>: Create multiple invoices from single sales order/quote</li>
+<li><strong>Milestone Invoices</strong>: Track and invoice by project milestones</li>
+<li><strong>Invoice Locking</strong>: Prevent edits to finalized invoices</li>
+<li><strong>Cancellation Tracking</strong>: Record cancellation reason, timestamp, and who cancelled</li>
+<li><strong>BOM Annexure</strong>: Automatic Bill of Materials as "Annexure-  1" on last page</li>
+</ul>
+
+<h4><strong>3.2 Payment Tracking</strong></h4>
+
+<ul>
+<li><strong>Payment History</strong>: Complete audit trail of all payments</li>
+<li><strong>Multiple Payment Methods</strong>: Bank Transfer, Credit Card, Check, Cash, UPI, etc.</li>
+<li><strong>Partial Payments</strong>: Track multiple partial payments against invoices</li>
+<li><strong>Payment Status</strong>: Pending → Partial → Paid → Overdue with automatic calculations</li>
+<li><strong>Remaining Balance</strong>: Auto-calculated based on total minus paid amount</li>
+<li><strong>Transaction IDs</strong>: Store reference numbers for payment reconciliation</li>
+<li><strong>Payment Notes</strong>: Additional context for each payment entry</li>
+</ul>
+
+<h4><strong>3.3 Invoice Email &amp; PDF</strong></h4>
+
+<ul>
+<li><strong>Professional PDF Generation</strong>: Multi-theme PDF output with worker threads for performance</li>
+<li><strong>Email Delivery</strong>: Send invoices via email with configurable templates</li>
+<li><strong>Attachment Support</strong>: Upload and attach documents to invoices (stored as base64)</li>
+<li><strong>Payment Reminders</strong>: Automated payment reminder system (configurable)</li>
+<li><strong>Overdue Notifications</strong>: Automatic alerts for overdue invoices</li>
+</ul>
+
+<hr />
+
+<h3><strong>4. SUBSCRIPTION MANAGEMENT</strong> ⭐</h3>
+
+<h4><strong>4.1 Recurring Billing</strong></h4>
+
+<ul>
+<li><strong>Subscription Plans</strong>: Define recurring service subscriptions</li>
+<li><strong>Billing Cycles</strong>: Monthly, Quarterly, Annually</li>
+<li><strong>Auto-renewal</strong>: Automatic invoice generation on renewal dates</li>
+<li><strong>Pro-rata Credits</strong>: Handle mid-cycle changes and credits</li>
+<li><strong>Subscription Status</strong>: Active, Paused, Cancelled, Expired</li>
+<li><strong>Next Billing Date</strong>: Automatic calculation based on billing cycle</li>
+<li><strong>Subscription Numbering</strong>: SUB-2025-001 format</li>
+<li><strong>Items Snapshot</strong>: Store subscription line items as JSON</li>
+</ul>
+
+<hr />
+
+<h3><strong>5. CLIENT/CRM MANAGEMENT</strong> ⭐</h3>
+
+<h4><strong>5.1 Client Data Management</strong></h4>
+
+<ul>
+<li><strong>Complete Client Profiles</strong>: Name, Email, Phone, Contact Person</li>
+<li><strong>Address Management</strong>: Separate billing and shipping addresses</li>
+<li><strong>GSTIN Support</strong>: GST identification number for tax compliance</li>
+<li><strong>Client Segmentation</strong>: Enterprise, Corporate, Startup, Government, Education</li>
+<li><strong>Preferred Themes</strong>: Store client's preferred document theme</li>
+<li><strong>Active/Inactive Status</strong>: Soft delete with historical data preservation</li>
+</ul>
+
+<h4><strong>5.2 Client Engagement</strong></h4>
+
+<ul>
+<li><strong>Communication History</strong>: Email, Call, Meeting, and Note logging</li>
+<li><strong>Client Tags</strong>: Flexible tagging system for categorization</li>
+<li><strong>Timeline View</strong>: Chronological view of all client interactions</li>
+<li><strong>Advanced Search</strong>: Filter and search clients by multiple criteria</li>
+</ul>
+
+<hr />
+
+<h3><strong>6. VENDOR &amp; PROCUREMENT MANAGEMENT</strong> ⭐⭐</h3>
+
+<h4><strong>6.1 Vendor Management</strong></h4>
+
+<ul>
+<li><strong>Vendor Profiles</strong>: Name, Email, Phone, Contact Person</li>
+<li><strong>Payment Terms</strong>: Store vendor-specific payment terms</li>
+<li><strong>Active/Inactive Status</strong>: Track vendor status</li>
+<li><strong>Vendor Notes</strong>: Additional notes and context</li>
+</ul>
+
+<h4><strong>6.2 Vendor Purchase Orders (PO)</strong></h4>
+
+<ul>
+<li><strong>PO Creation</strong>: Generate purchase orders with auto-numbering (PO-2025-001)</li>
+<li><strong>PO Status Workflow</strong>: Draft → Sent → Acknowledged → Fulfilled → Cancelled</li>
+<li><strong>Multi-item POs</strong>: Line items with quantity, unit price, subtotals</li>
+<li><strong>Tax Calculations</strong>: Full GST support (CGST, SGST, IGST)</li>
+<li><strong>Delivery Tracking</strong>: Expected vs Actual delivery date tracking</li>
+<li><strong>PDF Generation</strong>: Professional vendor PO PDFs</li>
+<li><strong>Quote Linking</strong>: Link POs to originating quotes</li>
+</ul>
+
+<h4><strong>6.3 Goods Received Notes (GRN)</strong></h4>
+
+<ul>
+<li><strong>Receipt Recording</strong>: Track goods received from vendors</li>
+<li><strong>Quality Inspection</strong>: Inspection status (Pending, Approved, Rejected, Partial)</li>
+<li><strong>Quantity Tracking</strong>: Ordered vs Received vs Rejected quantities</li>
+<li><strong>Serial Number Capture</strong>: Record serial numbers during GRN creation</li>
+<li><strong>Batch Management</strong>: Track batch numbers for inventory</li>
+<li><strong>Delivery Note Reference</strong>: Store vendor delivery note numbers</li>
+<li><strong>Attachments</strong>: Store supporting documents</li>
+<li><strong>Inspector Assignment</strong>: Assign quality inspectors</li>
+<li><strong>GRN Numbering</strong>: Auto-generated GRN numbers</li>
+</ul>
+
+<hr />
+
+<h3><strong>7. PRODUCT &amp; INVENTORY MANAGEMENT</strong> ⭐⭐</h3>
+
+<h4><strong>7.1 Product Catalog</strong></h4>
+
+<ul>
+<li><strong>SKU Management</strong>: Unique stock-keeping unit for each product</li>
+<li><strong>Product Details</strong>: Name, Description, Category</li>
+<li><strong>Pricing</strong>: Unit price with decimal precision</li>
+<li><strong>Stock Tracking</strong>: Available, Reserved, and Total stock quantities</li>
+<li><strong>Reorder Levels</strong>: Set minimum stock thresholds</li>
+<li><strong>Warranty Tracking</strong>: Store warranty period in months</li>
+<li><strong>Active/Inactive Status</strong>: Manage product lifecycle</li>
+</ul>
+
+<h4><strong>7.2 Stock Control</strong></h4>
+
+<ul>
+<li><strong>Real-time Stock Updates</strong>: Automatic stock adjustment on transactions</li>
+<li><strong>Reserved Quantity</strong>: Track stock reserved by pending orders</li>
+<li><strong>Available Quantity</strong>: Calculated as stock - reserved</li>
+<li><strong>Stock Warnings</strong>: Alert when stock falls below reorder level</li>
+<li><strong>Negative Stock Control</strong>: Allow/disallow negative stock</li>
+<li><strong>Product Linking</strong>: Link products to quotes, invoices, and vendor POs</li>
+</ul>
+
+<h4><strong>7.3 Serial Number Tracking</strong> 🔥</h4>
+
+<ul>
+<li><strong>Complete Lifecycle Tracking</strong>: From vendor PO → GRN → Stock → Invoice</li>
+<li><strong>Serial Number Registry</strong>: Unique serial numbers with full history</li>
+<li><strong>Status Management</strong>: In Stock, Reserved, Delivered, Returned, Defective</li>
+<li><strong>Warranty Management</strong>: Start and end dates per serial number</li>
+<li><strong>Location Tracking</strong>: Physical location of each serial number</li>
+<li><strong>Invoice Linking</strong>: Track which invoice each serial was delivered with</li>
+<li><strong>Vendor Traceability</strong>: Full chain from vendor to customer</li>
+<li><strong>Serial Search</strong>: Advanced search across all serial numbers</li>
+<li><strong>Export Functionality</strong>: Export serial number data to Excel</li>
+</ul>
+
+<hr />
+
+<h3><strong>8. CREDIT NOTES &amp; DEBIT NOTES</strong> ⭐</h3>
+
+<h4><strong>8.1 Credit Notes</strong> (Returns/Refunds)</h4>
+
+<ul>
+<li><strong>Credit Note Creation</strong>: For returns, damaged goods, price adjustments</li>
+<li><strong>Status Workflow</strong>: Draft → Issued → Applied → Cancelled</li>
+<li><strong>Invoice Linking</strong>: Link to original invoice or standalone</li>
+<li><strong>Multi-item Support</strong>: Line items with quantities and pricing</li>
+<li><strong>Tax Integration</strong>: Full GST calculations (CGST, SGST, IGST)</li>
+<li><strong>Applied Amount Tracking</strong>: Track how much credit has been applied</li>
+<li><strong>Reason Documentation</strong>: Record reason for credit note issuance</li>
+<li><strong>Unique Numbering</strong>: CN-2025-001 format</li>
+</ul>
+
+<h4><strong>8.2 Debit Notes</strong> (Additional Charges)</h4>
+
+<ul>
+<li><strong>Debit Note Creation</strong>: For additional charges, price revisions</li>
+<li><strong>Status Workflow</strong>: Draft → Issued → Applied → Cancelled</li>
+<li><strong>Invoice Linking</strong>: Link to original invoice or standalone</li>
+<li><strong>Multi-item Support</strong>: Line items with quantities and pricing</li>
+<li><strong>Tax Integration</strong>: Full GST calculations</li>
+<li><strong>Applied Amount Tracking</strong>: Track how much debit has been applied</li>
+<li><strong>Reason Documentation</strong>: Record reason for debit note issuance</li>
+<li><strong>Unique Numbering</strong>: DN-2025-001 format</li>
+</ul>
+
+<hr />
+
+<h3><strong>9. APPROVAL WORKFLOWS</strong> ⭐</h3>
+
+<h4><strong>9.1 Rule-based Approvals</strong></h4>
+
+<ul>
+<li><strong>Approval Rules Engine</strong>: Create rules based on conditions</li>
+<li><strong>Trigger Types</strong>: 
+<ul>
+<li>Discount Percentage threshold</li>
+<li>Total Amount threshold</li>
+</ul></li>
+<li><strong>Role-based Approval</strong>: Assign approval authority by role (Sales Manager, Admin, etc.)</li>
+<li><strong>Approval Status Tracking</strong>: None → Pending → Approved → Rejected</li>
+<li><strong>Automatic Rule Evaluation</strong>: Quotes automatically flagged for approval</li>
+<li><strong>Multiple Rules</strong>: Support for multiple approval rules simultaneously</li>
+<li><strong>Approval Notifications</strong>: Alert approvers when action is needed</li>
+<li><strong>Decision Recording</strong>: Track who approved/rejected and when</li>
+<li><strong>Approval History</strong>: Complete audit trail of approval decisions</li>
+</ul>
+
+<h4><strong>9.2 User Delegation</strong></h4>
+
+<ul>
+<li><strong>Temporary Authority</strong>: Delegate approval power to other users</li>
+<li><strong>Date-based Delegation</strong>: Set start and end dates for delegation</li>
+<li><strong>Reason Tracking</strong>: Document reason for delegation</li>
+<li><strong>Multiple Delegations</strong>: Support delegation chains</li>
+</ul>
+
+<hr />
+
+<h3><strong>10. ANALYTICS &amp; DASHBOARDS</strong> ⭐⭐</h3>
+
+<h4><strong>10.1 Main Dashboard</strong></h4>
+
+<ul>
+<li><strong>Revenue Metrics</strong>: Total revenue, monthly trends</li>
+<li><strong>Quote Metrics</strong>: Conversion rates, pending quotes, approval queue</li>
+<li><strong>Invoice Metrics</strong>: Outstanding amount, overdue invoices</li>
+<li><strong>Payment Tracking</strong>: Payment collection trends</li>
+<li><strong>Top Clients</strong>: By revenue and transaction count</li>
+<li><strong>Recent Activity</strong>: Latest quotes, invoices, payments</li>
+</ul>
+
+<h4><strong>10.2 Specialized Dashboards</strong></h4>
+
+<ul>
+<li><strong>Sales &amp; Quote Dashboard</strong>: Quote pipeline, win rates, average quote value</li>
+<li><strong>Invoice Collections Dashboard</strong>: Aging reports, collection efficiency, DSO</li>
+<li><strong>Vendor PO Dashboard</strong>: PO status distribution, vendor performance</li>
+<li><strong>Serial Tracking Dashboard</strong>: Serial number inventory, warranty expiry alerts</li>
+<li><strong>Governance Dashboard</strong>: User activity, audit logs, system health</li>
+</ul>
+
+<h4><strong>10.3 Analytics Features</strong></h4>
+
+<ul>
+<li><strong>Forecasting</strong>: Revenue predictions based on historical data</li>
+<li><strong>Trend Analysis</strong>: Multi-period comparisons with charts</li>
+<li><strong>Custom Date Ranges</strong>: Flexible date filtering</li>
+<li><strong>Export Reports</strong>: Excel export for all analytics</li>
+<li><strong>Interactive Charts</strong>: Recharts-based visualizations (Line, Bar, Pie, Area)</li>
+</ul>
+
+<hr />
+
+<h3><strong>11. REAL-TIME COLLABORATION</strong> ⭐</h3>
+
+<h4><strong>11.1 Collaboration Sessions</strong></h4>
+
+<ul>
+<li><strong>Multi-user Editing</strong>: See who else is viewing/editing documents</li>
+<li><strong>Live Presence</strong>: Real-time presence indicators</li>
+<li><strong>Cursor Positions</strong>: Track where other users are working</li>
+<li><strong>Edit Notifications</strong>: Get notified when collaborators make changes</li>
+<li><strong>Socket.IO Integration</strong>: WebSocket-based real-time updates</li>
+</ul>
+
+<h4><strong>11.2 Notification System</strong></h4>
+
+<ul>
+<li><strong>In-app Notifications</strong>: Bell icon with unread count</li>
+<li><strong>Notification Types</strong>:
+<ul>
+<li>Quote status changes</li>
+<li>Approval requests</li>
+<li>Approval decisions</li>
+<li>Payment received</li>
+<li>Payment overdue</li>
+<li>Collaboration events</li>
+<li>System announcements</li>
+</ul></li>
+<li><strong>Read/Unread Status</strong>: Track which notifications have been seen</li>
+<li><strong>Notification History</strong>: Access past notifications</li>
+<li><strong>Real-time Delivery</strong>: Instant notification via WebSocket</li>
+</ul>
+
+<hr />
+
+<h3><strong>12. USER MANAGEMENT &amp; SECURITY</strong> ⭐⭐</h3>
+
+<h4><strong>12.1 Role-Based Access Control (RBAC)</strong></h4>
+
+<ul>
+<li><strong>User Roles</strong>:
+<ul>
+<li><strong>Admin</strong>: Full system access</li>
+<li><strong>Sales Executive</strong>: Create quotes, view clients</li>
+<li><strong>Sales Manager</strong>: Approve quotes, view analytics</li>
+<li><strong>Purchase Operations</strong>: Manage vendors, POs, GRN</li>
+<li><strong>Finance/Accounts</strong>: Manage invoices, payments</li>
+<li><strong>Viewer</strong>: Read-only access</li>
+</ul></li>
+<li><strong>Granular Permissions</strong>: Per-feature permission control</li>
+<li><strong>Feature Flags</strong>: 350+ feature flags for fine-grained control</li>
+<li><strong>Permission Middleware</strong>: Backend route protection</li>
+</ul>
+
+<h4><strong>12.2 Authentication &amp; Security</strong></h4>
+
+<ul>
+<li><strong>Password Policy</strong>: Min 8 chars, uppercase, lowercase, number, special char</li>
+<li><strong>Session Management</strong>: Express-session with PostgreSQL store</li>
+<li><strong>Refresh Tokens</strong>: JWT-based token refresh</li>
+<li><strong>Password Reset</strong>: Secure token-based password reset</li>
+<li><strong>Backup Email</strong>: Secondary email for account  recovery</li>
+<li><strong>Rate Limiting</strong>: API rate limiting to prevent abuse</li>
+<li><strong>Security Headers</strong>: Helmet.js for security headers</li>
+<li><strong>Audit Logs</strong>: Complete activity logging for compliance</li>
+</ul>
+
+<h4><strong>12.3 User Administration</strong></h4>
+
+<ul>
+<li><strong>User Creation</strong>: Add new users with role assignment</li>
+<li><strong>User Status</strong>: Active/Inactive status control</li>
+<li><strong>Soft Delete</strong>: Users are deactivated, not deleted (preserves history)</li>
+<li><strong>User Delegation</strong>: Temporary approval authority delegation</li>
+<li><strong>Profile Management</strong>: Update user details, passwords</li>
+</ul>
+
+<hr />
+
+<h3><strong>13. DOCUMENT GENERATION</strong> ⭐⭐</h3>
+
+<h4><strong>13.1 PDF System</strong></h4>
+
+<ul>
+<li><strong>Quote PDFs</strong>: Professional quote documents with multiple themes</li>
+<li><strong>Invoice PDFs</strong>: Detailed invoices with BOM annexure support</li>
+<li><strong>Sales Order PDFs</strong>: Sales order confirmations</li>
+<li><strong>Vendor PO PDFs</strong>: Purchase order documents</li>
+<li><strong>Worker Thread Optimization</strong>: PDF generation in background workers for better performance</li>
+<li><strong>Fallback Mechanism</strong>: Main thread fallback if worker fails</li>
+</ul>
+
+<h4><strong>13.2 PDF Themes</strong></h4>
+
+<ul>
+<li><strong>Professional</strong>: Classic business style</li>
+<li><strong>Modern</strong>: Contemporary design with bold colors</li>
+<li><strong>Minimal</strong>: Clean, simple layout</li>
+<li><strong>Creative</strong>: Artistic, branded designs</li>
+<li><strong>Premium</strong>: Luxury, high-end styling</li>
+<li><strong>Government</strong>: Formal, compliance-focused</li>
+<li><strong>Education</strong>: Academic institution styling</li>
+</ul>
+
+<h4><strong>13.3 PDF Features</strong></h4>
+
+<ul>
+<li><strong>Custom Headers/Footers</strong>: Configurable header and footer content</li>
+<li><strong>Logo Embedding</strong>: Company logo on documents</li>
+<li><strong>Watermarks</strong>: Optional watermarking</li>
+<li><strong>Multi-page Support</strong>: Automatic page breaks and page numbering</li>
+<li><strong>Table Formatting</strong>: Professional table layouts with pdfkit-table</li>
+<li><strong>Color Schemes</strong>: Theme-based color palettes</li>
+<li><strong>QR Codes</strong>: (Ready to integrate) - payment QR codes</li>
+</ul>
+
+<hr />
+
+<h3><strong>14. EMAIL INTEGRATION</strong> ⭐</h3>
+
+<h4><strong>14.1 Email Services</strong></h4>
+
+<ul>
+<li><strong>Resend Integration</strong>: Modern email service for transactional emails</li>
+<li><strong>SMTP Support</strong>: Fallback to traditional SMTP</li>
+<li><strong>Email Templates</strong>: Customizable HTML templates with variables</li>
+</ul>
+
+<h4><strong>14.2 Email Types</strong></h4>
+
+<ul>
+<li><strong>Quote Emails</strong>: Send quotes to clients with PDF attachment</li>
+<li><strong>Invoice Emails</strong>: Send invoices with payment details</li>
+<li><strong>Payment Reminders</strong>: Automated reminder emails for pending payments</li>
+<li><strong>Password Reset</strong>: Secure password reset emails</li>
+<li><strong>Welcome Emails</strong>: New user onboarding (configurable)</li>
+<li><strong>Subscription Renewal</strong>: Notification for subscription renewals</li>
+</ul>
+
+<h4><strong>14.3 Email Template System</strong></h4>
+
+<ul>
+<li><strong>Template Editor</strong>: Admin can edit email templates</li>
+<li><strong>Variable Substitution</strong>: {{quoteNumber}}, {{clientName}}, etc.</li>
+<li><strong>Multiple Templates</strong>: Different templates for different scenarios</li>
+<li><strong>Active/Inactive Status</strong>: Enable/disable specific templates</li>
+<li><strong>Default Templates</strong>: System-provided default templates</li>
+</ul>
+
+<hr />
+
+<h3><strong>15. ADMIN CONFIGURATION</strong> ⭐</h3>
+
+<h4><strong>15.1 Settings Management</strong></h4>
+
+<ul>
+<li><strong>Company Details</strong>: Name, address, contact information</li>
+<li><strong>Bank Details</strong>: Multiple bank accounts with active/inactive status</li>
+<li><strong>Tax Settings</strong>: Configure tax rates by region</li>
+<li><strong>Currency Settings</strong>: Base currency and exchange rates</li>
+<li><strong>Numbering Schemes</strong>: Configure prefixes and formats for all document types</li>
+<li><strong>Payment Terms</strong>: Define standard payment terms (Net 30, Due on Receipt, etc.)</li>
+</ul>
+
+<h4><strong>15.2 Numbering System</strong></h4>
+
+<ul>
+<li><strong>Configurable Formats</strong>: QT-2025-001, INV-2025-001, SO-2025-001, etc.</li>
+<li><strong>Per-document Type</strong>: Separate numbering for quotes, invoices, SO, PO, etc.</li>
+<li><strong>Automatic Increment</strong>: Auto-increment with year reset</li>
+<li><strong>Custom Prefixes</strong>: Set custom prefixes per document type</li>
+<li><strong>Padding Control</strong>: Control number padding (001 vs 00001)</li>
+</ul>
+
+<h4><strong>15.3 Feature Flag Management</strong></h4>
+
+<ul>
+<li><strong>350+ Feature Flags</strong>: Granular control over every feature</li>
+<li><strong>Categories</strong>:
+<ul>
+<li>Pages &amp; Routes (42 flags)</li>
+<li>Navigation (5 flags)</li>
+<li>Quote Features (30+ flags)</li>
+<li>Invoice Features (20+ flags)</li>
+<li>Client/CRM (15+ flags)</li>
+<li>Vendor &amp; Supply Chain (20+ flags)</li>
+<li>Products &amp; Inventory (15+ flags)</li>
+<li>Analytics &amp; Dashboards (15+ flags)</li>
+<li>Security &amp; Access (15+ flags)</li>
+<li>And many more...</li>
+</ul></li>
+</ul>
+
+<hr />
+
+<h3><strong>16. ADVANCED FEATURES</strong> ⭐</h3>
+
+<h4><strong>16.1 Data Export</strong></h4>
+
+<ul>
+<li><strong>Excel Export</strong>: Export data using ExcelJS</li>
+<li><strong>Serial Number Export</strong>: Export serial number registry</li>
+<li><strong>Analytics Export</strong>: Download analytics reports</li>
+<li><strong>Custom Reports</strong>: Generate custom reports</li>
+</ul>
+
+<h4><strong>16.2 Development Tools</strong></h4>
+
+<ul>
+<li><strong>TypeScript</strong>: Full type safety across frontend and backend</li>
+<li><strong>Drizzle ORM</strong>: Type-safe database queries</li>
+<li><strong>Zod Validation</strong>: Schema validation with Drizzle-Zod integration</li>
+<li><strong>Error Handling</strong>: Comprehensive error logging with winston-like logger</li>
+</ul>
+
+<h4><strong>16.3 Performance Optimizations</strong></h4>
+
+<ul>
+<li><strong>Database Caching</strong>: LRU cache for frequently accessed data</li>
+<li><strong>Query Optimization</strong>: Indexed queries for performance</li>
+<li><strong>Worker Threads</strong>: PDF generation in background</li>
+<li><strong>React Query</strong>: Smart data caching and invalidation</li>
+<li><strong>Code Splitting</strong>: Optimized bundle sizes</li>
+</ul>
+
+<hr />
+
+<h3><strong>17. UI/UX FEATURES</strong> ⭐</h3>
+
+<h4><strong>17.1 User Interface</strong></h4>
+
+<ul>
+<li><strong>Dark Mode</strong>: Full dark mode support with theme toggle</li>
+<li><strong>Responsive Design</strong>: Mobile, tablet, desktop optimized</li>
+<li><strong>Radix UI</strong>: Accessible component library</li>
+<li><strong>Framer Motion</strong>: Smooth animations and transitions</li>
+<li><strong>Tooltips</strong>: Helpful tooltips throughout</li>
+<li><strong>Breadcrumbs</strong>: Navigation breadcrumbs</li>
+<li><strong>Page Headers</strong>: Consistent page headers</li>
+</ul>
+
+<h4><strong>17.2 User Experience</strong></h4>
+
+<ul>
+<li><strong>Search &amp; Filters</strong>: Advanced search across all modules</li>
+<li><strong>Sorting</strong>: Sortable tables and lists  </li>
+<li><strong>Pagination</strong>: Efficient pagination for large datasets</li>
+<li><strong>Keyboard Shortcuts</strong>: Quick actions via keyboard</li>
+<li><strong>Loading States</strong>: Skeleton loaders and spinners</li>
+<li><strong>Error Messages</strong>: User-friendly error messages</li>
+<li><strong>Success Toasts</strong>: Confirmation messages</li>
+</ul>
+
+<hr />
+
+<h2><strong>TECHNOLOGY HIGHLIGHTS</strong></h2>
+
+<h3><strong>Database Design Excellence</strong></h3>
+
+<ul>
+<li><strong>30+ Tables</strong> with proper relationships and constraints</li>
+<li><strong>Soft deletes</strong> for data integrity</li>
+<li><strong>Audit fields</strong> (createdAt, updatedAt, createdBy)</li>
+<li><strong>Indexes</strong> for query optimization</li>
+<li><strong>Cascade deletes</strong> where appropriate</li>
+<li><strong>JSONB fields</strong> for flexible data storage</li>
+</ul>
+
+<h3><strong>Code Quality</strong></h3>
+
+<ul>
+<li><strong>TypeScript</strong> throughout for type safety</li>
+<li><strong>Zod schemas</strong> for runtime validation</li>
+<li><strong>Drizzle ORM</strong> for type-safe queries</li>
+<li><strong>Shared types</strong> between frontend and backend</li>
+<li><strong>Consistent naming</strong> conventions</li>
+<li><strong>Modular architecture</strong> with separation of concerns</li>
+</ul>
+
+<h3><strong>Security Best Practices</strong></h3>
+
+<ul>
+<li><strong>Password hashing</strong> with bcrypt</li>
+<li><strong>Session management</strong> with secure cookies</li>
+<li><strong>CSRF protection</strong></li>
+<li><strong>SQL injection prevention</strong> via ORM</li>
+<li><strong>Rate limiting</strong> on API endpoints</li>
+<li><strong>Audit logging</strong> for compliance</li>
+</ul>
+
+<hr />
+
+<p>This completes the detailed breakdown of <strong>ALL EXISTING FEATURES</strong>. The system is remarkably comprehensive and production-ready for enterprise use.</p>
+
+  </article>
+</main>
+<footer>
+  Generated from the internal codebase analysis document. Delivery timelines are intentionally omitted in this client-facing version.
+</footer>
+</body>
+</html>

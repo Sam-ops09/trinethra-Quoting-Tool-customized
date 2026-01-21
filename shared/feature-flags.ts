@@ -353,6 +353,44 @@ export interface FeatureFlags {
 
   integration_vercelAnalytics: boolean;
   integration_externalApi: boolean;
+
+  // ==================== WORKFLOW AUTOMATION ====================
+
+  // Workflow Module
+  workflows_module: boolean;
+  workflows_create: boolean;
+  workflows_edit: boolean;
+  workflows_delete: boolean;
+  workflows_execute: boolean;
+  workflows_test: boolean;
+
+  // Workflow Pages
+  pages_workflows: boolean;
+  pages_workflowBuilder: boolean;
+
+  // Workflow Triggers
+  workflows_trigger_statusChange: boolean;
+  workflows_trigger_amountThreshold: boolean;
+  workflows_trigger_fieldChange: boolean;
+  workflows_trigger_dateBased: boolean;
+  workflows_trigger_scheduled: boolean;
+  workflows_trigger_manual: boolean;
+
+  // Workflow Actions
+  workflows_action_sendEmail: boolean;
+  workflows_action_createNotification: boolean;
+  workflows_action_updateField: boolean;
+  workflows_action_assignUser: boolean;
+  workflows_action_createTask: boolean;
+  workflows_action_escalate: boolean;
+  workflows_action_webhook: boolean;
+  workflows_action_activityLog: boolean;
+
+  // Approval Rules (Settings)
+  approvalRules_module: boolean;
+  approvalRules_create: boolean;
+  approvalRules_edit: boolean;
+  approvalRules_delete: boolean;
 }
 
 /**
@@ -646,6 +684,43 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   // ==================== INTEGRATIONS ====================
   integration_vercelAnalytics: true,
   integration_externalApi: true,
+
+  // ==================== WORKFLOW AUTOMATION ====================
+  // Workflow Module
+  workflows_module: true,
+  workflows_create: true,
+  workflows_edit: true,
+  workflows_delete: true,
+  workflows_execute: true,
+  workflows_test: true,
+
+  // Workflow Pages
+  pages_workflows: true,
+  pages_workflowBuilder: true,
+
+  // Workflow Triggers
+  workflows_trigger_statusChange: true,
+  workflows_trigger_amountThreshold: true,
+  workflows_trigger_fieldChange: true,
+  workflows_trigger_dateBased: true,
+  workflows_trigger_scheduled: true,
+  workflows_trigger_manual: true,
+
+  // Workflow Actions
+  workflows_action_sendEmail: true,
+  workflows_action_createNotification: true,
+  workflows_action_updateField: true,
+  workflows_action_assignUser: true,
+  workflows_action_createTask: true,
+  workflows_action_escalate: true,
+  workflows_action_webhook: true,
+  workflows_action_activityLog: true,
+
+  // Approval Rules (Settings)
+  approvalRules_module: true,
+  approvalRules_create: true,
+  approvalRules_edit: true,
+  approvalRules_delete: true,
 };
 
 /**

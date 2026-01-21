@@ -80,6 +80,21 @@ import {
   quoteComments,
   type QuoteComment,
   type InsertQuoteComment,
+  workflows,
+  workflowTriggers,
+  workflowActions,
+  workflowExecutions,
+  workflowSchedules,
+  type Workflow,
+  type InsertWorkflow,
+  type WorkflowTrigger,
+  type InsertWorkflowTrigger,
+  type WorkflowAction,
+  type InsertWorkflowAction,
+  type WorkflowExecution,
+  type InsertWorkflowExecution,
+  type WorkflowSchedule,
+  type InsertWorkflowSchedule,
 } from "@shared/schema";
 import { version } from "os";
 import { cacheService } from "./services/cache.service";
@@ -264,7 +279,45 @@ export interface IStorage {
   
   getProduct(id: string): Promise<Product | undefined>;
   updateProduct(id: string, data: Partial<Product>): Promise<Product | undefined>;
+
+  // WORKFLOW AUTOMATION - Storage Methods
+  // Workflows
+  getWorkflow(id: string): Promise<any | undefined>;
+  getAllWorkflows(): Promise<any[]>;
+  getWorkflowsByEntity(entityType: string): Promise<any[]>;
+  getActiveWorkflows(entityType: string): Promise<any[]>;
+  createWorkflow(workflow: any): Promise<any>;
+  updateWorkflow(id: string, data: Partial<any>): Promise<any | undefined>;
+  deleteWorkflow(id: string): Promise<void>;
+  
+  // Workflow Triggers
+  getWorkflowTriggers(workflowId: string): Promise<any[]>;
+  createWorkflowTrigger(trigger: any): Promise<any>;
+  updateWorkflowTrigger(id: string, data: Partial<any>): Promise<any | undefined>;
+  deleteWorkflowTriggers(workflowId: string): Promise<void>;
+  
+  // Workflow Actions
+  getWorkflowActions(workflowId: string): Promise<any[]>;
+  createWorkflowAction(action: any): Promise<any>;
+  updateWorkflowAction(id: string, data: Partial<any>): Promise<any | undefined>;
+  deleteWorkflowActions(workflowId: string): Promise<void>;
+  
+  // Workflow Executions
+  getWorkflowExecution(id: string): Promise<any | undefined>;
+  getWorkflowExecutions(workflowId: string): Promise<any[]>;
+  getEntityWorkflowExecutions(entityType: string, entityId: string): Promise<any[]>;
+  createWorkflowExecution(execution: any): Promise<any>;
+  updateWorkflowExecution(id: string, data: Partial<any>): Promise<any | undefined>;
+  
+  // Workflow Schedules
+  getWorkflowSchedule(workflowId: string): Promise<any | undefined>;
+  getAllWorkflowSchedules(): Promise<any[]>;
+  getActiveWorkflowSchedules(): Promise<any[]>;
+  createWorkflowSchedule(schedule: any): Promise<any>;
+  updateWorkflowSchedule(id: string, data: Partial<any>): Promise<any | undefined>;
+  deleteWorkflowSchedule(workflowId: string): Promise<void>;
 }
+
 
 
 export class DatabaseStorage implements IStorage {
@@ -1195,6 +1248,173 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updated || undefined;
   }
+
+  // ==================== WORKFLOW AUTOMATION STORAGE METHODS ====================
+
+  // Workflows
+  async getWorkflow(id: string): Promise<Workflow | undefined> {
+    const [workflow] = await db.select().from(workflows).where(eq(workflows.id, id));
+    return workflow || undefined;
+  }
+
+  async getAllWorkflows(): Promise<Workflow[]> {
+    return await db.select().from(workflows).orderBy(desc(workflows.createdAt));
+  }
+
+  async getWorkflowsByEntity(entityType: string): Promise<Workflow[]> {
+    return await db.select().from(workflows).where(eq(workflows.entityType, entityType)).orderBy(desc(workflows.priority));
+  }
+
+  async getActiveWorkflows(entityType: string): Promise<Workflow[]> {
+    return await db.select().from(workflows).where(
+      and(
+        eq(workflows.entityType, entityType),
+        eq(workflows.status, "active")
+      )
+    ).orderBy(desc(workflows.priority));
+  }
+
+  async createWorkflow(workflow: InsertWorkflow & { createdBy: string }): Promise<Workflow> {
+    const [newWorkflow] = await db.insert(workflows).values(workflow).returning();
+    return newWorkflow;
+  }
+
+  async updateWorkflow(id: string, data: Partial<Workflow>): Promise<Workflow | undefined> {
+    const [updated] = await db
+      .update(workflows)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(workflows.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteWorkflow(id: string): Promise<void> {
+    // Soft delete by setting status to inactive
+    await db.update(workflows)
+      .set({ status: "inactive", updatedAt: new Date() })
+      .where(eq(workflows.id, id));
+  }
+
+  // Workflow Triggers
+  async getWorkflowTriggers(workflowId: string): Promise<WorkflowTrigger[]> {
+    return await db.select().from(workflowTriggers).where(eq(workflowTriggers.workflowId, workflowId));
+  }
+
+  async createWorkflowTrigger(trigger: InsertWorkflowTrigger): Promise<WorkflowTrigger> {
+    const [newTrigger] = await db.insert(workflowTriggers).values(trigger).returning();
+    return newTrigger;
+  }
+
+  async updateWorkflowTrigger(id: string, data: Partial<WorkflowTrigger>): Promise<WorkflowTrigger | undefined> {
+    const [updated] = await db
+      .update(workflowTriggers)
+      .set(data)
+      .where(eq(workflowTriggers.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteWorkflowTriggers(workflowId: string): Promise<void> {
+    await db.delete(workflowTriggers).where(eq(workflowTriggers.workflowId, workflowId));
+  }
+
+  // Workflow Actions
+  async getWorkflowActions(workflowId: string): Promise<WorkflowAction[]> {
+    return await db.select().from(workflowActions)
+      .where(eq(workflowActions.workflowId, workflowId))
+      .orderBy(workflowActions.executionOrder);
+  }
+
+  async createWorkflowAction(action: InsertWorkflowAction): Promise<WorkflowAction> {
+    const [newAction] = await db.insert(workflowActions).values(action).returning();
+    return newAction;
+  }
+
+  async updateWorkflowAction(id: string, data: Partial<WorkflowAction>): Promise<WorkflowAction | undefined> {
+    const [updated] = await db
+      .update(workflowActions)
+      .set(data)
+      .where(eq(workflowActions.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteWorkflowActions(workflowId: string): Promise<void> {
+    await db.delete(workflowActions).where(eq(workflowActions.workflowId, workflowId));
+  }
+
+  // Workflow Executions
+  async getWorkflowExecution(id: string): Promise<WorkflowExecution | undefined> {
+    const [execution] = await db.select().from(workflowExecutions).where(eq(workflowExecutions.id, id));
+    return execution || undefined;
+  }
+
+  async getWorkflowExecutions(workflowId: string): Promise<WorkflowExecution[]> {
+    return await db.select().from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflowId))
+      .orderBy(desc(workflowExecutions.triggeredAt))
+      .limit(100);
+  }
+
+  async getEntityWorkflowExecutions(entityType: string, entityId: string): Promise<WorkflowExecution[]> {
+    return await db.select().from(workflowExecutions)
+      .where(
+        and(
+          eq(workflowExecutions.entityType, entityType),
+          eq(workflowExecutions.entityId, entityId)
+        )
+      )
+      .orderBy(desc(workflowExecutions.triggeredAt));
+  }
+
+  async createWorkflowExecution(execution: InsertWorkflowExecution): Promise<WorkflowExecution> {
+    const [newExecution] = await db.insert(workflowExecutions).values(execution).returning();
+    return newExecution;
+  }
+
+  async updateWorkflowExecution(id: string, data: Partial<WorkflowExecution>): Promise<WorkflowExecution | undefined> {
+    const [updated] = await db
+      .update(workflowExecutions)
+      .set(data)
+      .where(eq(workflowExecutions.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  // Workflow Schedules
+  async getWorkflowSchedule(workflowId: string): Promise<WorkflowSchedule | undefined> {
+    const [schedule] = await db.select().from(workflowSchedules).where(eq(workflowSchedules.workflowId, workflowId));
+    return schedule || undefined;
+  }
+
+  async getAllWorkflowSchedules(): Promise<WorkflowSchedule[]> {
+    return await db.select().from(workflowSchedules).orderBy(workflowSchedules.nextRunAt);
+  }
+
+  async getActiveWorkflowSchedules(): Promise<WorkflowSchedule[]> {
+    return await db.select().from(workflowSchedules)
+      .where(eq(workflowSchedules.isActive, true))
+      .orderBy(workflowSchedules.nextRunAt);
+  }
+
+  async createWorkflowSchedule(schedule: InsertWorkflowSchedule): Promise<WorkflowSchedule> {
+    const [newSchedule] = await db.insert(workflowSchedules).values(schedule).returning();
+    return newSchedule;
+  }
+
+  async updateWorkflowSchedule(id: string, data: Partial<WorkflowSchedule>): Promise<WorkflowSchedule | undefined> {
+    const [updated] = await db
+      .update(workflowSchedules)
+      .set(data)
+      .where(eq(workflowSchedules.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteWorkflowSchedule(workflowId: string): Promise<void> {
+    await db.delete(workflowSchedules).where(eq(workflowSchedules.workflowId, workflowId));
+  }
 }
+
 
 export const storage = new DatabaseStorage();
