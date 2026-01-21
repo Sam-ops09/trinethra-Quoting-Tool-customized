@@ -95,6 +95,9 @@ import {
   type InsertWorkflowExecution,
   type WorkflowSchedule,
   type InsertWorkflowSchedule,
+  userDevices,
+  type UserDevice,
+  type InsertUserDevice,
 } from "@shared/schema";
 import { version } from "os";
 import { cacheService } from "./services/cache.service";
@@ -110,6 +113,13 @@ export interface IStorage {
   updateUserWithTokenCheck(id: string, token: string, data: Partial<User>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
+
+  // User Devices
+  createUserDevice(device: InsertUserDevice): Promise<UserDevice>;
+  getUserDevices(userId: string): Promise<UserDevice[]>;
+  getUserDevice(id: string): Promise<UserDevice | undefined>;
+  updateUserDevice(id: string, data: Partial<UserDevice>): Promise<UserDevice | undefined>;
+  deleteUserDevice(id: string): Promise<void>;
 
   // Clients
   getClient(id: string): Promise<Client | undefined>;
@@ -1413,6 +1423,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWorkflowSchedule(workflowId: string): Promise<void> {
     await db.delete(workflowSchedules).where(eq(workflowSchedules.workflowId, workflowId));
+  }
+
+  // User Devices
+  async createUserDevice(device: InsertUserDevice): Promise<UserDevice> {
+    const [newItem] = await db.insert(userDevices).values(device).returning();
+    return newItem;
+  }
+
+  async getUserDevices(userId: string): Promise<UserDevice[]> {
+    return db.select().from(userDevices).where(eq(userDevices.userId, userId)).orderBy(desc(userDevices.lastActive));
+  }
+
+  async getUserDevice(id: string): Promise<UserDevice | undefined> {
+    const [device] = await db.select().from(userDevices).where(eq(userDevices.id, id));
+    return device;
+  }
+
+  async updateUserDevice(id: string, data: Partial<UserDevice>): Promise<UserDevice | undefined> {
+    const [updated] = await db.update(userDevices).set(data).where(eq(userDevices.id, id)).returning();
+    return updated;
+  }
+  
+  async deleteUserDevice(id: string): Promise<void> {
+    await db.delete(userDevices).where(eq(userDevices.id, id));
   }
 }
 

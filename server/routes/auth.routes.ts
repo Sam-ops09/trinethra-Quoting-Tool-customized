@@ -134,6 +134,31 @@ router.post("/login", async (req: Request, res: Response) => {
       entityId: user.id,
     });
 
+    // Track Device
+    try {
+        const userAgent = req.headers['user-agent'] || 'Unknown';
+        const ip = req.ip || req.socket.remoteAddress || 'Unknown';
+        
+        // Simple device type detection
+        let deviceType = 'desktop';
+        if (/mobile/i.test(userAgent)) deviceType = 'mobile';
+        else if (/tablet|ipad/i.test(userAgent)) deviceType = 'tablet';
+
+        await storage.createUserDevice({
+            userId: user.id,
+            deviceType,
+            browser: userAgent, // Storing full UA for now suitable for simple display
+            os: 'Unknown', 
+            ipAddress: typeof ip === 'string' ? ip : 'Unknown', // Handle potential array from x-forwarded-for if not parsed
+            userAgent: userAgent,
+            tokenHash: refreshToken, // Storing refresh token directly (or should hash it? kept simple for now matching schema)
+            isActive: true
+        });
+    } catch (e) {
+        logger.error("Failed to track device:", e);
+        // Don't fail login
+    }
+
     logger.info("Login successful");
     return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
   } catch (error: any) {
@@ -388,6 +413,38 @@ router.get("/ws-token", authMiddleware, async (req: AuthRequest, res: Response) 
   } catch (error: any) {
     logger.error("WebSocket token error:", error);
     return res.status(500).json({ error: "Failed to generate WebSocket token" });
+  }
+});
+
+// Get User Devices
+router.get("/devices", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    const devices = await storage.getUserDevices(req.user.id);
+    return res.json(devices);
+  } catch (error) {
+    logger.error("Failed to fetch devices:", error);
+    return res.status(500).json({ error: "Failed to fetch devices" });
+  }
+});
+
+// Revoke Device
+router.delete("/devices/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    
+    // Verify ownership
+    const device = await storage.getUserDevice(req.params.id);
+    if (!device || device.userId !== req.user.id) {
+        return res.status(404).json({ error: "Device not found" });
+    }
+
+    await storage.deleteUserDevice(req.params.id);
+    
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Failed to revoke device:", error);
+    return res.status(500).json({ error: "Failed to revoke device" });
   }
 });
 

@@ -46,6 +46,29 @@ export const usersRelations = relations(users, ({ many }) => ({
   templates: many(templates),
   activityLogs: many(activityLogs),
   communications: many(clientCommunications),
+  devices: many(userDevices),
+}));
+
+// User Devices table
+export const userDevices = pgTable("user_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  deviceType: text("device_type").notNull(), // 'desktop', 'mobile', 'tablet', 'unknown'
+  browser: text("browser"),
+  os: text("os"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  lastActive: timestamp("last_active").notNull().defaultNow(),
+  isActive: boolean("is_active").notNull().default(true),
+  tokenHash: text("token_hash"), // Store hash of the session token to identify/revoke specific sessions
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const userDevicesRelations = relations(userDevices, ({ one }) => ({
+  user: one(users, {
+    fields: [userDevices.userId],
+    references: [users.id],
+  }),
 }));
 
 // Clients table
@@ -1690,3 +1713,12 @@ export type InsertWorkflowSchedule = z.infer<typeof insertWorkflowScheduleSchema
 export type WorkflowStatus = "active" | "inactive" | "draft";
 export type WorkflowTriggerType = "status_change" | "amount_threshold" | "date_based" | "field_change" | "time_based" | "manual";
 export type WorkflowActionType = "send_email" | "create_notification" | "update_field" | "assign_user" | "create_task" | "escalate" | "webhook" | "create_activity_log";
+
+// User Devices Types
+export const insertUserDeviceSchema = createInsertSchema(userDevices).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type UserDevice = typeof userDevices.$inferSelect;
+export type InsertUserDevice = z.infer<typeof insertUserDeviceSchema>;

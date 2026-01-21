@@ -58,6 +58,7 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import React from "react";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SessionMonitor } from "@/components/session-monitor";
 import { Button } from "@/components/ui/button";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { isFeatureEnabled } from "@shared/feature-flags";
@@ -326,6 +327,7 @@ function App() {
           <WebSocketProvider>
             <TooltipProvider>
               <Toaster />
+              <SessionMonitor />
               <Router />
               {showAnalytics && <VercelAnalytics />}
             </TooltipProvider>

@@ -10,6 +10,7 @@ import { EmailService } from "./services/email.service";
 import { PaymentReminderScheduler } from "./services/payment-reminder.service";
 import { WebSocketService } from "./services/websocket.service";
 import { SchedulerService } from "./services/scheduler.service";
+import { BackupService } from "./services/backup.service";
 
 const app = express();
 
@@ -149,6 +150,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+
   // Removed reusePort (not supported on macOS / Node ENOTSUP)
   server.listen(port, '0.0.0.0', () => {
     log(`serving on port ${port}`);
@@ -158,5 +160,8 @@ app.use((req, res, next) => {
     
     // Start general scheduler (subscriptions etc)
     SchedulerService.init();
+
+    // Start backup service
+    BackupService.initialize();
   });
 })();
