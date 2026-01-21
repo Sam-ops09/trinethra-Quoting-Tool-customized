@@ -9,6 +9,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { EmailService } from "./services/email.service";
 import { PaymentReminderScheduler } from "./services/payment-reminder.service";
 import { WebSocketService } from "./services/websocket.service";
+import { SchedulerService } from "./services/scheduler.service";
 
 const app = express();
 
@@ -154,5 +155,8 @@ app.use((req, res, next) => {
     
     // Start automatic payment reminder scheduler
     PaymentReminderScheduler.start();
+    
+    // Start general scheduler (subscriptions etc)
+    SchedulerService.init();
   });
 })();

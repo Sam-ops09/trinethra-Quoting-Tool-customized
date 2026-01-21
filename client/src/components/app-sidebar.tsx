@@ -14,7 +14,9 @@ import {
     ChevronDown,
     BarChart3,
     CreditCard,
+
     FileWarning,
+    Repeat,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLocation } from "wouter";
@@ -111,6 +113,20 @@ const menuItems = [
         ],
         description: "Invoice tracking",
         featureFlag: 'pages_invoices' as const,
+    },
+    {
+        title: "Subscriptions",
+        url: "/subscriptions",
+        icon: Repeat,
+        roles: [
+            "admin",
+            "sales_executive",
+            "sales_manager",
+            "finance_accounts",
+            "viewer",
+        ],
+        description: "Recurring billing",
+        featureFlag: 'subscriptions_module' as const,
     },
     {
         title: "Credit Notes",
@@ -283,7 +299,7 @@ export function AppSidebar() {
 
     // Grouping logic
     const salesItems = filteredMenuItems.filter((item) =>
-        ["Quotes", "Sales Orders", "Clients", "Invoices", "Credit Notes", "Debit Notes"].includes(item.title)
+        ["Quotes", "Sales Orders", "Clients", "Invoices", "Subscriptions", "Credit Notes", "Debit Notes"].includes(item.title)
     );
     const purchaseItems = filteredMenuItems.filter((item) =>
         ["Vendors", "Vendor POs", "Products", "GRN"].includes(item.title)

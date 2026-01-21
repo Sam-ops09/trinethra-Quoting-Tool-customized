@@ -25,6 +25,7 @@ export type Resource =
   | "sales-orders"
   | "serial-search"
   | "analytics"
+  | "subscriptions"
   | "admin/users"
   | "admin/settings"
   | "admin/configuration"
@@ -139,6 +140,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "dashboards/vendor-po", action: "view" },
     { resource: "dashboards/invoice-collections", action: "view" },
     { resource: "dashboards/serial-tracking", action: "view" },
+    { resource: "subscriptions", action: "view" },
+    { resource: "subscriptions", action: "create" },
+    { resource: "subscriptions", action: "edit" },
+    { resource: "subscriptions", action: "cancel" },
   ],
   sales_executive: [
     { resource: "dashboard", action: "view" },
@@ -186,6 +191,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "dashboards", action: "view" },
     { resource: "dashboards/sales-quotes", action: "view" },
     { resource: "dashboards/invoice-collections", action: "view" },
+    { resource: "subscriptions", action: "view" },
+    { resource: "subscriptions", action: "create" },
+    { resource: "subscriptions", action: "edit" },
   ],
   purchase_operations: [
     { resource: "dashboard", action: "view" },
@@ -229,6 +237,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "analytics", action: "view" },
     { resource: "dashboards", action: "view" },
     { resource: "dashboards/invoice-collections", action: "view" },
+    { resource: "subscriptions", action: "view" },
+    { resource: "subscriptions", action: "edit" },
   ],
   viewer: [
     { resource: "dashboard", action: "view" },
@@ -275,7 +285,8 @@ export function canAccessRoute(role: UserRole, path: string): boolean {
       "products", "grn", "payments", "serial-search", "analytics", "sales-orders",
       "admin/users", "admin/settings", "admin/configuration", "admin/governance", "admin/analytics",
       "dashboards", "dashboards/sales-quotes", "dashboards/vendor-po",
-      "dashboards/invoice-collections", "dashboards/serial-tracking"
+      "dashboards/invoice-collections", "dashboards/serial-tracking",
+      "subscriptions"
     ];
     return validResources.includes(str as Resource);
   };

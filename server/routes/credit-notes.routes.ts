@@ -238,7 +238,7 @@ router.post("/credit-notes", authMiddleware, requireFeature('creditNotes_create'
 // ==================== UPDATE CREDIT NOTE ====================
 router.put("/credit-notes/:id", authMiddleware, requireFeature('creditNotes_edit'), requirePermission("credit_notes", "edit"), async (req: AuthRequest, res: Response) => {
   try {
-    const { reason, items, notes, cgst = "0", sgst = "0", igst = "0" } = req.body;
+    const { reason, items, notes, cgst = "0", sgst = "0", igst = "0", invoiceId } = req.body;
 
     // Verify credit note exists and is in draft status
     const [existing] = await db.select()
@@ -261,6 +261,27 @@ router.put("/credit-notes/:id", authMiddleware, requireFeature('creditNotes_edit
         subtotal = subtotal.plus(itemSubtotal);
       }
     }
+    
+    // Validate invoiceId if provided (for linking/unlinking)
+    let finalInvoiceId = existing.invoiceId;
+    if (invoiceId !== undefined) {
+      if (invoiceId === null) {
+        finalInvoiceId = null; // Unlink
+      } else {
+        // Verify invoice exists and belongs to same client
+        const [targetInvoice] = await db.select()
+          .from(schema.invoices)
+          .where(eq(schema.invoices.id, invoiceId));
+        
+        if (!targetInvoice) {
+          return res.status(404).json({ error: "Target invoice not found" });
+        }
+        if (targetInvoice.clientId !== existing.clientId) {
+          return res.status(400).json({ error: "Target invoice must belong to the same client" });
+        }
+        finalInvoiceId = invoiceId;
+      }
+    }
 
     const total = subtotal.plus(toDecimal(cgst)).plus(toDecimal(sgst)).plus(toDecimal(igst));
 
@@ -269,6 +290,7 @@ router.put("/credit-notes/:id", authMiddleware, requireFeature('creditNotes_edit
       const [updated] = await tx.update(schema.creditNotes)
         .set({
           reason: reason || existing.reason,
+          invoiceId: finalInvoiceId,
           notes: notes !== undefined ? notes : existing.notes,
           cgst,
           sgst,

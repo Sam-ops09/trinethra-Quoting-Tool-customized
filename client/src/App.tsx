@@ -48,6 +48,10 @@ import CreditNoteCreate from "@/pages/credit-note-create";
 import DebitNotes from "@/pages/debit-notes";
 import DebitNoteDetail from "@/pages/debit-note-detail";
 import DebitNoteCreate from "@/pages/debit-note-create";
+
+import Subscriptions from "@/pages/subscriptions";
+import SubscriptionCreate from "@/pages/subscription-create";
+import SubscriptionDetail from "@/pages/subscription-detail";
 import { Loader2, ShieldAlert } from "lucide-react";
 import React from "react";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
@@ -166,6 +170,16 @@ function AuthenticatedLayout() {
               <Route path="/invoices" component={() => <ProtectedRoute component={Invoices} requiredPath="/invoices" />} />
               <Route path="/invoices/analytics" component={() => <ProtectedRoute component={InvoiceAnalytics} requiredPath="/invoices" />} />
               <Route path="/invoices/:id" component={() => <ProtectedRoute component={InvoiceDetail} requiredPath="/invoices" />} />
+            </>
+          )}
+
+          {/* Subscriptions */}
+          {isFeatureEnabled('subscriptions_module') && (
+            <>
+              <Route path="/subscriptions" component={() => <ProtectedRoute component={Subscriptions} requiredPath="/subscriptions" />} />
+              <Route path="/subscriptions/new" component={() => <ProtectedRoute component={SubscriptionCreate} requiredPath="/subscriptions" />} />
+              <Route path="/subscriptions/:id/edit" component={() => <ProtectedRoute component={SubscriptionCreate} requiredPath="/subscriptions" />} />
+              <Route path="/subscriptions/:id" component={() => <ProtectedRoute component={SubscriptionDetail} requiredPath="/subscriptions" />} />
             </>
           )}
 

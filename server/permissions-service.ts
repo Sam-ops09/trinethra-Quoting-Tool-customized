@@ -27,7 +27,9 @@ export type ResourceType =
   | "serial_numbers"
   | "users"
   | "settings"
-  | "sales_orders";
+  | "settings"
+  | "sales_orders"
+  | "subscriptions";
 
 export type ActionType =
   | "view"
@@ -130,6 +132,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "users", action: "delete" },
       { resource: "settings", action: "view" },
       { resource: "settings", action: "manage" },
+      { resource: "subscriptions", action: "view" },
+      { resource: "subscriptions", action: "create" },
+      { resource: "subscriptions", action: "edit" },
+      { resource: "subscriptions", action: "delete" },
+      { resource: "subscriptions", action: "cancel" },
     ]
   },
   sales_executive: {
@@ -158,6 +165,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "clients", action: "edit" },
       { resource: "products", action: "view" },
       { resource: "serial_numbers", action: "view" },
+      { resource: "subscriptions", action: "view" },
     ]
   },
   sales_manager: {
@@ -184,8 +192,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "clients", action: "edit" },
       { resource: "products", action: "view" },
       { resource: "payments", action: "view" },
-      { resource: "serial_numbers", action: "view" },
       { resource: "serial_numbers", action: "edit" },
+      { resource: "subscriptions", action: "view" },
+      { resource: "subscriptions", action: "create" },
+      { resource: "subscriptions", action: "edit" },
+      { resource: "subscriptions", action: "cancel" },
     ]
   },
   purchase_operations: {
@@ -239,6 +250,10 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "quotes", action: "view" },
       { resource: "clients", action: "view" },
       { resource: "serial_numbers", action: "view" },
+      { resource: "subscriptions", action: "view" },
+      { resource: "subscriptions", action: "create" },
+      { resource: "subscriptions", action: "edit" },
+      { resource: "subscriptions", action: "cancel" },
     ]
   },
   viewer: {
@@ -701,6 +716,7 @@ export function getAuditableFields(resource: ResourceType): string[] {
     users: ["role", "status", "email"],
     settings: ["*"], // All settings changes
     sales_orders: ["total", "status", "discount", "orderDate"],
+    subscriptions: ["planName", "amount", "billingCycle", "status", "nextBillingDate", "prorataCredit"],
   };
 
   return auditableFieldsMap[resource] || [];

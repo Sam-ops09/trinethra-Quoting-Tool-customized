@@ -497,4 +497,53 @@ export class EmailService {
       // Don't throw - welcome email is non-critical
     }
   }
+
+  static async sendSubscriptionRenewedEmail(
+    to: string,
+    clientName: string,
+    planName: string,
+    invoiceNumber: string,
+    amount: string,
+    nextDate: Date
+  ): Promise<void> {
+    const htmlContent = `
+      <h2>Subscription Renewed</h2>
+      <p>Hello ${clientName},</p>
+      <p>Your subscription for <strong>${planName}</strong> has been successfully renewed.</p>
+      <p>Order Details:</p>
+      <ul>
+        <li><strong>Invoice:</strong> ${invoiceNumber}</li>
+        <li><strong>Amount:</strong> ${amount}</li>
+        <li><strong>Next Renewal:</strong> ${nextDate.toLocaleDateString()}</li>
+      </ul>
+      <p>Thank you for your business!</p>
+    `;
+
+    try {
+      if (this.useResend && this.resend) {
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+            fromEmail = "onboarding@resend.dev";
+        }
+        await this.resend.emails.send({
+          from: fromEmail,
+          to: to,
+          subject: `Subscription Renewed: ${planName}`,
+          html: htmlContent,
+        });
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
+          to: to,
+          subject: `Subscription Renewed: ${planName}`,
+          html: htmlContent,
+        });
+      }
+      console.log(`[EmailService] Subscription renewal email sent to ${to}`);
+    } catch (error) {
+      console.error("Failed to send subscription renewal email:", error);
+      // don't throw to avoid breaking the scheduler loop
+    }
+  }
 }

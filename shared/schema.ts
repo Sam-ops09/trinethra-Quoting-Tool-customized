@@ -16,6 +16,8 @@ export const salesOrderStatusEnum = pgEnum("sales_order_status", ["draft", "conf
 export const salesOrderItemStatusEnum = pgEnum("sales_order_item_status", ["pending", "partial", "fulfilled"]);
 export const creditNoteStatusEnum = pgEnum("credit_note_status", ["draft", "issued", "applied", "cancelled"]);
 export const debitNoteStatusEnum = pgEnum("debit_note_status", ["draft", "issued", "applied", "cancelled"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "paused", "cancelled", "expired"]);
+export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "annually"]);
 // Users table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -304,6 +306,40 @@ export const quoteCommentsRelations = relations(quoteComments, ({ one }) => ({
   }),
 }));
 
+// Subscriptions table
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionNumber: text("subscription_number").notNull().unique(), // SUB-2025-001
+  clientId: varchar("client_id").notNull().references(() => clients.id),
+  planName: text("plan_name").notNull(),
+  status: subscriptionStatusEnum("status").notNull().default("active"),
+  billingCycle: billingCycleEnum("billing_cycle").notNull().default("monthly"),
+  startDate: timestamp("start_date").notNull().defaultNow(),
+  nextBillingDate: timestamp("next_billing_date").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("INR"),
+  autoRenew: boolean("auto_renew").notNull().default(true),
+  itemsSnapshot: text("items_snapshot").notNull(), // JSON
+  lastInvoiceDate: timestamp("last_invoice_date"),
+  prorataCredit: decimal("prorata_credit", { precision: 12, scale: 2 }).default("0"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [subscriptions.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [subscriptions.createdBy],
+    references: [users.id],
+  }),
+  invoices: many(invoices),
+}));
+
 export const invoices = pgTable("invoices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   invoiceNumber: text("invoice_number").notNull().unique(),
@@ -311,6 +347,7 @@ export const invoices = pgTable("invoices", {
   salesOrderId: varchar("sales_order_id").references(() => salesOrders.id),
   clientId: varchar("client_id").references(() => clients.id),
   parentInvoiceId: varchar("parent_invoice_id"),
+  subscriptionId: varchar("subscription_id").references(() => subscriptions.id),
   status: text("status").notNull().default("draft"),
   masterInvoiceStatus: text("master_invoice_status").default("draft"),
   paymentStatus: text("payment_status").default("pending"),
@@ -347,6 +384,7 @@ export const invoices = pgTable("invoices", {
 }, (table) => {
   return {
     parentIdx: index("idx_invoices_parent_invoice_id").on(table.parentInvoiceId),
+    subscriptionIdx: index("idx_invoices_subscription_id").on(table.subscriptionId),
     // REMOVED unique constraint to allow partial invoicing (multiple invoices per SO)
     // uniqueSalesOrder: uniqueIndex("idx_invoices_sales_order_unique").on(table.salesOrderId).where(sql`sales_order_id IS NOT NULL`),
     clientIdx: index("idx_invoices_client_id").on(table.clientId),
@@ -389,6 +427,10 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   }),
   childInvoices: many(invoices, {
     relationName: "invoiceHierarchy",
+  }),
+  subscription: one(subscriptions, {
+    fields: [invoices.subscriptionId],
+    references: [subscriptions.id],
   }),
   creator: one(users, {
     fields: [invoices.createdBy],

@@ -148,7 +148,7 @@ export default function DebitNoteCreate() {
             
             const payload = {
                 clientId: values.clientId,
-                invoiceId: values.invoiceId || null,
+                invoiceId: values.invoiceId === "none" ? null : (values.invoiceId || null),
                 reason: values.reason,
                 notes: values.notes,
                 items: values.items.map(item => ({
@@ -305,7 +305,6 @@ export default function DebitNoteCreate() {
                                                         <Select 
                                                             onValueChange={field.onChange} 
                                                             value={field.value || undefined}
-                                                            disabled={isEdit}
                                                         >
                                                             <FormControl>
                                                                 <SelectTrigger>

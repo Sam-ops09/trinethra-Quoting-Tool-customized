@@ -137,6 +137,11 @@ export interface FeatureFlags {
   debitNotes_issue: boolean;
   debitNotes_apply: boolean;
 
+  // ==================== SUBSCRIPTIONS ====================
+  subscriptions_module: boolean;
+
+
+
   // ==================== CLIENT/CRM FEATURES ====================
 
   clients_module: boolean;
@@ -288,6 +293,7 @@ export interface FeatureFlags {
 
   // Email Templates
   email_templates_module: boolean;
+  email_subscriptionRenewed: boolean;
 
   // ==================== ADMIN & CONFIGURATION ====================
 
@@ -459,6 +465,9 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   debitNotes_issue: true,
   debitNotes_apply: true,
 
+  // ==================== SUBSCRIPTIONS ====================
+  subscriptions_module: true,
+
   // ==================== CLIENT/CRM FEATURES ====================
   clients_module: true,
   clients_create: true,
@@ -583,6 +592,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   email_overdueNotifications: false,
   email_vendorPO: false,
   email_templates_module: true,
+  email_subscriptionRenewed: false,
 
   // ==================== ADMIN & CONFIGURATION ====================
   admin_userManagement: true,
