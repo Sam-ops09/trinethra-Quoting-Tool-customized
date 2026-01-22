@@ -1,60 +1,37 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2, ArrowLeft, Upload, Home, ChevronRight, FileText, Edit, Package, DollarSign } from "lucide-react";
-import { ProductPicker } from "@/components/ProductPicker";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Form } from "@/components/ui/form";
+import { 
+    Home, 
+    ChevronRight, 
+    Edit, 
+    Loader2, 
+    ArrowLeft, 
+    ArrowRight, 
+    Check,
+    Save
+} from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
-import { formatCurrency } from "@/lib/currency";
 import type { Client } from "@shared/schema";
-import { ExecBOMSection } from "@/components/shared/exec-bom-section";
-import type { ExecBOMData, ExecBOMItemRow } from "@/types/bom-types";
-import { SLASection, type SLAData } from "@/components/quote/sla-section";
 import { CollaborationPresence } from "@/components/collaboration-presence";
 import { useCollaboration } from "@/lib/websocket-context";
-import {
-    TimelineSection,
-    type TimelineData,
-} from "@/components/quote/timeline-section";
-import {
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Separator } from "@/components/ui/separator";
+import { QuoteBasicInfo } from "@/components/quote/quote-basic-info";
+import { QuoteLineItems } from "@/components/quote/quote-line-items";
+import { QuoteAdvanced } from "@/components/quote/quote-advanced";
+import { QuoteReview } from "@/components/quote/quote-review";
+import type { ExecBOMData, ExecBOMItemRow } from "@/types/bom-types";
+import type { SLAData } from "@/components/quote/sla-section";
+import type { TimelineData } from "@/components/quote/timeline-section";
+import { cn } from "@/lib/utils";
 
 type TaxRate = {
     id: string;
@@ -72,7 +49,7 @@ interface QuoteCreatePayload {
     validityDays: number;
     referenceNumber?: string;
     attentionTo?: string;
-    discount: string; // monetary discount amount
+    discount: string;
     cgst: string;
     sgst: string;
     igst: string;
@@ -84,9 +61,9 @@ interface QuoteCreatePayload {
     status: "draft" | "sent" | "approved" | "rejected" | "invoiced";
     quoteDate: string;
     items: { productId?: string | null; description: string; quantity: number; unitPrice: number; hsnSac?: string }[];
-    bomSection?: string | null; // JSON string
-    slaSection?: string | null; // JSON string
-    timelineSection?: string | null; // JSON string
+    bomSection?: string | null;
+    slaSection?: string | null;
+    timelineSection?: string | null;
     currency: string;
 }
 
@@ -149,6 +126,13 @@ const quoteFormSchema = z.object({
         .min(1, "At least one item is required"),
 });
 
+const STEPS = [
+    { id: 0, title: "Basic Info", description: "Client & Validity" },
+    { id: 1, title: "Line Items", description: "Products & Services" },
+    { id: 2, title: "Advanced", description: "BOM, SLA & Timeline" },
+    { id: 3, title: "Review", description: "Pricing & Finalize" },
+];
+
 export default function QuoteCreate() {
     const [, setLocation] = useLocation();
     const [, params] = useRoute("/quotes/:id/edit");
@@ -156,9 +140,11 @@ export default function QuoteCreate() {
     const { user } = useAuth();
     const isEditMode = !!params?.id;
 
+    // Wizard State
+    const [currentStep, setCurrentStep] = useState(0);
+
     // Real-time collaboration - only for edit mode
-    const { collaborators, broadcast, startEditing, stopEditing, onDocumentUpdate } = 
-        useCollaboration(isEditMode ? "quote" : "", isEditMode ? params?.id || "" : "");
+    const { } = useCollaboration(isEditMode ? "quote" : "", isEditMode ? params?.id || "" : "");
 
     const { data: clients } = useQuery<Client[]>({
         queryKey: ["/api/clients"],
@@ -174,8 +160,8 @@ export default function QuoteCreate() {
         useQuery<QuoteDetail>({
             queryKey: ["/api/quotes", params?.id],
             enabled: isEditMode,
-            staleTime: 0, // Always refetch when component mounts in edit mode
-            gcTime: 0, // Don't cache quote data for edit mode
+            staleTime: 0,
+            gcTime: 0,
         });
 
     const form = useForm<z.infer<typeof quoteFormSchema>>({
@@ -217,7 +203,7 @@ export default function QuoteCreate() {
         milestones: [],
     });
 
-    // Pre-select client from URL query parameter (new quote from client page)
+    // Pre-select client from URL query parameter
     useEffect(() => {
         if (!isEditMode) {
             const params = new URLSearchParams(window.location.search);
@@ -239,8 +225,7 @@ export default function QuoteCreate() {
 
             const taxBase = subtotal - discountAmount;
 
-            const discountPercent =
-                subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
+            const discountPercent = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
             const cgstPercent = taxBase > 0 ? (cgstAmount / taxBase) * 100 : 0;
             const sgstPercent = taxBase > 0 ? (sgstAmount / taxBase) * 100 : 0;
             const igstPercent = taxBase > 0 ? (igstAmount / taxBase) * 100 : 0;
@@ -270,7 +255,6 @@ export default function QuoteCreate() {
             if (existingQuote.bomSection) {
                 try {
                     const parsed = JSON.parse(existingQuote.bomSection);
-                    // Check if legacy format (array)
                     if (Array.isArray(parsed)) {
                         const legacyItems = parsed;
                         const newItems: ExecBOMItemRow[] = legacyItems.map((item: any) => ({
@@ -320,11 +304,6 @@ export default function QuoteCreate() {
         }
     }, [existingQuote, isEditMode, form]);
 
-    const { fields, append, remove } = useFieldArray({
-        control: form.control,
-        name: "items",
-    });
-
     const createMutation = useMutation({
         mutationFn: async (data: QuoteCreatePayload) => {
             return await apiRequest("POST", "/api/quotes", data);
@@ -345,7 +324,6 @@ export default function QuoteCreate() {
             });
         },
     });
-
 
     const updateMutation = useMutation({
         mutationFn: async (data: QuoteCreatePayload) => {
@@ -371,97 +349,18 @@ export default function QuoteCreate() {
         },
     });
 
-    // Excel Import Logic
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const parseExcelMutation = useMutation({
-        mutationFn: async (fileContent: string) => {
-             const res = await apiRequest("POST", "/api/quotes/parse-excel", { fileContent });
-             return await res.json();
-        },
-        onSuccess: (data: any[]) => {
-             if (data && data.length > 0) {
-                 const currentItems = form.getValues("items");
-                 // If only one item exists and it's empty/default, clear it
-                 if (currentItems.length === 1 && !currentItems[0].description && currentItems[0].quantity === 1 && currentItems[0].unitPrice === 0) {
-                    remove(0);
-                 }
-                 
-                 data.forEach((item) => {
-                    append({
-                        description: item.description,
-                        quantity: item.quantity,
-                        unitPrice: item.unitPrice,
-                        hsnSac: item.hsnSac || ""
-                    });
-                 });
-                 
-                 toast({ title: "Import Successful", description: `${data.length} items imported from Excel.` });
-             } else {
-                 toast({ title: "No items found", description: "The Excel file didn't contain valid items.", variant: "destructive" });
-             }
-             if (fileInputRef.current) fileInputRef.current.value = "";
-        },
-        onError: (error: any) => {
-             toast({ title: "Import Failed", description: error.message || "Failed to parse Excel file", variant: "destructive" });
-             if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-    });
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        // check if file is excel
-        if (!file.name.match(/\.(xlsx|xls)$/)) {
-            toast({ title: "Invalid file type", description: "Please upload an Excel file (.xlsx, .xls)", variant: "destructive" });
-            return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-             const base64String = evt.target?.result?.toString().split(',')[1];
-             if (base64String) {
-                 parseExcelMutation.mutate(base64String);
-             }
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const items = form.watch("items");
-    const discount = form.watch("discount");
-    const cgst = form.watch("cgst");
-    const sgst = form.watch("sgst");
-    const igst = form.watch("igst");
-    const shippingCharges = form.watch("shippingCharges");
-    const currency = form.watch("currency");
-
-    // Apply selected tax rate
-    const applyTaxRate = (taxRateId: string) => {
-        const selectedRate = activeTaxRates.find((rate) => rate.id === taxRateId);
-        if (selectedRate) {
-            form.setValue("cgst", parseFloat(selectedRate.cgstRate));
-            form.setValue("sgst", parseFloat(selectedRate.sgstRate));
-            form.setValue("igst", parseFloat(selectedRate.igstRate));
-            toast({
-                title: "Tax rate applied",
-                description: `Applied ${selectedRate.taxType} rates for ${selectedRate.region}`,
-            });
-        }
-    };
-
-    const subtotal = items.reduce(
-        (sum, item) => sum + item.quantity * item.unitPrice,
-        0,
-    );
-    const discountAmount = (subtotal * discount) / 100;
-    const taxableAmount = subtotal - discountAmount;
-    const cgstAmount = (taxableAmount * cgst) / 100;
-    const sgstAmount = (taxableAmount * sgst) / 100;
-    const igstAmount = (taxableAmount * igst) / 100;
-    const total =
-        taxableAmount + cgstAmount + sgstAmount + igstAmount + shippingCharges;
+    const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
     const onSubmit = async (values: z.infer<typeof quoteFormSchema>) => {
+        const items = values.items;
+        const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+        const discountAmount = (subtotal * values.discount) / 100;
+        const taxableAmount = subtotal - discountAmount;
+        const cgstAmount = (taxableAmount * values.cgst) / 100;
+        const sgstAmount = (taxableAmount * values.sgst) / 100;
+        const igstAmount = (taxableAmount * values.igst) / 100;
+        const total = taxableAmount + cgstAmount + sgstAmount + igstAmount + values.shippingCharges;
+
         const quoteData: QuoteCreatePayload = {
             clientId: values.clientId,
             currency: values.currency,
@@ -472,7 +371,7 @@ export default function QuoteCreate() {
             cgst: cgstAmount.toString(),
             sgst: sgstAmount.toString(),
             igst: igstAmount.toString(),
-            shippingCharges: shippingCharges.toString(),
+            shippingCharges: values.shippingCharges.toString(),
             subtotal: subtotal.toString(),
             total: total.toString(),
             notes: values.notes || undefined,
@@ -508,1028 +407,195 @@ export default function QuoteCreate() {
         }
     };
 
+    // Wizard Navigation Logic
+    const nextStep = async () => {
+        let isValid = false;
+        
+        // Validate specific fields based on step
+        if (currentStep === 0) {
+            isValid = await form.trigger(["clientId", "currency", "validityDays", "referenceNumber", "attentionTo"]);
+        } else if (currentStep === 1) {
+            isValid = await form.trigger(["items"]);
+        } else {
+            isValid = true;
+        }
+
+        if (isValid) {
+            setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    };
+
+    const prevStep = () => {
+        setCurrentStep((prev) => Math.max(prev - 1, 0));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
     if (isEditMode && isLoadingQuote) {
         return (
-            <div className="min-h-screen bg-background">
-                <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6">
-                    <div className="p-6 flex items-center justify-center">
-                        <Loader2 className="h-8 w-8 animate-spin" />
-                    </div>
-                </div>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin" />
             </div>
         );
     }
 
     if (isEditMode && existingQuote?.status === "invoiced") {
         return (
-            <div className="min-h-screen bg-background">
-                <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-                    <div className="text-center py-12">
-                        <p className="text-muted-foreground">
-                            This quote has been invoiced and cannot be edited.
-                        </p>
-                        <Button
-                            className="mt-4"
-                            onClick={() => setLocation(`/quotes/${params?.id}`)}
-                        >
-                            Back to Quote
-                        </Button>
-                    </div>
-                </div>
+            <div className="min-h-screen bg-background p-8 text-center">
+                <p className="text-muted-foreground">This quote has been invoiced and cannot be edited.</p>
+                <Button className="mt-4" onClick={() => setLocation(`/quotes/${params?.id}`)}>Back to Quote</Button>
             </div>
         );
     }
 
-    const isSubmitting =
-        createMutation.isPending || updateMutation.isPending;
-
     return (
-        <div className="min-h-screen w-full">
-            <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-[1600px] mx-auto space-y-4 sm:space-y-6 lg:space-y-8">
-                {/* Premium Breadcrumbs */}
-                <nav className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
-                    <button
-                        onClick={() => setLocation("/")}
-                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
-                    >
-                        <Home className="h-3.5 w-3.5" />
-                        <span>Home</span>
-                    </button>
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-                    <button
-                        onClick={() => setLocation("/quotes")}
-                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105"
-                    >
-                        <FileText className="h-3.5 w-3.5" />
-                        <span>Quotes</span>
-                    </button>
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-                    <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-white">
-                        <Edit className="h-3.5 w-3.5" />
-                        <span>{isEditMode ? "Edit Quote" : "New Quote"}</span>
-                    </span>
+        <div className="min-h-screen w-full bg-muted/5">
+            <div className="w-full max-w-12xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+                {/* Breadcrumbs */}
+                <nav className="flex items-center gap-2 px-4 py-2 rounded-full bg-background border shadow-sm w-fit text-sm animate-in fade-in slide-in-from-top-2 duration-500">
+                    <button onClick={() => setLocation("/")} className="hover:text-primary transition-colors"><Home className="h-4 w-4" /></button>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <button onClick={() => setLocation("/quotes")} className="hover:text-primary transition-colors">Quotes</button>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold text-primary">{isEditMode ? "Edit Quote" : "New Quote"}</span>
                 </nav>
 
-                {/* Header */}
-                <Card className="border border-border/70 bg-card/95 backdrop-blur-sm shadow-sm">
-                    <CardContent className="p-4 sm:p-5 lg:p-6 space-y-3 sm:space-y-4">
-                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                            <div className="flex items-start gap-2 sm:gap-3 min-w-0">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() =>
-                                        setLocation(
-                                            isEditMode ? `/quotes/${params?.id}` : "/quotes",
-                                        )
-                                    }
-                                    data-testid="button-back"
-                                    className="shrink-0 hover:bg-primary/10 hover:text-primary h-8 w-8 sm:h-9 sm:w-9"
-                                >
-                                    <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-                                </Button>
-                                <div className="min-w-0 flex-1 space-y-1">
-                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                        <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-foreground tracking-tight">
-                                            {isEditMode
-                                                ? `Edit Quote ${existingQuote?.quoteNumber}`
-                                                : "Create New Quote"}
-                                        </h1>
+                {/* Header with Steps */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">
+                            {isEditMode ? `Edit Quote ${existingQuote?.quoteNumber}` : "Create New Quote"}
+                        </h1>
+                        <p className="text-muted-foreground mt-1">
+                            Follow the steps below to generate a comprehensive quote.
+                        </p>
+                    </div>
+                    
+                    {/* Real-time collaboration indicator */}
+                    {isEditMode && params?.id && (
+                        <CollaborationPresence 
+                            entityType="quote" 
+                            entityId={params.id}
+                            className="self-center"
+                        />
+                    )}
+                </div>
+
+                {/* Wizard Stepper */}
+                {/* Mobile Stepper Indicator */}
+                <div className="md:hidden space-y-2">
+                    <div className="flex items-center justify-between text-sm font-medium">
+                        <span className="text-primary">Step {currentStep + 1} of {STEPS.length}</span>
+                        <span className="text-muted-foreground">{STEPS[currentStep].title}</span>
+                    </div>
+                    <Progress value={((currentStep + 1) / STEPS.length) * 100} className="h-2" />
+                </div>
+
+                {/* Desktop Stepper */}
+                <div className="hidden md:block w-full bg-card border rounded-xl p-4 shadow-sm overflow-x-auto">
+                    <div className="flex items-center justify-between min-w-[600px]">
+                        {STEPS.map((step, index) => (
+                            <div key={step.id} className="flex flex-1 items-center last:flex-none">
+                                <div className={cn(
+                                    "flex items-center gap-3",
+                                    index <= currentStep ? "text-primary" : "text-muted-foreground"
+                                )}>
+                                    <div className={cn(
+                                        "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300",
+                                        index < currentStep ? "bg-primary text-primary-foreground" :
+                                        index === currentStep ? "bg-primary text-primary-foreground ring-4 ring-primary/20" :
+                                        "bg-muted text-muted-foreground"
+                                    )}>
+                                        {index < currentStep ? <Check className="h-4 w-4" /> : index + 1}
                                     </div>
-                                    {user && (
-                                        <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
-                                            Prepared by: {user.name}
-                                        </p>
-                                    )}
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-semibold">{step.title}</span>
+                                        <span className="text-xs text-muted-foreground hidden lg:block">{step.description}</span>
+                                    </div>
                                 </div>
+                                {index < STEPS.length - 1 && (
+                                    <div className={cn(
+                                        "h-[2px] w-full mx-4 rounded-full transition-all duration-500",
+                                        index < currentStep ? "bg-primary" : "bg-muted"
+                                    )} />
+                                )}
                             </div>
-                            {/* Real-time collaboration presence indicator */}
-                            {isEditMode && params?.id && (
-                                <CollaborationPresence 
-                                    entityType="quote" 
-                                    entityId={params.id}
-                                    className="self-center"
+                        ))}
+                    </div>
+                </div>
+
+                {/* Main Content Area */}
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                        <div className="min-h-[400px]">
+                            {currentStep === 0 && (
+                                <QuoteBasicInfo form={form} clients={clients} />
+                            )}
+                            {currentStep === 1 && (
+                                <QuoteLineItems form={form} />
+                            )}
+                            {currentStep === 2 && (
+                                <QuoteAdvanced 
+                                    form={form} 
+                                    bomData={bomData} 
+                                    setBomData={setBomData}
+                                    slaData={slaData}
+                                    setSlaData={setSlaData}
+                                    timelineData={timelineData}
+                                    setTimelineData={setTimelineData}
                                 />
                             )}
+                            {currentStep === 3 && (
+                                <QuoteReview form={form} activeTaxRates={activeTaxRates} />
+                            )}
                         </div>
-                    </CardContent>
-                </Card>
 
-                {/* Form */}
-                <Form {...form}>
-                    <form
-                        onSubmit={form.handleSubmit(onSubmit)}
-                        className="space-y-3"
-                    >
-                        <div className="grid gap-3 2xl:grid-cols-3">
-                            {/* Left column */}
-                            <div className="2xl:col-span-2 space-y-3">
-                                {/* Basic Information */}
-                                <Card className="border bg-card shadow-sm overflow-hidden">
-                                    <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                            <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
-                                                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
-                                            </div>
-                                            <div>
-                                                <CardTitle className="text-sm sm:text-lg">Basic Information</CardTitle>
-                                                <p className="hidden sm:block text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
-                                                    Client and quote details
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="clientId"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Client *</FormLabel>
-                                                    <Select
-                                                        onValueChange={field.onChange}
-                                                        value={field.value}
-                                                    >
-                                                        <FormControl>
-                                                            <SelectTrigger data-testid="select-client" className="text-sm">
-                                                                <SelectValue placeholder="Select a client" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            {clients?.map((client) => (
-                                                                <SelectItem
-                                                                    key={client.id}
-                                                                    value={client.id}
-                                                                >
-                                                                    {client.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            
+                        {/* Footer Actions */}
+                        <div className="sticky bottom-0 left-0 right-0 bg-background/80 backdrop-blur-md border-t z-10 animate-in slide-in-from-bottom-2">
+                            <div className="w-full max-w-12xl mx-auto p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0">
+                                 <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={prevStep}
+                                    disabled={currentStep === 0}
+                                    className="w-full sm:w-32 gap-2 order-2 sm:order-1"
+                                 >
+                                    <ArrowLeft className="h-4 w-4" /> Back
+                                 </Button>
+
+                                 <div className="flex gap-3 w-full sm:w-auto order-1 sm:order-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setLocation(isEditMode ? `/quotes/${params?.id}` : "/quotes")}
+                                        className="flex-1 sm:flex-initial"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    
+                                    {currentStep < STEPS.length - 1 ? (
+                                        <Button
+                                            type="button"
+                                            onClick={nextStep}
+                                            className="flex-1 sm:flex-initial w-full sm:w-32 gap-2"
+                                        >
+                                            Next <ArrowRight className="h-4 w-4" />
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="submit"
+                                            disabled={isSubmitting}
+                                            className="flex-1 sm:flex-initial w-full sm:w-40 gap-2"
+                                        >
+                                            {isSubmitting ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Save className="h-4 w-4" />
                                             )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="currency"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Currency *</FormLabel>
-                                                    <Select
-                                                        onValueChange={field.onChange}
-                                                        value={field.value}
-                                                    >
-                                                        <FormControl>
-                                                            <SelectTrigger data-testid="select-currency" className="text-sm">
-                                                                <SelectValue placeholder="Currency" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            <SelectItem value="INR">INR (₹)</SelectItem>
-                                                            <SelectItem value="USD">USD ($)</SelectItem>
-                                                            <SelectItem value="EUR">EUR (€)</SelectItem>
-                                                            <SelectItem value="GBP">GBP (£)</SelectItem>
-                                                            <SelectItem value="AUD">AUD ($)</SelectItem>
-                                                            <SelectItem value="CAD">CAD ($)</SelectItem>
-                                                            <SelectItem value="SGD">SGD ($)</SelectItem>
-                                                            <SelectItem value="AED">AED (د.إ)</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <div className="grid gap-4 sm:grid-cols-2">
-                                            <FormField
-                                                control={form.control}
-                                                name="validityDays"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Validity Period (days) *</FormLabel>
-                                                        <FormControl>
-                                                            <Input
-                                                                {...field}
-                                                                type="number"
-                                                                onChange={(e) =>
-                                                                    field.onChange(Number(e.target.value))
-                                                                }
-                                                                data-testid="input-validity-days"
-                                                                className="text-sm"
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="referenceNumber"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Reference/PO Number</FormLabel>
-                                                        <FormControl>
-                                                            <Input
-                                                                {...field}
-                                                                value={field.value || ""}
-                                                                data-testid="input-reference-number"
-                                                                className="text-sm"
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                        <FormField
-                                            control={form.control}
-                                            name="attentionTo"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Attention To</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            {...field}
-                                                            value={field.value || ""}
-                                                            data-testid="input-attention-to"
-                                                            className="text-sm"
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </CardContent>
-                                </Card>
-
-                                {/* Line Items */}
-                                <Card className="border bg-card shadow-sm overflow-hidden">
-                                    <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-                                        <div className="flex items-center justify-between gap-2 sm:gap-3">
-                                            <div className="flex items-center gap-2 sm:gap-3">
-                                                <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
-                                                    <Package className="h-4 w-4 sm:h-5 sm:w-5" />
-                                                </div>
-                                                <div>
-                                                    <CardTitle className="text-sm sm:text-lg">Line Items</CardTitle>
-                                                    <p className="hidden sm:block text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
-                                                        Products and services breakdown
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        append({
-                                                            productId: null,
-                                                            description: "",
-                                                            quantity: 1,
-                                                            unitPrice: 0,
-                                                            hsnSac: "",
-                                                        })
-                                                    }
-                                                    data-testid="button-add-item"
-                                                    size="sm"
-                                                    className="hidden lg:flex flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm"
-                                                >
-                                                    <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                                    <span className="hidden xs:inline">Add Item</span>
-                                                    <span className="xs:hidden">Add</span>
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={parseExcelMutation.isPending}
-                                                    onClick={() => fileInputRef.current?.click()}
-                                                    className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm"
-                                                >
-                                                    {parseExcelMutation.isPending ? (
-                                                        <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
-                                                    ) : (
-                                                        <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                                    )}
-                                                    <span className="hidden xs:inline">Import</span>
-                                                </Button>
-                                                <input 
-                                                    type="file" 
-                                                    ref={fileInputRef} 
-                                                    onChange={handleFileChange} 
-                                                    className="hidden" 
-                                                    accept=".xlsx, .xls"
-                                                />
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="p-0">
-                                        {/* Mobile/Tablet View (Cards) - Shows up to LG screens */}
-                                        <div className="lg:hidden space-y-4 p-3 sm:p-4 bg-muted/20">
-                                            {fields.map((fieldItem, index) => (
-                                                <div key={fieldItem.id} className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
-                                                    {/* Card Header */}
-                                                    <div className="flex items-center justify-between border-b px-4 py-3 bg-muted/30">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold">
-                                                                {index + 1}
-                                                            </div>
-                                                            <span className="font-semibold text-sm text-foreground/80">Item Details</span>
-                                                        </div>
-                                                        {fields.length > 1 && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => remove(index)}
-                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="p-4 space-y-4">
-                                                        {/* Product Selection */}
-                                                        <div className="space-y-1.5">
-                                                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Product</label>
-                                                            <ProductPicker
-                                                                value={form.watch(`items.${index}.productId`)}
-                                                                showStock={true}
-                                                                placeholder="Select product..."
-                                                                onSelect={(product) => {
-                                                                    if (product) {
-                                                                        form.setValue(`items.${index}.productId`, product.id);
-                                                                        form.setValue(`items.${index}.description`, product.name + (product.description ? `\n${product.description}` : ''));
-                                                                        if (product.basePrice) {
-                                                                            form.setValue(`items.${index}.unitPrice`, parseFloat(product.basePrice));
-                                                                        }
-                                                                    } else {
-                                                                        form.setValue(`items.${index}.productId`, null);
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </div>
-
-                                                        {/* Description */}
-                                                        <div className="space-y-1.5">
-                                                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Description</label>
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.description`}
-                                                                render={({ field }) => (
-                                                                    <FormItem>
-                                                                        <FormControl>
-                                                                            <Textarea
-                                                                                {...field}
-                                                                                placeholder="Enter item description..."
-                                                                                className="min-h-[80px] text-sm resize-none focus-visible:ring-1"
-                                                                            />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </div>
-
-                                                        <Separator className="bg-border/50" />
-
-                                                        {/* Data Grid */}
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="space-y-1.5">
-                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">HSN/SAC</label>
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`items.${index}.hsnSac`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormControl>
-                                                                                <Input
-                                                                                    {...field}
-                                                                                    maxLength={10}
-                                                                                    placeholder="HSN/SAC"
-                                                                                    className="text-sm h-9"
-                                                                                />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                            </div>
-                                                            <div className="space-y-1.5">
-                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Quantity</label>
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`items.${index}.quantity`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormControl>
-                                                                                <Input
-                                                                                    {...field}
-                                                                                    type="number"
-                                                                                    min="1"
-                                                                                    onChange={(e) => field.onChange(Number(e.target.value))}
-                                                                                    className="text-right text-sm h-9 font-mono"
-                                                                                />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                            </div>
-                                                            <div className="space-y-1.5">
-                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Unit Price</label>
-                                                                <div className="relative">
-                                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs"><DollarSign className="h-3 w-3" /></span>
-                                                                    <FormField
-                                                                        control={form.control}
-                                                                        name={`items.${index}.unitPrice`}
-                                                                        render={({ field }) => (
-                                                                            <FormItem>
-                                                                                <FormControl>
-                                                                                    <Input
-                                                                                        {...field}
-                                                                                        type="number"
-                                                                                        step="0.01"
-                                                                                        min="0"
-                                                                                        onChange={(e) => field.onChange(Number(e.target.value))}
-                                                                                        className="text-right text-sm h-9 pl-6 font-mono"
-                                                                                    />
-                                                                                </FormControl>
-                                                                                <FormMessage />
-                                                                            </FormItem>
-                                                                        )}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                            <div className="space-y-1.5">
-                                                                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Total</label>
-                                                                <div className="h-9 px-3 border rounded-md bg-muted/50 text-right text-sm font-bold text-primary flex items-center justify-end font-mono">
-                                                                    {formatCurrency(items[index].quantity * items[index].unitPrice, currency)}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            
-                                            <div className="pt-2">
-                                                <Button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        append({
-                                                            productId: null,
-                                                            description: "",
-                                                            quantity: 1,
-                                                            unitPrice: 0,
-                                                            hsnSac: "",
-                                                        })
-                                                    }
-                                                    variant="outline"
-                                                    className="w-full border-dashed border-2 h-12 hover:bg-muted/50 transition-colors"
-                                                >
-                                                    <Plus className="mr-2 h-4 w-4" />
-                                                    Add New Item
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {/* Desktop View (Table) - Shows on LG screens and up */}
-                                        <div className="hidden lg:block w-full overflow-x-auto">
-
-                                            <table className="w-full min-w-[900px] text-xs sm:text-sm">
-                                                <thead className="bg-muted/80 border-b">
-                                                    <tr>
-                                                        <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                            #
-                                                        </th>
-                                                        <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs" style={{minWidth: '200px'}}>
-                                                            Product
-                                                        </th>
-                                                        <th className="text-left font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                            Description *
-                                                        </th>
-                                                        <th className="text-center font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                            HSN/SAC
-                                                        </th>
-                                                        <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                            Qty *
-                                                        </th>
-                                                        <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                            Unit Price *
-                                                        </th>
-                                                        <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                            Total
-                                                        </th>
-                                                        <th className="text-center font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                            Actions
-                                                        </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-border/70">
-                                                    {fields.map((fieldItem, index) => (
-                                                        <tr
-                                                            key={fieldItem.id}
-                                                            className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
-                                                        >
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 text-[11px] sm:text-sm text-muted-foreground">
-                                                                {index + 1}
-                                                            </td>
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 align-top" style={{minWidth: '200px'}}>
-                                                                <ProductPicker
-                                                                    value={form.watch(`items.${index}.productId`)}
-                                                                    showStock={true}
-                                                                    placeholder="Select product..."
-                                                                    onSelect={(product) => {
-                                                                        if (product) {
-                                                                            form.setValue(`items.${index}.productId`, product.id);
-                                                                            form.setValue(`items.${index}.description`, product.name + (product.description ? `\n${product.description}` : ''));
-                                                                            if (product.basePrice) {
-                                                                                form.setValue(`items.${index}.unitPrice`, parseFloat(product.basePrice));
-                                                                            }
-                                                                        } else {
-                                                                            form.setValue(`items.${index}.productId`, null);
-                                                                        }
-                                                                    }}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 align-top">
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`items.${index}.description`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormControl>
-                                                                                <Textarea
-                                                                                    {...field}
-                                                                                    data-testid={`input-item-description-${index}`}
-                                                                                    placeholder="Item description"
-                                                                                    className="bg-transparent border-0 focus-visible:ring-1 text-xs sm:text-sm min-h-[60px]"
-                                                                                />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`items.${index}.hsnSac`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormControl>
-                                                                                <Input
-                                                                                    {...field}
-                                                                                    maxLength={10}
-                                                                                    data-testid={`input-item-hsnsac-${index}`}
-                                                                                    placeholder="HSN/SAC"
-                                                                                    className="bg-transparent border-0 focus-visible:ring-1 text-center text-xs sm:text-sm max-w-[120px] mx-auto"
-                                                                                />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right">
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`items.${index}.quantity`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormControl>
-                                                                                <Input
-                                                                                    {...field}
-                                                                                    type="number"
-                                                                                    min="1"
-                                                                                    onChange={(e) =>
-                                                                                        field.onChange(
-                                                                                            Number(e.target.value),
-                                                                                        )
-                                                                                    }
-                                                                                    data-testid={`input-item-quantity-${index}`}
-                                                                                    className="bg-transparent border-0 focus-visible:ring-1 text-right text-xs sm:text-sm max-w-[80px] ml-auto"
-                                                                                />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right">
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`items.${index}.unitPrice`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormControl>
-                                                                                <Input
-                                                                                    {...field}
-                                                                                    type="number"
-                                                                                    step="0.01"
-                                                                                    min="0"
-                                                                                    onChange={(e) =>
-                                                                                        field.onChange(
-                                                                                            Number(e.target.value),
-                                                                                        )
-                                                                                    }
-                                                                                    data-testid={`input-item-unit-price-${index}`}
-                                                                                    className="bg-transparent border-0 focus-visible:ring-1 text-right text-xs sm:text-sm max-w-[100px] ml-auto"
-                                                                                />
-                                                                            </FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right text-[11px] sm:text-sm font-semibold text-primary">
-                                                                {formatCurrency(items[index].quantity * items[index].unitPrice, currency)}
-                                                            </td>
-                                                            <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
-                                                                {fields.length > 1 && (
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        onClick={() => remove(index)}
-                                                                        data-testid={`button-remove-item-${index}`}
-                                                                        className="h-7 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                                    >
-                                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                                    </Button>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans'] bg-muted/40">
-                                            <span>{fields.length} line items</span>
-                                            <span className="inline-flex items-center gap-1">
-                                                <DollarSign className="h-3 w-3" />
-                                                Subtotal:{" "}
-                                                <span className="font-semibold text-foreground">
-                                                    {formatCurrency(subtotal, currency)}
-                                                </span>
-                                            </span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                {/* Additional Information */}
-                                <Card className="border bg-card shadow-sm">
-                                    <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                            <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
-                                                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
-                                            </div>
-                                            <div>
-                                                <CardTitle className="text-sm sm:text-lg">Additional Information</CardTitle>
-                                                <p className="hidden sm:block text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans']">
-                                                    Notes and terms
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="notes"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</FormLabel>
-                                                    <FormControl>
-                                                        <Textarea
-                                                            {...field}
-                                                            value={field.value || ""}
-                                                            data-testid="input-notes"
-                                                            placeholder="Add any additional notes..."
-                                                            rows={3}
-                                                            className="resize-none text-sm"
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="termsAndConditions"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Terms & Conditions</FormLabel>
-                                                    <FormControl>
-                                                        <Textarea
-                                                            {...field}
-                                                            value={field.value || ""}
-                                                            rows={5}
-                                                            data-testid="input-terms"
-                                                            placeholder="Enter terms and conditions..."
-                                                            className="resize-none text-sm"
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </CardContent>
-                                </Card>
-
-                                {/* Advanced Sections */}
-                                <Card className="border bg-card shadow-sm">
-                                    <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-                                        <div>
-                                            <CardTitle className="text-sm sm:text-lg">Advanced Sections (Optional)</CardTitle>
-                                            <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans'] mt-1">
-                                                Add detailed technical and project information
-                                            </p>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5">
-                                        <Tabs defaultValue="bom" className="w-full">
-                                            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto gap-1">
-                                                <TabsTrigger value="bom">📦 BOM</TabsTrigger>
-                                                <TabsTrigger value="sla">📋 SLA</TabsTrigger>
-                                                <TabsTrigger value="timeline">📅 Timeline</TabsTrigger>
-                                            </TabsList>
-                                            <TabsContent value="bom" className="mt-4">
-                                                <ExecBOMSection
-                                                    value={bomData}
-                                                    onChange={setBomData}
-                                                />
-                                            </TabsContent>
-                                            <TabsContent value="sla" className="mt-4">
-                                                <SLASection
-                                                    data={slaData}
-                                                    onChange={setSlaData}
-                                                />
-                                            </TabsContent>
-                                            <TabsContent value="timeline" className="mt-4">
-                                                <TimelineSection
-                                                    data={timelineData}
-                                                    onChange={setTimelineData}
-                                                />
-                                            </TabsContent>
-                                        </Tabs>
-                                    </CardContent>
-                                </Card>
-                            </div>
-
-                            {/* Right column - Pricing Summary */}
-                            <div className="space-y-4 sm:space-y-6 2xl:sticky 2xl:top-6 min-w-0">
-                                <Card className="border bg-card shadow-sm">
-                                    <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                            <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
-                                                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <CardTitle className="text-sm sm:text-lg">
-                                                    Pricing & Taxes
-                                                </CardTitle>
-                                                <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans'] truncate">
-                                                    Financial overview
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
-                                        {activeTaxRates.length > 0 && (
-                                            <div className="space-y-1.5">
-                                                <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Quick Apply Tax Rate</Label>
-                                                <Select onValueChange={applyTaxRate}>
-                                                    <SelectTrigger data-testid="select-tax-rate" className="text-sm">
-                                                        <SelectValue placeholder="Select a tax rate..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {activeTaxRates.map((rate) => (
-                                                            <SelectItem key={rate.id} value={rate.id}>
-                                                                {rate.region} - {rate.taxType} (CGST:{" "}
-                                                                {rate.cgstRate}%, SGST: {rate.sgstRate}%,
-                                                                IGST: {rate.igstRate}%)
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        )}
-
-                                        <FormField
-                                            control={form.control}
-                                            name="discount"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Discount (%)</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            {...field}
-                                                            type="number"
-                                                            step="0.01"
-                                                            onChange={(e) =>
-                                                                field.onChange(Number(e.target.value))
-                                                            }
-                                                            data-testid="input-discount"
-                                                            className="text-sm"
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-
-                                        <Separator />
-
-                                        <div className="grid gap-3 grid-cols-3">
-                                            <FormField
-                                                control={form.control}
-                                                name="cgst"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">CGST (%)</FormLabel>
-                                                        <FormControl>
-                                                            <Input
-                                                                {...field}
-                                                                type="number"
-                                                                step="0.01"
-                                                                onChange={(e) =>
-                                                                    field.onChange(Number(e.target.value))
-                                                                }
-                                                                data-testid="input-cgst"
-                                                                className="text-sm"
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="sgst"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SGST (%)</FormLabel>
-                                                        <FormControl>
-                                                            <Input
-                                                                {...field}
-                                                                type="number"
-                                                                step="0.01"
-                                                                onChange={(e) =>
-                                                                    field.onChange(Number(e.target.value))
-                                                                }
-                                                                data-testid="input-sgst"
-                                                                className="text-sm"
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="igst"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">IGST (%)</FormLabel>
-                                                        <FormControl>
-                                                            <Input
-                                                                {...field}
-                                                                type="number"
-                                                                step="0.01"
-                                                                onChange={(e) =>
-                                                                    field.onChange(Number(e.target.value))
-                                                                }
-                                                                data-testid="input-igst"
-                                                                className="text-sm"
-                                                            />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-
-                                        <FormField
-                                            control={form.control}
-                                            name="shippingCharges"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Shipping Charges</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            {...field}
-                                                            type="number"
-                                                            step="0.01"
-                                                            onChange={(e) =>
-                                                                field.onChange(Number(e.target.value))
-                                                            }
-                                                            data-testid="input-shipping"
-                                                            className="text-sm"
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-
-                                        <Separator />
-
-                                        <div className="space-y-1.5 sm:space-y-2.5 font-['Open_Sans'] text-[11px] sm:text-sm">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-muted-foreground">Subtotal</span>
-                                                <span className="font-semibold">
-                                                    {formatCurrency(subtotal, currency)}
-                                                </span>
-                                            </div>
-                                            {discountAmount > 0 && (
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-muted-foreground">Discount</span>
-                                                    <span className="font-semibold text-success">
-                                                        -{formatCurrency(discountAmount, currency)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-muted-foreground">Taxable Amount</span>
-                                                <span className="font-semibold">
-                                                    {formatCurrency(taxableAmount, currency)}
-                                                </span>
-                                            </div>
-                                            {cgstAmount > 0 && (
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-muted-foreground">CGST ({cgst}%)</span>
-                                                    <span className="font-semibold">
-                                                        {formatCurrency(cgstAmount, currency)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            {sgstAmount > 0 && (
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-muted-foreground">SGST ({sgst}%)</span>
-                                                    <span className="font-semibold">
-                                                        {formatCurrency(sgstAmount, currency)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            {igstAmount > 0 && (
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-muted-foreground">IGST ({igst}%)</span>
-                                                    <span className="font-semibold">
-                                                        {formatCurrency(igstAmount, currency)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            {shippingCharges > 0 && (
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-muted-foreground">Shipping</span>
-                                                    <span className="font-semibold">
-                                                        {formatCurrency(Number(shippingCharges), currency)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <Separator className="bg-primary/10" />
-
-                                        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 px-3 sm:px-4 py-3 sm:py-4">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[11px] sm:text-sm font-semibold text-muted-foreground">
-                                                    Total Amount
-                                                </span>
-                                                <span className="text-lg sm:text-2xl font-bold text-primary" data-testid="text-total">
-                                                    {formatCurrency(total, currency)}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-2 pt-2">
-                                            <Button
-                                                type="submit"
-                                                disabled={isSubmitting || fields.length === 0}
-                                                className="w-full justify-center gap-2 text-xs sm:text-sm"
-                                                data-testid="button-create-quote"
-                                            >
-                                                {isSubmitting && (
-                                                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
-                                                )}
-                                                {isEditMode ? "Update Quote" : "Create Quote"}
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() =>
-                                                    setLocation(
-                                                        isEditMode ? `/quotes/${params?.id}` : "/quotes",
-                                                    )
-                                                }
-                                                className="w-full justify-center gap-2 text-xs sm:text-sm"
-                                            >
-                                                Cancel
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                            {isEditMode ? "Update" : "Create"}
+                                        </Button>
+                                    )}
+                                 </div>
                             </div>
                         </div>
                     </form>
