@@ -1489,7 +1489,8 @@ export const workflowTriggerTypeEnum = pgEnum("workflow_trigger_type", [
   "date_based",
   "field_change",
   "time_based",
-  "manual"
+  "manual",
+  "created"
 ]);
 
 // Workflow Action Type Enum
@@ -1713,7 +1714,7 @@ export type WorkflowSchedule = typeof workflowSchedules.$inferSelect;
 export type InsertWorkflowSchedule = z.infer<typeof insertWorkflowScheduleSchema>;
 
 export type WorkflowStatus = "active" | "inactive" | "draft";
-export type WorkflowTriggerType = "status_change" | "amount_threshold" | "date_based" | "field_change" | "time_based" | "manual";
+export type WorkflowTriggerType = "status_change" | "amount_threshold" | "date_based" | "field_change" | "time_based" | "manual" | "created";
 export type WorkflowActionType = "send_email" | "create_notification" | "update_field" | "assign_user" | "create_task" | "escalate" | "webhook" | "create_activity_log";
 
 // User Devices Types

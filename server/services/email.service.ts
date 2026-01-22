@@ -546,4 +546,39 @@ export class EmailService {
       // don't throw to avoid breaking the scheduler loop
     }
   }
+  static async sendEmail(params: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+  }): Promise<void> {
+    try {
+      if (this.useResend && this.resend) {
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+            fromEmail = "onboarding@resend.dev";
+        }
+        await this.resend.emails.send({
+          from: fromEmail,
+          to: params.to,
+          subject: params.subject,
+          html: params.html,
+          text: params.text,
+        });
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
+          to: params.to,
+          subject: params.subject,
+          html: params.html,
+          text: params.text,
+        });
+      }
+      console.log(`[EmailService] Generic email sent to ${params.to}`);
+    } catch (error) {
+      console.error("Failed to send generic email:", error);
+      throw error;
+    }
+  }
 }

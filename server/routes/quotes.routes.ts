@@ -13,6 +13,7 @@ import { isFeatureEnabled } from "../../shared/feature-flags";
 
 import { ApprovalService } from "../services/approval.service";
 import { NotificationService } from "../services/notification.service";
+import { WorkflowEngine } from "../services/workflow-engine.service";
 import { users } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "../db";
@@ -477,6 +478,48 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
       logger.error("Failed to send notifications for new quote:", notifError);
     }
 
+    // Trigger Workflows
+    try {
+      // Enrich entity with client details for templates
+      const client = await storage.getClient(quote.clientId);
+      const enrichedEntity = {
+        ...quote,
+        client, // Allows {{client.name}}
+        client_name: client?.name, // Allows {{client_name}}
+        client_email: client?.email, // Allows {{client_email}}
+        creator_name: req.user?.name || "QuoteProGen Team", // Allows {{creator_name}}
+        creator_email: req.user?.email, // Allows {{creator_email}}
+        formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`, // Allows {{formatted_total}}
+        formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`, // Allows {{formatted_subtotal}}
+      };
+
+      logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "created",
+        entity: enrichedEntity,
+        triggeredBy: req.user!.id,
+      });
+      
+      // Also trigger for status change (draft)
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "status_change",
+        entity: enrichedEntity,
+        newValue: quote.status,
+        oldValue: null,
+        triggeredBy: req.user!.id,
+      });
+      
+      // Also trigger for amount threshold checks
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "amount_threshold",
+        entity: enrichedEntity,
+        triggeredBy: req.user!.id,
+      });
+    } catch (workflowError) {
+      logger.error("Failed to trigger workflows for new quote:", workflowError);
+    }
+
     return res.json({ ...quote, approvalStatus, approvalRequiredBy });
   } catch (error: any) {
     logger.error("Create quote error:", error);
@@ -691,6 +734,58 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
       }
     } catch (notifError) {
       logger.error("Failed to send notifications for updated quote:", notifError);
+    }
+
+    // Trigger Workflows (Update)
+    try {
+      // Enrich entity with client details for templates
+      const client = await storage.getClient(quote.clientId);
+      const enrichedEntity = {
+        ...quote,
+        client,
+        client_name: client?.name,
+        client_email: client?.email,
+        creator_name: req.user?.name || "QuoteProGen Team",
+        creator_email: req.user?.email,
+        formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
+        formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`,
+      };
+
+      logger.info(`[WorkflowDebug] Enriched Entity for Update: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+
+      // 1. Status Change
+      if (updateData.status && updateData.status !== existingQuote.status) {
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "status_change",
+          entity: enrichedEntity,
+          newValue: updateData.status,
+          oldValue: existingQuote.status,
+          triggeredBy: req.user!.id,
+        });
+      }
+
+      // 2. Field Changes (Generic)
+      // The current evaluateFieldChange implementation checks `context.entity[field]`.
+      // So passing the updated quote as entity is correct.
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "field_change",
+        entity: enrichedEntity,
+        triggeredBy: req.user!.id,
+        changes: updateData, // Optional context if needed later
+      });
+      
+      // 3. Amount Checks (if financials changed)
+      const financialFields = ['total', 'subtotal', 'discount'];
+      if (Object.keys(updateData).some(k => financialFields.includes(k))) {
+         await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "amount_threshold",
+          entity: enrichedEntity,
+          triggeredBy: req.user!.id,
+        });
+      }
+
+    } catch (workflowError) {
+      logger.error("Failed to trigger workflows for updated quote:", workflowError);
     }
 
 

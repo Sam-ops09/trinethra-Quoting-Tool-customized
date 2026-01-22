@@ -130,6 +130,10 @@ export class WorkflowEngine {
         case "date_based":
           return this.evaluateDateBased(conditions, context);
         
+        case "created":
+          // Check if event type is 'created'
+          return context.eventType === "created";
+        
         case "manual":
           // Manual triggers always return true when explicitly triggered
           return context.eventType === "manual";
@@ -462,11 +466,11 @@ export class WorkflowEngine {
       const body = this.interpolateTemplate(config.body, context);
 
       // Use existing email service
-      // await EmailService.sendEmail({
-      //   to,
-      //   subject,
-      //   html: body,
-      // });
+      await EmailService.sendEmail({
+        to,
+        subject,
+        html: body,
+      });
 
       logger.info(`[WorkflowEngine] Would send email to: ${to}, subject: ${subject}`);
     }
@@ -497,10 +501,24 @@ export class WorkflowEngine {
     private static async executeUpdateField(config: any, context: TriggerContext): Promise<void> {
       const field = config.field;
       const value = this.interpolateTemplate(config.value, context);
+      const entityType = context.entity.entityType || "quote"; // Default or detect from context
+      const entityId = context.entity.id;
 
-      // This would update the entity field
-      // Implementation depends on entity type
-      logger.info(`[WorkflowEngine] Would update field ${field} to ${value}`);
+      logger.info(`[WorkflowEngine] Updating field ${field} to ${value} for ${entityType} ${entityId}`);
+      
+      try {
+        if (entityType === "quote") {
+           await storage.updateQuote(entityId, { [field]: value });
+        } else if (entityType === "invoice") {
+           // await storage.updateInvoice(entityId, { [field]: value });
+           logger.warn(`[WorkflowEngine] Update invoice not yet implemented fully`);
+        } else {
+           logger.warn(`[WorkflowEngine] Entity type ${entityType} not supported for generic update`);
+        }
+      } catch (err) {
+        logger.error(`[WorkflowEngine] Failed to update field:`, err);
+        throw err;
+      }
     }
 
     /**
@@ -534,8 +552,21 @@ export class WorkflowEngine {
       if (matches) {
         for (const match of matches) {
           const path = match.replace(/\{\{|\}\}/g, '').trim();
-          const value = this.getNestedValue(context.entity, path) || "";
-          result = result.replace(match, String(value));
+          
+          // Try detecting snake_case to camelCase mapping for common fields if not found directly
+          let value = this.getNestedValue(context.entity, path);
+          
+          if (!value && path.includes('_')) {
+             const camelPath = path.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+             value = this.getNestedValue(context.entity, camelPath);
+          }
+          
+          // Also check 'entity' wrapper if user did {{quote.status}} but we passed entity as root
+          if (!value) {
+             value = this.getNestedValue({ entity: context.entity, ...context.entity }, path);
+          }
+          
+          result = result.replace(match, String(value || ""));
         }
       }
       

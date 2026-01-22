@@ -1290,9 +1290,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateWorkflow(id: string, data: Partial<Workflow>): Promise<Workflow | undefined> {
+    const { createdAt, id: _, ...updateData } = data; // Exclude createdAt and id from update
     const [updated] = await db
       .update(workflows)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...updateData, updatedAt: new Date() })
       .where(eq(workflows.id, id))
       .returning();
     return updated || undefined;
@@ -1311,7 +1312,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWorkflowTrigger(trigger: InsertWorkflowTrigger): Promise<WorkflowTrigger> {
-    const [newTrigger] = await db.insert(workflowTriggers).values(trigger).returning();
+    const { createdAt, id: _, ...triggerData } = trigger as any;
+    const [newTrigger] = await db.insert(workflowTriggers).values(triggerData).returning();
     return newTrigger;
   }
 
@@ -1336,7 +1338,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWorkflowAction(action: InsertWorkflowAction): Promise<WorkflowAction> {
-    const [newAction] = await db.insert(workflowActions).values(action).returning();
+    const { createdAt, id: _, ...actionData } = action as any;
+    const [newAction] = await db.insert(workflowActions).values(actionData).returning();
     return newAction;
   }
 

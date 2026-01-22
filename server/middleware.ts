@@ -11,6 +11,7 @@ export interface AuthRequest extends Request {
     id: string;
     email: string;
     role: string;
+    name: string;
   };
 }
 
@@ -34,13 +35,13 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     
     // CAS CHING LAYER: Check cache first
     const cacheKey = `user:${decoded.id}`;
-    const cachedUser = await cacheService.get<{id: string, email: string, role: string, status: string}>(cacheKey);
+    const cachedUser = await cacheService.get<{id: string, email: string, role: string, status: string, name: string}>(cacheKey);
     
     if (cachedUser) {
         if (cachedUser.status !== "active") {
             return res.status(401).json({ error: "Unauthorized" });
         }
-        req.user = { id: cachedUser.id, email: cachedUser.email, role: cachedUser.role };
+        req.user = { id: cachedUser.id, email: cachedUser.email, role: cachedUser.role, name: cachedUser.name || "User" };
         return next();
     }
 
@@ -56,10 +57,11 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
         id: user.id,
         email: user.email,
         role: user.role,
-        status: user.status
+        status: user.status,
+        name: user.name
     }, 300); // Cache: 5 minutes
 
-    req.user = { id: user.id, email: user.email, role: user.role };
+    req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
     next();
   } catch (error) {
     return res.status(401).json({ error: "Invalid token" });
