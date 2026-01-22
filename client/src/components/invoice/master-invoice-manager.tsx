@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PermissionGuard } from "@/components/permission-guard";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { formatCurrency } from "@/lib/currency";
 
 interface MasterInvoiceProps {
   invoiceId: string;
@@ -362,7 +363,7 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
                 <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase">Total</span>
               </div>
               <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                ₹{Number(summary.totals.masterTotal).toLocaleString()}
+                {formatCurrency(summary.totals.masterTotal)}
               </p>
             </div>
 
@@ -372,7 +373,7 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
                 <span className="text-[10px] font-semibold text-green-700 dark:text-green-400 uppercase">Invoiced</span>
               </div>
               <p className="text-sm font-bold text-green-900 dark:text-green-100 truncate">
-                ₹{Number(summary.totals.totalInvoiced).toLocaleString()}
+                {formatCurrency(summary.totals.totalInvoiced)}
               </p>
             </div>
 
@@ -382,7 +383,7 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
                 <span className="text-[10px] font-semibold text-orange-700 dark:text-orange-400 uppercase">Remaining</span>
               </div>
               <p className="text-sm font-bold text-orange-900 dark:text-orange-100 truncate">
-                ₹{Number(summary.totals.totalRemaining).toLocaleString()}
+                {formatCurrency(summary.totals.totalRemaining)}
               </p>
             </div>
 
@@ -410,8 +411,8 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
             </div>
             <Progress value={invoicedPercentage} className="h-2" />
             <div className="flex justify-between text-[10px] text-slate-600 dark:text-slate-400">
-              <span>₹{Number(summary.totals.totalInvoiced).toLocaleString()}</span>
-              <span>₹{Number(summary.totals.masterTotal).toLocaleString()}</span>
+              <span>{formatCurrency(summary.totals.totalInvoiced)}</span>
+              <span>{formatCurrency(summary.totals.masterTotal)}</span>
             </div>
           </div>
         </CardContent>
@@ -421,24 +422,24 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <Card className="border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-900/50">
             <p className="text-[10px] text-slate-500 uppercase font-semibold">Subtotal</p>
-            <p className="text-sm font-bold">₹{Number(summary.masterInvoice.subtotal).toLocaleString()}</p>
+            <p className="text-sm font-bold">{formatCurrency(summary.masterInvoice.subtotal)}</p>
         </Card>
         {Number(summary.masterInvoice.discount) > 0 && (
             <Card className="border-emerald-200 dark:border-emerald-900 p-2.5 bg-emerald-50/50 dark:bg-emerald-950/20">
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-semibold">Discount</p>
-                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">-₹{Number(summary.masterInvoice.discount).toLocaleString()}</p>
+                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">-{formatCurrency(summary.masterInvoice.discount)}</p>
             </Card>
         )}
         {(Number(summary.masterInvoice.cgst) > 0 || Number(summary.masterInvoice.sgst) > 0 || Number(summary.masterInvoice.igst) > 0) && (
              <Card className="border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-900/50">
                 <p className="text-[10px] text-slate-500 uppercase font-semibold">Taxes</p>
-                <p className="text-sm font-bold">₹{(Number(summary.masterInvoice.cgst) + Number(summary.masterInvoice.sgst) + Number(summary.masterInvoice.igst)).toLocaleString()}</p>
+                <p className="text-sm font-bold">{formatCurrency((Number(summary.masterInvoice.cgst) + Number(summary.masterInvoice.sgst) + Number(summary.masterInvoice.igst)))}</p>
             </Card>
         )}
         {Number(summary.masterInvoice.shippingCharges) > 0 && (
             <Card className="border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-900/50">
                 <p className="text-[10px] text-slate-500 uppercase font-semibold">Shipping</p>
-                <p className="text-sm font-bold">₹{Number(summary.masterInvoice.shippingCharges).toLocaleString()}</p>
+                <p className="text-sm font-bold">{formatCurrency(summary.masterInvoice.shippingCharges)}</p>
             </Card>
         )}
       </div>
@@ -484,10 +485,10 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
                       </p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-[10px] text-slate-600 dark:text-slate-400">
-                          ₹{Number(item.masterUnitPrice).toLocaleString()} × {item.masterQuantity}
+                          {formatCurrency(item.masterUnitPrice)} × {item.masterQuantity}
                         </span>
                         <span className="text-[10px] font-bold text-slate-900 dark:text-white">
-                          = ₹{Number(item.masterSubtotal).toLocaleString()}
+                          = {formatCurrency(item.masterSubtotal)}
                         </span>
                       </div>
                     </div>
@@ -527,7 +528,7 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
                     <Progress value={itemProgress} className="h-1.5" />
                     <div className="flex justify-between text-[9px] text-slate-600 dark:text-slate-400">
                       <span>{itemProgress.toFixed(0)}% complete</span>
-                      <span>₹{item.remainingAmount.toLocaleString()} left</span>
+                      <span>{formatCurrency(item.remainingAmount)} left</span>
                     </div>
                   </div>
                 </div>
@@ -586,14 +587,14 @@ export function MasterInvoiceManager({ invoiceId }: MasterInvoiceProps) {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-600 dark:text-slate-400">Total:</span>
                     <span className="font-bold text-slate-900 dark:text-white">
-                      ₹{Number(child.total).toLocaleString()}
+                      {formatCurrency(child.total)}
                     </span>
                   </div>
                   {Number(child.paidAmount) > 0 && (
                     <div className="flex items-center justify-between text-xs mt-1">
                       <span className="text-green-600 dark:text-green-400">Paid:</span>
                       <span className="font-bold text-green-700 dark:text-green-300">
-                        ₹{Number(child.paidAmount).toLocaleString()}
+                        {formatCurrency(child.paidAmount)}
                       </span>
                     </div>
                   )}

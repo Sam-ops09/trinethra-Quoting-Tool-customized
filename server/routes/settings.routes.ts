@@ -40,9 +40,13 @@ router.post("/settings", authMiddleware, requireFeature('admin_settings'), requi
     const ALLOWED_SETTINGS_KEYS = [
       // Company info
       "companyName", "companyAddress", "companyPhone", "companyEmail", "companyWebsite",
-      "gstin", "pan", "cin", "logo", "companyLogo",
+      "company_companyName", "company_address", "company_phone", "company_email", "company_website",
+      "gstin", "pan", "cin", "logo", "companyLogo", "company_gstin", "company_pan", "company_cin", "company_logo",
+      "company_city", "company_state", "company_zipCode", "company_country", "company_tan",
+      "city", "state", "zipCode", "country", "tan",
       // Bank details
       "bankName", "bankAccountNumber", "bankAccountName", "bankIfscCode", "bankBranch", "bankSwiftCode",
+      "bank_bankName", "bank_accountNumber", "bank_accountName", "bank_ifscCode", "bank_branch", "bank_swiftCode",
       // Document prefixes
       "quotePrefix", "invoicePrefix", "childInvoicePrefix", "salesOrderPrefix", "vendorPoPrefix", "grnPrefix",
       // Document formats

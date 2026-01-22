@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
 
 interface Invoice {
     id: string;
@@ -58,6 +59,7 @@ interface Invoice {
     dueDate: string;
     paidAmount: string;
     total: string;
+    currency?: string;
     createdAt: string;
     isMaster?: boolean;
     parentInvoiceId?: string;
@@ -285,7 +287,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Revenue</p>
-                                    <p className="text-3xl font-bold text-slate-900 dark:text-white">₹{stats.totalRevenue.toLocaleString()}</p>
+                                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalRevenue)}</p>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
                                     <DollarSign className="h-6 w-6 text-slate-600 dark:text-slate-400" />
@@ -304,7 +306,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Collected</p>
-                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">₹{stats.totalCollected.toLocaleString()}</p>
+                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.totalCollected)}</p>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
                                     <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
@@ -323,7 +325,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Outstanding</p>
-                                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">₹{outstanding.toLocaleString()}</p>
+                                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(outstanding)}</p>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0 shadow-md">
                                     <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
@@ -565,7 +567,7 @@ export default function Invoices() {
                                                             <div className="min-w-0 flex-1">
                                                                 <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Amount</p>
                                                                 <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                                                                    ₹{Number(invoice.total).toLocaleString()}
+                                                                    {formatCurrency(invoice.total, invoice.currency)}
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -743,7 +745,7 @@ export default function Invoices() {
                                                     <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                                 </div>
                                                 <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                                                    ₹{Number(invoice.total).toLocaleString()}
+                                                    {formatCurrency(invoice.total, invoice.currency)}
                                                 </p>
                                             </div>
 

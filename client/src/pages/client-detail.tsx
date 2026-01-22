@@ -66,6 +66,7 @@ import type {
     Quote,
 } from "@shared/schema";
 import { format } from "date-fns";
+import { formatCurrency } from "@/lib/currency";
 
 interface Theme {
     name: string;
@@ -712,12 +713,12 @@ export default function ClientDetail() {
                                                             )}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-                                                        <span className="font-bold text-primary text-sm sm:text-base">
-                                                            ₹{Number(quote.total).toLocaleString()}
-                                                        </span>
-                                                    </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                                                            <span className="font-bold text-primary text-sm sm:text-base">
+                                                                {formatCurrency(quote.total, quote.currency)}
+                                                            </span>
+                                                        </div>
                                                 </div>
                                             </div>
                                             <Link href={`/quotes/${quote.id}`}>
@@ -803,7 +804,7 @@ export default function ClientDetail() {
                                                     <div className="flex items-center gap-1.5">
                                                         <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                                                         <span className="font-bold text-primary text-sm sm:text-base">
-                                                            ₹{Number(invoice.total).toLocaleString()}
+                                                            {formatCurrency(Number(invoice.total))}
                                                         </span>
                                                     </div>
                                                 </div>

@@ -3,7 +3,9 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import type { Quote, QuoteItem, Client } from "@shared/schema";
-
+import { isFeatureEnabled } from "@shared/feature-flags";
+import { prepareLogo, drawLogo } from "./pdf-helpers";
+import { formatCurrency, formatCurrencyPdf } from "./currency-helper";
 interface BOMItem {
   id: string;
   module: string;
@@ -32,6 +34,7 @@ interface InvoicePdfData {
   quote: Quote;
   client: Client;
   items: QuoteItem[];
+  currency?: string;
 
   companyName?: string;
   companyAddress?: string;
@@ -128,7 +131,7 @@ export class InvoicePDFService {
   private static readonly LINE = "#D1D5DB";
   private static readonly SOFT = "#F3F4F6";
 
-  private static readonly CURRENCY_PREFIX = "Rs. ";
+
 
   // Serials
   private static readonly SERIAL_INLINE_LIMIT = 8;
@@ -192,26 +195,27 @@ export class InvoicePDFService {
     doc.end();
   }
 
-  // Preload assets async
+  // Preload assets async-ish
   private static async prepareAssets(doc: PDFKit.PDFDocument, data: InvoicePdfData) {
-    // Logo
-    let logoToUse = "";
-    if (data.companyLogo) {
-      logoToUse = data.companyLogo;
-    } else {
-      const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      const p2 = path.join(process.cwd(), "client", "public", "logo.png");
+      // 1. Register Custom Fonts (Roboto) to support Currency Symbols (₹)
+      // Path: server/pdf/fonts/Roboto-Regular.ttf
+      const fontDir = path.join(process.cwd(), "server", "pdf", "fonts");
+      const regularPath = path.join(fontDir, "Roboto-Regular.ttf");
+      const boldPath = path.join(fontDir, "Roboto-Bold.ttf");
+
       try {
-        await fs.promises.access(p1, fs.constants.F_OK);
-        logoToUse = p1;
-      } catch {
-        try {
-          await fs.promises.access(p2, fs.constants.F_OK);
-          logoToUse = p2;
-        } catch {}
+        if (fs.existsSync(regularPath) && fs.existsSync(boldPath)) {
+            doc.registerFont("Helvetica", regularPath);
+            doc.registerFont("Helvetica-Bold", boldPath);
+        }
+      } catch (e) {
+          console.warn("Could not register custom fonts, falling back to standard:", e);
       }
-    }
-    (data as any).resolvedLogo = logoToUse;
+
+    // Logo
+    const { logo, mimeType } = await prepareLogo(data.companyLogo);
+    (data as any).resolvedLogo = logo;
+    (data as any).logoMimeType = mimeType;
   }
 
   // ---------------------------
@@ -303,32 +307,17 @@ export class InvoicePDFService {
     }
   }
 
-  private static money(v: number | string): string {
-    const n = Number(v) || 0;
-    return (
-      this.CURRENCY_PREFIX +
-      n.toLocaleString("en-IN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    );
+  private static money(v: number | string, currency = "INR"): string {
+    return formatCurrencyPdf(v, currency);
   }
 
   /** For totals rows (discount etc.) */
-  private static moneySigned(v: number | string): string {
+  private static moneySigned(v: number | string, currency = "INR"): string {
     const n = Number(v) || 0;
     if (n < 0) {
-      const abs = Math.abs(n);
-      return (
-        "-" +
-        this.CURRENCY_PREFIX +
-        abs.toLocaleString("en-IN", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      );
+      return "-" + formatCurrencyPdf(Math.abs(n), currency);
     }
-    return this.money(n);
+    return formatCurrencyPdf(n, currency);
   }
 
   private static normalizeAddress(addr?: string, maxLines = 3) {
@@ -441,13 +430,11 @@ export class InvoicePDFService {
 
     // Use resolved logo
     const logoPath = (data as any).resolvedLogo;
+    const mimeType = (data as any).logoMimeType || "";
+    
     if (logoPath) {
-      try {
-        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } catch {
-        logoPrinted = false;
-      }
+        const drawn = drawLogo(doc, logoPath, mimeType, x, topY + 12, logoSize);
+        logoPrinted = drawn;
     }
 
     const leftX = logoPrinted ? x + logoSize + 8 : x;
@@ -940,12 +927,12 @@ export class InvoicePDFService {
       doc.text(hsnSac, cx.hsn, y + padY, { width: col.hsn, align: "center", lineBreak: false });
       doc.text(String(qty), cx.qty, y + padY, { width: col.qty, align: "center", lineBreak: false });
       doc.text(unit, cx.unit, y + padY, { width: col.unit, align: "center", lineBreak: false });
-      doc.text(this.money(rate), cx.rate, y + padY, {
+      doc.text(this.money(rate, data.currency || data.quote.currency), cx.rate, y + padY, {
         width: col.rate - 8,
         align: "right",
         lineBreak: false,
       });
-      doc.text(this.money(amount), cx.amount, y + padY, {
+      doc.text(this.money(amount, data.currency || data.quote.currency), cx.amount, y + padY, {
         width: col.amount - 8,
         align: "right",
         lineBreak: false,
@@ -1002,7 +989,7 @@ export class InvoicePDFService {
     if (igst > 0) totalsRows.push({ label: "IGST", value: igst });
     totalsRows.push({ label: "TOTAL", value: total, bold: true });
 
-    const words = this.amountInWordsINR(total);
+    const words = this.amountInWords(total, data.currency || data.quote.currency);
 
     const notesText = String(data.notes || (data.quote as any).notes || "").trim();
     const milestone = String(data.milestoneDescription || "").trim();
@@ -1107,7 +1094,7 @@ export class InvoicePDFService {
       doc.text(r.label, rightX + 8, ry, { width: labelW, lineBreak: false });
 
       doc.font("Helvetica-Bold").fontSize(r.bold ? 9.0 : 8.0).fillColor(this.INK);
-      const moneyStr = r.signed ? this.moneySigned(r.value) : this.money(r.value);
+      const moneyStr = r.signed ? this.moneySigned(r.value, data.currency || data.quote.currency) : this.money(r.value, data.currency || data.quote.currency);
       doc.text(moneyStr, rightX + 8 + labelW, ry - (r.bold ? 1 : 0), {
         width: valW,
         align: "right",
@@ -1120,10 +1107,10 @@ export class InvoicePDFService {
     // Tax summary line
     const taxBits: string[] = [];
     const nbsp = "\u00A0";
-    taxBits.push(`Taxable: ${this.money(taxable).replace("Rs. ", "Rs." + nbsp)}`);
-    if (cgst > 0) taxBits.push(`CGST: ${this.money(cgst).replace("Rs. ", "Rs." + nbsp)}`);
-    if (sgst > 0) taxBits.push(`SGST: ${this.money(sgst).replace("Rs. ", "Rs." + nbsp)}`);
-    if (igst > 0) taxBits.push(`IGST: ${this.money(igst).replace("Rs. ", "Rs." + nbsp)}`);
+    taxBits.push(`Taxable: ${this.money(taxable, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (cgst > 0) taxBits.push(`CGST: ${this.money(cgst, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (sgst > 0) taxBits.push(`SGST: ${this.money(sgst, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (igst > 0) taxBits.push(`IGST: ${this.money(igst, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
 
     doc.font("Helvetica").fontSize(6).fillColor(this.FAINT);
     const taxLine = this.truncateToWidth(doc, taxBits.join("  |  "), rightW - 16);
@@ -1615,44 +1602,43 @@ export class InvoicePDFService {
   // ---------------------------
   // Amount in words (INR)
   // ---------------------------
-  private static amountInWordsINR(amount: number): string {
+  // ---------------------------
+  // Amount in words (Dynamic Currency)
+  // ---------------------------
+  private static amountInWords(amount: number, currency = "INR"): string {
+    const isINR = currency.toUpperCase() === "INR";
     const n = Number(amount) || 0;
-    const rupees = Math.floor(n);
-    const paise = Math.round((n - rupees) * 100);
+    
+    // Split integer and decimal parts
+    const integerPart = Math.floor(Math.abs(n));
+    const decimalPart = Math.round((Math.abs(n) - integerPart) * 100);
 
-    const r = this.numberToWordsIndian(rupees);
-    const p = paise > 0 ? this.numberToWordsIndian(paise) : "";
+    let mainText = "";
+    if (isINR) {
+      mainText = this.numberToWordsIndian(integerPart);
+    } else {
+      mainText = this.numberToWordsInternational(integerPart);
+    }
 
-    if (paise > 0) return `INR ${r} Rupees and ${p} Paise Only`;
-    return `INR ${r} Rupees Only`;
+    let decimalText = "";
+    if (decimalPart > 0) {
+      if (isINR) {
+        decimalText = ` and ${this.numberToWordsIndian(decimalPart)} Paise`;
+      } else {
+        // Generic decimal handling (cents)
+        decimalText = ` and ${this.numberToWordsInternational(decimalPart)} Cents`;
+      }
+    }
+
+    return `${currency} ${mainText}${decimalText} Only`;
   }
 
+  // Indian Numbering System (Lakhs/Crores)
   private static numberToWordsIndian(num: number): string {
     const n = Math.floor(Math.abs(num));
     if (n === 0) return "Zero";
 
-    const ones = [
-      "",
-      "One",
-      "Two",
-      "Three",
-      "Four",
-      "Five",
-      "Six",
-      "Seven",
-      "Eight",
-      "Nine",
-      "Ten",
-      "Eleven",
-      "Twelve",
-      "Thirteen",
-      "Fourteen",
-      "Fifteen",
-      "Sixteen",
-      "Seventeen",
-      "Eighteen",
-      "Nineteen",
-    ];
+    const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
     const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
 
     const twoDigits = (x: number) => {
@@ -1672,7 +1658,6 @@ export class InvoicePDFService {
     };
 
     const parts: string[] = [];
-
     const crore = Math.floor(n / 10000000);
     const lakh = Math.floor((n / 100000) % 100);
     const thousand = Math.floor((n / 1000) % 100);
@@ -1681,6 +1666,44 @@ export class InvoicePDFService {
     if (crore) parts.push(`${twoDigits(crore)} Crore`);
     if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
     if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+    if (hundredPart) parts.push(threeDigits(hundredPart));
+
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  // International Numbering System (Millions/Billions)
+  private static numberToWordsInternational(num: number): string {
+    const n = Math.floor(Math.abs(num));
+    if (n === 0) return "Zero";
+
+    const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+    const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+    const twoDigits = (x: number) => {
+      if (x < 20) return ones[x];
+      const t = Math.floor(x / 10);
+      const o = x % 10;
+      return `${tens[t]}${o ? " " + ones[o] : ""}`.trim();
+    };
+
+    const threeDigits = (x: number) => {
+      const h = Math.floor(x / 100);
+      const r = x % 100;
+      let s = "";
+      if (h) s += `${ones[h]} Hundred`;
+      if (r) s += `${h ? " " : ""}${twoDigits(r)}`;
+      return s.trim();
+    };
+
+    const parts: string[] = [];
+    const billion = Math.floor(n / 1000000000);
+    const million = Math.floor((n / 1000000) % 1000);
+    const thousand = Math.floor((n / 1000) % 1000);
+    const hundredPart = n % 1000;
+
+    if (billion) parts.push(`${threeDigits(billion)} Billion`);
+    if (million) parts.push(`${threeDigits(million)} Million`);
+    if (thousand) parts.push(`${threeDigits(thousand)} Thousand`);
     if (hundredPart) parts.push(threeDigits(hundredPart));
 
     return parts.join(" ").replace(/\s+/g, " ").trim();

@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox as CheckboxUI } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
 
 type PublicQuoteData = Quote & {
   items: (QuoteItem & { isOptional?: boolean; isSelected?: boolean })[];
@@ -240,12 +241,7 @@ export default function PublicQuote() {
     selectItemMutation.mutate([{ itemId, isSelected: newSelected }]);
   };
 
-  const formatCurrency = (amount: number) => {
-    return amount.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: quote?.currency || 'INR' 
-    });
-  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -343,7 +339,7 @@ export default function PublicQuote() {
               <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
                 <div>
                   <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase mb-0.5">Total Amount</p>
-                  <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(displayTotal)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(displayTotal, quote.currency)}</p>
                 </div>
                 <Receipt className="h-8 w-8 text-emerald-600 dark:text-emerald-400 opacity-50" />
               </div>
@@ -379,7 +375,7 @@ export default function PublicQuote() {
                       </div>
                       <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
                         <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                          Total Amount: {formatCurrency(displayTotal)}
+                          Total Amount: {formatCurrency(displayTotal, quote.currency)}
                         </p>
                       </div>
                     </div>
@@ -527,8 +523,8 @@ export default function PublicQuote() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right text-sm p-2 sm:p-4">{item.quantity}</TableCell>
-                        <TableCell className="text-right text-sm p-2 sm:p-4">{formatCurrency(Number(item.unitPrice))}</TableCell>
-                        <TableCell className="text-right text-sm font-medium p-2 sm:p-4">{formatCurrency(Number(item.subtotal))}</TableCell>
+                        <TableCell className="text-right text-sm p-2 sm:p-4">{formatCurrency(Number(item.unitPrice), quote.currency)}</TableCell>
+                        <TableCell className="text-right text-sm font-medium p-2 sm:p-4">{formatCurrency(Number(item.subtotal), quote.currency)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -542,26 +538,26 @@ export default function PublicQuote() {
                 <div className="w-full sm:w-72 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-medium">{formatCurrency(displaySubtotal)}</span>
+                    <span className="font-medium">{formatCurrency(displaySubtotal, quote.currency)}</span>
                   </div>
                   {Number(quote.discount) > 0 && (
                     <div className="flex justify-between text-sm text-success">
                       <span>Discount</span>
-                      <span className="font-medium">-{formatCurrency(Number(quote.discount))}</span>
+                      <span className="font-medium">-{formatCurrency(Number(quote.discount), quote.currency)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Tax</span>
-                    <span>{formatCurrency(Number(quote.cgst) + Number(quote.sgst) + Number(quote.igst))}</span>
+                    <span>{formatCurrency(Number(quote.cgst) + Number(quote.sgst) + Number(quote.igst), quote.currency)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Shipping</span>
-                    <span>{formatCurrency(Number(quote.shippingCharges))}</span>
+                    <span>{formatCurrency(Number(quote.shippingCharges), quote.currency)}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
                     <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">Total</span>
-                    <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(displayTotal)}</span>
+                    <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(displayTotal, quote.currency)}</span>
                   </div>
                 </div>
               </div>

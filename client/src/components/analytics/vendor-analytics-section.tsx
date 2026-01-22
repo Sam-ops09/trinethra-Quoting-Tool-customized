@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Package, Clock, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency } from "@/lib/currency";
 
 interface VendorAnalytics {
   overview: {
@@ -70,7 +71,7 @@ export function VendorAnalyticsSection({ timeRange }: VendorAnalyticsSectionProp
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{Number(data.overview.totalSpend).toLocaleString()}</div>
+            <div className="text-2xl font-bold">{formatCurrency(data.overview.totalSpend)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {data.overview.totalPOs} purchase orders
             </p>
@@ -87,7 +88,7 @@ export function VendorAnalyticsSection({ timeRange }: VendorAnalyticsSectionProp
           <CardContent>
             <div className="text-2xl font-bold">{data.overview.activeVendors}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Avg PO: ₹{Number(data.overview.avgPoValue).toLocaleString()}
+              Avg PO: {formatCurrency(data.overview.avgPoValue)}
             </p>
           </CardContent>
         </Card>
@@ -142,9 +143,9 @@ export function VendorAnalyticsSection({ timeRange }: VendorAnalyticsSectionProp
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-primary">₹{Number(vendor.totalSpend).toLocaleString()}</p>
+                  <p className="font-bold text-primary">{formatCurrency(vendor.totalSpend)}</p>
                   <p className="text-xs text-muted-foreground">
-                    Avg: ₹{Number(vendor.avgPoValue).toLocaleString()}
+                    Avg: {formatCurrency(vendor.avgPoValue)}
                   </p>
                 </div>
               </div>
@@ -182,7 +183,7 @@ export function VendorAnalyticsSection({ timeRange }: VendorAnalyticsSectionProp
                       </Badge>
                     </td>
                     <td className="py-3 text-right font-semibold">
-                      ₹{Number(vendor.totalSpend).toLocaleString()}
+                      {formatCurrency(vendor.totalSpend)}
                     </td>
                   </tr>
                 ))}

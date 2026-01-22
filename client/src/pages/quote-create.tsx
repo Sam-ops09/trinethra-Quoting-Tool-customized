@@ -29,6 +29,7 @@ import { ProductPicker } from "@/components/ProductPicker";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
+import { formatCurrency } from "@/lib/currency";
 import type { Client } from "@shared/schema";
 import { ExecBOMSection } from "@/components/shared/exec-bom-section";
 import type { ExecBOMData, ExecBOMItemRow } from "@/types/bom-types";
@@ -86,6 +87,7 @@ interface QuoteCreatePayload {
     bomSection?: string | null; // JSON string
     slaSection?: string | null; // JSON string
     timelineSection?: string | null; // JSON string
+    currency: string;
 }
 
 interface QuoteDetail {
@@ -96,6 +98,7 @@ interface QuoteDetail {
     validityDays: number;
     referenceNumber?: string;
     attentionTo?: string;
+    currency?: string;
     notes?: string;
     termsAndConditions?: string;
     quoteDate?: string;
@@ -122,6 +125,7 @@ interface QuoteDetail {
 
 const quoteFormSchema = z.object({
     clientId: z.string().min(1, "Client is required"),
+    currency: z.string().default("INR"),
     validityDays: z.coerce.number().min(1, "Validity period is required"),
     referenceNumber: z.string().optional(),
     attentionTo: z.string().optional(),
@@ -179,6 +183,7 @@ export default function QuoteCreate() {
         shouldUnregister: false,
         defaultValues: {
             clientId: "",
+            currency: "INR",
             validityDays: 30,
             referenceNumber: "",
             attentionTo: "",
@@ -242,6 +247,7 @@ export default function QuoteCreate() {
 
             form.reset({
                 clientId: existingQuote.clientId,
+                currency: existingQuote.currency || "INR",
                 validityDays: existingQuote.validityDays,
                 referenceNumber: existingQuote.referenceNumber || "",
                 attentionTo: existingQuote.attentionTo || "",
@@ -427,6 +433,7 @@ export default function QuoteCreate() {
     const sgst = form.watch("sgst");
     const igst = form.watch("igst");
     const shippingCharges = form.watch("shippingCharges");
+    const currency = form.watch("currency");
 
     // Apply selected tax rate
     const applyTaxRate = (taxRateId: string) => {
@@ -457,6 +464,7 @@ export default function QuoteCreate() {
     const onSubmit = async (values: z.infer<typeof quoteFormSchema>) => {
         const quoteData: QuoteCreatePayload = {
             clientId: values.clientId,
+            currency: values.currency,
             validityDays: values.validityDays,
             referenceNumber: values.referenceNumber || undefined,
             attentionTo: values.attentionTo || undefined,
@@ -640,7 +648,7 @@ export default function QuoteCreate() {
                                                     <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Client *</FormLabel>
                                                     <Select
                                                         onValueChange={field.onChange}
-                                                        defaultValue={field.value}
+                                                        value={field.value}
                                                     >
                                                         <FormControl>
                                                             <SelectTrigger data-testid="select-client" className="text-sm">
@@ -656,6 +664,37 @@ export default function QuoteCreate() {
                                                                     {client.name}
                                                                 </SelectItem>
                                                             ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="currency"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Currency *</FormLabel>
+                                                    <Select
+                                                        onValueChange={field.onChange}
+                                                        value={field.value}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger data-testid="select-currency" className="text-sm">
+                                                                <SelectValue placeholder="Currency" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="INR">INR (₹)</SelectItem>
+                                                            <SelectItem value="USD">USD ($)</SelectItem>
+                                                            <SelectItem value="EUR">EUR (€)</SelectItem>
+                                                            <SelectItem value="GBP">GBP (£)</SelectItem>
+                                                            <SelectItem value="AUD">AUD ($)</SelectItem>
+                                                            <SelectItem value="CAD">CAD ($)</SelectItem>
+                                                            <SelectItem value="SGD">SGD ($)</SelectItem>
+                                                            <SelectItem value="AED">AED (د.إ)</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                     <FormMessage />
@@ -901,7 +940,7 @@ export default function QuoteCreate() {
                                                             <div className="space-y-1.5">
                                                                 <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Unit Price</label>
                                                                 <div className="relative">
-                                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">₹</span>
+                                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs"><DollarSign className="h-3 w-3" /></span>
                                                                     <FormField
                                                                         control={form.control}
                                                                         name={`items.${index}.unitPrice`}
@@ -926,7 +965,7 @@ export default function QuoteCreate() {
                                                             <div className="space-y-1.5">
                                                                 <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right block">Total</label>
                                                                 <div className="h-9 px-3 border rounded-md bg-muted/50 text-right text-sm font-bold text-primary flex items-center justify-end font-mono">
-                                                                    ₹{(items[index].quantity * items[index].unitPrice).toLocaleString()}
+                                                                    {formatCurrency(items[index].quantity * items[index].unitPrice, currency)}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1105,7 +1144,7 @@ export default function QuoteCreate() {
                                                                 />
                                                             </td>
                                                             <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right text-[11px] sm:text-sm font-semibold text-primary">
-                                                                ₹{(items[index].quantity * items[index].unitPrice).toLocaleString()}
+                                                                {formatCurrency(items[index].quantity * items[index].unitPrice, currency)}
                                                             </td>
                                                             <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
                                                                 {fields.length > 1 && (
@@ -1132,7 +1171,7 @@ export default function QuoteCreate() {
                                                 <DollarSign className="h-3 w-3" />
                                                 Subtotal:{" "}
                                                 <span className="font-semibold text-foreground">
-                                                    ₹{subtotal.toLocaleString()}
+                                                    {formatCurrency(subtotal, currency)}
                                                 </span>
                                             </span>
                                         </div>
@@ -1376,7 +1415,7 @@ export default function QuoteCreate() {
                                             name="shippingCharges"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Shipping Charges (₹)</FormLabel>
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Shipping Charges</FormLabel>
                                                     <FormControl>
                                                         <Input
                                                             {...field}
@@ -1400,28 +1439,28 @@ export default function QuoteCreate() {
                                             <div className="flex justify-between items-center">
                                                 <span className="text-muted-foreground">Subtotal</span>
                                                 <span className="font-semibold">
-                                                    ₹{subtotal.toLocaleString()}
+                                                    {formatCurrency(subtotal, currency)}
                                                 </span>
                                             </div>
                                             {discountAmount > 0 && (
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-muted-foreground">Discount</span>
                                                     <span className="font-semibold text-success">
-                                                        -₹{discountAmount.toLocaleString()}
+                                                        -{formatCurrency(discountAmount, currency)}
                                                     </span>
                                                 </div>
                                             )}
                                             <div className="flex justify-between items-center">
                                                 <span className="text-muted-foreground">Taxable Amount</span>
                                                 <span className="font-semibold">
-                                                    ₹{taxableAmount.toLocaleString()}
+                                                    {formatCurrency(taxableAmount, currency)}
                                                 </span>
                                             </div>
                                             {cgstAmount > 0 && (
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-muted-foreground">CGST ({cgst}%)</span>
                                                     <span className="font-semibold">
-                                                        ₹{cgstAmount.toLocaleString()}
+                                                        {formatCurrency(cgstAmount, currency)}
                                                     </span>
                                                 </div>
                                             )}
@@ -1429,7 +1468,7 @@ export default function QuoteCreate() {
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-muted-foreground">SGST ({sgst}%)</span>
                                                     <span className="font-semibold">
-                                                        ₹{sgstAmount.toLocaleString()}
+                                                        {formatCurrency(sgstAmount, currency)}
                                                     </span>
                                                 </div>
                                             )}
@@ -1437,7 +1476,7 @@ export default function QuoteCreate() {
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-muted-foreground">IGST ({igst}%)</span>
                                                     <span className="font-semibold">
-                                                        ₹{igstAmount.toLocaleString()}
+                                                        {formatCurrency(igstAmount, currency)}
                                                     </span>
                                                 </div>
                                             )}
@@ -1445,7 +1484,7 @@ export default function QuoteCreate() {
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-muted-foreground">Shipping</span>
                                                     <span className="font-semibold">
-                                                        ₹{Number(shippingCharges).toLocaleString()}
+                                                        {formatCurrency(Number(shippingCharges), currency)}
                                                     </span>
                                                 </div>
                                             )}
@@ -1459,7 +1498,7 @@ export default function QuoteCreate() {
                                                     Total Amount
                                                 </span>
                                                 <span className="text-lg sm:text-2xl font-bold text-primary" data-testid="text-total">
-                                                    ₹{total.toLocaleString()}
+                                                    {formatCurrency(total, currency)}
                                                 </span>
                                             </div>
                                         </div>

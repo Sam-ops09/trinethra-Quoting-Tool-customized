@@ -142,151 +142,151 @@ router.put("/:id/master-status", authMiddleware, requireFeature('invoices_finali
 // Also works for Child Invoices (editable until paid)
 router.put("/:id/master-details", authMiddleware, requireFeature('invoices_edit'), requirePermission("invoices", "edit"), async (req: AuthRequest, res: Response) => {
   try {
-    const invoice = await storage.getInvoice(req.params.id);
-    if (!invoice) {
-      return res.status(404).json({ error: "Invoice not found" });
-    }
-
-    // Determine if this is a master or child invoice
-    const isMasterInvoice = invoice.isMaster;
-    const isChildInvoice = !!invoice.parentInvoiceId;
-    const isRegularInvoice = !isMasterInvoice && !isChildInvoice;
-
-    // Check edit permissions
-    if (isMasterInvoice) {
-      // Master invoice edit rules
-      if (invoice.masterInvoiceStatus === "locked") {
-        return res.status(400).json({
-          error: "Cannot edit a locked master invoice"
-        });
-      }
-    } else if (isChildInvoice || isRegularInvoice) {
-      // Child or regular invoice edit rules: can edit until paid
-      if (invoice.paymentStatus === "paid") {
-        return res.status(400).json({
-          error: "Cannot edit a paid invoice"
-        });
-      }
-    }
-
-    // Determine if full editing is allowed
-    const isDraft = isMasterInvoice
-      ? (!invoice.masterInvoiceStatus || invoice.masterInvoiceStatus === "draft")
-      : (invoice.paymentStatus !== "paid"); // Child/regular invoices are "draft" until paid
-
-    const updateData: any = {};
-
-    if (isDraft) {
-      // Full editing allowed in draft (or for unpaid child invoices)
-      const editableFields = [
-        "notes", "termsAndConditions", "deliveryNotes", "milestoneDescription",
-        "dueDate", "subtotal", "discount", "cgst", "sgst", "igst",
-        "shippingCharges", "total", "paymentStatus", "paidAmount", "bomSection"
-      ];
-
-      for (const field of editableFields) {
-        if (req.body[field] !== undefined) {
-          updateData[field] = req.body[field];
+    const result = await db.transaction(async (tx) => {
+        const invoice = await storage.getInvoice(req.params.id);
+        if (!invoice) {
+            throw new Error("Invoice not found");
         }
-      }
 
-      // Handle items update
-      if (req.body.items && Array.isArray(req.body.items)) {
-        // For child invoices, validate quantities don't exceed master limits
-        if (isChildInvoice && invoice.parentInvoiceId) {
-          const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-          if (masterInvoice) {
-            const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-            const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
-            const siblingInvoices = allChildInvoices.filter(
-              inv => inv.parentInvoiceId === masterInvoice.id && inv.id !== invoice.id
-            );
+        const isMasterInvoice = invoice.isMaster;
+        const isChildInvoice = !!invoice.parentInvoiceId;
+        const isRegularInvoice = !isMasterInvoice && !isChildInvoice;
 
-            // Calculate already invoiced quantities by siblings (excluding current)
-            const invoicedQuantities: Record<string, number> = {};
-            for (const sibling of siblingInvoices) {
-              const siblingItems = await storage.getInvoiceItems(sibling.id);
-              for (const item of siblingItems) {
-                const key = item.productId || item.description;
-                invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
-              }
+        if (isMasterInvoice) {
+            if (invoice.masterInvoiceStatus === "locked") {
+                const error: any = new Error("Cannot edit a locked master invoice");
+                error.statusCode = 400;
+                throw error;
+            }
+        } else if (isChildInvoice || isRegularInvoice) {
+            if (invoice.paymentStatus === "paid") {
+                const error: any = new Error("Cannot edit a paid invoice");
+                error.statusCode = 400;
+                throw error;
+            }
+        }
+
+        const isDraft = isMasterInvoice
+        ? (!invoice.masterInvoiceStatus || invoice.masterInvoiceStatus === "draft")
+        : (invoice.paymentStatus !== "paid"); 
+
+        const updateData: any = {};
+
+        if (isDraft) {
+            const editableFields = [
+                "notes", "termsAndConditions", "deliveryNotes", "milestoneDescription",
+                "dueDate", "subtotal", "discount", "cgst", "sgst", "igst",
+                "shippingCharges", "total", "paymentStatus", "paidAmount", "bomSection"
+            ];
+
+            for (const field of editableFields) {
+                if (req.body[field] !== undefined) {
+                    updateData[field] = req.body[field];
+                }
             }
 
-            // Validate new items don't exceed remaining quantities
-            for (const newItem of req.body.items) {
-              const masterItem = masterItems.find(mi => (mi.productId && mi.productId === newItem.productId) || mi.description === newItem.description);
-              if (!masterItem) {
-                return res.status(400).json({
-                  error: `Item "${newItem.description}" not found in master invoice`
-                });
-              }
+            if (req.body.items && Array.isArray(req.body.items)) {
+                if (isChildInvoice && invoice.parentInvoiceId) {
+                    const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
+                    if (masterInvoice) {
+                        const masterItems = await storage.getInvoiceItems(masterInvoice.id);
+                        const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
+                        const siblingInvoices = allChildInvoices.filter(
+                            inv => inv.parentInvoiceId === masterInvoice.id && inv.id !== invoice.id
+                        );
 
-              const key = newItem.productId || newItem.description;
-              const alreadyInvoiced = invoicedQuantities[key] || 0;
-              const remaining = masterItem.quantity - alreadyInvoiced;
+                        const invoicedQuantities: Record<string, number> = {};
+                        for (const sibling of siblingInvoices) {
+                            const siblingItems = await storage.getInvoiceItems(sibling.id);
+                            for (const item of siblingItems) {
+                                const key = item.productId || item.description;
+                                invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
+                            }
+                        }
 
-              if (newItem.quantity > remaining) {
-                return res.status(400).json({
-                  error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
-                });
-              }
+                        for (const newItem of req.body.items) {
+                            const masterItem = masterItems.find(mi => (mi.productId && mi.productId === newItem.productId) || mi.description === newItem.description);
+                            if (!masterItem) {
+                                const error: any = new Error(`Item "${newItem.description}" not found in master invoice`);
+                                error.statusCode = 400;
+                                throw error;
+                            }
+
+                            const key = newItem.productId || newItem.description;
+                            const alreadyInvoiced = invoicedQuantities[key] || 0;
+                            const remaining = masterItem.quantity - alreadyInvoiced;
+
+                            if (newItem.quantity > remaining) {
+                                const error: any = new Error(`Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`);
+                                error.statusCode = 400;
+                                throw error;
+                            }
+                        }
+                    }
+                }
+
+                // Delete existing items using tx
+                await tx.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, invoice.id));
+
+                // Create new items using tx
+                for (const item of req.body.items) {
+                    await tx.insert(schema.invoiceItems).values({
+                        invoiceId: invoice.id,
+                        productId: item.productId || null,
+                        description: item.description,
+                        quantity: item.quantity,
+                        fulfilledQuantity: item.fulfilledQuantity || 0,
+                        unitPrice: item.unitPrice,
+                        subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
+                        serialNumbers: item.serialNumbers || null,
+                        status: item.status || "pending",
+                        sortOrder: item.sortOrder || 0,
+                        hsnSac: item.hsnSac || null,
+                    });
+                }
             }
-          }
+        } else {
+            const allowedFields = ["notes", "termsAndConditions", "deliveryNotes", "milestoneDescription"];
+            for (const field of allowedFields) {
+                if (req.body[field] !== undefined) {
+                    updateData[field] = req.body[field];
+                }
+            }
         }
 
-        // Delete existing items
-        await storage.deleteInvoiceItems(invoice.id);
-
-        // Create new items
-        for (const item of req.body.items) {
-          await storage.createInvoiceItem({
-            invoiceId: invoice.id,
-            productId: item.productId || null,
-            description: item.description,
-            quantity: item.quantity,
-            fulfilledQuantity: item.fulfilledQuantity || 0,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
-            serialNumbers: item.serialNumbers || null,
-            status: item.status || "pending",
-            sortOrder: item.sortOrder || 0,
-            hsnSac: item.hsnSac || null,
-          });
+        if (Object.keys(updateData).length === 0 && (!isDraft || !req.body.items)) {
+            const error: any = new Error("No valid fields to update");
+            error.statusCode = 400;
+            throw error;
         }
-      }
-    } else {
-      // Limited editing in confirmed status (master only - child invoices are always "draft" until paid)
-      const allowedFields = ["notes", "termsAndConditions", "deliveryNotes", "milestoneDescription"];
 
-      for (const field of allowedFields) {
-        if (req.body[field] !== undefined) {
-          updateData[field] = req.body[field];
+        let updatedInvoice;
+        if (Object.keys(updateData).length > 0) {
+            // Update invoice using tx
+            [updatedInvoice] = await tx.update(schema.invoices)
+                .set(updateData)
+                .where(eq(schema.invoices.id, req.params.id))
+                .returning();
+        } else {
+            updatedInvoice = invoice;
         }
-      }
-    }
 
-    if (Object.keys(updateData).length === 0 && (!isDraft || !req.body.items)) {
-      return res.status(400).json({ error: "No valid fields to update" });
-    }
+        await tx.insert(schema.activityLogs).values({
+            userId: req.user!.id,
+            action: "update_master_invoice",
+            entityType: "invoice",
+            entityId: invoice.id,
+        });
 
-    // Update invoice if there are field changes
-    let updatedInvoice;
-    if (Object.keys(updateData).length > 0) {
-      updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
-    } else {
-      updatedInvoice = invoice;
-    }
-
-    await storage.createActivityLog({
-      userId: req.user!.id,
-      action: "update_master_invoice",
-      entityType: "invoice",
-      entityId: invoice.id,
+        return { success: true, invoice: updatedInvoice };
     });
 
-    res.json({ success: true, invoice: updatedInvoice });
+    res.json(result);
   } catch (error: any) {
     logger.error("Update master invoice error:", error);
+    if (error.statusCode === 400) {
+        return res.status(400).json({ error: error.message });
+    }
     return res.status(500).json({ error: error.message || "Failed to update master invoice" });
   }
 });
@@ -585,161 +585,160 @@ router.delete("/:id", authMiddleware, requireFeature('invoices_delete'), require
 // Create Child Invoice from Master Invoice
 router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoices_childInvoices'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
   try {
-    const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
+    const result = await db.transaction(async (tx) => {
+        const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
 
-    const masterInvoice = await storage.getInvoice(req.params.id);
-    if (!masterInvoice) {
-      return res.status(404).json({ error: "Master invoice not found" });
-    }
+        // Use direct tx queries or storage (read-only is fine via storage if repeatable read is not strict req, but safer to stick to tx maybe? getInvoice is simple)
+        // For reads, we can use storage IF we don't care about seeing uncommitted data from *this* transaction (which we don't yet).
+        // But for "SELECT FOR UPDATE" equivalent we'd need tx.
+        // For now, let's stick to storage for READS (simplicity) and tx for WRITES.
+        // NOTE: Drizzle transaction snapshot might not see updates if we mix clients? No, standard PG transaction behavior applies.
+        
+        const masterInvoice = await storage.getInvoice(req.params.id);
+        if (!masterInvoice) {
+            throw new Error("Master invoice not found");
+        }
 
-    if (!masterInvoice.isMaster) {
-      return res.status(400).json({ error: "This is not a master invoice" });
-    }
+        if (!masterInvoice.isMaster) {
+            throw new Error("This is not a master invoice");
+        }
 
-    if (masterInvoice.masterInvoiceStatus === "draft") {
-      return res.status(400).json({
-        error: "Master invoice must be confirmed before creating child invoices"
-      });
-    }
+        if (masterInvoice.masterInvoiceStatus === "draft") {
+            throw new Error("Master invoice must be confirmed before creating child invoices");
+        }
 
-    // Validate items don't exceed master invoice quantities
-    const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-    const allChildInvoices = masterInvoice.quoteId ? await storage.getInvoicesByQuote(masterInvoice.quoteId || "") : await storage.getInvoicesBySalesOrder(masterInvoice.salesOrderId || "");
+        const masterItems = await storage.getInvoiceItems(masterInvoice.id);
+        const allChildInvoices = masterInvoice.quoteId ? await storage.getInvoicesByQuote(masterInvoice.quoteId || "") : await storage.getInvoicesBySalesOrder(masterInvoice.salesOrderId || "");
 
-    const siblingInvoices = allChildInvoices.filter((inv: any) => inv.parentInvoiceId === masterInvoice.id);
+        const siblingInvoices = allChildInvoices.filter((inv: any) => inv.parentInvoiceId === masterInvoice.id);
 
-    // Calculate already invoiced quantities per item
-    const invoicedQuantities: Record<string, number> = {};
-    for (const sibling of siblingInvoices) {
-      const siblingItems = await storage.getInvoiceItems(sibling.id);
-      for (const item of siblingItems) {
-        const key = item.productId || item.description; // Use productId or description as key
-        invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
-      }
-    }
+        const invoicedQuantities: Record<string, number> = {};
+        for (const sibling of siblingInvoices) {
+            const siblingItems = await storage.getInvoiceItems(sibling.id);
+            for (const item of siblingItems) {
+                const key = item.productId || item.description;
+                invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
+            }
+        }
 
-    // Validate new items don't exceed remaining quantities
-    // 1. Validate items and populate data from Master Invoice
-    const processedItems = [];
-    let subtotal = 0;
+        const processedItems = [];
+        let subtotal = 0;
 
-    for (const rawItem of items) {
-      const newItem = { ...rawItem }; // Clone to avoid mutation side-effects
+        for (const rawItem of items) {
+            const newItem = { ...rawItem };
+            
+            const masterItem = masterItems.find(mi => 
+                (newItem.itemId && mi.id === newItem.itemId) || 
+                (mi.productId && mi.productId === newItem.productId) || 
+                mi.description === newItem.description
+            );
 
-      // Find matching master item
-      const masterItem = masterItems.find(mi => 
-        (newItem.itemId && mi.id === newItem.itemId) || 
-        (mi.productId && mi.productId === newItem.productId) || 
-        mi.description === newItem.description
-      );
+            if (!masterItem) {
+                const error: any = new Error(`Item "${newItem.description}" not found in master invoice`);
+                error.statusCode = 400;
+                throw error;
+            }
 
-      if (!masterItem) {
-        return res.status(400).json({
-          error: `Item "${newItem.description}" not found in master invoice`
+            if (!newItem.unitPrice) newItem.unitPrice = masterItem.unitPrice;
+            if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
+            if (!newItem.productId) newItem.productId = masterItem.productId;
+
+            const unitPrice = Number(newItem.unitPrice);
+            const quantity = Number(newItem.quantity);
+
+            if (isNaN(unitPrice)) {
+                const error: any = new Error(`Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`);
+                error.statusCode = 400;
+                throw error;
+            }
+
+            const key = newItem.productId || newItem.description;
+            const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
+            const remaining = masterItem.quantity - alreadyInvoiced;
+
+            if (quantity > remaining) {
+                const error: any = new Error(`Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`);
+                error.statusCode = 400;
+                throw error;
+            }
+
+            subtotal += unitPrice * quantity;
+            processedItems.push(newItem);
+        }
+
+        const masterSubtotal = Number(masterInvoice.subtotal);
+        const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
+
+        const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
+        const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
+        const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
+        const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
+        const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
+
+        const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
+
+        if (isNaN(total)) {
+            throw new Error("Calculation resulted in NaN. Check inputs.");
+        }
+
+        const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
+
+        // Create child invoice using tx
+        const [childInvoice] = await tx.insert(schema.invoices).values({
+            invoiceNumber,
+            parentInvoiceId: masterInvoice.id,
+            quoteId: masterInvoice.quoteId,
+            clientId: masterInvoice.clientId,
+            paymentStatus: "pending",
+            dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            paidAmount: "0",
+            subtotal: subtotal.toFixed(2),
+            discount,
+            cgst,
+            sgst,
+            igst,
+            shippingCharges,
+            total: total.toFixed(2),
+            notes: notes || masterInvoice.notes,
+            termsAndConditions: masterInvoice.termsAndConditions,
+            isMaster: false,
+            deliveryNotes: deliveryNotes || null,
+            milestoneDescription: milestoneDescription || null,
+            createdBy: req.user!.id,
+        }).returning();
+
+        // Create child invoice items using tx
+        for (const item of processedItems) {
+            await tx.insert(schema.invoiceItems).values({
+                invoiceId: childInvoice.id,
+                productId: item.productId || null,
+                description: item.description,
+                quantity: item.quantity,
+                fulfilledQuantity: 0,
+                unitPrice: item.unitPrice,
+                subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
+                status: "pending",
+                sortOrder: item.sortOrder || 0,
+                hsnSac: item.hsnSac || null,
+            });
+        }
+
+        await tx.insert(schema.activityLogs).values({
+            userId: req.user!.id,
+            action: "create_child_invoice",
+            entityType: "invoice",
+            entityId: childInvoice.id,
         });
-      }
 
-      // Populate missing fields from master item
-      if (!newItem.unitPrice) newItem.unitPrice = masterItem.unitPrice;
-      if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
-      if (!newItem.productId) newItem.productId = masterItem.productId;
-
-      // Validate numeric values to prevent NaN
-      const unitPrice = Number(newItem.unitPrice);
-      const quantity = Number(newItem.quantity);
-
-      if (isNaN(unitPrice)) {
-         return res.status(400).json({
-          error: `Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`
-        });
-      }
-
-      // Check quantities
-      const key = newItem.productId || newItem.description;
-      const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
-      const remaining = masterItem.quantity - alreadyInvoiced;
-
-      if (quantity > remaining) {
-        return res.status(400).json({
-          error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
-        });
-      }
-
-      // Add to running totals
-      subtotal += unitPrice * quantity;
-      
-      processedItems.push(newItem);
-    }
-
-    // Apply proportional taxes and charges based on subtotal ratio
-    const masterSubtotal = Number(masterInvoice.subtotal);
-    const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
-
-    const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
-    const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
-    const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
-    const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
-    const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
-
-    const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
-
-    if (isNaN(total)) {
-        return res.status(500).json({ error: "Calculation resulted in NaN. Check inputs." });
-    }
-
-    // Generate child invoice number using admin child invoice numbering settings
-    const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
-
-    // Create child invoice
-    const childInvoice = await storage.createInvoice({
-      invoiceNumber,
-      parentInvoiceId: masterInvoice.id,
-      quoteId: masterInvoice.quoteId,
-      clientId: masterInvoice.clientId,
-      paymentStatus: "pending",
-      dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      paidAmount: "0",
-      subtotal: subtotal.toFixed(2),
-      discount,
-      cgst,
-      sgst,
-      igst,
-      shippingCharges,
-      total: total.toFixed(2),
-      notes: notes || masterInvoice.notes,
-      termsAndConditions: masterInvoice.termsAndConditions,
-      isMaster: false,
-      deliveryNotes: deliveryNotes || null,
-      milestoneDescription: milestoneDescription || null,
-      createdBy: req.user!.id,
+        return childInvoice;
     });
 
-    // Create child invoice items
-    for (const item of processedItems) {
-      await storage.createInvoiceItem({
-        invoiceId: childInvoice.id,
-        productId: item.productId || null,
-        description: item.description,
-        quantity: item.quantity,
-        fulfilledQuantity: 0,
-        unitPrice: item.unitPrice,
-        subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
-        status: "pending",
-        sortOrder: item.sortOrder || 0,
-        hsnSac: item.hsnSac || null,
-      });
-    }
-
-    await storage.createActivityLog({
-      userId: req.user!.id,
-      action: "create_child_invoice",
-      entityType: "invoice",
-      entityId: childInvoice.id,
-    });
-
-    return res.json(childInvoice);
+    return res.json(result);
   } catch (error: any) {
     logger.error("Create child invoice error:", error);
+    if (error.statusCode === 400) {
+        return res.status(400).json({ error: error.message });
+    }
     return res.status(500).json({ error: error.message || "Failed to create child invoice" });
   }
 });
@@ -915,6 +914,7 @@ router.get("/:id/pdf", authMiddleware, requireFeature('invoices_pdfGeneration'),
         quote: quote || {} as any, // Handle missing quote
         client,
         items: items as any,
+        currency: invoice.currency,
         companyName,
         companyAddress,
         companyPhone,

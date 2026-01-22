@@ -3,6 +3,7 @@ import { notifications, users } from "@shared/schema";
 import type { Notification, InsertNotification, NotificationType } from "@shared/schema";
 import { eq, and, desc, sql, lt } from "drizzle-orm";
 import { WebSocketService } from "./websocket.service";
+import { logger } from "../utils/logger";
 
 interface CreateNotificationOptions {
   userId: string;
@@ -61,7 +62,7 @@ class NotificationServiceClass {
 
       return notification;
     } catch (error) {
-      console.error("[NotificationService] Failed to create notification:", error);
+      logger.error("[NotificationService] Failed to create notification:", error);
       return null;
     }
   }
@@ -87,7 +88,7 @@ class NotificationServiceClass {
       const userIds = usersWithRole.map((u) => u.id);
       await this.createForMany(userIds, options);
     } catch (error) {
-      console.error("[NotificationService] Failed to create notifications for role:", error);
+      logger.error("[NotificationService] Failed to create notifications for role:", error);
     }
   }
 
@@ -111,7 +112,7 @@ class NotificationServiceClass {
 
       return result;
     } catch (error) {
-      console.error("[NotificationService] Failed to get notifications:", error);
+      logger.error("[NotificationService] Failed to get notifications:", error);
       return [];
     }
   }
@@ -130,7 +131,7 @@ class NotificationServiceClass {
 
       return Number(result?.count || 0);
     } catch (error) {
-      console.error("[NotificationService] Failed to get unread count:", error);
+      logger.error("[NotificationService] Failed to get unread count:", error);
       return 0;
     }
   }
@@ -153,7 +154,7 @@ class NotificationServiceClass {
 
       return !!updated;
     } catch (error) {
-      console.error("[NotificationService] Failed to mark as read:", error);
+      logger.error("[NotificationService] Failed to mark as read:", error);
       return false;
     }
   }
@@ -176,7 +177,7 @@ class NotificationServiceClass {
 
       return result.length;
     } catch (error) {
-      console.error("[NotificationService] Failed to mark all as read:", error);
+      logger.error("[NotificationService] Failed to mark all as read:", error);
       return 0;
     }
   }
@@ -195,7 +196,7 @@ class NotificationServiceClass {
 
       return !!deleted;
     } catch (error) {
-      console.error("[NotificationService] Failed to delete notification:", error);
+      logger.error("[NotificationService] Failed to delete notification:", error);
       return false;
     }
   }
@@ -211,7 +212,7 @@ class NotificationServiceClass {
 
       return result.length;
     } catch (error) {
-      console.error("[NotificationService] Failed to delete all notifications:", error);
+      logger.error("[NotificationService] Failed to delete all notifications:", error);
       return 0;
     }
   }
@@ -231,7 +232,7 @@ class NotificationServiceClass {
       console.log(`[NotificationService] Cleaned up ${result.length} old notifications`);
       return result.length;
     } catch (error) {
-      console.error("[NotificationService] Failed to cleanup old notifications:", error);
+      logger.error("[NotificationService] Failed to cleanup old notifications:", error);
       return 0;
     }
   }
@@ -387,7 +388,7 @@ class NotificationServiceClass {
         }
       );
     } catch (error) {
-      console.error("[NotificationService] Failed to send system announcement:", error);
+      logger.error("[NotificationService] Failed to send system announcement:", error);
     }
   }
 }

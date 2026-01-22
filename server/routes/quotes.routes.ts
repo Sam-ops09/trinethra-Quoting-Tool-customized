@@ -1,6 +1,4 @@
-
 import { Router, Response } from "express";
-import { Worker } from "worker_threads";
 import path from "path";
 import { storage } from "../storage";
 import { authMiddleware, AuthRequest } from "../middleware";
@@ -16,6 +14,7 @@ import { isFeatureEnabled } from "../../shared/feature-flags";
 import { ApprovalService } from "../services/approval.service";
 import { NotificationService } from "../services/notification.service";
 import { users } from "@shared/schema";
+import * as schema from "@shared/schema";
 import { db } from "../db";
 import { eq } from "drizzle-orm";
 
@@ -707,81 +706,92 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
 
 router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_convertToInvoice'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
   try {
-    const quote = await storage.getQuote(req.params.id);
-    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    const result = await db.transaction(async (tx) => {
+        const quote = await storage.getQuote(req.params.id);
+        if (!quote) throw new Error("Quote not found");
 
-    if (quote.status === "invoiced") {
-        return res.status(400).json({ error: "Quote is already invoiced" });
-    }
+        if (quote.status === "invoiced") {
+            throw new Error("Quote is already invoiced");
+        }
 
-    // CRITICAL: Check if sales order exists for this quote
-    // If SO exists, invoice should be created FROM the SO, not from the quote
-    const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
-    if (existingSalesOrder) {
-        return res.status(400).json({ 
-        error: "Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.",
-        salesOrderId: existingSalesOrder.id,
-        salesOrderNumber: existingSalesOrder.orderNumber
+        // CRITICAL: Check if sales order exists for this quote
+        // If SO exists, invoice should be created FROM the SO, not from the quote
+        const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+        if (existingSalesOrder) {
+            const error: any = new Error("Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.");
+            error.statusCode = 400;
+            error.details = {
+                salesOrderId: existingSalesOrder.id,
+                salesOrderNumber: existingSalesOrder.orderNumber
+            };
+            throw error;
+        }
+
+        // Generate a new master invoice number using admin master invoice numbering settings
+        const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+
+        // Create the invoice
+        const [invoice] = await tx.insert(schema.invoices).values({
+            invoiceNumber,
+            quoteId: quote.id,
+            clientId: quote.clientId,
+            isMaster: true,
+            masterInvoiceStatus: "draft", 
+            paymentStatus: "pending", 
+            dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1000), // Default due date based on validity
+            paidAmount: "0",
+            subtotal: quote.subtotal,
+            discount: quote.discount,
+            cgst: quote.cgst,
+            sgst: quote.sgst,
+            igst: quote.igst,
+            shippingCharges: quote.shippingCharges,
+            total: quote.total,
+            notes: quote.notes,
+            termsAndConditions: quote.termsAndConditions,
+            createdBy: req.user!.id,
+        }).returning();
+
+        // Get quote items and create invoice items
+        const quoteItems = await storage.getQuoteItems(quote.id);
+        for (const item of quoteItems) {
+            await tx.insert(schema.invoiceItems).values({
+                invoiceId: invoice.id,
+                productId: (item as any).productId || null,
+                description: item.description,
+                quantity: item.quantity,
+                fulfilledQuantity: 0,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+                status: "pending",
+                sortOrder: item.sortOrder,
+                hsnSac: item.hsnSac
+            });
+        }
+
+        // Update quote status
+        await tx.update(schema.quotes)
+            .set({ status: "invoiced", updatedAt: new Date() })
+            .where(eq(schema.quotes.id, quote.id));
+
+        // Log activity (inside or outside transaction? Inside is safer for consistency)
+        await tx.insert(schema.activityLogs).values({
+            userId: req.user!.id,
+            action: "convert_quote_to_invoice",
+            entityType: "invoice",
+            entityId: invoice.id,
         });
-    }
 
-    // Generate a new master invoice number using admin master invoice numbering settings
-    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
-
-    // Create the invoice
-    const invoice = await storage.createInvoice({
-        invoiceNumber,
-        quoteId: quote.id,
-        clientId: quote.clientId,
-        isMaster: true,
-        masterInvoiceStatus: "draft", 
-        paymentStatus: "pending", 
-        dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1000), // Default due date based on validity
-        paidAmount: "0",
-        subtotal: quote.subtotal,
-        discount: quote.discount,
-        cgst: quote.cgst,
-        sgst: quote.sgst,
-        igst: quote.igst,
-        shippingCharges: quote.shippingCharges,
-        total: quote.total,
-        notes: quote.notes,
-        termsAndConditions: quote.termsAndConditions,
-        createdBy: req.user!.id,
+        return invoice;
     });
 
-    // Get quote items and create invoice items
-    const quoteItems = await storage.getQuoteItems(quote.id);
-    for (const item of quoteItems) {
-        await storage.createInvoiceItem({
-        invoiceId: invoice.id,
-        productId: (item as any).productId || null,
-        description: item.description,
-        quantity: item.quantity,
-        fulfilledQuantity: 0,
-        unitPrice: item.unitPrice,
-        subtotal: item.subtotal,
-        status: "pending",
-        sortOrder: item.sortOrder,
-        hsnSac: item.hsnSac
-        });
-    }
-
-    // Update quote status
-    await storage.updateQuote(quote.id, { status: "invoiced" });
-
-    // Log activity
-    await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "convert_quote_to_invoice",
-        entityType: "invoice",
-        entityId: invoice.id,
-    });
-
-    return res.json(invoice);
+    return res.json(result);
     
   } catch (error: any) {
     logger.error("Convert quote error:", error);
+    if (error.statusCode === 400) {
+        return res.status(400).json({ error: error.message, ...error.details });
+    }
     return res.status(500).json({ error: error.message || "Failed to convert quote" });
   }
 });
@@ -1006,70 +1016,32 @@ router.get("/:id/pdf", authMiddleware, requireFeature('quotes_pdfGeneration'), a
       // Generate PDF using Worker Thread with Fallback
       logger.info(`[PDF Export] Attempting offload to Worker Thread`);
       
-      const runWorker = async () => {
-          let workerPath: string;
-          if (process.env.NODE_ENV === "production") {
-             workerPath = path.join(process.cwd(), "dist", "workers", "pdf.worker.js");
-          } else {
-             workerPath = path.join(process.cwd(), "server", "workers", "pdf.worker.ts");
-          }
-          
-          // Attempt to resolve tsx loader relative to CWD
-          const { pathToFileURL } = await import("url");
-          const tsxLoaderPath = path.resolve("node_modules/tsx/dist/loader.mjs");
-          const loaderUrl = pathToFileURL(tsxLoaderPath).href;
-          
-          const worker = new Worker(workerPath, {
-              execArgv: process.env.NODE_ENV === "production" ? [] : ["--import", loaderUrl],
-          });
-
-          const pdfPayload = {
-            quote,
-            client,
-            items,
-            companyName,
-            companyAddress,
-            companyPhone,
-            companyEmail,
-            companyWebsite,
-            companyGSTIN,
-            companyLogo,
-            preparedBy: creator?.name,
-            preparedByEmail: creator?.email,
-            bankDetails: {
-              bankName,
-              accountNumber: bankAccountNumber,
-              accountName: bankAccountName,
-              ifsc: bankIfscCode,
-              branch: bankBranch,
-              swift: bankSwiftCode,
-            },
-          };
-
-          return new Promise<Buffer>((resolve, reject) => {
-              worker.on("message", (msg) => {
-                  if (msg.status === "success") {
-                      resolve(Buffer.from(msg.buffer));
-                  } else {
-                      reject(new Error(msg.error));
-                  }
-                  worker.terminate();
-              });
-              worker.on("error", (err) => {
-                  reject(err);
-                  worker.terminate();
-              });
-              worker.on("exit", (code) => {
-                  if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
-              });
-              
-              worker.postMessage(pdfPayload);
-          });
+      const pdfPayload = {
+        quote,
+        client,
+        items,
+        companyName,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        companyWebsite,
+        companyGSTIN,
+        companyLogo,
+        preparedBy: creator?.name,
+        preparedByEmail: creator?.email,
+        bankDetails: {
+          bankName,
+          accountNumber: bankAccountNumber,
+          accountName: bankAccountName,
+          ifsc: bankIfscCode,
+          branch: bankBranch,
+          swift: bankSwiftCode,
+        },
       };
 
       let pdfBuffer: Buffer;
       try {
-          pdfBuffer = await runWorker();
+          pdfBuffer = await PDFService.generateQuotePDFInWorker(pdfPayload as any);
           logger.info(`[PDF Export] Worker returned PDF buffer. Size: ${pdfBuffer.length}`);
       } catch (err: any) {
           logger.warn(`[PDF Export] Worker failed (${err.message}). Falling back to main thread.`);
@@ -1085,28 +1057,7 @@ router.get("/:id/pdf", authMiddleware, requireFeature('quotes_pdfGeneration'), a
               stream.on("error", reject);
           });
 
-          await PDFService.generateQuotePDF({
-            quote,
-            client,
-            items,
-            companyName,
-            companyAddress,
-            companyPhone,
-            companyEmail,
-            companyWebsite,
-            companyGSTIN,
-            companyLogo,
-            preparedBy: creator?.name,
-            preparedByEmail: creator?.email,
-            bankDetails: {
-              bankName,
-              accountNumber: bankAccountNumber,
-              accountName: bankAccountName,
-              ifsc: bankIfscCode,
-              branch: bankBranch,
-              swift: bankSwiftCode,
-            },
-          }, stream);
+          await PDFService.generateQuotePDF(pdfPayload as any, stream);
           
           await done;
           pdfBuffer = Buffer.concat(chunks);

@@ -29,6 +29,7 @@ import {
     Filter,
     Copy,
 } from "lucide-react";
+import { formatCurrency } from "@/lib/currency";
 import { useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Quote } from "@shared/schema";
@@ -401,7 +402,7 @@ export default function Quotes() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Value</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">₹{(stats.totalValue / 1000).toFixed(0)}K</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalValue)}</p>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
                                     <DollarSign className="h-6 w-6 text-slate-600 dark:text-slate-400" />
@@ -629,7 +630,7 @@ export default function Quotes() {
                                                         <div className="min-w-0 flex-1">
                                                             <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Amount</p>
                                                             <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                                                                ₹{Number(quote.total).toLocaleString()}
+                                                                {formatCurrency(quote.total, quote.currency)}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -817,7 +818,7 @@ export default function Quotes() {
                                                 <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                             </div>
                                             <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                                                ₹{Number(quote.total).toLocaleString()}
+                                                {formatCurrency(quote.total, quote.currency)}
                                             </p>
                                         </div>
 

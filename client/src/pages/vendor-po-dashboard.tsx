@@ -28,6 +28,7 @@ import {
   AreaChart,
   Area,
 } from "recharts";
+import { formatCurrency } from "@/lib/currency";
 
 interface VendorPOMetrics {
   posByStatus: {
@@ -174,7 +175,7 @@ export default function VendorPODashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ₹{(metrics?.totalPOValue || 0).toLocaleString("en-IN")}
+                {formatCurrency(metrics?.totalPOValue || 0)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 All purchase orders
@@ -191,7 +192,7 @@ export default function VendorPODashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ₹{(metrics?.averagePOValue || 0).toLocaleString("en-IN")}
+                {formatCurrency(metrics?.averagePOValue || 0)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Per purchase order
@@ -260,7 +261,7 @@ export default function VendorPODashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis />
-                  <Tooltip formatter={(value) => `₹${Number(value).toLocaleString("en-IN")}`} />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                   <Area type="monotone" dataKey="spend" stroke="#3b82f6" fill="#3b82f6" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -289,7 +290,7 @@ export default function VendorPODashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">₹{(vendor.totalSpend || 0).toLocaleString("en-IN")}</p>
+                      <p className="font-semibold">{formatCurrency(vendor.totalSpend || 0)}</p>
                       <p className="text-sm text-muted-foreground">Total spend</p>
                     </div>
                   </div>
@@ -317,8 +318,8 @@ export default function VendorPODashboard() {
                     <div>
                       <p className="font-semibold">{item.poNumber || 'N/A'}</p>
                       <p className="text-sm text-muted-foreground">
-                        Ordered: ₹{(item.orderedValue || 0).toLocaleString("en-IN")} |
-                        Received: ₹{(item.receivedValue || 0).toLocaleString("en-IN")}
+                        Ordered: {formatCurrency(item.orderedValue || 0)} |
+                        Received: {formatCurrency(item.receivedValue || 0)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -327,7 +328,7 @@ export default function VendorPODashboard() {
                       )}
                       <div className="text-right">
                         <p className={`font-semibold ${(item.variance || 0) < 0 ? "text-red-600" : (item.variance || 0) > 0 ? "text-green-600" : ""}`}>
-                          {(item.variance || 0) > 0 ? "+" : ""}₹{(item.variance || 0).toLocaleString("en-IN")}
+                          {(item.variance || 0) > 0 ? "+" : ""}{formatCurrency(item.variance || 0)}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {(item.variancePercent || 0).toFixed(1)}%

@@ -17,6 +17,7 @@ import { PermissionGuard } from "@/components/permission-guard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { formatCurrency } from "@/lib/currency";
 
 interface Product {
   id: string;
@@ -253,7 +254,7 @@ export default function Products() {
                   <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Value</span>
                   <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">₹{(stats.totalValue / 1000).toFixed(0)}K</div>
+                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.totalValue)}</div>
                 <p className="text-[10px] text-slate-600 dark:text-slate-400">Inventory</p>
               </CardContent>
             </Card>
@@ -383,7 +384,7 @@ export default function Products() {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="p-2 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Price</p>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">₹{parseFloat(product.unitPrice).toLocaleString()}</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(parseFloat(product.unitPrice))}</p>
                       </div>
                       <div className="p-2 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Category</p>
@@ -493,7 +494,7 @@ export default function Products() {
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
                           <div className="flex items-center gap-1.5">
                             <DollarSign className="h-3 w-3" />
-                            <span className="font-semibold text-slate-900 dark:text-white">₹{parseFloat(product.unitPrice).toLocaleString()}</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(parseFloat(product.unitPrice))}</span>
                           </div>
                           {stockTrackingEnabled && (
                             <>

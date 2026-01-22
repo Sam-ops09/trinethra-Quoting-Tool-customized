@@ -40,6 +40,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { formatCurrency } from "@/lib/currency";
 
 interface VendorPoDetail {
     id: string;
@@ -55,6 +56,7 @@ interface VendorPoDetail {
     quote?: {
         id: string;
         quoteNumber: string;
+        currency?: string;
     };
     items: Array<{
         id: string;
@@ -462,7 +464,7 @@ export default function VendorPoDetailPage() {
                             <div className="flex items-center justify-between mb-3">
                                 <div className="text-xs text-slate-600 dark:text-slate-400">Total Amount</div>
                                 <div className="text-lg font-bold text-slate-900 dark:text-white">
-                                    ₹{parseFloat(po.total).toLocaleString()}
+                                    {formatCurrency(po.total, po.quote?.currency)}
                                 </div>
                             </div>
                             <div className="border-t border-slate-200 dark:border-slate-800 pt-3 grid grid-cols-2 gap-3 text-xs">
@@ -564,8 +566,8 @@ export default function VendorPoDetailPage() {
                                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-400 mb-2">
                                                 <div>Qty: <span className="font-medium text-slate-900 dark:text-white">{item.quantity}</span></div>
                                                 <div>Recv: <span className="font-medium text-slate-900 dark:text-white">{item.receivedQuantity}</span></div>
-                                                <div>Price: <span className="font-medium text-slate-900 dark:text-white">₹{parseFloat(item.unitPrice).toLocaleString()}</span></div>
-                                                <div>Total: <span className="font-medium text-slate-900 dark:text-white">₹{parseFloat(item.subtotal).toLocaleString()}</span></div>
+                                                <div>Price: <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(item.unitPrice, po.quote?.currency)}</span></div>
+                                                <div>Total: <span className="font-medium text-slate-900 dark:text-white">{formatCurrency(item.subtotal, po.quote?.currency)}</span></div>
                                             </div>
                                             {enteredSerialCount > 0 && (
                                                 <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
@@ -629,45 +631,45 @@ export default function VendorPoDetailPage() {
                                 <div className="flex justify-between">
                                     <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
                                     <span className="font-medium text-slate-900 dark:text-white">
-                                        ₹{parseFloat(po.subtotal).toLocaleString()}
+                                        {formatCurrency(po.subtotal, po.quote?.currency)}
                                     </span>
                                 </div>
                                 {parseFloat(po.discount) > 0 && (
                                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                                         <span>Discount</span>
-                                        <span>-₹{parseFloat(po.discount).toLocaleString()}</span>
+                                        <span>-{formatCurrency(po.discount, po.quote?.currency)}</span>
                                     </div>
                                 )}
                                 {parseFloat(po.cgst) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">CGST</span>
-                                        <span className="text-slate-900 dark:text-white">₹{parseFloat(po.cgst).toLocaleString()}</span>
+                                        <span className="text-slate-900 dark:text-white">{formatCurrency(po.cgst, po.quote?.currency)}</span>
                                     </div>
                                 )}
                                 {parseFloat(po.sgst) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">SGST</span>
-                                        <span className="text-slate-900 dark:text-white">₹{parseFloat(po.sgst).toLocaleString()}</span>
+                                        <span className="text-slate-900 dark:text-white">{formatCurrency(po.sgst, po.quote?.currency)}</span>
                                     </div>
                                 )}
                                 {parseFloat(po.igst) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">IGST</span>
-                                        <span className="text-slate-900 dark:text-white">₹{parseFloat(po.igst).toLocaleString()}</span>
+                                        <span className="text-slate-900 dark:text-white">{formatCurrency(po.igst, po.quote?.currency)}</span>
                                     </div>
                                 )}
                                 {parseFloat(po.shippingCharges) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">Shipping</span>
                                         <span className="text-slate-900 dark:text-white">
-                                            ₹{parseFloat(po.shippingCharges).toLocaleString()}
+                                            {formatCurrency(po.shippingCharges, po.quote?.currency)}
                                         </span>
                                     </div>
                                 )}
                                 <div className="border-t border-slate-200 dark:border-slate-800 pt-2 mt-2 flex justify-between items-center">
                                     <span className="font-bold text-slate-900 dark:text-white">Total</span>
                                     <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
-                                        ₹{parseFloat(po.total).toLocaleString()}
+                                        {formatCurrency(po.total, po.quote?.currency)}
                                     </span>
                                 </div>
                             </CardContent>

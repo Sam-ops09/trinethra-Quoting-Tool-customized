@@ -32,6 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatCurrency } from "@/lib/currency";
 
 interface AgeingBucket {
     bucket: string;
@@ -163,7 +164,7 @@ export default function InvoiceAnalytics() {
                                 <div className="flex-1">
                                     <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Total Collected</p>
                                     <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                                        ₹{analytics.totalPaid.toLocaleString()}
+                                        {formatCurrency(analytics.totalPaid)}
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                         {analytics.invoicesByStatus.paid} invoices
@@ -182,7 +183,7 @@ export default function InvoiceAnalytics() {
                                 <div className="flex-1">
                                     <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Outstanding</p>
                                     <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                                        ₹{analytics.totalOutstanding.toLocaleString()}
+                                        {formatCurrency(analytics.totalOutstanding)}
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                         {analytics.invoicesByStatus.partial + analytics.invoicesByStatus.sent} pending
@@ -201,7 +202,7 @@ export default function InvoiceAnalytics() {
                                 <div className="flex-1">
                                     <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Overdue</p>
                                     <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                                        ₹{analytics.overdueAmount.toLocaleString()}
+                                        {formatCurrency(analytics.overdueAmount)}
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                         {analytics.invoicesByStatus.overdue} invoices
@@ -263,7 +264,7 @@ export default function InvoiceAnalytics() {
                                             axisLine={false} 
                                             tickLine={false} 
                                             tick={{ fill: '#64748b', fontSize: 11 }} 
-                                            tickFormatter={(value) => `₹${(value/1000).toFixed(0)}k`}
+                                            tickFormatter={(value) => formatCurrency(value)}
                                             dx={-8}
                                         />
                                         <Tooltip 
@@ -277,7 +278,7 @@ export default function InvoiceAnalytics() {
                                                 fontSize: '12px'
                                             }}
                                             formatter={(value: number, name: string) => [
-                                                `₹${value.toLocaleString()}`,
+                                                formatCurrency(value),
                                                 name === 'invoiced' ? 'Invoiced' : 'Collected'
                                             ]}
                                         />
@@ -395,7 +396,7 @@ export default function InvoiceAnalytics() {
                                                 fontSize: '12px'
                                             }}
                                             formatter={(value: number, name: string, props: any) => [
-                                                `₹${value.toLocaleString()}`,
+                                                formatCurrency(value),
                                                 `${props.payload.count} invoice${props.payload.count !== 1 ? 's' : ''}`
                                             ]}
                                         />
@@ -425,7 +426,7 @@ export default function InvoiceAnalytics() {
                                                 <span className="text-xs text-slate-600 dark:text-slate-400">{bucket.bucket}</span>
                                                 <Badge variant="outline" className="text-xs ml-auto">{bucket.count}</Badge>
                                             </div>
-                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">₹{bucket.amount.toLocaleString()}</p>
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(bucket.amount)}</p>
                                         </div>
                                     );
                                 })}
@@ -473,7 +474,7 @@ export default function InvoiceAnalytics() {
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                                            ₹{debtor.outstandingAmount.toLocaleString()}
+                                                            {formatCurrency(debtor.outstandingAmount)}
                                                         </p>
                                                         <Badge 
                                                             variant={riskLevel === 'high' ? 'destructive' : 'outline'}

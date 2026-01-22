@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy, ShieldAlert, XCircle, MessageSquare } from "lucide-react";
+import { ToastAction } from "@/components/ui/toast";
 import type { QuoteComment } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +25,14 @@ import { hasPermission } from "@/lib/permissions-new";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { VersionComparisonDialog } from "@/components/quote/version-comparison-dialog";
 import { QuoteVersionViewer } from "@/components/quote/quote-version-viewer";
+import { formatCurrency } from "@/lib/currency";
 
 interface QuoteDetail {
   id: string;
   quoteNumber: string;
   version: number;
   status: string;
+  currency?: string;
   client: {
     name: string;
     email: string;
@@ -270,6 +273,26 @@ export default function QuoteDetail() {
       });
       setLocation(`/invoices/${data.id}`);
     },
+    onError: (error: any) => {
+        if (error.salesOrderId) {
+            toast({
+                title: "Action Required",
+                description: error.message,
+                variant: "destructive",
+                action: (
+                    <ToastAction altText="View Sales Order" onClick={() => setLocation(`/sales-orders/${error.salesOrderId}`)}>
+                        View Order
+                    </ToastAction>
+                ),
+            });
+        } else {
+            toast({
+                title: "Conversion Failed",
+                description: error.message || "Failed to convert to invoice",
+                variant: "destructive",
+            });
+        }
+    }
   });
 
   const approveQuoteMutation = useMutation({
@@ -623,7 +646,7 @@ export default function QuoteDetail() {
               <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
                 <div>
                   <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase mb-0.5">Total Amount</p>
-                  <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">₹{Number(quote.total).toLocaleString()}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(quote.total, quote.currency)}</p>
                 </div>
                 <Receipt className="h-8 w-8 text-emerald-600 dark:text-emerald-400 opacity-50" />
               </div>
@@ -968,7 +991,7 @@ export default function QuoteDetail() {
                             </span>
                             <span className="flex items-center gap-1">
                               <span className="font-medium">Unit:</span>
-                              <span className="font-bold">₹{Number(item.unitPrice).toLocaleString()}</span>
+                              <span className="font-bold">{formatCurrency(item.unitPrice, quote.currency)}</span>
                             </span>
                             {item.hsnSac && (
                               <span className="flex items-center gap-1">
@@ -980,7 +1003,7 @@ export default function QuoteDetail() {
                         </div>
                         <div className="shrink-0 text-right">
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Subtotal</p>
-                          <p className="font-bold text-base text-emerald-600 dark:text-emerald-400">₹{Number(item.subtotal).toLocaleString()}</p>
+                          <p className="font-bold text-base text-emerald-600 dark:text-emerald-400">{formatCurrency(item.subtotal, quote.currency)}</p>
                         </div>
                       </div>
                     </div>
@@ -1146,48 +1169,48 @@ export default function QuoteDetail() {
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                       <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">₹{Number(quote.subtotal).toLocaleString()}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.subtotal, quote.currency)}</span>
                     </div>
 
                     {Number(quote.discount) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded bg-rose-50 dark:bg-rose-950">
                         <span className="text-slate-600 dark:text-slate-400">Discount</span>
-                        <span className="font-semibold text-rose-600 dark:text-rose-400">-₹{Number(quote.discount).toLocaleString()}</span>
+                        <span className="font-semibold text-rose-600 dark:text-rose-400">-{formatCurrency(quote.discount, quote.currency)}</span>
                       </div>
                     )}
 
                     {Number(quote.cgst) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">CGST</span>
-                        <span className="font-semibold text-slate-900 dark:text-white">₹{Number(quote.cgst).toLocaleString()}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.cgst, quote.currency)}</span>
                       </div>
                     )}
 
                     {Number(quote.sgst) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">SGST</span>
-                        <span className="font-semibold text-slate-900 dark:text-white">₹{Number(quote.sgst).toLocaleString()}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.sgst, quote.currency)}</span>
                       </div>
                     )}
 
                     {Number(quote.igst) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">IGST</span>
-                        <span className="font-semibold text-slate-900 dark:text-white">₹{Number(quote.igst).toLocaleString()}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.igst, quote.currency)}</span>
                       </div>
                     )}
 
                     {Number(quote.shippingCharges) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">Shipping</span>
-                        <span className="font-semibold text-slate-900 dark:text-white">₹{Number(quote.shippingCharges).toLocaleString()}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.shippingCharges, quote.currency)}</span>
                       </div>
                     )}
 
                     {/* Total */}
                     <div className="flex justify-between items-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 mt-3">
                       <span className="text-sm font-bold text-slate-900 dark:text-white">Total</span>
-                      <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">₹{Number(quote.total).toLocaleString()}</span>
+                      <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(quote.total, quote.currency)}</span>
                     </div>
                   </div>
                 </div>

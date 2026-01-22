@@ -37,6 +37,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { formatCurrency } from "@/lib/currency";
 
 // Interface (Unchanged)
 interface InvoiceCollectionsMetrics {
@@ -78,9 +79,7 @@ const INVOICE_STATUS_COLORS = {
     overdue: "#ef4444", // Red
 };
 
-const formatCurrency = (value: number) => {
-    return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-};
+
 
 // --- Helper Components ---
 
@@ -390,7 +389,7 @@ export default function InvoiceCollectionsDashboard() {
                                 <BarChart data={metrics.ageingBuckets || []}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
                                     <XAxis dataKey="bucket" stroke="#666" />
-                                    <YAxis tickFormatter={formatCurrency} stroke="#666" />
+                                    <YAxis tickFormatter={(val) => formatCurrency(val)} stroke="#666" />
                                     <Tooltip content={<CustomTooltip isCurrency={true} />} />
                                     <Legend />
                                     <Bar dataKey="amount" fill="#ef4444" name="Amount Overdue" radius={[4, 4, 0, 0]} />
@@ -443,7 +442,7 @@ export default function InvoiceCollectionsDashboard() {
                                 <AreaChart data={metrics.monthlyCollections || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
                                     <XAxis dataKey="month" stroke="#666" />
-                                    <YAxis tickFormatter={formatCurrency} stroke="#666" />
+                                    <YAxis tickFormatter={(val) => formatCurrency(val)} stroke="#666" />
                                     <Tooltip content={<CustomTooltip isCurrency={true} />} />
                                     <Legend />
                                     <Area type="monotone" dataKey="invoiced" stroke="#3b82f6" fillOpacity={0.5} fill="url(#colorInvoiced)" name="Invoiced Amount" />

@@ -44,6 +44,7 @@ import { SelectQuoteForPoDialog } from "@/components/vendor-po/select-quote-for-
 import { PermissionGuard } from "@/components/permission-guard";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
 
 // Types
 interface VendorPO {
@@ -51,6 +52,7 @@ interface VendorPO {
     poNumber: string;
     quoteId: string;
     quoteNumber: string;
+    quoteCurrency?: string;
     vendorName: string;
     status: string;
     orderDate: string;
@@ -130,8 +132,7 @@ export default function VendorPOs() {
         cancelled: pos?.filter((p) => p.status === "cancelled").length || 0,
     }), [pos]);
 
-    const formatCurrency = (val: string) =>
-        new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(val));
+
 
     const formatDate = (dateStr: string) =>
         new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
@@ -396,7 +397,7 @@ export default function VendorPOs() {
                                                             Order Total
                                                         </p>
                                                         <p className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                                                            {formatCurrency(po.total)}
+                                                            {formatCurrency(po.total, po.quoteCurrency)}
                                                         </p>
                                                     </div>
                                                     <div className={cn(

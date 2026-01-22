@@ -4,8 +4,10 @@ import path from "path";
 import fs from "fs";
 import type { Quote, QuoteItem, Client } from "@shared/schema";
 import { getTheme, getSuggestedTheme, type PDFTheme } from "./pdf-themes";
+import { prepareLogo, drawLogo } from "./pdf-helpers";
+import { formatCurrency, formatCurrencyPdf } from "./currency-helper";
 
-interface QuoteWithDetails {
+export interface QuoteWithDetails {
   quote: Quote;
   client: Client;
   items: QuoteItem[];
@@ -85,9 +87,74 @@ export class PDFService {
   // ======================================================================
   // PUBLIC
   // ======================================================================
+  // ======================================================================
+  // WORKER SUPPORT
+  // ======================================================================
+  static async generateQuotePDFInWorker(data: QuoteWithDetails): Promise<Buffer> {
+    const { Worker } = await import("worker_threads");
+    // Dynamic import to avoid issues in some environments if not used
+    
+    return new Promise(async (resolve, reject) => {
+        try {
+            let workerPath: string;
+            if (process.env.NODE_ENV === "production") {
+                workerPath = path.join(process.cwd(), "dist", "workers", "pdf.worker.js");
+            } else {
+                workerPath = path.join(process.cwd(), "server", "workers", "pdf.worker.ts");
+            }
+
+            // Determine execArgv for TS support in dev
+            const execArgv = [];
+            if (process.env.NODE_ENV !== "production") {
+                const { pathToFileURL } = await import("url");
+                // Try to resolve tsx loader
+                try {
+                    const tsxLoaderPath = path.resolve("node_modules/tsx/dist/loader.mjs");
+                    // Check if exists? simplify: just use it
+                    const loaderUrl = pathToFileURL(tsxLoaderPath).href;
+                    execArgv.push("--import", loaderUrl);
+                } catch (e) {
+                   // If tsx resolution fails, maybe we are running with ts-node? 
+                   // Fallback or let it fail and catch below
+                }
+            }
+
+            const worker = new Worker(workerPath, {
+                execArgv,
+                workerData: data
+            });
+
+            worker.on("message", (msg) => {
+                if (msg.status === "success") {
+                    resolve(Buffer.from(msg.buffer));
+                } else {
+                    reject(new Error(msg.error));
+                }
+                worker.terminate();
+            });
+
+            worker.on("error", (err) => {
+                reject(err);
+                worker.terminate();
+            });
+
+            worker.on("exit", (code) => {
+                if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+            });
+
+            // If using postMessage instead of workerData (our worker uses on('message'))
+            worker.postMessage(data);
+
+        } catch (error) {
+            reject(error);
+        }
+    });
+  }
+
   static async generateQuotePDF(data: QuoteWithDetails, res: NodeJS.WritableStream): Promise<void> {
     // Theme selection
     let selectedTheme: PDFTheme;
+    // ... existing implementation remains ...
     if (data.theme) selectedTheme = getTheme(data.theme);
     else if ((data.client as any).preferredTheme)
       selectedTheme = getTheme((data.client as any).preferredTheme);
@@ -162,41 +229,43 @@ export class PDFService {
           } catch { return null; }
       };
 
-      const [regPath, boldPath] = await Promise.all([
-          tryFont("Inter-Regular.ttf"),
-          tryFont("Inter-Bold.ttf")
+      // Try Roboto first (for currency support), then Inter
+      const [robotoReg, robotoBold] = await Promise.all([
+          tryFont("Roboto-Regular.ttf"),
+          tryFont("Roboto-Bold.ttf")
       ]);
 
-      if (regPath && boldPath) {
-          doc.registerFont("Inter", regPath);
-          doc.registerFont("Inter-Bold", boldPath);
-          this.FONT_REG = "Inter";
-          this.FONT_BOLD = "Inter-Bold";
-      } else {
+      if (robotoReg && robotoBold) {
+          doc.registerFont("Helvetica", robotoReg);
+          doc.registerFont("Helvetica-Bold", robotoBold);
           this.FONT_REG = "Helvetica";
           this.FONT_BOLD = "Helvetica-Bold";
+      } else {
+            // Fallback to Inter if available
+            const [regPath, boldPath] = await Promise.all([
+              tryFont("Inter-Regular.ttf"),
+              tryFont("Inter-Bold.ttf")
+            ]);
+
+            if (regPath && boldPath) {
+              doc.registerFont("Inter", regPath);
+              doc.registerFont("Inter-Bold", boldPath);
+              this.FONT_REG = "Inter";
+              this.FONT_BOLD = "Inter-Bold";
+            } else {
+              this.FONT_REG = "Helvetica";
+              this.FONT_BOLD = "Helvetica-Bold";
+            }
       }
 
       // Logo
-      let logoToUse = "";
-      if (data.companyLogo) {
-          logoToUse = data.companyLogo;
-      } else {
-          // Check default logos
-          const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-          const p2 = path.join(process.cwd(), "client", "public", "logo.png");
-          
-          try {
-              await fs.promises.access(p1, fs.constants.F_OK);
-              logoToUse = p1;
-          } catch {
-              try {
-                  await fs.promises.access(p2, fs.constants.F_OK);
-                  logoToUse = p2;
-              } catch {}
-          }
-      }
-      (data as any).resolvedLogo = logoToUse;
+      // Logo
+      let logoToUse: string | Buffer = "";
+      
+      // Logo (using shared helper)
+      const { logo, mimeType } = await prepareLogo(data.companyLogo);
+      (data as any).resolvedLogo = logo;
+      (data as any).logoMimeType = mimeType;
   }
 
   // ======================================================================
@@ -251,12 +320,8 @@ export class PDFService {
     }
   }
 
-  private static currency(v: number | string): string {
-    const n = Number(v) || 0;
-    return `Rs. ${n.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+  private static currency(v: number | string, currencyCode = "INR"): string {
+    return formatCurrencyPdf(v, currencyCode);
   }
 
   private static normalizeAddress(addr?: string, maxLines = 3) {
@@ -421,11 +486,11 @@ export class PDFService {
 
     // Logo (use pre-resolved)
     const logoPath = (data as any).resolvedLogo;
+    const mimeType = (data as any).logoMimeType || "";
+    
     if (logoPath) {
-        try {
-            doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-            logoPrinted = true;
-        } catch {}
+        const drawn = drawLogo(doc, logoPath, mimeType, x, topY + 12, logoSize);
+        logoPrinted = drawn;
     }
 
     // Center title (top row)
@@ -778,8 +843,8 @@ export class PDFService {
       doc.text(unitText, cx.unit, midY, { width: unit, align: "center", lineBreak: false });
 
       doc.font(this.FONT_BOLD).fontSize(8.0).fillColor(this.INK);
-      doc.text(this.currency(rateVal), cx.rate, midY, { width: rate - 8, align: "right", lineBreak: false });
-      doc.text(this.currency(amtVal), cx.amt, midY, { width: amt - 8, align: "right", lineBreak: false });
+      doc.text(this.currency(rateVal, data.quote.currency), cx.rate, midY, { width: rate - 8, align: "right", lineBreak: false });
+      doc.text(this.currency(amtVal, data.quote.currency), cx.amt, midY, { width: amt - 8, align: "right", lineBreak: false });
 
       y += rowH;
     }
@@ -874,7 +939,7 @@ export class PDFService {
       doc.font(this.FONT_BOLD).fontSize(r.bold ? 8.6 : 7.6).fillColor(this.INK);
       doc.text(r.k, xr + this.PAD_X, ry, { width: labelW - this.PAD_X, lineBreak: false });
 
-      const moneyStr = this.currency(r.v);
+      const moneyStr = this.currency(r.v, data.quote.currency);
       doc
         .font(this.FONT_BOLD)
         .fontSize(r.bold ? 9.0 : 8.0)

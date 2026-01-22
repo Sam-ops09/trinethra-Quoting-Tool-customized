@@ -30,6 +30,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
 
 // Types matching the backend API expectations
 interface VendorPoCreatePayload {
@@ -42,6 +43,7 @@ interface VendorPoCreatePayload {
     igst: string;
     shippingCharges: string;
     total: string;
+    currency?: string;
     notes?: string;
     termsAndConditions?: string;
     items: { 
@@ -56,6 +58,7 @@ interface VendorPoCreatePayload {
 const vendorPoFormSchema = z.object({
     vendorId: z.string().min(1, "Vendor is required"),
     expectedDeliveryDate: z.string().optional(),
+    currency: z.string().default("INR"),
     subtotal: z.number().default(0),
     discount: z.coerce.number().min(0, "Discount must be positive"),
     cgst: z.coerce.number().min(0, "CGST must be positive"),
@@ -96,6 +99,7 @@ export default function VendorPoCreate() {
         defaultValues: {
             vendorId: "",
             expectedDeliveryDate: "",
+            currency: "INR",
             discount: 0,
             cgst: 0,
             sgst: 0,
@@ -146,6 +150,7 @@ export default function VendorPoCreate() {
 
     // Calculations
     const items = form.watch("items");
+    const currency = form.watch("currency");
     const discount = form.watch("discount"); // Percentage
     const cgst = form.watch("cgst");
     const sgst = form.watch("sgst");
@@ -175,6 +180,7 @@ export default function VendorPoCreate() {
                 igst: igstAmount.toString(),
                 shippingCharges: values.shippingCharges.toString(),
                 total: total.toString(),
+                currency: values.currency,
                 notes: values.notes,
                 termsAndConditions: values.termsAndConditions,
                 items: values.items.map(item => ({
@@ -322,6 +328,33 @@ export default function VendorPoCreate() {
                                                     </FormItem>
                                                 )}
                                             />
+                                            <FormField
+                                                control={form.control}
+                                                name="currency"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Currency</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Select currency" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="INR">INR (₹)</SelectItem>
+                                                                <SelectItem value="USD">USD ($)</SelectItem>
+                                                                <SelectItem value="EUR">EUR (€)</SelectItem>
+                                                                <SelectItem value="GBP">GBP (£)</SelectItem>
+                                                                <SelectItem value="AUD">AUD ($)</SelectItem>
+                                                                <SelectItem value="CAD">CAD ($)</SelectItem>
+                                                                <SelectItem value="SGD">SGD ($)</SelectItem>
+                                                                <SelectItem value="AED">AED (د.إ)</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -402,8 +435,9 @@ export default function VendorPoCreate() {
                                                                 />
                                                             </td>
                                                             <td className="px-6 py-4 text-right font-medium">
-                                                                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
-                                                                    (Number(form.watch(`items.${index}.quantity`)) || 0) * (Number(form.watch(`items.${index}.unitPrice`)) || 0)
+                                                                {formatCurrency(
+                                                                    (Number(form.watch(`items.${index}.quantity`)) || 0) * (Number(form.watch(`items.${index}.unitPrice`)) || 0),
+                                                                    currency
                                                                 )}
                                                             </td>
                                                             <td className="px-6 py-4 text-center">
@@ -468,7 +502,7 @@ export default function VendorPoCreate() {
                                     <CardContent className="p-6 space-y-4">
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Subtotal</span>
-                                            <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(subtotal)}</span>
+                                            <span>{formatCurrency(subtotal, currency)}</span>
                                         </div>
                                         
                                         <Separator />
@@ -540,7 +574,7 @@ export default function VendorPoCreate() {
 
                                         <div className="flex justify-between font-bold text-lg">
                                             <span>Total</span>
-                                            <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(total)}</span>
+                                            <span>{formatCurrency(total, currency)}</span>
                                         </div>
 
                                         <Button 

@@ -13,6 +13,14 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { SalesOrder, SalesOrderItem, Client } from "@shared/schema";
 import { Separator } from "@/components/ui/separator";
+import { formatCurrency } from "@/lib/currency";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function SalesOrderEdit() {
     const { id } = useParams();
@@ -49,6 +57,7 @@ export default function SalesOrderEdit() {
         sgst: 9,
         igst: 0,
         shippingCharges: 0,
+        currency: "INR",
     });
 
     const [initialized, setInitialized] = useState(false);
@@ -86,6 +95,7 @@ export default function SalesOrderEdit() {
                 expectedDeliveryDate: order.expectedDeliveryDate 
                     ? new Date(order.expectedDeliveryDate).toISOString().split('T')[0] 
                     : "",
+                currency: order.quote?.currency || "INR",
                 discount: discountPercent,
                 cgst: cgstPercent,
                 sgst: sgstPercent,
@@ -389,7 +399,7 @@ export default function SalesOrderEdit() {
                                                     Subtotal
                                                 </span>
                                                 <p className="text-sm font-bold text-primary">
-                                                    ₹{Number(item.subtotal).toLocaleString()}
+                                                    {formatCurrency(Number(item.subtotal), formData.currency)}
                                                 </p>
                                             </div>
                                         </div>
@@ -473,7 +483,7 @@ export default function SalesOrderEdit() {
                                                     />
                                                 </td>
                                                 <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right text-[11px] sm:text-sm font-semibold text-primary">
-                                                    ₹{Number(item.subtotal).toLocaleString()}
+                                                    {formatCurrency(Number(item.subtotal), formData.currency)}
                                                 </td>
                                                 <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
                                                     <Button
@@ -499,7 +509,7 @@ export default function SalesOrderEdit() {
                                     <DollarSign className="h-3 w-3" />
                                     Subtotal:{" "}
                                     <span className="font-semibold text-foreground">
-                                        ₹{items.reduce((sum, item) => sum + Number(item.subtotal), 0).toLocaleString()}
+                                        {formatCurrency(items.reduce((sum, item) => sum + Number(item.subtotal), 0), order?.quote?.currency)}
                                     </span>
                                 </span>
                             </div>
@@ -527,6 +537,27 @@ export default function SalesOrderEdit() {
                                 <CardContent className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Currency</Label>
+                                            <Select
+                                                value={formData.currency}
+                                                onValueChange={(value) => setFormData({ ...formData, currency: value })}
+                                            >
+                                                <SelectTrigger className="text-sm">
+                                                    <SelectValue placeholder="Select currency" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="INR">INR (₹)</SelectItem>
+                                                    <SelectItem value="USD">USD ($)</SelectItem>
+                                                    <SelectItem value="EUR">EUR (€)</SelectItem>
+                                                    <SelectItem value="GBP">GBP (£)</SelectItem>
+                                                    <SelectItem value="AUD">AUD ($)</SelectItem>
+                                                    <SelectItem value="CAD">CAD ($)</SelectItem>
+                                                    <SelectItem value="SGD">SGD ($)</SelectItem>
+                                                    <SelectItem value="AED">AED (د.إ)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-1.5">
                                             <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Discount (%)</Label>
                                             <Input
                                                 type="number"
@@ -538,7 +569,7 @@ export default function SalesOrderEdit() {
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Shipping Charges (₹)</Label>
+                                            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Shipping Charges</Label>
                                             <Input
                                                 type="number"
                                                 min="0"
@@ -679,14 +710,14 @@ export default function SalesOrderEdit() {
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-muted-foreground">Subtotal</span>
                                                         <span className="font-semibold">
-                                                            ₹{subtotal.toLocaleString()}
+                                                            {formatCurrency(subtotal, formData.currency)}
                                                         </span>
                                                     </div>
                                                     {discountAmount > 0 && (
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-muted-foreground">Discount</span>
                                                             <span className="font-semibold text-success">
-                                                                -₹{discountAmount.toLocaleString()}
+                                                                -{formatCurrency(discountAmount, formData.currency)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -694,7 +725,7 @@ export default function SalesOrderEdit() {
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-muted-foreground">CGST</span>
                                                             <span className="font-semibold">
-                                                                ₹{cgstAmount.toLocaleString()}
+                                                                {formatCurrency(cgstAmount, formData.currency)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -702,7 +733,7 @@ export default function SalesOrderEdit() {
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-muted-foreground">SGST</span>
                                                             <span className="font-semibold">
-                                                                ₹{sgstAmount.toLocaleString()}
+                                                                {formatCurrency(sgstAmount, formData.currency)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -710,7 +741,7 @@ export default function SalesOrderEdit() {
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-muted-foreground">IGST</span>
                                                             <span className="font-semibold">
-                                                                ₹{igstAmount.toLocaleString()}
+                                                                {formatCurrency(igstAmount, formData.currency)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -718,7 +749,7 @@ export default function SalesOrderEdit() {
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-muted-foreground">Shipping</span>
                                                             <span className="font-semibold">
-                                                                ₹{Number(formData.shippingCharges).toLocaleString()}
+                                                                {formatCurrency(Number(formData.shippingCharges), formData.currency)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -732,7 +763,7 @@ export default function SalesOrderEdit() {
                                                             Total Amount
                                                         </span>
                                                         <span className="text-lg sm:text-2xl font-bold text-primary">
-                                                            ₹{total.toLocaleString()}
+                                                            {formatCurrency(total, formData.currency)}
                                                         </span>
                                                     </div>
                                                 </div>

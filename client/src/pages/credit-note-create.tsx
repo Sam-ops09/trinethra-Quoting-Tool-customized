@@ -34,11 +34,13 @@ import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
+import { formatCurrency } from "@/lib/currency";
 
 const creditNoteFormSchema = z.object({
     clientId: z.string().min(1, "Client is required"),
     invoiceId: z.string().optional(),
     reason: z.string().min(1, "Reason is required"),
+    currency: z.string().default("INR"),
     notes: z.string().optional(),
     items: z.array(
         z.object({
@@ -94,6 +96,7 @@ export default function CreditNoteCreate() {
             clientId: "",
             invoiceId: "",
             reason: "",
+            currency: "INR",
             notes: "",
             items: [{ description: "", quantity: 1, unitPrice: 0, hsnSac: "" }],
         },
@@ -137,6 +140,7 @@ export default function CreditNoteCreate() {
 
     // Calculations
     const items = form.watch("items");
+    const currency = form.watch("currency");
     const subtotal = items.reduce((sum, item) => {
         return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
     }, 0);
@@ -150,6 +154,7 @@ export default function CreditNoteCreate() {
                 clientId: values.clientId,
                 invoiceId: values.invoiceId === "none" ? null : (values.invoiceId || null),
                 reason: values.reason,
+                currency: values.currency,
                 notes: values.notes,
                 items: values.items.map(item => ({
                     description: item.description,
@@ -339,6 +344,33 @@ export default function CreditNoteCreate() {
                                                     </FormItem>
                                                 )}
                                             />
+                                            <FormField
+                                                control={form.control}
+                                                name="currency"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Currency</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Select currency" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="INR">INR (₹)</SelectItem>
+                                                                <SelectItem value="USD">USD ($)</SelectItem>
+                                                                <SelectItem value="EUR">EUR (€)</SelectItem>
+                                                                <SelectItem value="GBP">GBP (£)</SelectItem>
+                                                                <SelectItem value="AUD">AUD ($)</SelectItem>
+                                                                <SelectItem value="CAD">CAD ($)</SelectItem>
+                                                                <SelectItem value="SGD">SGD ($)</SelectItem>
+                                                                <SelectItem value="AED">AED (د.إ)</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -410,8 +442,9 @@ export default function CreditNoteCreate() {
                                                                 />
                                                             </td>
                                                             <td className="px-6 py-4 text-right font-medium">
-                                                                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
-                                                                    (Number(form.watch(`items.${index}.quantity`)) || 0) * (Number(form.watch(`items.${index}.unitPrice`)) || 0)
+                                                                {formatCurrency(
+                                                                    (Number(form.watch(`items.${index}.quantity`)) || 0) * (Number(form.watch(`items.${index}.unitPrice`)) || 0),
+                                                                    currency
                                                                 )}
                                                             </td>
                                                             <td className="px-6 py-4 text-center">
@@ -466,14 +499,14 @@ export default function CreditNoteCreate() {
                                     <CardContent className="p-6 space-y-4">
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Subtotal</span>
-                                            <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(subtotal)}</span>
+                                            <span>{formatCurrency(subtotal, currency)}</span>
                                         </div>
 
                                         <Separator />
 
                                         <div className="flex justify-between font-bold text-lg">
                                             <span>Total Credit</span>
-                                            <span className="text-green-600">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(subtotal)}</span>
+                                            <span className="text-green-600">{formatCurrency(subtotal, currency)}</span>
                                         </div>
 
                                         <Button 

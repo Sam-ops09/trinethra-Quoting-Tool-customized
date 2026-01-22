@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown, Package, PackageOpen, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
 import { Badge } from "@/components/ui/badge";
 
 interface Product {
@@ -212,7 +213,7 @@ export function ProductPicker({
                       </div>
                       {product.basePrice && (
                         <span className="text-xs text-muted-foreground">
-                          Base price: ₹{parseFloat(product.basePrice).toLocaleString()}
+                          Base price: {formatCurrency(parseFloat(product.basePrice))}
                         </span>
                       )}
                     </div>

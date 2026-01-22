@@ -34,6 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { formatCurrency } from "@/lib/currency";
 
 // Interface (Unchanged)
 interface SalesMetrics {
@@ -78,9 +79,7 @@ const STATUS_COLORS = {
     closed_cancelled: "#737373", // Neutral
 };
 
-const formatCurrency = (value: number) => {
-    return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-};
+
 
 // --- Component Start ---
 
@@ -321,7 +320,7 @@ export default function SalesQuoteDashboard() {
                                 <BarChart data={valueStatusData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
                                     <XAxis dataKey="name" stroke="#666" />
-                                    <YAxis tickFormatter={formatCurrency} stroke="#666" />
+                                    <YAxis tickFormatter={(val) => formatCurrency(val)} stroke="#666" />
                                     <Tooltip content={<CustomTooltip isCurrency={true} />} />
                                     <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]}>
                                         {valueStatusData.map((entry, index) => (

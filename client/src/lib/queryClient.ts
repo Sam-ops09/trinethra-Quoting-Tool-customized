@@ -7,6 +7,18 @@ let refreshPromise: Promise<boolean> | null = null;
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
+    try {
+        const json = JSON.parse(text);
+        if (json && typeof json === 'object') {
+            const message = json.error || json.message || text;
+            const error = new Error(message);
+            // Attach all properties from the JSON response to the error object
+            Object.assign(error, json);
+            throw error;
+        }
+    } catch (e) {
+        // Not JSON or parse failed, fall through to generic error
+    }
     throw new Error(`${res.status}: ${text}`);
   }
 }

@@ -62,6 +62,7 @@ import { SerialNumberEntry } from "@/components/invoice/serial-number-entry";
 import { MasterInvoiceManager } from "@/components/invoice/master-invoice-manager";
 import { EditInvoiceDialog } from "@/components/invoice/edit-invoice-dialog";
 import { ExecBOMSection } from "@/components/shared/exec-bom-section";
+import { formatCurrency } from "@/lib/currency";
 import type { ExecBOMData } from "@/types/bom-types";
 
 
@@ -105,6 +106,7 @@ interface InvoiceDetail {
     igst: string;
     shippingCharges: string;
     total: string;
+    currency?: string;
     dueDate: string;
     paymentStatus: string;
     paidAmount: string;
@@ -1141,7 +1143,7 @@ export default function InvoiceDetail() {
                 Unit Price
               </span>
                                                     <span className="text-xs font-semibold font-['Open_Sans']">
-                ₹{Number(item.unitPrice).toLocaleString()}
+                {formatCurrency(item.unitPrice, invoice.currency)}
               </span>
                                                 </div>
                                                 <div className="text-right">
@@ -1149,7 +1151,7 @@ export default function InvoiceDetail() {
                 Total
               </span>
                                                     <p className="text-sm font-bold text-primary">
-                                                        ₹{Number(item.subtotal).toLocaleString()}
+                                                        {formatCurrency(item.subtotal, invoice.currency)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1242,10 +1244,10 @@ export default function InvoiceDetail() {
                                                     </div>
                                                 </td>
                                                 <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right text-[11px] sm:text-sm font-['Open_Sans']">
-                                                    ₹{Number(item.unitPrice).toLocaleString()}
+                                                    {formatCurrency(item.unitPrice, invoice.currency)}
                                                 </td>
                                                 <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right text-[11px] sm:text-sm font-semibold text-primary">
-                                                    ₹{Number(item.subtotal).toLocaleString()}
+                                                    {formatCurrency(item.subtotal, invoice.currency)}
                                                 </td>
                                                 <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
                                                     <PermissionGuard resource="invoices" action="edit" tooltipText="Only authorized users can manage serial numbers">
@@ -1272,7 +1274,7 @@ export default function InvoiceDetail() {
         <DollarSign className="h-3 w-3" />
         Subtotal:{" "}
                                         <span className="font-semibold text-foreground">
-          ₹{Number(invoice.subtotal).toLocaleString()}
+          {formatCurrency(invoice.subtotal, invoice.currency)}
         </span>
       </span>
                                 </div>
@@ -1336,14 +1338,14 @@ export default function InvoiceDetail() {
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">Subtotal</span>
                                         <span className="font-semibold">
-                      ₹{Number(invoice.subtotal).toLocaleString()}
+                      {formatCurrency(invoice.subtotal, invoice.currency)}
                     </span>
                                     </div>
                                     {Number(invoice.discount) > 0 && (
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">Discount</span>
                                             <span className="font-semibold text-success">
-                        -₹{Number(invoice.discount).toLocaleString()}
+                        -{formatCurrency(invoice.discount, invoice.currency)}
                       </span>
                                         </div>
                                     )}
@@ -1351,7 +1353,7 @@ export default function InvoiceDetail() {
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">CGST</span>
                                             <span className="font-semibold">
-                        ₹{Number(invoice.cgst).toLocaleString()}
+                        {formatCurrency(invoice.cgst, invoice.currency)}
                       </span>
                                         </div>
                                     )}
@@ -1359,7 +1361,7 @@ export default function InvoiceDetail() {
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">SGST</span>
                                             <span className="font-semibold">
-                        ₹{Number(invoice.sgst).toLocaleString()}
+                        {formatCurrency(invoice.sgst, invoice.currency)}
                       </span>
                                         </div>
                                     )}
@@ -1367,7 +1369,7 @@ export default function InvoiceDetail() {
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">IGST</span>
                                             <span className="font-semibold">
-                        ₹{Number(invoice.igst).toLocaleString()}
+                        {formatCurrency(invoice.igst, invoice.currency)}
                       </span>
                                         </div>
                                     )}
@@ -1375,7 +1377,7 @@ export default function InvoiceDetail() {
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">Shipping</span>
                                             <span className="font-semibold">
-                        ₹{Number(invoice.shippingCharges).toLocaleString()}
+                        {formatCurrency(invoice.shippingCharges, invoice.currency)}
                       </span>
                                         </div>
                                     )}
@@ -1389,7 +1391,7 @@ export default function InvoiceDetail() {
                       Total Amount
                     </span>
                                         <span className="text-lg sm:text-2xl font-bold text-primary">
-                      ₹{Number(invoice.total).toLocaleString()}
+                      {formatCurrency(invoice.total, invoice.currency)}
                     </span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-sm font-['Open_Sans']">
@@ -1398,7 +1400,7 @@ export default function InvoiceDetail() {
                                                 Paid
                                             </p>
                                             <p className="font-bold text-success break-words">
-                                                ₹{Number(invoice.paidAmount).toLocaleString()}
+                                                {formatCurrency(Number(invoice.paidAmount))}
                                             </p>
                                         </div>
                                         <div className="rounded-lg bg-background/80 px-2.5 py-2">
@@ -1406,7 +1408,7 @@ export default function InvoiceDetail() {
                                                 Outstanding
                                             </p>
                                             <p className="font-bold text-warning break-words">
-                                                ₹{outstanding.toLocaleString()}
+                                                {formatCurrency(outstanding)}
                                             </p>
                                         </div>
                                     </div>
@@ -1709,7 +1711,7 @@ export default function InvoiceDetail() {
                   Total invoice amount:
                 </span>
                                 <span className="font-bold text-primary">
-                  ₹{Number(invoice.total).toLocaleString()}
+                  {formatCurrency(Number(invoice.total))}
                 </span>
                             </div>
                             {paymentData.paidAmount && (

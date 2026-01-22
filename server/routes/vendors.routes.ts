@@ -93,6 +93,7 @@ router.get("/vendor-pos", authMiddleware, requireFeature('vendorPO_module'), asy
           ...po,
           vendorName: vendor?.name || "Unknown",
           quoteNumber: quote?.quoteNumber || "N/A",
+          quoteCurrency: quote?.currency,
         };
       })
     );
@@ -118,7 +119,7 @@ router.get("/vendor-pos/:id", authMiddleware, requireFeature('vendorPO_module'),
     res.json({
       ...po,
       vendor: vendor || {},
-      quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber } : undefined,
+      quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber, currency: quote.currency } : undefined,
       items,
     });
   } catch (error) {
@@ -361,6 +362,7 @@ router.get("/grns/:id", authMiddleware, requireFeature('grn_module'), async (req
       vendorPo: {
         id: po.id,
         poNumber: po.poNumber,
+        currency: po.currency,
         vendor: {
           name: vendor.name,
           email: vendor.email,

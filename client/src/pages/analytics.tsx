@@ -56,6 +56,7 @@ import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { isFeatureEnabled } from "@shared/feature-flags";
+import { formatCurrency } from "@/lib/currency";
 import { useLocation } from "wouter";
 
 interface AnalyticsData {
@@ -247,7 +248,7 @@ const renderActiveShape = (props: any) => {
       </text>
       <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
       <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
-      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333" className="text-xs font-bold fill-slate-900 dark:fill-white">{`Revenue ₹${payload.totalValue.toLocaleString()}`}</text>
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333" className="text-xs font-bold fill-slate-900 dark:fill-white">{`Revenue ${formatCurrency(payload.totalValue)}`}</text>
       <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={18} textAnchor={textAnchor} fill="#999" className="text-xs fill-slate-500 dark:fill-slate-400">
         {`(Share ${(percent * 100).toFixed(1)}%)`}
       </text>
@@ -445,9 +446,9 @@ export default function Analytics() {
                   <StatCard title="Total Quotes" value={data.overview.totalQuotes} change="12.5%" icon={FileText} trend="up" caption="Active proposals YTD" />
                 )}
                 {isFeatureEnabled('analytics_revenueMetrics') && (
-                  <StatCard title="Total Revenue" value={`₹${data.overview.totalRevenue}`} change="23.1%" icon={DollarSign} trend="up" caption="Closed revenue" />
+                  <StatCard title="Total Revenue" value={formatCurrency(Number(data.overview.totalRevenue.replace(/[^0-9.-]+/g,"")))} change="23.1%" icon={DollarSign} trend="up" caption="Closed revenue" />
                 )}
-                <StatCard title="Average Deal Size" value={`₹${data.overview.avgQuoteValue}`} change="8.3%" icon={TrendingUp} trend="up" caption="Mean quote value" />
+                <StatCard title="Average Deal Size" value={formatCurrency(Number(data.overview.avgQuoteValue.replace(/[^0-9.-]+/g,"")))} change="8.3%" icon={TrendingUp} trend="up" caption="Mean quote value" />
                 <StatCard title="Conversion Rate" value={`${data.overview.conversionRate}%`} change="-2.4%" icon={Target} trend="down" caption="Quote-to-close ratio" />
               </div>
             </section>
@@ -456,9 +457,9 @@ export default function Analytics() {
               <aside className="space-y-6 order-2 lg:order-1" aria-label="Executive Insights">
                 <Section title="Executive Summary" description="Latest performance highlights">
                   <div className="space-y-4">
-                    <InsightTile label="Latest Month" value={latestMonth ? latestMonth.month : "—"} description={latestMonth ? `Revenue ₹${latestMonth.revenue.toLocaleString()} with ${latestMonth.quotes} quotes issued` : "No recent month data available"} badge={latestMonth ? "Most recent" : undefined} />
-                    <InsightTile label="Leading Region" value={strongestRegion ? strongestRegion.region : "—"} description={strongestRegion ? `${strongestRegion.percentage.toFixed(1)}% share • ₹${strongestRegion.totalRevenue.toLocaleString()} revenue` : "Regional insights pending"} badge={strongestRegion ? "Regional leader" : undefined} />
-                    <InsightTile label="Pipeline Summary" value={`₹${pipelineSummary.totalValue.toLocaleString()}`} description={`${pipelineSummary.totalCount.toLocaleString()} open opportunities across all stages`} />
+                    <InsightTile label="Latest Month" value={latestMonth ? latestMonth.month : "—"} description={latestMonth ? `Revenue ${formatCurrency(latestMonth.revenue)} with ${latestMonth.quotes} quotes issued` : "No recent month data available"} badge={latestMonth ? "Most recent" : undefined} />
+                    <InsightTile label="Leading Region" value={strongestRegion ? strongestRegion.region : "—"} description={strongestRegion ? `${strongestRegion.percentage.toFixed(1)}% share • ${formatCurrency(strongestRegion.totalRevenue)} revenue` : "Regional insights pending"} badge={strongestRegion ? "Regional leader" : undefined} />
+                    <InsightTile label="Pipeline Summary" value={formatCurrency(pipelineSummary.totalValue)} description={`${pipelineSummary.totalCount.toLocaleString()} open opportunities across all stages`} />
                   </div>
                 </Section>
                 {isFeatureEnabled('analytics_trends') && (
@@ -477,7 +478,7 @@ export default function Analytics() {
                           <Sparkles className="h-4 w-4" />
                           <span className="text-xs font-bold uppercase tracking-wide">Strategic Watchlist</span>
                         </div>
-                        <p className="mt-2 text-xs text-blue-600/80 dark:text-blue-400/80 leading-relaxed font-medium">Focus on high-value pursuits above ₹{data.overview.avgQuoteValue} and reinforce follow-up on stalled approvals.</p>
+                        <p className="mt-2 text-xs text-blue-600/80 dark:text-blue-400/80 leading-relaxed font-medium">Focus on high-value pursuits above {formatCurrency(Number(data.overview.avgQuoteValue.replace(/[^0-9.-]+/g,"")))} and reinforce follow-up on stalled approvals.</p>
                       </div>
                     </div>
                   </Section>
@@ -497,11 +498,11 @@ export default function Analytics() {
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                           <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} dy={10} />
-                          <YAxis yAxisId="left" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
+                          <YAxis yAxisId="left" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrency(v)} />
                           <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
                           <Tooltip contentStyle={{ borderRadius: 12, border: "0", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }} />
                           <Legend iconType="circle" wrapperStyle={{ paddingTop: 20 }} />
-                          <Area yAxisId="left" type="monotone" dataKey="revenue" stroke={COLORS.primary} strokeWidth={3} fill="url(#revenueGradient)" name="Revenue (₹)" />
+                          <Area yAxisId="left" type="monotone" dataKey="revenue" stroke={COLORS.primary} strokeWidth={3} fill="url(#revenueGradient)" name="Revenue" />
                           <Line yAxisId="right" type="monotone" dataKey="quotes" stroke={COLORS.secondary} strokeWidth={3} dot={{ fill: COLORS.secondary, r: 4, strokeWidth: 2, stroke: "white" }} name="Quotes" />
                         </ComposedChart>
                       </ResponsiveContainer>
@@ -526,7 +527,7 @@ export default function Analytics() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-bold text-slate-900 dark:text-white whitespace-nowrap">₹{client.totalRevenue}</p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white whitespace-nowrap">{formatCurrency(Number(client.totalRevenue.replace(/[^0-9.-]+/g,"")))}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Share {share}%</p>
                           </div>
                         </div>
@@ -546,7 +547,7 @@ export default function Analytics() {
                           <Tooltip contentStyle={{ borderRadius: 12, border: "0", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }} />
                           <Legend iconType="circle" />
                           <Bar dataKey="count" name="Quotes" fill={COLORS.primary} radius={[6, 6, 0, 0]} barSize={40} />
-                          <Bar dataKey="value" name="Value (₹)" fill={COLORS.secondary} radius={[6, 6, 0, 0]} barSize={40} />
+                          <Bar dataKey="value" name="Value" fill={COLORS.secondary} radius={[6, 6, 0, 0]} barSize={40} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -575,9 +576,9 @@ export default function Analytics() {
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
                           <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} dy={10} />
-                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrency(v)} />
                           <Tooltip contentStyle={{ borderRadius: 12, border: "0", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }} />
-                          <Area type="monotone" dataKey="forecastedRevenue" stroke={COLORS.success} strokeWidth={3} fill="url(#forecastGradient)" name="Forecasted Revenue (₹)" />
+                          <Area type="monotone" dataKey="forecastedRevenue" stroke={COLORS.success} strokeWidth={3} fill="url(#forecastGradient)" name="Forecasted Revenue" />
                         </AreaChart>
                       </ResponsiveContainer>
                     ) : (
@@ -606,7 +607,7 @@ export default function Analytics() {
                         <Progress value={region.percentage} className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-700" indicatorClassName="bg-slate-900 dark:bg-white" aria-valuenow={region.percentage} aria-label={`${region.region} share`} />
                           <div className="mt-2 flex items-center justify-between text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
                             <span className="flex items-center gap-1.5"><FileText className="h-3 w-3" /> {region.quoteCount} quotes</span>
-                            <span className="font-bold text-slate-900 dark:text-white">₹{region.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(region.totalRevenue)}</span>
                           </div>
                       </div>
                     ))
@@ -661,7 +662,7 @@ export default function Analytics() {
                         </div>
                         <div className="text-right text-xs text-slate-500 dark:text-slate-400">
                           <p className="font-bold text-slate-900 dark:text-white whitespace-nowrap">{item.count} deals</p>
-                          <p className="whitespace-nowrap">₹{item.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                          <p className="whitespace-nowrap">{formatCurrency(item.totalValue)}</p>
                         </div>
                       </div>
                     ))}
@@ -708,11 +709,11 @@ export default function Analytics() {
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                             <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Total Value</p>
-                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white break-words">₹{stage.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white break-words">{formatCurrency(stage.totalValue)}</p>
                           </div>
                           <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                             <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Avg Deal</p>
-                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white break-words">₹{stage.avgDealValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white break-words">{formatCurrency(stage.avgDealValue)}</p>
                           </div>
                         </div>
                       </CardContent>
@@ -740,8 +741,8 @@ export default function Analytics() {
               <div className="space-y-6">
                 <section aria-label="High-level insight metrics" className="grid gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-4">
                   {([
-                    { label: "Average Quote", value: `₹${insights.avgQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, icon: DollarSign, sub: "Industry benchmark" },
-                    { label: "Median Quote", value: `₹${insights.medianQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, icon: BarChart3, sub: "Stability indicator" },
+                    { label: "Average Quote", value: formatCurrency(insights.avgQuoteValue), icon: DollarSign, sub: "Industry benchmark" },
+                    { label: "Median Quote", value: formatCurrency(insights.medianQuoteValue), icon: BarChart3, sub: "Stability indicator" },
                     { label: "Quote Frequency", value: `${insights.quoteFrequency}/wk`, icon: Activity, sub: "Volume cadence" },
                     { label: "Conversion Rate", value: `${insights.conversionTrend.toFixed(1)}%`, icon: Target, sub: "Closing performance" }
                   ]).map(tile => (
@@ -763,7 +764,7 @@ export default function Analytics() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 shadow-sm"><DollarSign className="h-5 w-5" /></div>
                         <div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Deal Size Analysis</h3><p className="text-xs text-slate-500 dark:text-slate-400">Variance check</p></div>
                       </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Average quote value of ₹{insights.avgQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} compared to median ₹{insights.medianQuoteValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} suggests {insights.avgQuoteValue > insights.medianQuoteValue ? "premium outliers pushing revenue opportunities higher." : "consistency across most engagements with balanced deal sizes."}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Average quote value of {formatCurrency(insights.avgQuoteValue)} compared to median {formatCurrency(insights.medianQuoteValue)} suggests {insights.avgQuoteValue > insights.medianQuoteValue ? "premium outliers pushing revenue opportunities higher." : "consistency across most engagements with balanced deal sizes."}</p>
                     </CardContent>
                   </Card>
                   <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all">

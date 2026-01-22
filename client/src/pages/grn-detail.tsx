@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { PermissionGuard } from "@/components/permission-guard";
+import { formatCurrency } from "@/lib/currency";
 
 // Interface (Unchanged)
 interface GRNDetail {
@@ -22,6 +23,7 @@ interface GRNDetail {
     vendorPo: {
         id: string;
         poNumber: string;
+        currency?: string;
         vendor: {
             name: string;
             email: string;
@@ -171,11 +173,6 @@ export default function GRNDetailPage() {
         );
     };
 
-    // Helper for formatting currency
-    const formatCurrency = (amount: number | string) => {
-        return `₹${parseFloat(amount as string).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
-
     // Helper for formatting date
     const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -296,8 +293,8 @@ export default function GRNDetailPage() {
                                     <p className="font-semibold text-xs text-slate-900 dark:text-white">{grn.vendorPoItem.description}</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <ValueBox icon={DollarSign} label="Unit Price" value={formatCurrency(grn.vendorPoItem.unitPrice)} color="text-slate-900 dark:text-white" />
-                                    <ValueBox icon={DollarSign} label="Received Value" value={formatCurrency(parseFloat(grn.vendorPoItem.unitPrice) * grn.quantityReceived)} color="text-emerald-600 dark:text-emerald-400" />
+                                    <ValueBox icon={DollarSign} label="Unit Price" value={formatCurrency(grn.vendorPoItem.unitPrice, grn.vendorPo.currency)} color="text-slate-900 dark:text-white" />
+                                    <ValueBox icon={DollarSign} label="Received Value" value={formatCurrency(parseFloat(grn.vendorPoItem.unitPrice) * grn.quantityReceived, grn.vendorPo.currency)} color="text-emerald-600 dark:text-emerald-400" />
                                 </div>
                             </CardContent>
                         </Card>

@@ -43,6 +43,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { formatCurrency } from "@/lib/currency";
 
 export default function SalesOrderDetail() {
     const { id } = useParams();
@@ -308,7 +309,7 @@ export default function SalesOrderDetail() {
                             <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
                                 <div>
                                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase mb-0.5">Total Amount</p>
-                                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">₹{Number(order.total).toLocaleString()}</p>
+                                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(order.total, order.currency)}</p>
                                 </div>
                                 <Receipt className="h-8 w-8 text-emerald-600 dark:text-emerald-400 opacity-50" />
                             </div>
@@ -522,7 +523,7 @@ export default function SalesOrderDetail() {
                                                             </span>
                                                             <span className="flex items-center gap-1">
                                                                 <span className="font-medium">Unit:</span>
-                                                                <span className="font-bold">₹{Number(item.unitPrice).toLocaleString()}</span>
+                                                                <span className="font-bold">{formatCurrency(item.unitPrice, order.quote?.currency)}</span>
                                                             </span>
                                                             {item.hsnSac && (
                                                                 <span className="flex items-center gap-1">
@@ -534,7 +535,7 @@ export default function SalesOrderDetail() {
                                                     </div>
                                                     <div className="shrink-0 text-right">
                                                         <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Subtotal</p>
-                                                        <p className="font-bold text-base text-emerald-600 dark:text-emerald-400">₹{Number(item.subtotal).toLocaleString()}</p>
+                                                        <p className="font-bold text-base text-emerald-600 dark:text-emerald-400">{formatCurrency(item.subtotal, order.quote?.currency)}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -733,48 +734,48 @@ export default function SalesOrderDetail() {
                                     <div className="space-y-1.5">
                                         <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                             <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
-                                            <span className="font-semibold text-slate-900 dark:text-white">₹{Number(order.subtotal).toLocaleString()}</span>
+                                            <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.subtotal, order.quote?.currency)}</span>
                                         </div>
 
                                         {Number(order.discount) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded bg-rose-50 dark:bg-rose-950">
                                                 <span className="text-slate-600 dark:text-slate-400">Discount</span>
-                                                <span className="font-semibold text-rose-600 dark:text-rose-400">-₹{Number(order.discount).toLocaleString()}</span>
+                                                <span className="font-semibold text-rose-600 dark:text-rose-400">-{formatCurrency(order.discount, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
                                         {Number(order.cgst) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">CGST</span>
-                                                <span className="font-semibold text-slate-900 dark:text-white">₹{Number(order.cgst).toLocaleString()}</span>
+                                                <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.cgst, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
                                         {Number(order.sgst) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">SGST</span>
-                                                <span className="font-semibold text-slate-900 dark:text-white">₹{Number(order.sgst).toLocaleString()}</span>
+                                                <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.sgst, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
                                         {Number(order.igst) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">IGST</span>
-                                                <span className="font-semibold text-slate-900 dark:text-white">₹{Number(order.igst).toLocaleString()}</span>
+                                                <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.igst, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
                                         {Number(order.shippingCharges) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">Shipping</span>
-                                                <span className="font-semibold text-slate-900 dark:text-white">₹{Number(order.shippingCharges).toLocaleString()}</span>
+                                                <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.shippingCharges, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
                                         {/* Total */}
                                         <div className="flex justify-between items-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 mt-3">
                                             <span className="text-sm font-bold text-slate-900 dark:text-white">Total</span>
-                                            <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">₹{Number(order.total).toLocaleString()}</span>
+                                            <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(order.total, order.currency)}</span>
                                         </div>
                                     </div>
                                 </div>

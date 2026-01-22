@@ -1,5 +1,7 @@
 import PDFDocument from "pdfkit";
 import type { Readable } from "stream";
+import { prepareLogoSync, drawLogo } from "./pdf-helpers";
+import { formatCurrency, formatCurrencyPdf } from "./currency-helper";
 
 interface VendorPoPDFData {
   po: {
@@ -13,6 +15,7 @@ interface VendorPoPDFData {
     igst: string;
     shippingCharges: string;
     total: string;
+    currency?: string;
     notes?: string | null;
     termsAndConditions?: string | null;
   };
@@ -36,13 +39,37 @@ interface VendorPoPDFData {
   companyEmail: string;
   companyWebsite: string;
   companyGSTIN: string;
+  companyLogo?: string;
 }
 
 export class VendorPoPDFService {
   static generateVendorPoPDF(data: VendorPoPDFData): Readable {
     const doc = new PDFDocument({ margin: 50, size: "A4" });
 
+    // Register Fonts
+    try {
+      const fontDir = require("path").join(process.cwd(), "server", "pdf", "fonts");
+      const regularPath = require("path").join(fontDir, "Roboto-Regular.ttf");
+      const boldPath = require("path").join(fontDir, "Roboto-Bold.ttf");
+      
+      const fs = require("fs");
+      if (fs.existsSync(regularPath) && fs.existsSync(boldPath)) {
+          doc.registerFont("Helvetica", regularPath);
+          doc.registerFont("Helvetica-Bold", boldPath);
+      }
+    } catch (e) { }
+
     // Header
+    const { logo, mimeType } = prepareLogoSync(data.companyLogo);
+    let logoSize = 50;
+    
+    if (logo) {
+      drawLogo(doc, logo, mimeType, 50, 50, logoSize);
+    }
+    
+    // Move slightly down if logo is present so title isn't too cramped? 
+    // Actually title is centered, logo is left (50,50). Overlap is unlikely.
+    
     doc.fontSize(24).font("Helvetica-Bold").text("PURCHASE ORDER", { align: "center" });
     doc.moveDown(0.5);
     doc.fontSize(10).font("Helvetica").text(data.companyName, { align: "center" });
@@ -127,8 +154,8 @@ export class VendorPoPDFService {
       doc.text((index + 1).toString(), itemCodeX, yPos);
       doc.text(item.description, descriptionX, yPos, { width: 270 });
       doc.text(item.quantity.toString(), quantityX, yPos);
-      doc.text(`₹${Number(item.unitPrice).toLocaleString()}`, rateX, yPos);
-      doc.text(`₹${Number(item.subtotal).toLocaleString()}`, amountX, yPos);
+      doc.text(formatCurrencyPdf(Number(item.unitPrice), data.po.currency), rateX, yPos);
+      doc.text(formatCurrencyPdf(Number(item.subtotal), data.po.currency), amountX, yPos);
       
       yPos += 25;
     });
@@ -141,36 +168,36 @@ export class VendorPoPDFService {
     doc.font("Helvetica-Bold");
     const totalsX = 420;
     doc.text("Subtotal:", totalsX, yPos);
-    doc.font("Helvetica").text(`₹${Number(data.po.subtotal).toLocaleString()}`, 490, yPos);
+    doc.font("Helvetica").text(formatCurrencyPdf(Number(data.po.subtotal), data.po.currency), 490, yPos);
     yPos += 15;
 
     if (Number(data.po.discount) > 0) {
       doc.font("Helvetica-Bold").text("Discount:", totalsX, yPos);
-      doc.font("Helvetica").text(`-₹${Number(data.po.discount).toLocaleString()}`, 490, yPos);
+      doc.font("Helvetica").text(`-${formatCurrencyPdf(Number(data.po.discount), data.po.currency)}`, 490, yPos);
       yPos += 15;
     }
 
     if (Number(data.po.cgst) > 0) {
       doc.font("Helvetica-Bold").text("CGST:", totalsX, yPos);
-      doc.font("Helvetica").text(`₹${Number(data.po.cgst).toLocaleString()}`, 490, yPos);
+      doc.font("Helvetica").text(formatCurrencyPdf(Number(data.po.cgst), data.po.currency), 490, yPos);
       yPos += 15;
     }
 
     if (Number(data.po.sgst) > 0) {
       doc.font("Helvetica-Bold").text("SGST:", totalsX, yPos);
-      doc.font("Helvetica").text(`₹${Number(data.po.sgst).toLocaleString()}`, 490, yPos);
+      doc.font("Helvetica").text(formatCurrencyPdf(Number(data.po.sgst), data.po.currency), 490, yPos);
       yPos += 15;
     }
 
     if (Number(data.po.igst) > 0) {
       doc.font("Helvetica-Bold").text("IGST:", totalsX, yPos);
-      doc.font("Helvetica").text(`₹${Number(data.po.igst).toLocaleString()}`, 490, yPos);
+      doc.font("Helvetica").text(formatCurrencyPdf(Number(data.po.igst), data.po.currency), 490, yPos);
       yPos += 15;
     }
 
     if (Number(data.po.shippingCharges) > 0) {
       doc.font("Helvetica-Bold").text("Shipping:", totalsX, yPos);
-      doc.font("Helvetica").text(`₹${Number(data.po.shippingCharges).toLocaleString()}`, 490, yPos);
+      doc.font("Helvetica").text(formatCurrencyPdf(Number(data.po.shippingCharges), data.po.currency), 490, yPos);
       yPos += 15;
     }
 
@@ -178,7 +205,7 @@ export class VendorPoPDFService {
     doc.rect(415, yPos - 5, 135, 20).fillAndStroke("#f0f0f0", "#000");
     doc.fillColor("#000");
     doc.fontSize(11).font("Helvetica-Bold").text("Total Amount:", totalsX, yPos);
-    doc.text(`₹${Number(data.po.total).toLocaleString()}`, 490, yPos);
+    doc.text(formatCurrencyPdf(Number(data.po.total), data.po.currency), 490, yPos);
     yPos += 30;
 
     // Notes

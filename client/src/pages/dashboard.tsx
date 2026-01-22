@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
 import {
     ResponsiveContainer,
     CartesianGrid,
@@ -108,14 +109,6 @@ const STATUS_COLORS: Record<string, string> = {
     closed_paid: "hsl(45 90% 50%)",
     closed_cancelled: "hsl(0 0% 45%)",
 };
-
-const INR = new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-});
-
-const inr = (n: number) => INR.format(n);
 
 const toNum = (s: string | number) =>
     typeof s === "number" ? s : Number(String(s).replace(/[^\d.-]/g, "")) || 0;
@@ -543,7 +536,7 @@ export default function Dashboard() {
                         />
                         <MetricCard
                             label="Total Collected"
-                            value={inr(totalRevenueNum)}
+                            value={formatCurrency(totalRevenueNum)}
                             sub="From paid invoices"
                             icon={DollarSign}
                             sparkData={sparkSeries}
@@ -611,13 +604,13 @@ export default function Dashboard() {
                                                     axisLine={false}
                                                     className="text-xs font-medium text-muted-foreground"
                                                     tickCount={5}
-                                                    tickFormatter={(v: number) => v === 0 ? "0" : inr(v)}
+                                                    tickFormatter={(v: number) => v === 0 ? "0" : formatCurrency(v)}
                                                     tick={{ fill: 'currentColor', opacity: 0.7 }}
                                                     width={80}
                                                 />
                                                 <Tooltip
                                                     cursor={{ stroke: 'var(--muted-foreground)', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                                    formatter={(val: number) => [inr(Number(val)), "Revenue"]}
+                                                    formatter={(val: number) => [formatCurrency(Number(val)), "Revenue"]}
                                                     contentStyle={{
                                                         borderRadius: '12px',
                                                         border: '1px solid var(--border)',
@@ -827,7 +820,7 @@ export default function Dashboard() {
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="text-right font-bold text-slate-900 dark:text-white py-3">
-                                                        {inr(toNum(q.total))}
+                                                        {formatCurrency(toNum(q.total))}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -899,7 +892,7 @@ export default function Dashboard() {
                                                     <Users className="h-3.5 w-3.5" />
                                                     <span className="truncate max-w-[120px]">{q.clientName}</span>
                                                 </div>
-                                                <span className="font-bold text-slate-900 dark:text-white">{inr(toNum(q.total))}</span>
+                                                <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(toNum(q.total))}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -942,7 +935,7 @@ export default function Dashboard() {
                                                         </div>
                                                         <div className="text-right">
                                                             <span className="text-sm font-bold tabular-nums block text-slate-900 dark:text-white">
-                                                                {inr(row.total)}
+                                                                {formatCurrency(row.total)}
                                                             </span>
                                                         </div>
                                                     </div>

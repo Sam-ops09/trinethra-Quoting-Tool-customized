@@ -20,6 +20,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatCurrency } from "@/lib/currency";
 
 interface InvoiceItem {
   id?: string;
@@ -59,6 +67,7 @@ interface EditInvoiceDialogProps {
     igst: string;
     shippingCharges: string;
     total: string;
+    currency?: string;
     notes?: string;
     termsAndConditions?: string;
     deliveryNotes?: string;
@@ -86,6 +95,7 @@ export function EditInvoiceDialog({
   const [igst, setIgst] = useState("");
   const [shippingCharges, setShippingCharges] = useState("");
   const [total, setTotal] = useState("");
+  const [currency, setCurrency] = useState("INR");
   const [notes, setNotes] = useState("");
   const [termsAndConditions, setTermsAndConditions] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
@@ -104,6 +114,7 @@ export function EditInvoiceDialog({
       setSubtotal(currentData.subtotal || "0");
       setShippingCharges(currentData.shippingCharges || "0");
       setTotal(currentData.total || "0");
+      setCurrency(currentData.currency || "INR");
       setNotes(currentData.notes || "");
       setTermsAndConditions(currentData.termsAndConditions || "");
       setDeliveryNotes(currentData.deliveryNotes || "");
@@ -327,6 +338,7 @@ export function EditInvoiceDialog({
       updateData.igst = igst;
       updateData.shippingCharges = shippingCharges;
       updateData.total = total;
+      updateData.currency = currency;
     }
 
     updateInvoiceMutation.mutate(updateData);
@@ -435,7 +447,25 @@ export function EditInvoiceDialog({
             {/* Amounts Section - Only in Draft */}
             {isDraft && (
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="space-y-2 col-span-2 sm:col-span-1">
+                   <Label>Currency</Label>
+                   <Select value={currency} onValueChange={setCurrency}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="INR">INR (₹)</SelectItem>
+                      <SelectItem value="USD">USD ($)</SelectItem>
+                      <SelectItem value="EUR">EUR (€)</SelectItem>
+                      <SelectItem value="GBP">GBP (£)</SelectItem>
+                      <SelectItem value="AUD">AUD ($)</SelectItem>
+                      <SelectItem value="CAD">CAD ($)</SelectItem>
+                      <SelectItem value="SGD">SGD ($)</SelectItem>
+                      <SelectItem value="AED">AED (د.إ)</SelectItem>
+                    </SelectContent>
+                   </Select>
+                </div>
+                <div className="space-y-2 col-span-2 sm:col-span-1">
                   <Label>Subtotal</Label>
                   <Input type="number" step="0.01" value={subtotal} readOnly className="bg-gray-50" />
                 </div>
@@ -456,7 +486,7 @@ export function EditInvoiceDialog({
                     placeholder="Enter discount percentage"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Amount: ₹{Number(discount).toLocaleString()}
+                    Amount: {formatCurrency(discount, currency)}
                   </p>
                 </div>
 
@@ -476,7 +506,7 @@ export function EditInvoiceDialog({
                     placeholder="e.g., 9"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Amount: ₹{Number(cgst).toLocaleString()}
+                    Amount: {formatCurrency(cgst, currency)}
                   </p>
                 </div>
 
@@ -496,7 +526,7 @@ export function EditInvoiceDialog({
                     placeholder="e.g., 9"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Amount: ₹{Number(sgst).toLocaleString()}
+                    Amount: {formatCurrency(sgst, currency)}
                   </p>
                 </div>
 
@@ -516,7 +546,7 @@ export function EditInvoiceDialog({
                     placeholder="e.g., 18"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Amount: ₹{Number(igst).toLocaleString()}
+                    Amount: {formatCurrency(igst, currency)}
                   </p>
                 </div>
 

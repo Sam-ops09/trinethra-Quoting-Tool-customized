@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/currency";
 
 interface PaymentHistoryEntry {
     id: string;
@@ -251,7 +252,7 @@ export function PaymentTracker({
                             </div>
                         </div>
                         <span className="block text-base font-bold text-primary sm:text-lg">
-              ₹{total.toLocaleString()}
+               {formatCurrency(total)}
             </span>
                     </div>
 
@@ -265,7 +266,7 @@ export function PaymentTracker({
                             </div>
                         </div>
                         <span className="block text-base font-bold text-success sm:text-lg">
-              ₹{paidAmount.toLocaleString()}
+               {formatCurrency(paidAmount)}
             </span>
                     </div>
 
@@ -279,7 +280,7 @@ export function PaymentTracker({
                             </div>
                         </div>
                         <span className="block text-base font-bold text-warning sm:text-lg">
-              ₹{outstanding.toLocaleString()}
+               {formatCurrency(outstanding)}
             </span>
                     </div>
                 </div>
@@ -393,7 +394,7 @@ export function PaymentTracker({
                                             <div className="min-w-0 flex-1 space-y-1">
                                                 <div className="flex items-baseline justify-between gap-2">
                           <span className="text-sm font-bold text-primary">
-                            ₹{parseFloat(payment.amount).toLocaleString()}
+                            {formatCurrency(parseFloat(payment.amount))}
                           </span>
                                                     <Badge className="border-primary/30 bg-primary/10 px-1.5 py-0 text-[9px] text-primary">
                                                         {getPaymentMethodLabel(payment.paymentMethod)}
@@ -501,7 +502,7 @@ export function PaymentTracker({
                             </Label>
                             <div className="card-elegant flex items-center gap-3 rounded-2xl border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10 px-4 py-3 sm:px-5 sm:py-4">
                 <span className="shrink-0 text-3xl font-bold text-primary sm:text-4xl">
-                  ₹
+                 {formatCurrency(0).charAt(0)}
                 </span>
                                 <Input
                                     id="payment-amount"
@@ -520,7 +521,7 @@ export function PaymentTracker({
                             <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs font-['Open_Sans']">
                                 <span className="text-muted-foreground">Outstanding Balance:</span>
                                 <span className="text-sm font-bold text-warning">
-                  ₹{outstanding.toLocaleString()}
+                   {formatCurrency(outstanding)}
                 </span>
                             </div>
                         </div>

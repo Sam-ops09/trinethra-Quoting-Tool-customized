@@ -18,6 +18,8 @@ export const creditNoteStatusEnum = pgEnum("credit_note_status", ["draft", "issu
 export const debitNoteStatusEnum = pgEnum("debit_note_status", ["draft", "issued", "applied", "cancelled"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "paused", "cancelled", "expired"]);
 export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "annually"]);
+export const approvalStatusEnum = pgEnum("approval_status", ["none", "pending", "approved", "rejected"]);
+
 // Users table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -133,7 +135,7 @@ export const quotes = pgTable("quotes", {
   publicToken: text("public_token").unique(),
   tokenExpiresAt: timestamp("token_expires_at"),
   // Rule-Based Approval Fields
-  approvalStatus: text("approval_status").notNull().default("none"), // none, pending, approved, rejected
+  approvalStatus: approvalStatusEnum("approval_status").notNull().default("none"), // none, pending, approved, rejected
   approvalRequiredBy: userRoleEnum("approval_required_by"), // Role required to approve (e.g. sales_manager)
   // Client Acceptance Fields
   clientSignature: text("client_signature"),
