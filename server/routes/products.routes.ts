@@ -8,11 +8,13 @@ import { eq } from "drizzle-orm";
 import { requireFeature } from "../feature-flags-middleware";
 import { isFeatureEnabled } from "../../shared/feature-flags";
 
+import { requirePermission } from "../permissions-middleware";
+
 const router = Router();
 
 // ==================== PRODUCTS ROUTES ====================
 
-router.get("/", authMiddleware, requireFeature('products_module'), async (req: AuthRequest, res: Response) => {
+router.get("/", authMiddleware, requireFeature('products_module'), requirePermission("products", "view"), async (req: AuthRequest, res: Response) => {
   try {
     const products = await db.select().from(schema.products).orderBy(schema.products.name);
     res.json(products);
@@ -22,7 +24,7 @@ router.get("/", authMiddleware, requireFeature('products_module'), async (req: A
   }
 });
 
-router.get("/:id", authMiddleware, requireFeature('products_module'), async (req: AuthRequest, res: Response) => {
+router.get("/:id", authMiddleware, requireFeature('products_module'), requirePermission("products", "view"), async (req: AuthRequest, res: Response) => {
   try {
     const [product] = await db
       .select()
@@ -40,7 +42,7 @@ router.get("/:id", authMiddleware, requireFeature('products_module'), async (req
   }
 });
 
-router.post("/", authMiddleware, requireFeature('products_create'), async (req: AuthRequest, res: Response) => {
+router.post("/", authMiddleware, requireFeature('products_create'), requirePermission("products", "create"), async (req: AuthRequest, res: Response) => {
   try {
     // Pre-process: Coerce unitPrice to string if number (backward compatibility)
     if (req.body && typeof req.body.unitPrice === 'number') {
@@ -91,7 +93,7 @@ router.post("/", authMiddleware, requireFeature('products_create'), async (req: 
   }
 });
 
-router.patch("/:id", authMiddleware, requireFeature('products_edit'), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authMiddleware, requireFeature('products_edit'), requirePermission("products", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const updates = { ...req.body, updatedAt: new Date() };
          

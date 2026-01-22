@@ -233,7 +233,7 @@ const adminItems = [
         title: "Analytics",
         url: "/admin/analytics",
         icon: BarChart3,
-        roles: ["admin"],
+        roles: ["admin", "sales_manager", "finance_accounts"],
         description: "System analytics",
         featureFlag: 'pages_adminAnalytics' as const,
     },

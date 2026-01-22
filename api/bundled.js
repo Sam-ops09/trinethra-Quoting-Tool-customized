@@ -78,10 +78,16 @@ __export(schema_exports, {
   insertSettingSchema: () => insertSettingSchema,
   insertTaxRateSchema: () => insertTaxRateSchema,
   insertTemplateSchema: () => insertTemplateSchema,
+  insertUserDeviceSchema: () => insertUserDeviceSchema,
   insertUserSchema: () => insertUserSchema,
   insertVendorPoItemSchema: () => insertVendorPoItemSchema,
   insertVendorPurchaseOrderSchema: () => insertVendorPurchaseOrderSchema,
   insertVendorSchema: () => insertVendorSchema,
+  insertWorkflowActionSchema: () => insertWorkflowActionSchema,
+  insertWorkflowExecutionSchema: () => insertWorkflowExecutionSchema,
+  insertWorkflowScheduleSchema: () => insertWorkflowScheduleSchema,
+  insertWorkflowSchema: () => insertWorkflowSchema,
+  insertWorkflowTriggerSchema: () => insertWorkflowTriggerSchema,
   invoiceAttachments: () => invoiceAttachments,
   invoiceItemStatusEnum: () => invoiceItemStatusEnum,
   invoiceItems: () => invoiceItems,
@@ -122,6 +128,8 @@ __export(schema_exports, {
   taxRates: () => taxRates,
   templates: () => templates,
   templatesRelations: () => templatesRelations,
+  userDevices: () => userDevices,
+  userDevicesRelations: () => userDevicesRelations,
   userRoleEnum: () => userRoleEnum,
   userStatusEnum: () => userStatusEnum,
   users: () => users,
@@ -132,14 +140,27 @@ __export(schema_exports, {
   vendorPurchaseOrders: () => vendorPurchaseOrders,
   vendorPurchaseOrdersRelations: () => vendorPurchaseOrdersRelations,
   vendors: () => vendors,
-  vendorsRelations: () => vendorsRelations
+  vendorsRelations: () => vendorsRelations,
+  workflowActionTypeEnum: () => workflowActionTypeEnum,
+  workflowActions: () => workflowActions,
+  workflowActionsRelations: () => workflowActionsRelations,
+  workflowExecutions: () => workflowExecutions,
+  workflowExecutionsRelations: () => workflowExecutionsRelations,
+  workflowSchedules: () => workflowSchedules,
+  workflowSchedulesRelations: () => workflowSchedulesRelations,
+  workflowStatusEnum: () => workflowStatusEnum,
+  workflowTriggerTypeEnum: () => workflowTriggerTypeEnum,
+  workflowTriggers: () => workflowTriggers,
+  workflowTriggersRelations: () => workflowTriggersRelations,
+  workflows: () => workflows,
+  workflowsRelations: () => workflowsRelations
 });
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, users, usersRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, users, usersRelations, userDevices, userDevicesRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema, workflowStatusEnum, workflowTriggerTypeEnum, workflowActionTypeEnum, workflows, workflowsRelations, workflowTriggers, workflowTriggersRelations, workflowActions, workflowActionsRelations, workflowExecutions, workflowExecutionsRelations, workflowSchedules, workflowSchedulesRelations, insertWorkflowSchema, insertWorkflowTriggerSchema, insertWorkflowActionSchema, insertWorkflowExecutionSchema, insertWorkflowScheduleSchema, insertUserDeviceSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -181,7 +202,29 @@ var init_schema = __esm({
       quotes: many(quotes),
       templates: many(templates),
       activityLogs: many(activityLogs),
-      communications: many(clientCommunications)
+      communications: many(clientCommunications),
+      devices: many(userDevices)
+    }));
+    userDevices = pgTable("user_devices", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").notNull().references(() => users.id),
+      deviceType: text("device_type").notNull(),
+      // 'desktop', 'mobile', 'tablet', 'unknown'
+      browser: text("browser"),
+      os: text("os"),
+      ipAddress: text("ip_address"),
+      userAgent: text("user_agent"),
+      lastActive: timestamp("last_active").notNull().defaultNow(),
+      isActive: boolean("is_active").notNull().default(true),
+      tokenHash: text("token_hash"),
+      // Store hash of the session token to identify/revoke specific sessions
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    userDevicesRelations = relations(userDevices, ({ one }) => ({
+      user: one(users, {
+        fields: [userDevices.userId],
+        references: [users.id]
+      })
     }));
     clients = pgTable("clients", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1374,6 +1417,195 @@ var init_schema = __esm({
       updatedAt: true,
       createdBy: true
     });
+    workflowStatusEnum = pgEnum("workflow_status", ["active", "inactive", "draft"]);
+    workflowTriggerTypeEnum = pgEnum("workflow_trigger_type", [
+      "status_change",
+      "amount_threshold",
+      "date_based",
+      "field_change",
+      "time_based",
+      "manual"
+    ]);
+    workflowActionTypeEnum = pgEnum("workflow_action_type", [
+      "send_email",
+      "create_notification",
+      "update_field",
+      "assign_user",
+      "create_task",
+      "escalate",
+      "webhook",
+      "create_activity_log"
+    ]);
+    workflows = pgTable("workflows", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      name: text("name").notNull(),
+      description: text("description"),
+      entityType: text("entity_type").notNull(),
+      // quote, invoice, sales_order, payment, client, vendor, etc.
+      status: workflowStatusEnum("status").notNull().default("draft"),
+      priority: integer("priority").notNull().default(0),
+      // Higher number = higher priority
+      triggerLogic: text("trigger_logic").default("AND"),
+      // AND, OR for multiple triggers
+      isSystem: boolean("is_system").notNull().default(false),
+      // System workflows vs user-created
+      createdBy: varchar("created_by").notNull().references(() => users.id),
+      createdAt: timestamp("created_at").notNull().defaultNow(),
+      updatedAt: timestamp("updated_at").notNull().defaultNow()
+    }, (table) => ({
+      entityTypeIdx: index("idx_workflows_entity_type").on(table.entityType),
+      statusIdx: index("idx_workflows_status").on(table.status)
+    }));
+    workflowsRelations = relations(workflows, ({ one, many }) => ({
+      creator: one(users, {
+        fields: [workflows.createdBy],
+        references: [users.id]
+      }),
+      triggers: many(workflowTriggers),
+      actions: many(workflowActions),
+      executions: many(workflowExecutions)
+    }));
+    workflowTriggers = pgTable("workflow_triggers", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      workflowId: varchar("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+      triggerType: workflowTriggerTypeEnum("trigger_type").notNull(),
+      // Condition Configuration (JSON)
+      // Examples:
+      // status_change: { field: "status", from: "draft", to: "approved" }
+      // amount_threshold: { field: "total", operator: "greater_than", value: 10000 }
+      // date_based: { field: "dueDate", operator: "days_before", value: 7 }
+      // field_change: { field: "discount", operator: "greater_than", value: 20 }
+      // time_based: { schedule: "0 9 * * *", timezone: "Asia/Kolkata" } // cron expression
+      conditions: jsonb("conditions").notNull(),
+      // For complex conditions
+      conditionLogic: text("condition_logic"),
+      // Custom logic expression for advanced conditions
+      isActive: boolean("is_active").notNull().default(true),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    }, (table) => ({
+      workflowIdx: index("idx_workflow_triggers_workflow_id").on(table.workflowId),
+      triggerTypeIdx: index("idx_workflow_triggers_type").on(table.triggerType)
+    }));
+    workflowTriggersRelations = relations(workflowTriggers, ({ one }) => ({
+      workflow: one(workflows, {
+        fields: [workflowTriggers.workflowId],
+        references: [workflows.id]
+      })
+    }));
+    workflowActions = pgTable("workflow_actions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      workflowId: varchar("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+      actionType: workflowActionTypeEnum("action_type").notNull(),
+      // Action Configuration (JSON)
+      // Examples:
+      // send_email: { template: "payment_reminder", to: "{{client.email}}", cc: "{{user.email}}" }
+      // create_notification: { title: "Approval Required", message: "Quote {{quoteNumber}} needs approval", userId: "{{managerId}}" }
+      // update_field: { field: "status", value: "pending_approval" }
+      // assign_user: { field: "assignedTo", userId: "{{managerId}}" }
+      // create_task: { title: "Follow up on quote", dueDate: "{{quote.validUntil}}", assignTo: "{{quote.createdBy}}" }
+      // escalate: { to: "admin", message: "Quote overdue for {{days}} days" }
+      // webhook: { url: "https://api.example.com/webhook", method: "POST", headers: {...}, body: {...} }
+      actionConfig: jsonb("action_config").notNull(),
+      // Execution order (lower number executes first)
+      executionOrder: integer("execution_order").notNull().default(0),
+      // Optional delay before execution (in minutes)
+      delayMinutes: integer("delay_minutes").default(0),
+      // Conditional execution (if-then logic)
+      conditionExpression: text("condition_expression"),
+      // e.g., "{{quote.total}} > 50000"
+      isActive: boolean("is_active").notNull().default(true),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    }, (table) => ({
+      workflowIdx: index("idx_workflow_actions_workflow_id").on(table.workflowId),
+      executionOrderIdx: index("idx_workflow_actions_execution_order").on(table.executionOrder)
+    }));
+    workflowActionsRelations = relations(workflowActions, ({ one }) => ({
+      workflow: one(workflows, {
+        fields: [workflowActions.workflowId],
+        references: [workflows.id]
+      })
+    }));
+    workflowExecutions = pgTable("workflow_executions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      workflowId: varchar("workflow_id").notNull().references(() => workflows.id),
+      entityType: text("entity_type").notNull(),
+      entityId: varchar("entity_id").notNull(),
+      // Execution status
+      status: text("status").notNull(),
+      // pending, running, completed, failed, partially_completed
+      // Who/what triggered this execution
+      triggeredBy: text("triggered_by").notNull(),
+      // system, user:{userId}, schedule, manual
+      triggeredAt: timestamp("triggered_at").notNull().defaultNow(),
+      completedAt: timestamp("completed_at"),
+      // Execution details
+      executionLog: jsonb("execution_log"),
+      // Detailed log of each action execution
+      // Example: [
+      //   { step: 1, action: "send_email", status: "success", timestamp: "...", details: "..." },
+      //   { step: 2, action: "create_notification", status: "success", timestamp: "...", details: "..." }
+      // ]
+      errorMessage: text("error_message"),
+      errorStack: text("error_stack"),
+      // Performance tracking
+      executionTimeMs: integer("execution_time_ms")
+    }, (table) => ({
+      workflowIdx: index("idx_workflow_executions_workflow_id").on(table.workflowId),
+      entityIdx: index("idx_workflow_executions_entity").on(table.entityType, table.entityId),
+      statusIdx: index("idx_workflow_executions_status").on(table.status),
+      triggeredAtIdx: index("idx_workflow_executions_triggered_at").on(table.triggeredAt)
+    }));
+    workflowExecutionsRelations = relations(workflowExecutions, ({ one }) => ({
+      workflow: one(workflows, {
+        fields: [workflowExecutions.workflowId],
+        references: [workflows.id]
+      })
+    }));
+    workflowSchedules = pgTable("workflow_schedules", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      workflowId: varchar("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+      cronExpression: text("cron_expression").notNull(),
+      // e.g., "0 9 * * *" for daily at 9 AM
+      timezone: text("timezone").notNull().default("UTC"),
+      isActive: boolean("is_active").notNull().default(true),
+      lastRunAt: timestamp("last_run_at"),
+      nextRunAt: timestamp("next_run_at"),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    }, (table) => ({
+      workflowIdx: index("idx_workflow_schedules_workflow_id").on(table.workflowId),
+      nextRunIdx: index("idx_workflow_schedules_next_run").on(table.nextRunAt)
+    }));
+    workflowSchedulesRelations = relations(workflowSchedules, ({ one }) => ({
+      workflow: one(workflows, {
+        fields: [workflowSchedules.workflowId],
+        references: [workflows.id]
+      })
+    }));
+    insertWorkflowSchema = createInsertSchema(workflows).omit({
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      createdBy: true
+    });
+    insertWorkflowTriggerSchema = createInsertSchema(workflowTriggers).omit({
+      id: true,
+      createdAt: true
+    });
+    insertWorkflowActionSchema = createInsertSchema(workflowActions).omit({
+      id: true,
+      createdAt: true
+    });
+    insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).omit({
+      id: true
+    });
+    insertWorkflowScheduleSchema = createInsertSchema(workflowSchedules).omit({
+      id: true,
+      createdAt: true
+    });
+    insertUserDeviceSchema = createInsertSchema(userDevices).omit({
+      id: true,
+      createdAt: true
+    });
   }
 });
 
@@ -2185,6 +2417,132 @@ var init_storage = __esm({
         const [updated] = await db.update(quoteItems).set({ isSelected }).where(eq(quoteItems.id, itemId)).returning();
         return updated || void 0;
       }
+      // ==================== WORKFLOW AUTOMATION STORAGE METHODS ====================
+      // Workflows
+      async getWorkflow(id) {
+        const [workflow] = await db.select().from(workflows).where(eq(workflows.id, id));
+        return workflow || void 0;
+      }
+      async getAllWorkflows() {
+        return await db.select().from(workflows).orderBy(desc(workflows.createdAt));
+      }
+      async getWorkflowsByEntity(entityType) {
+        return await db.select().from(workflows).where(eq(workflows.entityType, entityType)).orderBy(desc(workflows.priority));
+      }
+      async getActiveWorkflows(entityType) {
+        return await db.select().from(workflows).where(
+          and(
+            eq(workflows.entityType, entityType),
+            eq(workflows.status, "active")
+          )
+        ).orderBy(desc(workflows.priority));
+      }
+      async createWorkflow(workflow) {
+        const [newWorkflow] = await db.insert(workflows).values(workflow).returning();
+        return newWorkflow;
+      }
+      async updateWorkflow(id, data) {
+        const [updated] = await db.update(workflows).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(workflows.id, id)).returning();
+        return updated || void 0;
+      }
+      async deleteWorkflow(id) {
+        await db.update(workflows).set({ status: "inactive", updatedAt: /* @__PURE__ */ new Date() }).where(eq(workflows.id, id));
+      }
+      // Workflow Triggers
+      async getWorkflowTriggers(workflowId) {
+        return await db.select().from(workflowTriggers).where(eq(workflowTriggers.workflowId, workflowId));
+      }
+      async createWorkflowTrigger(trigger) {
+        const [newTrigger] = await db.insert(workflowTriggers).values(trigger).returning();
+        return newTrigger;
+      }
+      async updateWorkflowTrigger(id, data) {
+        const [updated] = await db.update(workflowTriggers).set(data).where(eq(workflowTriggers.id, id)).returning();
+        return updated || void 0;
+      }
+      async deleteWorkflowTriggers(workflowId) {
+        await db.delete(workflowTriggers).where(eq(workflowTriggers.workflowId, workflowId));
+      }
+      // Workflow Actions
+      async getWorkflowActions(workflowId) {
+        return await db.select().from(workflowActions).where(eq(workflowActions.workflowId, workflowId)).orderBy(workflowActions.executionOrder);
+      }
+      async createWorkflowAction(action) {
+        const [newAction] = await db.insert(workflowActions).values(action).returning();
+        return newAction;
+      }
+      async updateWorkflowAction(id, data) {
+        const [updated] = await db.update(workflowActions).set(data).where(eq(workflowActions.id, id)).returning();
+        return updated || void 0;
+      }
+      async deleteWorkflowActions(workflowId) {
+        await db.delete(workflowActions).where(eq(workflowActions.workflowId, workflowId));
+      }
+      // Workflow Executions
+      async getWorkflowExecution(id) {
+        const [execution] = await db.select().from(workflowExecutions).where(eq(workflowExecutions.id, id));
+        return execution || void 0;
+      }
+      async getWorkflowExecutions(workflowId) {
+        return await db.select().from(workflowExecutions).where(eq(workflowExecutions.workflowId, workflowId)).orderBy(desc(workflowExecutions.triggeredAt)).limit(100);
+      }
+      async getEntityWorkflowExecutions(entityType, entityId) {
+        return await db.select().from(workflowExecutions).where(
+          and(
+            eq(workflowExecutions.entityType, entityType),
+            eq(workflowExecutions.entityId, entityId)
+          )
+        ).orderBy(desc(workflowExecutions.triggeredAt));
+      }
+      async createWorkflowExecution(execution) {
+        const [newExecution] = await db.insert(workflowExecutions).values(execution).returning();
+        return newExecution;
+      }
+      async updateWorkflowExecution(id, data) {
+        const [updated] = await db.update(workflowExecutions).set(data).where(eq(workflowExecutions.id, id)).returning();
+        return updated || void 0;
+      }
+      // Workflow Schedules
+      async getWorkflowSchedule(workflowId) {
+        const [schedule] = await db.select().from(workflowSchedules).where(eq(workflowSchedules.workflowId, workflowId));
+        return schedule || void 0;
+      }
+      async getAllWorkflowSchedules() {
+        return await db.select().from(workflowSchedules).orderBy(workflowSchedules.nextRunAt);
+      }
+      async getActiveWorkflowSchedules() {
+        return await db.select().from(workflowSchedules).where(eq(workflowSchedules.isActive, true)).orderBy(workflowSchedules.nextRunAt);
+      }
+      async createWorkflowSchedule(schedule) {
+        const [newSchedule] = await db.insert(workflowSchedules).values(schedule).returning();
+        return newSchedule;
+      }
+      async updateWorkflowSchedule(id, data) {
+        const [updated] = await db.update(workflowSchedules).set(data).where(eq(workflowSchedules.id, id)).returning();
+        return updated || void 0;
+      }
+      async deleteWorkflowSchedule(workflowId) {
+        await db.delete(workflowSchedules).where(eq(workflowSchedules.workflowId, workflowId));
+      }
+      // User Devices
+      async createUserDevice(device) {
+        const [newItem] = await db.insert(userDevices).values(device).returning();
+        return newItem;
+      }
+      async getUserDevices(userId) {
+        return db.select().from(userDevices).where(eq(userDevices.userId, userId)).orderBy(desc(userDevices.lastActive));
+      }
+      async getUserDevice(id) {
+        const [device] = await db.select().from(userDevices).where(eq(userDevices.id, id));
+        return device;
+      }
+      async updateUserDevice(id, data) {
+        const [updated] = await db.update(userDevices).set(data).where(eq(userDevices.id, id)).returning();
+        return updated;
+      }
+      async deleteUserDevice(id) {
+        await db.delete(userDevices).where(eq(userDevices.id, id));
+      }
     };
     storage = new DatabaseStorage();
   }
@@ -2285,12 +2643,17 @@ var init_permissions_service = __esm({
           { resource: "users", action: "edit" },
           { resource: "users", action: "delete" },
           { resource: "settings", action: "view" },
+          { resource: "settings", action: "create" },
+          { resource: "settings", action: "edit" },
+          { resource: "settings", action: "delete" },
           { resource: "settings", action: "manage" },
           { resource: "subscriptions", action: "view" },
           { resource: "subscriptions", action: "create" },
           { resource: "subscriptions", action: "edit" },
           { resource: "subscriptions", action: "delete" },
-          { resource: "subscriptions", action: "cancel" }
+          { resource: "subscriptions", action: "cancel" },
+          { resource: "subscriptions", action: "cancel" },
+          { resource: "analytics", action: "view" }
         ]
       },
       sales_executive: {
@@ -2350,7 +2713,9 @@ var init_permissions_service = __esm({
           { resource: "subscriptions", action: "view" },
           { resource: "subscriptions", action: "create" },
           { resource: "subscriptions", action: "edit" },
-          { resource: "subscriptions", action: "cancel" }
+          { resource: "subscriptions", action: "cancel" },
+          { resource: "subscriptions", action: "cancel" },
+          { resource: "analytics", action: "view" }
         ]
       },
       purchase_operations: {
@@ -2407,7 +2772,9 @@ var init_permissions_service = __esm({
           { resource: "subscriptions", action: "view" },
           { resource: "subscriptions", action: "create" },
           { resource: "subscriptions", action: "edit" },
-          { resource: "subscriptions", action: "cancel" }
+          { resource: "subscriptions", action: "cancel" },
+          { resource: "subscriptions", action: "cancel" },
+          { resource: "analytics", action: "view" }
         ]
       },
       viewer: {
@@ -2744,7 +3111,39 @@ var init_feature_flags = __esm({
       ui_responsiveDesign: true,
       // ==================== INTEGRATIONS ====================
       integration_vercelAnalytics: true,
-      integration_externalApi: true
+      integration_externalApi: true,
+      // ==================== WORKFLOW AUTOMATION ====================
+      // Workflow Module
+      workflows_module: true,
+      workflows_create: true,
+      workflows_edit: true,
+      workflows_delete: true,
+      workflows_execute: true,
+      workflows_test: true,
+      // Workflow Pages
+      pages_workflows: true,
+      pages_workflowBuilder: true,
+      // Workflow Triggers
+      workflows_trigger_statusChange: true,
+      workflows_trigger_amountThreshold: true,
+      workflows_trigger_fieldChange: true,
+      workflows_trigger_dateBased: true,
+      workflows_trigger_scheduled: true,
+      workflows_trigger_manual: true,
+      // Workflow Actions
+      workflows_action_sendEmail: true,
+      workflows_action_createNotification: true,
+      workflows_action_updateField: true,
+      workflows_action_assignUser: true,
+      workflows_action_createTask: true,
+      workflows_action_escalate: true,
+      workflows_action_webhook: true,
+      workflows_action_activityLog: true,
+      // Approval Rules (Settings)
+      approvalRules_module: true,
+      approvalRules_create: true,
+      approvalRules_edit: true,
+      approvalRules_delete: true
     };
     featureFlags = getFeatureFlags();
   }
@@ -7456,6 +7855,28 @@ router2.post("/login", async (req, res) => {
       entityType: "user",
       entityId: user.id
     });
+    try {
+      const userAgent = req.headers["user-agent"] || "Unknown";
+      const ip = req.ip || req.socket.remoteAddress || "Unknown";
+      let deviceType = "desktop";
+      if (/mobile/i.test(userAgent)) deviceType = "mobile";
+      else if (/tablet|ipad/i.test(userAgent)) deviceType = "tablet";
+      await storage.createUserDevice({
+        userId: user.id,
+        deviceType,
+        browser: userAgent,
+        // Storing full UA for now suitable for simple display
+        os: "Unknown",
+        ipAddress: typeof ip === "string" ? ip : "Unknown",
+        // Handle potential array from x-forwarded-for if not parsed
+        userAgent,
+        tokenHash: refreshToken,
+        // Storing refresh token directly (or should hash it? kept simple for now matching schema)
+        isActive: true
+      });
+    } catch (e) {
+      logger.error("Failed to track device:", e);
+    }
     logger.info("Login successful");
     return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
   } catch (error) {
@@ -7648,6 +8069,30 @@ router2.get("/ws-token", authMiddleware, async (req, res) => {
   } catch (error) {
     logger.error("WebSocket token error:", error);
     return res.status(500).json({ error: "Failed to generate WebSocket token" });
+  }
+});
+router2.get("/devices", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    const devices = await storage.getUserDevices(req.user.id);
+    return res.json(devices);
+  } catch (error) {
+    logger.error("Failed to fetch devices:", error);
+    return res.status(500).json({ error: "Failed to fetch devices" });
+  }
+});
+router2.delete("/devices/:id", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    const device = await storage.getUserDevice(req.params.id);
+    if (!device || device.userId !== req.user.id) {
+      return res.status(404).json({ error: "Device not found" });
+    }
+    await storage.deleteUserDevice(req.params.id);
+    return res.json({ success: true });
+  } catch (error) {
+    logger.error("Failed to revoke device:", error);
+    return res.status(500).json({ error: "Failed to revoke device" });
   }
 });
 var auth_routes_default = router2;
@@ -12130,7 +12575,7 @@ init_schema();
 import { eq as eq9 } from "drizzle-orm";
 init_feature_flags();
 var router8 = Router8();
-router8.get("/", authMiddleware, requireFeature("products_module"), async (req, res) => {
+router8.get("/", authMiddleware, requireFeature("products_module"), requirePermission("products", "view"), async (req, res) => {
   try {
     const products2 = await db.select().from(products).orderBy(products.name);
     res.json(products2);
@@ -12139,7 +12584,7 @@ router8.get("/", authMiddleware, requireFeature("products_module"), async (req, 
     res.status(500).json({ error: "Failed to fetch products" });
   }
 });
-router8.get("/:id", authMiddleware, requireFeature("products_module"), async (req, res) => {
+router8.get("/:id", authMiddleware, requireFeature("products_module"), requirePermission("products", "view"), async (req, res) => {
   try {
     const [product] = await db.select().from(products).where(eq9(products.id, req.params.id));
     if (!product) {
@@ -12151,7 +12596,7 @@ router8.get("/:id", authMiddleware, requireFeature("products_module"), async (re
     res.status(500).json({ error: "Failed to fetch product" });
   }
 });
-router8.post("/", authMiddleware, requireFeature("products_create"), async (req, res) => {
+router8.post("/", authMiddleware, requireFeature("products_create"), requirePermission("products", "create"), async (req, res) => {
   try {
     if (req.body && typeof req.body.unitPrice === "number") {
       req.body.unitPrice = String(req.body.unitPrice);
@@ -12185,7 +12630,7 @@ router8.post("/", authMiddleware, requireFeature("products_create"), async (req,
     res.status(500).json({ error: "Failed to create product" });
   }
 });
-router8.patch("/:id", authMiddleware, requireFeature("products_edit"), async (req, res) => {
+router8.patch("/:id", authMiddleware, requireFeature("products_edit"), requirePermission("products", "edit"), async (req, res) => {
   try {
     const updates = { ...req.body, updatedAt: /* @__PURE__ */ new Date() };
     if (!isFeatureEnabled("products_sku") && updates.sku) delete updates.sku;
@@ -12632,11 +13077,8 @@ init_schema();
 init_numbering_service();
 import { eq as eq11 } from "drizzle-orm";
 var router10 = Router10();
-router10.get("/settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.get("/settings", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can access settings" });
-    }
     const settingsArray = await storage.getAllSettings();
     const settingsObject = settingsArray.reduce((acc, setting) => {
       acc[setting.key] = setting.value;
@@ -12648,11 +13090,8 @@ router10.get("/settings", authMiddleware, requireFeature("admin_settings"), asyn
     return res.status(500).json({ error: "Failed to fetch settings" });
   }
 });
-router10.post("/settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/settings", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can update settings" });
-    }
     const body = req.body;
     const ALLOWED_SETTINGS_KEYS = [
       // Company info
@@ -12754,11 +13193,8 @@ router10.post("/settings", authMiddleware, requireFeature("admin_settings"), asy
     return res.status(500).json({ error: error.message || "Failed to update setting" });
   }
 });
-router10.get("/bank-details", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.get("/bank-details", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can access bank details" });
-    }
     const details = await storage.getAllBankDetails();
     return res.json(details);
   } catch (error) {
@@ -12773,11 +13209,8 @@ router10.get("/bank-details/active", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch active bank details" });
   }
 });
-router10.post("/bank-details", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/bank-details", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can create bank details" });
-    }
     const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode } = req.body;
     if (!bankName || !accountNumber || !accountName || !ifscCode) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -12803,11 +13236,8 @@ router10.post("/bank-details", authMiddleware, requireFeature("admin_settings"),
     return res.status(500).json({ error: error.message || "Failed to create bank details" });
   }
 });
-router10.put("/bank-details/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.put("/bank-details/:id", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can update bank details" });
-    }
     const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode, isActive } = req.body;
     const detail = await storage.updateBankDetails(
       req.params.id,
@@ -12836,11 +13266,8 @@ router10.put("/bank-details/:id", authMiddleware, requireFeature("admin_settings
     return res.status(500).json({ error: error.message || "Failed to update bank details" });
   }
 });
-router10.delete("/bank-details/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.delete("/bank-details/:id", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can delete bank details" });
-    }
     await storage.deleteBankDetails(req.params.id);
     await storage.createActivityLog({
       userId: req.user.id,
@@ -12853,11 +13280,8 @@ router10.delete("/bank-details/:id", authMiddleware, requireFeature("admin_setti
     return res.status(500).json({ error: error.message || "Failed to delete bank details" });
   }
 });
-router10.post("/settings/migrate-document-numbers", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/settings/migrate-document-numbers", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can migrate document numbers" });
-    }
     const { DocumentNumberMigrationService: DocumentNumberMigrationService2 } = await Promise.resolve().then(() => (init_document_number_migration_service(), document_number_migration_service_exports));
     const options = {
       migrateQuotes: req.body.migrateQuotes !== false,
@@ -12887,11 +13311,8 @@ router10.post("/settings/migrate-document-numbers", authMiddleware, requireFeatu
     });
   }
 });
-router10.get("/numbering/counters", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.get("/numbering/counters", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can access counter values" });
-    }
     const { NumberingService: NumberingService2 } = await Promise.resolve().then(() => (init_numbering_service(), numbering_service_exports));
     const { featureFlags: featureFlags2 } = await Promise.resolve().then(() => (init_feature_flags(), feature_flags_exports));
     const year = (/* @__PURE__ */ new Date()).getFullYear();
@@ -12923,11 +13344,8 @@ router10.get("/numbering/counters", authMiddleware, requireFeature("admin_settin
     return res.status(500).json({ error: error.message || "Failed to get counters" });
   }
 });
-router10.post("/numbering/reset-counter", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/numbering/reset-counter", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can reset counters" });
-    }
     const { type, year } = req.body;
     if (!type) {
       return res.status(400).json({ error: "Counter type is required" });
@@ -12968,11 +13386,8 @@ router10.post("/numbering/reset-counter", authMiddleware, requireFeature("admin_
     return res.status(500).json({ error: error.message || "Failed to reset counter" });
   }
 });
-router10.post("/numbering/set-counter", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/numbering/set-counter", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can set counters" });
-    }
     const { type, year, value } = req.body;
     if (!type || value === void 0) {
       return res.status(400).json({ error: "Counter type and value are required" });
@@ -13042,11 +13457,8 @@ router10.get("/tax-rates", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch tax rates" });
   }
 });
-router10.post("/tax-rates", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/tax-rates", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "create"), async (req, res) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-    }
     const { region, taxType, sgstRate, cgstRate, igstRate, description } = req.body;
     if (!region || !taxType) {
       return res.status(400).json({ error: "Region and taxType are required" });
@@ -13082,11 +13494,8 @@ router10.post("/tax-rates", authMiddleware, requireFeature("admin_settings"), as
     return res.status(500).json({ error: error.message || "Failed to create tax rate" });
   }
 });
-router10.delete("/tax-rates/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.delete("/tax-rates/:id", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "delete"), async (req, res) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-    }
     await db.delete(taxRates).where(eq11(taxRates.id, req.params.id));
     await storage.createActivityLog({
       userId: req.user.id,
@@ -13109,11 +13518,8 @@ router10.get("/payment-terms", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch payment terms" });
   }
 });
-router10.post("/payment-terms", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/payment-terms", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "create"), async (req, res) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-    }
     const { name, days, description, isDefault } = req.body;
     if (!name || days === void 0) {
       return res.status(400).json({ error: "Name and days are required" });
@@ -13140,11 +13546,8 @@ router10.post("/payment-terms", authMiddleware, requireFeature("admin_settings")
     return res.status(500).json({ error: error.message || "Failed to create payment term" });
   }
 });
-router10.delete("/payment-terms/:id", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.delete("/payment-terms/:id", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "delete"), async (req, res) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-    }
     await db.delete(paymentTerms).where(eq11(paymentTerms.id, req.params.id));
     await storage.createActivityLog({
       userId: req.user.id,
@@ -13170,11 +13573,8 @@ router10.get("/currency-settings", authMiddleware, async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch currency settings" });
   }
 });
-router10.post("/currency-settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/currency-settings", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
     const { baseCurrency, supportedCurrencies, exchangeRates } = req.body;
     const settings2 = await storage.upsertCurrencySettings({
       baseCurrency: baseCurrency || "INR",
@@ -13192,11 +13592,8 @@ router10.post("/currency-settings", authMiddleware, requireFeature("admin_settin
     return res.status(500).json({ error: error.message || "Failed to update currency settings" });
   }
 });
-router10.get("/admin/settings", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.get("/admin/settings", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
     const settings2 = await storage.getAllSettings();
     const settingsMap = {};
     settings2.forEach((s) => {
@@ -13246,11 +13643,8 @@ router10.get("/admin/settings", authMiddleware, requireFeature("admin_settings")
     return res.status(500).json({ error: "Failed to fetch admin settings" });
   }
 });
-router10.post("/admin/settings/company", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/admin/settings/company", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
     const companySettings = req.body;
     for (const [key, value] of Object.entries(companySettings)) {
       await storage.upsertSetting({
@@ -13269,11 +13663,8 @@ router10.post("/admin/settings/company", authMiddleware, requireFeature("admin_s
     return res.status(500).json({ error: error.message || "Failed to update company settings" });
   }
 });
-router10.post("/admin/settings/taxation", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/admin/settings/taxation", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
     const taxSettings = req.body;
     for (const [key, value] of Object.entries(taxSettings)) {
       await storage.upsertSetting({
@@ -13292,11 +13683,8 @@ router10.post("/admin/settings/taxation", authMiddleware, requireFeature("admin_
     return res.status(500).json({ error: error.message || "Failed to update tax settings" });
   }
 });
-router10.post("/admin/settings/email", authMiddleware, requireFeature("admin_settings"), async (req, res) => {
+router10.post("/admin/settings/email", authMiddleware, requireFeature("admin_settings"), requirePermission("settings", "manage"), async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
     const emailSettings = req.body;
     for (const [key, value] of Object.entries(emailSettings)) {
       await storage.upsertSetting({
@@ -13541,6 +13929,7 @@ import { Router as Router12 } from "express";
 init_schema();
 init_logger();
 var router12 = Router12();
+router12.use(requireFeature("approvalRules_module"));
 router12.get("/", authMiddleware, requirePermission("settings", "view"), async (req, res) => {
   try {
     const rules = await storage.getApprovalRules();
@@ -14218,7 +14607,7 @@ init_db();
 import { sql as sql11 } from "drizzle-orm";
 import ExcelJS2 from "exceljs";
 var router14 = Router14();
-router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const quotes2 = await storage.getAllQuotes();
     const clients3 = await storage.getAllClients();
@@ -14309,7 +14698,7 @@ router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), a
     return res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/:timeRange(\\d+)", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/:timeRange(\\d+)", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
     const quotes2 = await storage.getAllQuotes();
@@ -14387,7 +14776,7 @@ router14.get("/:timeRange(\\d+)", authMiddleware, requireFeature("analytics_modu
     return res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/forecast", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/forecast", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const monthsAhead = req.query.months ? Number(req.query.months) : 3;
     const forecast = await analyticsService.getRevenueForecast(monthsAhead);
@@ -14397,7 +14786,7 @@ router14.get("/forecast", authMiddleware, requireFeature("analytics_module"), as
     return res.status(500).json({ error: "Failed to fetch forecast" });
   }
 });
-router14.get("/deal-distribution", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/deal-distribution", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const distribution = await analyticsService.getDealDistribution();
     return res.json(distribution);
@@ -14406,7 +14795,7 @@ router14.get("/deal-distribution", authMiddleware, requireFeature("analytics_mod
     return res.status(500).json({ error: "Failed to fetch deal distribution" });
   }
 });
-router14.get("/regional", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/regional", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const regionalData = await analyticsService.getRegionalDistribution();
     return res.json(regionalData);
@@ -14415,7 +14804,7 @@ router14.get("/regional", authMiddleware, requireFeature("analytics_module"), as
     return res.status(500).json({ error: "Failed to fetch regional data" });
   }
 });
-router14.post("/custom-report", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.post("/custom-report", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const { startDate, endDate, status, minAmount, maxAmount } = req.body;
     const report = await analyticsService.getCustomReport({
@@ -14431,7 +14820,7 @@ router14.post("/custom-report", authMiddleware, requireFeature("analytics_module
     return res.status(500).json({ error: "Failed to generate custom report" });
   }
 });
-router14.get("/pipeline", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/pipeline", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const pipeline = await analyticsService.getSalesPipeline();
     return res.json(pipeline);
@@ -14440,7 +14829,7 @@ router14.get("/pipeline", authMiddleware, requireFeature("analytics_module"), as
     return res.status(500).json({ error: "Failed to fetch pipeline data" });
   }
 });
-router14.get("/client/:clientId/ltv", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/client/:clientId/ltv", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const ltv = await analyticsService.getClientLifetimeValue(req.params.clientId);
     return res.json(ltv);
@@ -14449,7 +14838,7 @@ router14.get("/client/:clientId/ltv", authMiddleware, requireFeature("analytics_
     return res.status(500).json({ error: "Failed to fetch client LTV" });
   }
 });
-router14.get("/competitor-insights", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/competitor-insights", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const insights = await analyticsService.getCompetitorInsights();
     return res.json(insights);
@@ -14458,7 +14847,7 @@ router14.get("/competitor-insights", authMiddleware, requireFeature("analytics_m
     return res.status(500).json({ error: "Failed to fetch competitor insights" });
   }
 });
-router14.get("/vendor-spend", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/vendor-spend", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const timeRange = req.query.timeRange ? Number(req.query.timeRange) : 12;
     const vendors2 = await storage.getAllVendors();
@@ -14541,7 +14930,7 @@ router14.get("/vendor-spend", authMiddleware, requireFeature("analytics_module")
     return res.status(500).json({ error: "Failed to fetch vendor analytics" });
   }
 });
-router14.get("/export", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/export", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const timeRange = req.query.timeRange || "12";
     let startDate;
@@ -14643,7 +15032,7 @@ router14.get("/export", authMiddleware, requireFeature("analytics_module"), asyn
     res.status(500).json({ error: "Failed to export report" });
   }
 });
-router14.get("/sales-quotes", authMiddleware, requireFeature("dashboard_salesQuotes"), async (req, res) => {
+router14.get("/sales-quotes", authMiddleware, requireFeature("dashboard_salesQuotes"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const allQuotes = await storage.getAllQuotes();
     const allClients = await storage.getAllClients();
@@ -14728,7 +15117,7 @@ router14.get("/sales-quotes", authMiddleware, requireFeature("dashboard_salesQuo
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/vendor-po", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/vendor-po", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const allPOs = await db.execute(sql11`
       SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
@@ -14804,7 +15193,7 @@ router14.get("/vendor-po", authMiddleware, requireFeature("analytics_module"), a
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
-router14.get("/invoice-collections", authMiddleware, requireFeature("analytics_module"), async (req, res) => {
+router14.get("/invoice-collections", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const allInvoices = await storage.getAllInvoices();
     const allClients = await storage.getAllClients();
@@ -16881,6 +17270,814 @@ router20.post("/subscriptions/:id/cancel", authMiddleware, requireFeature("subsc
 });
 var subscriptionRoutes = router20;
 
+// server/routes/workflows.routes.ts
+import { Router as Router21 } from "express";
+init_storage();
+
+// server/services/workflow.service.ts
+init_storage();
+init_logger();
+var WorkflowService = class {
+  /**
+   * Create a complete workflow with triggers and actions
+   */
+  static async createWorkflow(data) {
+    try {
+      const workflow = await storage.createWorkflow(data.workflow);
+      logger.info(`[WorkflowService] Created workflow: ${workflow.id} (${workflow.name})`);
+      const triggers = [];
+      for (const trigger of data.triggers) {
+        const created = await storage.createWorkflowTrigger({
+          ...trigger,
+          workflowId: workflow.id
+        });
+        triggers.push(created);
+      }
+      logger.info(`[WorkflowService] Created ${triggers.length} triggers for workflow ${workflow.id}`);
+      const actions = [];
+      for (const action of data.actions) {
+        const created = await storage.createWorkflowAction({
+          ...action,
+          workflowId: workflow.id
+        });
+        actions.push(created);
+      }
+      logger.info(`[WorkflowService] Created ${actions.length} actions for workflow ${workflow.id}`);
+      if (data.schedule) {
+        await storage.createWorkflowSchedule({
+          ...data.schedule,
+          workflowId: workflow.id
+        });
+        logger.info(`[WorkflowService] Created schedule for workflow ${workflow.id}`);
+      }
+      return { workflow, triggers, actions };
+    } catch (error) {
+      logger.error(`[WorkflowService] Error creating workflow:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Update workflow with new triggers and actions
+   */
+  static async updateWorkflow(workflowId, data) {
+    try {
+      const result = {};
+      if (data.workflow) {
+        result.workflow = await storage.updateWorkflow(workflowId, data.workflow);
+        logger.info(`[WorkflowService] Updated workflow: ${workflowId}`);
+      }
+      if (data.triggers) {
+        await storage.deleteWorkflowTriggers(workflowId);
+        const triggers = [];
+        for (const trigger of data.triggers) {
+          const created = await storage.createWorkflowTrigger({
+            ...trigger,
+            workflowId
+          });
+          triggers.push(created);
+        }
+        result.triggers = triggers;
+        logger.info(`[WorkflowService] Updated ${triggers.length} triggers for workflow ${workflowId}`);
+      }
+      if (data.actions) {
+        await storage.deleteWorkflowActions(workflowId);
+        const actions = [];
+        for (const action of data.actions) {
+          const created = await storage.createWorkflowAction({
+            ...action,
+            workflowId
+          });
+          actions.push(created);
+        }
+        result.actions = actions;
+        logger.info(`[WorkflowService] Updated ${actions.length} actions for workflow ${workflowId}`);
+      }
+      return result;
+    } catch (error) {
+      logger.error(`[WorkflowService] Error updating workflow ${workflowId}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Get complete workflow with triggers and actions
+   */
+  static async getWorkflowComplete(workflowId) {
+    try {
+      const workflow = await storage.getWorkflow(workflowId);
+      if (!workflow) {
+        return {
+          workflow: void 0,
+          triggers: [],
+          actions: []
+        };
+      }
+      const triggers = await storage.getWorkflowTriggers(workflowId);
+      const actions = await storage.getWorkflowActions(workflowId);
+      const schedule = await storage.getWorkflowSchedule(workflowId);
+      return {
+        workflow,
+        triggers,
+        actions,
+        schedule
+      };
+    } catch (error) {
+      logger.error(`[WorkflowService] Error getting workflow ${workflowId}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Delete workflow (soft delete - sets status to inactive)
+   */
+  static async deleteWorkflow(workflowId) {
+    try {
+      await storage.deleteWorkflow(workflowId);
+      logger.info(`[WorkflowService] Deleted workflow: ${workflowId}`);
+    } catch (error) {
+      logger.error(`[WorkflowService] Error deleting workflow ${workflowId}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Get all active workflows for a specific entity type
+   */
+  static async getActiveWorkflowsForEntity(entityType) {
+    try {
+      return await storage.getActiveWorkflows(entityType);
+    } catch (error) {
+      logger.error(`[WorkflowService] Error getting active workflows for ${entityType}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Toggle workflow status (active/inactive)
+   */
+  static async toggleWorkflowStatus(workflowId, isActive) {
+    try {
+      const status = isActive ? "active" : "inactive";
+      const updated = await storage.updateWorkflow(workflowId, { status });
+      logger.info(`[WorkflowService] Set workflow ${workflowId} status to ${status}`);
+      return updated;
+    } catch (error) {
+      logger.error(`[WorkflowService] Error toggling workflow status:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Validate workflow configuration
+   * Ensures triggers and actions are properly configured
+   */
+  static validateWorkflowConfig(data) {
+    const errors = [];
+    if (data.triggers.length === 0) {
+      errors.push("Workflow must have at least one trigger");
+    }
+    for (const trigger of data.triggers) {
+      if (!trigger.triggerType) {
+        errors.push("Trigger must have a type");
+      }
+      if (!trigger.conditions || Object.keys(trigger.conditions).length === 0) {
+        errors.push(`Trigger of type ${trigger.triggerType} must have conditions`);
+      }
+    }
+    if (data.actions.length === 0) {
+      errors.push("Workflow must have at least one action");
+    }
+    for (const action of data.actions) {
+      if (!action.actionType) {
+        errors.push("Action must have a type");
+      }
+      if (!action.actionConfig || Object.keys(action.actionConfig).length === 0) {
+        errors.push(`Action of type ${action.actionType} must have configuration`);
+      }
+    }
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+};
+
+// server/services/workflow-engine.service.ts
+init_storage();
+init_logger();
+var WorkflowEngine = class {
+  /**
+   * Trigger workflows for a specific entity event
+   * This is called whenever an entity changes (quote status change, invoice created, etc.)
+   */
+  static async triggerWorkflows(entityType, entityId, context) {
+    try {
+      const workflows2 = await storage.getActiveWorkflows(entityType);
+      if (workflows2.length === 0) {
+        logger.debug(`[WorkflowEngine] No active workflows for ${entityType}`);
+        return;
+      }
+      logger.info(`[WorkflowEngine] Found ${workflows2.length} active workflows for ${entityType}`);
+      for (const workflow of workflows2) {
+        try {
+          const shouldExecute = await this.evaluateWorkflow(workflow, context);
+          if (shouldExecute) {
+            logger.info(`[WorkflowEngine] Executing workflow: ${workflow.name} (${workflow.id})`);
+            await this.executeWorkflow(workflow, entityType, entityId, context);
+          }
+        } catch (error) {
+          logger.error(`[WorkflowEngine] Error processing workflow ${workflow.id}:`, error);
+        }
+      }
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error triggering workflows for ${entityType}:`, error);
+    }
+  }
+  /**
+  /**
+       * Evaluate if a workflow should execute based on its triggers
+       */
+  static async evaluateWorkflow(workflow, context) {
+    try {
+      const triggers = await storage.getWorkflowTriggers(workflow.id);
+      if (triggers.length === 0) {
+        logger.warn(`[WorkflowEngine] Workflow ${workflow.id} has no triggers`);
+        return false;
+      }
+      const logic = workflow.triggerLogic || "AND";
+      const results = [];
+      for (const trigger of triggers) {
+        if (!trigger.isActive) continue;
+        const matches = this.evaluateTrigger(trigger, context);
+        results.push(matches);
+      }
+      if (logic === "AND") {
+        return results.every((r) => r === true);
+      } else {
+        return results.some((r) => r === true);
+      }
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error evaluating workflow ${workflow.id}:`, error);
+      return false;
+    }
+  }
+  /**
+   * Evaluate a single trigger condition
+   */
+  static evaluateTrigger(trigger, context) {
+    const conditions = trigger.conditions;
+    switch (trigger.triggerType) {
+      case "status_change":
+        return this.evaluateStatusChange(conditions, context);
+      case "amount_threshold":
+        return this.evaluateAmountThreshold(conditions, context);
+      case "field_change":
+        return this.evaluateFieldChange(conditions, context);
+      case "date_based":
+        return this.evaluateDateBased(conditions, context);
+      case "manual":
+        return context.eventType === "manual";
+      default:
+        logger.warn(`[WorkflowEngine] Unknown trigger type: ${trigger.triggerType}`);
+        return false;
+    }
+  }
+  /**
+   * Evaluate status change trigger
+   * Example: { field: "status", from: "draft", to: "approved" }
+   */
+  static evaluateStatusChange(conditions, context) {
+    if (context.eventType !== "status_change") return false;
+    const field = conditions.field || "status";
+    const from = conditions.from;
+    const to = conditions.to;
+    if (from && to) {
+      return context.oldValue === from && context.newValue === to;
+    }
+    if (to) {
+      return context.newValue === to;
+    }
+    if (from) {
+      return context.oldValue === from;
+    }
+    return context.oldValue !== context.newValue;
+  }
+  /**
+   * Evaluate amount threshold trigger
+   * Example: { field: "total", operator: "greater_than", value: 10000 }
+   */
+  static evaluateAmountThreshold(conditions, context) {
+    const field = conditions.field || "total";
+    const operator = conditions.operator;
+    const threshold = parseFloat(conditions.value);
+    const entityValue = parseFloat(context.entity[field] || 0);
+    switch (operator) {
+      case "greater_than":
+        return entityValue > threshold;
+      case "less_than":
+        return entityValue < threshold;
+      case "equals":
+        return entityValue === threshold;
+      case "greater_than_or_equal":
+        return entityValue >= threshold;
+      case "less_than_or_equal":
+        return entityValue <= threshold;
+      default:
+        return false;
+    }
+  }
+  /**
+   * Evaluate field change trigger
+   * Example: { field: "discount", operator: "greater_than", value: 20 }
+   */
+  static evaluateFieldChange(conditions, context) {
+    if (context.eventType !== "field_change") return false;
+    const field = conditions.field;
+    const operator = conditions.operator;
+    const value = conditions.value;
+    const fieldValue = context.entity[field];
+    switch (operator) {
+      case "equals":
+        return fieldValue == value;
+      case "not_equals":
+        return fieldValue != value;
+      case "greater_than":
+        return parseFloat(fieldValue) > parseFloat(value);
+      case "less_than":
+        return parseFloat(fieldValue) < parseFloat(value);
+      case "contains":
+        return String(fieldValue).includes(String(value));
+      default:
+        return false;
+    }
+  }
+  /**
+   * Evaluate date-based trigger
+   * Example: { field: "dueDate", operator: "days_before", value: 7 }
+   */
+  static evaluateDateBased(conditions, context) {
+    const field = conditions.field;
+    const operator = conditions.operator;
+    const days = parseInt(conditions.value);
+    const dateValue = context.entity[field];
+    if (!dateValue) return false;
+    const targetDate = new Date(dateValue);
+    const today = /* @__PURE__ */ new Date();
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1e3 * 60 * 60 * 24));
+    switch (operator) {
+      case "days_before":
+        return diffDays === days && diffDays > 0;
+      case "days_after":
+        return diffDays === -days && diffDays < 0;
+      case "is_overdue":
+        return diffDays < 0;
+      case "is_today":
+        return diffDays === 0;
+      default:
+        return false;
+    }
+  }
+  /**
+   * Execute a workflow's actions
+   */
+  static async executeWorkflow(workflow, entityType, entityId, context) {
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    const execution = await storage.createWorkflowExecution({
+      workflowId: workflow.id,
+      entityType,
+      entityId,
+      status: "running",
+      triggeredBy: context.triggeredBy || "system",
+      executionLog: []
+    });
+    const executionLog = [];
+    try {
+      const actions = await storage.getWorkflowActions(workflow.id);
+      logger.info(`[WorkflowEngine] Executing ${actions.length} actions for workflow ${workflow.id}`);
+      for (const action of actions) {
+        if (!action.isActive) {
+          executionLog.push({
+            actionId: action.id,
+            actionType: action.actionType,
+            status: "skipped",
+            details: "Action is inactive",
+            timestamp: /* @__PURE__ */ new Date()
+          });
+          continue;
+        }
+        try {
+          if (action.conditionExpression) {
+            const shouldExecute = this.evaluateActionCondition(action.conditionExpression, context);
+            if (!shouldExecute) {
+              executionLog.push({
+                actionId: action.id,
+                actionType: action.actionType,
+                status: "skipped",
+                details: "Condition not met",
+                timestamp: /* @__PURE__ */ new Date()
+              });
+              continue;
+            }
+          }
+          if (action.delayMinutes && action.delayMinutes > 0) {
+            logger.info(`[WorkflowEngine] Delaying action ${action.id} by ${action.delayMinutes} minutes`);
+          }
+          const result = await this.executeAction(action, context);
+          executionLog.push(result);
+        } catch (error) {
+          logger.error(`[WorkflowEngine] Error executing action ${action.id}:`, error);
+          executionLog.push({
+            actionId: action.id,
+            actionType: action.actionType,
+            status: "failed",
+            details: "Action execution failed",
+            error: error.message,
+            timestamp: /* @__PURE__ */ new Date()
+          });
+        }
+      }
+      const executionTime = Date.now() - startTime;
+      await storage.updateWorkflowExecution(execution.id, {
+        status: "completed",
+        completedAt: /* @__PURE__ */ new Date(),
+        executionLog,
+        executionTimeMs: executionTime
+      });
+      logger.info(`[WorkflowEngine] Workflow ${workflow.id} completed in ${executionTime}ms`);
+    } catch (error) {
+      await storage.updateWorkflowExecution(execution.id, {
+        status: "failed",
+        completedAt: /* @__PURE__ */ new Date(),
+        executionLog,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+      logger.error(`[WorkflowEngine] Workflow ${workflow.id} failed:`, error);
+    }
+  }
+  /**
+   * Evaluate action condition expression
+   * Example: "{{quote.total}} > 50000"
+   */
+  static evaluateActionCondition(expression, context) {
+    try {
+      let evaluatedExpression = expression;
+      const matches = expression.match(/\{\{([^}]+)\}\}/g);
+      if (matches) {
+        for (const match of matches) {
+          const path5 = match.replace(/\{\{|\}\}/g, "").trim();
+          const value = this.getNestedValue(context.entity, path5);
+          evaluatedExpression = evaluatedExpression.replace(match, String(value));
+        }
+      }
+      return new Function("return " + evaluatedExpression)();
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error evaluating condition: ${expression}`, error);
+      return false;
+    }
+  }
+  /**
+   * Get nested value from object using dot notation
+   * Example: getNestedValue({ quote: { total: 1000 } }, "quote.total") => 1000
+   */
+  static getNestedValue(obj, path5) {
+    return path5.split(".").reduce((current, key) => current?.[key], obj);
+  }
+  /**
+   * Execute a single action
+   */
+  static async executeAction(action, context) {
+    const config = action.actionConfig;
+    try {
+      switch (action.actionType) {
+        case "send_email":
+          await this.executeSendEmail(config, context);
+          break;
+        case "create_notification":
+          await this.executeCreateNotification(config, context);
+          break;
+        case "update_field":
+          await this.executeUpdateField(config, context);
+          break;
+        case "create_activity_log":
+          await this.executeCreateActivityLog(config, context);
+          break;
+        default:
+          logger.warn(`[WorkflowEngine] Unimplemented action type: ${action.actionType}`);
+      }
+      return {
+        actionId: action.id,
+        actionType: action.actionType,
+        status: "success",
+        details: `Successfully executed ${action.actionType}`,
+        timestamp: /* @__PURE__ */ new Date()
+      };
+    } catch (error) {
+      return {
+        actionId: action.id,
+        actionType: action.actionType,
+        status: "failed",
+        details: "Action execution failed",
+        error: error.message,
+        timestamp: /* @__PURE__ */ new Date()
+      };
+    }
+  }
+  /**
+   * Send email action
+   */
+  static async executeSendEmail(config, context) {
+    const to = this.interpolateTemplate(config.to, context);
+    const subject = this.interpolateTemplate(config.subject, context);
+    const body = this.interpolateTemplate(config.body, context);
+    logger.info(`[WorkflowEngine] Would send email to: ${to}, subject: ${subject}`);
+  }
+  /**
+   * Create notification action
+   */
+  static async executeCreateNotification(config, context) {
+    const userId = this.interpolateTemplate(config.userId, context);
+    const title = this.interpolateTemplate(config.title, context);
+    const message = this.interpolateTemplate(config.message, context);
+    await NotificationService.create({
+      userId,
+      type: config.type || "system_announcement",
+      title,
+      message,
+      entityType: context.entity.entityType,
+      entityId: context.entity.id
+    });
+    logger.info(`[WorkflowEngine] Created notification for user: ${userId}`);
+  }
+  /**
+   * Update field action
+   */
+  static async executeUpdateField(config, context) {
+    const field = config.field;
+    const value = this.interpolateTemplate(config.value, context);
+    logger.info(`[WorkflowEngine] Would update field ${field} to ${value}`);
+  }
+  /**
+   * Create activity log action
+   */
+  static async executeCreateActivityLog(config, context) {
+    const action = this.interpolateTemplate(config.action, context);
+    const details = this.interpolateTemplate(config.details, context);
+    await storage.createActivityLog({
+      userId: config.userId || context.entity.createdBy,
+      action,
+      entityType: context.entity.entityType || "workflow",
+      entityId: context.entity.id,
+      metadata: { details }
+    });
+    logger.info(`[WorkflowEngine] Created activity log: ${action}`);
+  }
+  /**
+   * Template interpolation
+   * Replaces {{variable}} with actual values from context
+   */
+  static interpolateTemplate(template, context) {
+    if (!template) return "";
+    let result = template;
+    const matches = template.match(/\{\{([^}]+)\}\}/g);
+    if (matches) {
+      for (const match of matches) {
+        const path5 = match.replace(/\{\{|\}\}/g, "").trim();
+        const value = this.getNestedValue(context.entity, path5) || "";
+        result = result.replace(match, String(value));
+      }
+    }
+    return result;
+  }
+  /**
+   * Run scheduled workflows (called by cron job)
+   */
+  static async runScheduledWorkflows() {
+    try {
+      const schedules = await storage.getActiveWorkflowSchedules();
+      const now = /* @__PURE__ */ new Date();
+      for (const schedule of schedules) {
+        if (schedule.nextRunAt && new Date(schedule.nextRunAt) <= now) {
+          logger.info(`[WorkflowEngine] Running scheduled workflow: ${schedule.workflowId}`);
+          const workflow = await storage.getWorkflow(schedule.workflowId);
+          if (workflow && workflow.status === "active") {
+            await this.triggerWorkflows(workflow.entityType, "scheduled", {
+              eventType: "time_based",
+              entity: {},
+              triggeredBy: "schedule"
+            });
+          }
+          await storage.updateWorkflowSchedule(schedule.id, {
+            lastRunAt: now
+            // nextRunAt: calculateNextRun(schedule.cronExpression),
+          });
+        }
+      }
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error running scheduled workflows:`, error);
+    }
+  }
+};
+
+// server/routes/workflows.routes.ts
+init_logger();
+var router21 = Router21();
+router21.use(requireFeature("workflows_module"));
+router21.get("/", authMiddleware, requirePermission("settings", "view"), async (req, res) => {
+  try {
+    const workflows2 = await storage.getAllWorkflows();
+    res.json(workflows2);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error fetching workflows:", error);
+    res.status(500).json({ error: "Failed to fetch workflows" });
+  }
+});
+router21.get("/entity/:entityType", authMiddleware, requirePermission("settings", "view"), async (req, res) => {
+  try {
+    const { entityType } = req.params;
+    const workflows2 = await storage.getWorkflowsByEntity(entityType);
+    res.json(workflows2);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error fetching workflows by entity:", error);
+    res.status(500).json({ error: "Failed to fetch workflows" });
+  }
+});
+router21.get("/:id", authMiddleware, requirePermission("settings", "view"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const workflowData = await WorkflowService.getWorkflowComplete(id);
+    if (!workflowData.workflow) {
+      return res.status(404).json({ error: "Workflow not found" });
+    }
+    res.json(workflowData);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error fetching workflow:", error);
+    res.status(500).json({ error: "Failed to fetch workflow" });
+  }
+});
+router21.post("/", authMiddleware, requirePermission("settings", "create"), async (req, res) => {
+  try {
+    const { workflow, triggers, actions, schedule } = req.body;
+    if (!workflow || !triggers || !actions) {
+      return res.status(400).json({
+        error: "Missing required fields: workflow, triggers, and actions are required"
+      });
+    }
+    const validation = WorkflowService.validateWorkflowConfig({ triggers, actions });
+    if (!validation.isValid) {
+      return res.status(400).json({ error: "Invalid workflow configuration", details: validation.errors });
+    }
+    const workflowWithUser = {
+      ...workflow,
+      createdBy: req.user.id
+    };
+    const result = await WorkflowService.createWorkflow({
+      workflow: workflowWithUser,
+      triggers,
+      actions,
+      schedule
+    });
+    logger.info(`[WorkflowRoutes] Created workflow: ${result.workflow.id} by user ${req.user.id}`);
+    res.status(201).json(result);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error creating workflow:", error);
+    res.status(500).json({ error: "Failed to create workflow", details: error.message });
+  }
+});
+router21.patch("/:id", authMiddleware, requirePermission("settings", "edit"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { workflow, triggers, actions } = req.body;
+    const existing = await storage.getWorkflow(id);
+    if (!existing) {
+      return res.status(404).json({ error: "Workflow not found" });
+    }
+    if (triggers && actions) {
+      const validation = WorkflowService.validateWorkflowConfig({ triggers, actions });
+      if (!validation.isValid) {
+        return res.status(400).json({ error: "Invalid workflow configuration", details: validation.errors });
+      }
+    }
+    const result = await WorkflowService.updateWorkflow(id, {
+      workflow,
+      triggers,
+      actions
+    });
+    logger.info(`[WorkflowRoutes] Updated workflow: ${id} by user ${req.user.id}`);
+    res.json(result);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error updating workflow:", error);
+    res.status(500).json({ error: "Failed to update workflow", details: error.message });
+  }
+});
+router21.delete("/:id", authMiddleware, requirePermission("settings", "delete"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await storage.getWorkflow(id);
+    if (!existing) {
+      return res.status(404).json({ error: "Workflow not found" });
+    }
+    await WorkflowService.deleteWorkflow(id);
+    logger.info(`[WorkflowRoutes] Deleted workflow: ${id} by user ${req.user.id}`);
+    res.json({ message: "Workflow deleted successfully" });
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error deleting workflow:", error);
+    res.status(500).json({ error: "Failed to delete workflow" });
+  }
+});
+router21.post("/:id/toggle", authMiddleware, requirePermission("settings", "edit"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({ error: "isActive must be a boolean" });
+    }
+    const updated = await WorkflowService.toggleWorkflowStatus(id, isActive);
+    if (!updated) {
+      return res.status(404).json({ error: "Workflow not found" });
+    }
+    logger.info(`[WorkflowRoutes] Toggled workflow ${id} to ${isActive ? "active" : "inactive"} by user ${req.user.id}`);
+    res.json(updated);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error toggling workflow:", error);
+    res.status(500).json({ error: "Failed to toggle workflow status" });
+  }
+});
+router21.post("/:id/test", authMiddleware, requirePermission("settings", "edit"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { testData } = req.body;
+    if (!testData) {
+      return res.status(400).json({ error: "testData is required for simulation" });
+    }
+    const workflow = await storage.getWorkflow(id);
+    if (!workflow) {
+      return res.status(404).json({ error: "Workflow not found" });
+    }
+    const triggers = await storage.getWorkflowTriggers(id);
+    const triggerResults = triggers.map((trigger) => {
+      return {
+        triggerId: trigger.id,
+        triggerType: trigger.triggerType,
+        conditions: trigger.conditions,
+        result: "Test evaluation - implement trigger evaluation here"
+      };
+    });
+    const actions = await storage.getWorkflowActions(id);
+    logger.info(`[WorkflowRoutes] Tested workflow: ${id} by user ${req.user.id}`);
+    res.json({
+      workflow,
+      triggerResults,
+      actions,
+      note: "Test mode - no actual actions were executed"
+    });
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error testing workflow:", error);
+    res.status(500).json({ error: "Failed to test workflow" });
+  }
+});
+router21.post("/:id/execute", authMiddleware, requirePermission("settings", "edit"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { entityId, entityType } = req.body;
+    if (!entityId || !entityType) {
+      return res.status(400).json({ error: "entityId and entityType are required" });
+    }
+    const workflow = await storage.getWorkflow(id);
+    if (!workflow) {
+      return res.status(404).json({ error: "Workflow not found" });
+    }
+    await WorkflowEngine.triggerWorkflows(entityType, entityId, {
+      eventType: "manual",
+      entity: req.body.entity || {},
+      triggeredBy: `user:${req.user.id}`
+    });
+    logger.info(`[WorkflowRoutes] Manually executed workflow: ${id} by user ${req.user.id}`);
+    res.json({ message: "Workflow execution triggered successfully" });
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error executing workflow:", error);
+    res.status(500).json({ error: "Failed to execute workflow" });
+  }
+});
+router21.get("/:id/executions", authMiddleware, requirePermission("settings", "view"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const executions = await storage.getWorkflowExecutions(id);
+    res.json(executions);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error fetching workflow executions:", error);
+    res.status(500).json({ error: "Failed to fetch workflow executions" });
+  }
+});
+router21.get("/executions/entity/:entityType/:entityId", authMiddleware, async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const executions = await storage.getEntityWorkflowExecutions(entityType, entityId);
+    res.json(executions);
+  } catch (error) {
+    logger.error("[WorkflowRoutes] Error fetching entity workflow executions:", error);
+    res.status(500).json({ error: "Failed to fetch executions" });
+  }
+});
+var workflows_routes_default = router21;
+
 // server/routes.ts
 init_logger();
 init_cache_service();
@@ -16903,6 +18100,7 @@ async function registerRoutes(app2) {
   app2.use("/api", credit_notes_routes_default);
   app2.use("/api", debit_notes_routes_default);
   app2.use("/api", subscriptionRoutes);
+  app2.use("/api/workflows", authMiddleware, workflows_routes_default);
   app2.get("/api/templates", authMiddleware, async (req, res) => {
     try {
       const type = req.query.type;

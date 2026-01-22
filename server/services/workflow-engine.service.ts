@@ -388,7 +388,7 @@ export class WorkflowEngine {
 
         // Basic evaluation (enhance this for production)
         // This is a simplified version - in production, use a proper expression evaluator
-        return eval(evaluatedExpression);
+        return new Function("return " + evaluatedExpression)();
       } catch (error) {
         logger.error(`[WorkflowEngine] Error evaluating condition: ${expression}`, error);
         return false;

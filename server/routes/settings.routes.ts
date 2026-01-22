@@ -1,6 +1,7 @@
 
 import { Router, Response, Request } from "express";
 import { authMiddleware, AuthRequest } from "../middleware";
+import { requirePermission } from "../permissions-middleware";
 import { logger } from "../utils/logger";
 import { storage } from "../storage";
 import { db } from "../db";
@@ -13,11 +14,9 @@ import { requireFeature } from "../feature-flags-middleware";
 const router = Router();
 
 // ==================== SETTINGS ROUTES ====================
-router.get("/settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.get("/settings", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can access settings" });
-    }
+    // Manual check removed
     const settingsArray = await storage.getAllSettings();
     // Convert array to key-value object for easier frontend consumption
     const settingsObject = settingsArray.reduce((acc, setting) => {
@@ -31,11 +30,9 @@ router.get("/settings", authMiddleware, requireFeature('admin_settings'), async 
   }
 });
 
-router.post("/settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/settings", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can update settings" });
-    }
+    // Manual check removed
 
     const body = req.body;
 
@@ -124,11 +121,9 @@ router.post("/settings", authMiddleware, requireFeature('admin_settings'), async
 
 // ==================== BANK DETAILS ROUTES ====================
 
-router.get("/bank-details", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.get("/bank-details", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can access bank details" });
-    }
+    // Manual check removed
     const details = await storage.getAllBankDetails();
     return res.json(details);
   } catch (error) {
@@ -145,11 +140,9 @@ router.get("/bank-details/active", authMiddleware, async (req: AuthRequest, res:
   }
 });
 
-router.post("/bank-details", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/bank-details", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can create bank details" });
-    }
+    // Manual check removed
 
     const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode } = req.body;
 
@@ -181,11 +174,9 @@ router.post("/bank-details", authMiddleware, requireFeature('admin_settings'), a
   }
 });
 
-router.put("/bank-details/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.put("/bank-details/:id", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can update bank details" });
-    }
+    // Manual check removed
 
     const { bankName, accountNumber, accountName, ifscCode, branch, swiftCode, isActive } = req.body;
 
@@ -220,11 +211,9 @@ router.put("/bank-details/:id", authMiddleware, requireFeature('admin_settings')
   }
 });
 
-router.delete("/bank-details/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.delete("/bank-details/:id", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can delete bank details" });
-    }
+    // Manual check removed
 
     await storage.deleteBankDetails(req.params.id);
 
@@ -244,11 +233,9 @@ router.delete("/bank-details/:id", authMiddleware, requireFeature('admin_setting
 // ==================== DOCUMENT NUMBER MIGRATION ROUTES ====================
 // Note: Using dynamic import for services that might have circular dependencies or heavy initialization
 
-router.post("/settings/migrate-document-numbers", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/settings/migrate-document-numbers", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can migrate document numbers" });
-    }
+     // Manual check removed
 
     const { DocumentNumberMigrationService } = await import("../services/document-number-migration.service");
 
@@ -286,11 +273,9 @@ router.post("/settings/migrate-document-numbers", authMiddleware, requireFeature
 
 // ==================== NUMBERING COUNTER ROUTES ====================
 
-router.get("/numbering/counters", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.get("/numbering/counters", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can access counter values" });
-    }
+    // Manual check removed
 
     const { NumberingService } = await import("../services/numbering.service");
     const { featureFlags } = await import("../../shared/feature-flags");
@@ -328,11 +313,9 @@ router.get("/numbering/counters", authMiddleware, requireFeature('admin_settings
   }
 });
 
-router.post("/numbering/reset-counter", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/numbering/reset-counter", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can reset counters" });
-    }
+    // Manual check removed
 
     const { type, year } = req.body;
 
@@ -384,11 +367,9 @@ router.post("/numbering/reset-counter", authMiddleware, requireFeature('admin_se
   }
 });
 
-router.post("/numbering/set-counter", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/numbering/set-counter", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can set counters" });
-    }
+    // Manual check removed
 
     const { type, year, value } = req.body;
 
@@ -477,11 +458,9 @@ router.get("/tax-rates", authMiddleware, async (req: AuthRequest, res: Response)
 });
 
 // Create tax rate
-router.post("/tax-rates", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/tax-rates", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user!.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-    }
+    // Manual check removed
 
     const { region, taxType, sgstRate, cgstRate, igstRate, description } = req.body;
 
@@ -525,11 +504,9 @@ router.post("/tax-rates", authMiddleware, requireFeature('admin_settings'), asyn
 });
 
 // Delete tax rate
-router.delete("/tax-rates/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.delete("/tax-rates/:id", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user!.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage tax rates" });
-    }
+    // Manual check removed
 
     await db.delete(schema.taxRates).where(eq(schema.taxRates.id, req.params.id));
 
@@ -559,11 +536,9 @@ router.get("/payment-terms", authMiddleware, async (req: AuthRequest, res: Respo
 });
 
 // Create payment term
-router.post("/payment-terms", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/payment-terms", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user!.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-    }
+    // Manual check removed
 
     const { name, days, description, isDefault } = req.body;
 
@@ -599,11 +574,9 @@ router.post("/payment-terms", authMiddleware, requireFeature('admin_settings'), 
 });
 
 // Delete payment term
-router.delete("/payment-terms/:id", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.delete("/payment-terms/:id", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
   try {
-    if (!["admin", "finance_accounts"].includes(req.user!.role)) {
-      return res.status(403).json({ error: "Forbidden: Only admin and finance can manage payment terms" });
-    }
+    // Manual check removed
 
     await db.delete(schema.paymentTerms).where(eq(schema.paymentTerms.id, req.params.id));
 
@@ -636,11 +609,9 @@ router.get("/currency-settings", authMiddleware, async (req: AuthRequest, res: R
   }
 });
 
-router.post("/currency-settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/currency-settings", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    // Manual check removed
 
     const { baseCurrency, supportedCurrencies, exchangeRates } = req.body;
 
@@ -665,11 +636,9 @@ router.post("/currency-settings", authMiddleware, requireFeature('admin_settings
 
 // ==================== ADMIN SETTINGS ROUTES ====================
 
-router.get("/admin/settings", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.get("/admin/settings", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    // Manual check removed
 
     const settings = await storage.getAllSettings();
     const settingsMap: Record<string, string> = {};
@@ -723,11 +692,9 @@ router.get("/admin/settings", authMiddleware, requireFeature('admin_settings'), 
   }
 });
 
-router.post("/admin/settings/company", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/admin/settings/company", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    // Manual check removed
 
     const companySettings = req.body;
     for (const [key, value] of Object.entries(companySettings)) {
@@ -750,11 +717,9 @@ router.post("/admin/settings/company", authMiddleware, requireFeature('admin_set
   }
 });
 
-router.post("/admin/settings/taxation", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/admin/settings/taxation", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    // Manual check removed
 
     const taxSettings = req.body;
     for (const [key, value] of Object.entries(taxSettings)) {
@@ -777,11 +742,9 @@ router.post("/admin/settings/taxation", authMiddleware, requireFeature('admin_se
   }
 });
 
-router.post("/admin/settings/email", authMiddleware, requireFeature('admin_settings'), async (req: AuthRequest, res: Response) => {
+router.post("/admin/settings/email", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-    }
+      // Manual check removed
 
     const emailSettings = req.body;
     for (const [key, value] of Object.entries(emailSettings)) {

@@ -1,17 +1,17 @@
 
 import { Router, Response } from "express";
 import { authMiddleware, AuthRequest } from "../middleware";
+import { requirePermission } from "../permissions-middleware";
 import { storage } from "../storage";
 
 const router = Router();
 
 // User Management (Admin Panel)
 
-router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/", authMiddleware, requirePermission("users", "view"), async (req: AuthRequest, res: Response) => {
     try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
+      // Manual check removed in favor of middleware
+      // if (req.user!.role !== "admin") { ... }
 
       const users = await storage.getAllUsers();
       const sanitized = users.map(u => ({
@@ -29,11 +29,9 @@ router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
     }
 });
 
-router.patch("/:userId/role", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.patch("/:userId/role", authMiddleware, requirePermission("users", "edit"), async (req: AuthRequest, res: Response) => {
     try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
+       // Manual check removed in favor of middleware
 
       const { role } = req.body;
       if (!["admin", "manager", "user", "viewer"].includes(role)) {
@@ -58,11 +56,9 @@ router.patch("/:userId/role", authMiddleware, async (req: AuthRequest, res: Resp
     }
 });
 
-router.patch("/:userId/status", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.patch("/:userId/status", authMiddleware, requirePermission("users", "edit"), async (req: AuthRequest, res: Response) => {
     try {
-      if (req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Forbidden" });
-      }
+        // Manual check removed in favor of middleware
 
       const { status } = req.body;
       if (!["active", "inactive"].includes(status)) {

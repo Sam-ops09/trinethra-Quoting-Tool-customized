@@ -29,7 +29,8 @@ export type ResourceType =
   | "settings"
   | "settings"
   | "sales_orders"
-  | "subscriptions";
+  | "subscriptions"
+  | "analytics";
 
 export type ActionType =
   | "view"
@@ -140,6 +141,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "subscriptions", action: "edit" },
       { resource: "subscriptions", action: "delete" },
       { resource: "subscriptions", action: "cancel" },
+      { resource: "subscriptions", action: "cancel" },
+      { resource: "analytics", action: "view" },
     ]
   },
   sales_executive: {
@@ -200,6 +203,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "subscriptions", action: "create" },
       { resource: "subscriptions", action: "edit" },
       { resource: "subscriptions", action: "cancel" },
+      { resource: "subscriptions", action: "cancel" },
+      { resource: "analytics", action: "view" },
     ]
   },
   purchase_operations: {
@@ -257,6 +262,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "subscriptions", action: "create" },
       { resource: "subscriptions", action: "edit" },
       { resource: "subscriptions", action: "cancel" },
+      { resource: "subscriptions", action: "cancel" },
+      { resource: "analytics", action: "view" },
     ]
   },
   viewer: {
@@ -720,6 +727,7 @@ export function getAuditableFields(resource: ResourceType): string[] {
     settings: ["*"], // All settings changes
     sales_orders: ["total", "status", "discount", "orderDate"],
     subscriptions: ["planName", "amount", "billingCycle", "status", "nextBillingDate", "prorataCredit"],
+    analytics: [],
   };
 
   return auditableFieldsMap[resource] || [];
