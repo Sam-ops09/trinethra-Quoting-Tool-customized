@@ -59,6 +59,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
+  // Workflow Automation Routes (Must come before generic routes to ensure specific endpoints like /quotes/:id/revise are matched)
+  app.use("/api", authMiddleware, quoteWorkflowRoutes);
+
   // Users Routes (Admin only)
   app.use("/api/users", authMiddleware, usersRoutes);
 
@@ -354,7 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics & Dashboard Routes
   app.use("/api/analytics", authMiddleware, analyticsRoutes);
-  app.use("/api", authMiddleware, quoteWorkflowRoutes);
+
 
   const httpServer = createServer(app);
   return httpServer;

@@ -11,6 +11,7 @@ import { eq, sql } from "drizzle-orm";
 import { NumberingService } from "../services/numbering.service";
 import { InvoicePDFService } from "../services/invoice-pdf.service";
 import { EmailService } from "../services/email.service";
+import { calculateLineSubtotal, toMoneyString } from "../utils/financial";
 
 const router = Router();
 
@@ -237,7 +238,7 @@ router.put("/:id/master-details", authMiddleware, requireFeature('invoices_edit'
                         quantity: item.quantity,
                         fulfilledQuantity: item.fulfilledQuantity || 0,
                         unitPrice: item.unitPrice,
-                        subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
+                        subtotal: toMoneyString(item.subtotal || calculateLineSubtotal(item.quantity, item.unitPrice)),
                         serialNumbers: item.serialNumbers || null,
                         status: item.status || "pending",
                         sortOrder: item.sortOrder || 0,
@@ -770,7 +771,7 @@ router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoice
                 quantity: item.quantity,
                 fulfilledQuantity: 0,
                 unitPrice: item.unitPrice,
-                subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
+                subtotal: toMoneyString(calculateLineSubtotal(item.quantity, item.unitPrice)),
                 status: "pending",
                 sortOrder: item.sortOrder || 0,
                 hsnSac: item.hsnSac || null,
