@@ -54,6 +54,7 @@ import SubscriptionCreate from "@/pages/subscription-create";
 import SubscriptionDetail from "@/pages/subscription-detail";
 import Workflows from "@/pages/workflows";
 import WorkflowBuilder from "@/pages/workflow-builder";
+import WorkflowExecutions from "@/pages/workflow-executions";
 import { Loader2, ShieldAlert } from "lucide-react";
 import React from "react";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
@@ -278,6 +279,9 @@ function AuthenticatedLayout() {
           )}
           {isFeatureEnabled('pages_workflows') && (
             <Route path="/workflows/create" component={() => <ProtectedRoute component={WorkflowBuilder} requiredPath="/admin/settings" />} />
+          )}
+          {isFeatureEnabled('pages_workflows') && (
+            <Route path="/workflows/:id/executions" component={() => <ProtectedRoute component={WorkflowExecutions} requiredPath="/admin/settings" />} />
           )}
           {isFeatureEnabled('pages_workflows') && (
             <Route path="/workflows/:id" component={() => <ProtectedRoute component={WorkflowBuilder} requiredPath="/admin/settings" />} />
