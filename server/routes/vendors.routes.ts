@@ -286,6 +286,39 @@ router.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, requireFea
   }
 });
 
+// ==================== VENDOR PO COMMENTS ROUTES ====================
+router.get("/vendor-pos/:id/comments", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const comments = await storage.getVendorPoComments(req.params.id, true);
+    res.json(comments);
+  } catch (error) {
+    logger.error("Error fetching vendor PO comments:", error);
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
+
+router.post("/vendor-pos/:id/comments", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { message, isInternal, parentCommentId } = req.body;
+    
+    // Create the comment
+    const comment = await storage.createVendorPoComment({
+      vendorPoId: req.params.id,
+      message,
+      isInternal: !!isInternal,
+      authorType: "internal", // Always internal for now as we don't have vendor portal login yet
+      authorName: req.user!.name,
+      authorEmail: req.user!.email,
+      parentCommentId: parentCommentId || null,
+    });
+    
+    res.status(201).json(comment);
+  } catch (error) {
+    logger.error("Error creating vendor PO comment:", error);
+    res.status(500).json({ error: "Failed to create comment" });
+  }
+});
+
 // ==================== GRN ROUTES ====================
 router.get("/grns", authMiddleware, requireFeature('grn_module'), async (req: AuthRequest, res: Response) => {
   try {

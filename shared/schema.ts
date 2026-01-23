@@ -264,7 +264,11 @@ export const salesOrdersRelations = relations(salesOrders, ({ one, many }) => ({
   items: many(salesOrderItems),
   // One sales order can have multiple invoices (e.g. partial)
   invoices: many(invoices),
+  comments: many(salesOrderComments),
 }));
+
+export type SalesOrderComment = typeof salesOrderComments.$inferSelect;
+export type InsertSalesOrderComment = typeof salesOrderComments.$inferInsert;
 
 export const salesOrderItems = pgTable("sales_order_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -329,6 +333,30 @@ export const quoteCommentsRelations = relations(quoteComments, ({ one }) => ({
   parentComment: one(quoteComments, {
     fields: [quoteComments.parentCommentId],
     references: [quoteComments.id],
+  }),
+}));
+
+// Sales Order Comments table
+export const salesOrderComments = pgTable("sales_order_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  salesOrderId: varchar("sales_order_id").notNull().references(() => salesOrders.id, { onDelete: "cascade" }),
+  authorType: text("author_type").notNull(), // 'client' or 'internal'
+  authorName: text("author_name").notNull(),
+  authorEmail: text("author_email"),
+  message: text("message").notNull(),
+  parentCommentId: varchar("parent_comment_id"),
+  isInternal: boolean("is_internal").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const salesOrderCommentsRelations = relations(salesOrderComments, ({ one }) => ({
+  salesOrder: one(salesOrders, {
+    fields: [salesOrderComments.salesOrderId],
+    references: [salesOrders.id],
+  }),
+  parentComment: one(salesOrderComments, {
+    fields: [salesOrderComments.parentCommentId],
+    references: [salesOrderComments.id],
   }),
 }));
 
@@ -464,6 +492,34 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   }),
   items: many(invoiceItems),
   payments: many(paymentHistory),
+  comments: many(invoiceComments),
+}));
+
+export type InvoiceComment = typeof invoiceComments.$inferSelect;
+export type InsertInvoiceComment = typeof invoiceComments.$inferInsert;
+
+// Invoice Comments table
+export const invoiceComments = pgTable("invoice_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  authorType: text("author_type").notNull(), // 'client' or 'internal'
+  authorName: text("author_name").notNull(),
+  authorEmail: text("author_email"),
+  message: text("message").notNull(),
+  parentCommentId: varchar("parent_comment_id"),
+  isInternal: boolean("is_internal").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const invoiceCommentsRelations = relations(invoiceComments, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [invoiceComments.invoiceId],
+    references: [invoices.id],
+  }),
+  parentComment: one(invoiceComments, {
+    fields: [invoiceComments.parentCommentId],
+    references: [invoiceComments.id],
+  }),
 }));
 
 // Payment History table
@@ -587,6 +643,34 @@ export const vendorPurchaseOrdersRelations = relations(vendorPurchaseOrders, ({ 
     references: [users.id],
   }),
   items: many(vendorPoItems),
+  comments: many(vendorPoComments),
+}));
+
+export type VendorPoComment = typeof vendorPoComments.$inferSelect;
+export type InsertVendorPoComment = typeof vendorPoComments.$inferInsert;
+
+// Vendor PO Comments table
+export const vendorPoComments = pgTable("vendor_po_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorPoId: varchar("vendor_po_id").notNull().references(() => vendorPurchaseOrders.id, { onDelete: "cascade" }),
+  authorType: text("author_type").notNull(), // 'client' or 'internal'
+  authorName: text("author_name").notNull(),
+  authorEmail: text("author_email"),
+  message: text("message").notNull(),
+  parentCommentId: varchar("parent_comment_id"),
+  isInternal: boolean("is_internal").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const vendorPoCommentsRelations = relations(vendorPoComments, ({ one }) => ({
+  vendorPo: one(vendorPurchaseOrders, {
+    fields: [vendorPoComments.vendorPoId],
+    references: [vendorPurchaseOrders.id],
+  }),
+  parentComment: one(vendorPoComments, {
+    fields: [vendorPoComments.parentCommentId],
+    references: [vendorPoComments.id],
+  }),
 }));
 
 // Vendor PO Items table

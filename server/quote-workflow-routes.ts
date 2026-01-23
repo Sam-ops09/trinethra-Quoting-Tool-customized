@@ -733,6 +733,69 @@ router.patch("/sales-orders/:id",
   }
 );
 
+// Sales Order Comments
+router.get("/sales-orders/:id/comments", 
+  requirePermission("sales_orders", "view"), 
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const order = await storage.getSalesOrder(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Sales Order not found" });
+      }
+
+      // Check for internal comment permission (optional, defaulting to allow all authenticated users for now)
+      // or use specific permission check if available
+      const comments = await storage.getSalesOrderComments(order.id, true); // Allow internal for authenticated users
+      res.json(comments);
+    } catch (error) {
+      logger.error("Get sales order comments error:", error);
+      res.status(500).json({ error: "Failed to fetch comments" });
+    }
+  }
+);
+
+router.post("/sales-orders/:id/comments", 
+  requirePermission("sales_orders", "edit"), 
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { message, isInternal } = req.body;
+      const orderId = req.params.id;
+
+      if (!message) {
+        return res.status(400).json({ error: "Comment message is required" });
+      }
+
+      const order = await storage.getSalesOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Sales Order not found" });
+      }
+
+      const comment = await storage.createSalesOrderComment({
+        salesOrderId: orderId,
+        message,
+        isInternal: !!isInternal,
+        authorType: "internal",
+        authorName: req.user!.name,
+        authorEmail: req.user!.email,
+        parentCommentId: req.body.parentCommentId || null,
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "add_comment", // reuse generic action or create specific? 'add_sales_order_comment' maybe?
+        entityType: "sales_orders",
+        entityId: orderId,
+        metadata: { commentId: comment.id, isInternal: !!isInternal },
+      });
+
+      res.status(201).json(comment);
+    } catch (error) {
+      logger.error("Add sales order comment error:", error);
+      res.status(500).json({ error: "Failed to add comment" });
+    }
+  }
+);
+
 router.post(
   "/sales-orders/:id/convert-to-invoice",
   requireFeature('invoices_module'),

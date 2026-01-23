@@ -41,6 +41,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatCurrency } from "@/lib/currency";
+import { CommentsSection } from "@/components/comments-section";
 
 interface VendorPoDetail {
     id: string;
@@ -618,6 +619,13 @@ export default function VendorPoDetailPage() {
                                 </CardContent>
                             </Card>
                         )}
+
+                        {/* Comments Section */}
+                        <CommentsSection 
+                            entityId={po.id} 
+                            entityType="vendor_po" 
+                            title="Comments & Discussions"
+                        />
                     </div>
 
                     {/* Right Column - Sidebar */}

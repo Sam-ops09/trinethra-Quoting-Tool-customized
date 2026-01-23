@@ -581,6 +581,60 @@ router.delete("/:id", authMiddleware, requireFeature('invoices_delete'), require
   }
 });
 
+// Invoice Comments
+router.get("/:id/comments", requireFeature('invoices_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+    }
+    const comments = await storage.getInvoiceComments(invoice.id, true);
+    res.json(comments);
+  } catch (error) {
+    logger.error("Get invoice comments error:", error);
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
+
+router.post("/:id/comments", requireFeature('invoices_edit'), authMiddleware, requirePermission("invoices", "edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { message, isInternal } = req.body;
+    const invoiceId = req.params.id;
+
+    if (!message) {
+        return res.status(400).json({ error: "Comment message is required" });
+    }
+
+    const invoice = await storage.getInvoice(invoiceId);
+    if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const comment = await storage.createInvoiceComment({
+        invoiceId,
+        message,
+        isInternal: !!isInternal,
+        authorType: "internal",
+        authorName: req.user!.name,
+        authorEmail: req.user!.email,
+        parentCommentId: req.body.parentCommentId || null,
+    });
+
+    await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "add_comment",
+        entityType: "invoice",
+        entityId: invoiceId,
+        metadata: { commentId: comment.id, isInternal: !!isInternal },
+    });
+
+    res.status(201).json(comment);
+  } catch (error) {
+    logger.error("Add invoice comment error:", error);
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
+
 
 // Create Child Invoice from Master Invoice
 router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoices_childInvoices'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {

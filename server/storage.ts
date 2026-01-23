@@ -98,6 +98,15 @@ import {
   userDevices,
   type UserDevice,
   type InsertUserDevice,
+  salesOrderComments,
+  type SalesOrderComment,
+  type InsertSalesOrderComment,
+  vendorPoComments,
+  type VendorPoComment,
+  type InsertVendorPoComment,
+  invoiceComments,
+  type InvoiceComment,
+  type InsertInvoiceComment,
 } from "@shared/schema";
 import { version } from "os";
 import { cacheService } from "./services/cache.service";
@@ -327,6 +336,19 @@ export interface IStorage {
   createWorkflowSchedule(schedule: any): Promise<any>;
   updateWorkflowSchedule(id: string, data: Partial<any>): Promise<any | undefined>;
   deleteWorkflowSchedule(workflowId: string): Promise<void>;
+  deleteWorkflowSchedule(workflowId: string): Promise<void>;
+
+  // Sales Order Comments
+  getSalesOrderComments(salesOrderId: string, includeInternal?: boolean): Promise<SalesOrderComment[]>;
+  createSalesOrderComment(comment: InsertSalesOrderComment): Promise<SalesOrderComment>;
+
+  // Vendor PO Comments
+  getVendorPoComments(vendorPoId: string, includeInternal?: boolean): Promise<VendorPoComment[]>;
+  createVendorPoComment(comment: InsertVendorPoComment): Promise<VendorPoComment>;
+
+  // Invoice Comments
+  getInvoiceComments(invoiceId: string, includeInternal?: boolean): Promise<InvoiceComment[]>;
+  createInvoiceComment(comment: InsertInvoiceComment): Promise<InvoiceComment>;
 }
 
 
@@ -1263,6 +1285,52 @@ export class DatabaseStorage implements IStorage {
       .where(eq(quoteItems.id, itemId))
       .returning();
     return updated || undefined;
+    return updated || undefined;
+  }
+
+  // Sales Order Comments
+  async getSalesOrderComments(salesOrderId: string, includeInternal: boolean = false): Promise<SalesOrderComment[]> {
+    if (includeInternal) {
+      return await db.select().from(salesOrderComments).where(eq(salesOrderComments.salesOrderId, salesOrderId)).orderBy(salesOrderComments.createdAt);
+    }
+    return await db.select().from(salesOrderComments).where(
+      and(eq(salesOrderComments.salesOrderId, salesOrderId), eq(salesOrderComments.isInternal, false))
+    ).orderBy(salesOrderComments.createdAt);
+  }
+
+  async createSalesOrderComment(comment: InsertSalesOrderComment): Promise<SalesOrderComment> {
+    const [newComment] = await db.insert(salesOrderComments).values(comment).returning();
+    return newComment;
+  }
+
+  // Vendor PO Comments
+  async getVendorPoComments(vendorPoId: string, includeInternal: boolean = false): Promise<VendorPoComment[]> {
+    if (includeInternal) {
+      return await db.select().from(vendorPoComments).where(eq(vendorPoComments.vendorPoId, vendorPoId)).orderBy(vendorPoComments.createdAt);
+    }
+    return await db.select().from(vendorPoComments).where(
+      and(eq(vendorPoComments.vendorPoId, vendorPoId), eq(vendorPoComments.isInternal, false))
+    ).orderBy(vendorPoComments.createdAt);
+  }
+
+  async createVendorPoComment(comment: InsertVendorPoComment): Promise<VendorPoComment> {
+    const [newComment] = await db.insert(vendorPoComments).values(comment).returning();
+    return newComment;
+  }
+
+  // Invoice Comments
+  async getInvoiceComments(invoiceId: string, includeInternal: boolean = false): Promise<InvoiceComment[]> {
+    if (includeInternal) {
+      return await db.select().from(invoiceComments).where(eq(invoiceComments.invoiceId, invoiceId)).orderBy(invoiceComments.createdAt);
+    }
+    return await db.select().from(invoiceComments).where(
+      and(eq(invoiceComments.invoiceId, invoiceId), eq(invoiceComments.isInternal, false))
+    ).orderBy(invoiceComments.createdAt);
+  }
+
+  async createInvoiceComment(comment: InsertInvoiceComment): Promise<InvoiceComment> {
+    const [newComment] = await db.insert(invoiceComments).values(comment).returning();
+    return newComment;
   }
 
   // ==================== WORKFLOW AUTOMATION STORAGE METHODS ====================

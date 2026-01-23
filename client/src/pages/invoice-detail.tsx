@@ -63,6 +63,7 @@ import { MasterInvoiceManager } from "@/components/invoice/master-invoice-manage
 import { EditInvoiceDialog } from "@/components/invoice/edit-invoice-dialog";
 import { ExecBOMSection } from "@/components/shared/exec-bom-section";
 import { formatCurrency } from "@/lib/currency";
+import { CommentsSection } from "@/components/comments-section";
 import type { ExecBOMData } from "@/types/bom-types";
 
 
@@ -1516,6 +1517,14 @@ export default function InvoiceDetail() {
                         </CardContent>
                     </Card>
                 )}
+
+                {/* COMMENTS SECTION */}
+                <CommentsSection 
+                    entityId={invoice.id} 
+                    entityType="invoice" 
+                    title="Comments & Discussions"
+                    className="mt-4 sm:mt-6"
+                />
 
             {/* EMAIL DIALOG */}
             <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>

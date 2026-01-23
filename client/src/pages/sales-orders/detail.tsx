@@ -44,6 +44,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/currency";
+import { CommentsSection } from "@/components/comments-section";
 
 export default function SalesOrderDetail() {
     const { id } = useParams();
@@ -587,6 +588,13 @@ export default function SalesOrderDetail() {
                                 </CardContent>
                             </Card>
                         )}
+
+                        {/* Comments Section */}
+                        <CommentsSection 
+                            entityId={order.id} 
+                            entityType="sales_order" 
+                            title="Comments & Discussions"
+                        />
                     </div>
 
                     {/* Order Summary Sidebar */}
