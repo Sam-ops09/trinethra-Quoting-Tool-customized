@@ -433,6 +433,10 @@ export class WorkflowEngine {
           case "create_activity_log":
             await this.executeCreateActivityLog(config, context);
             break;
+            
+          case "assign_user":
+            await this.executeAssignUser(config, context);
+            break;
           
           default:
             logger.warn(`[WorkflowEngine] Unimplemented action type: ${action.actionType}`);
@@ -478,21 +482,45 @@ export class WorkflowEngine {
     /**
      * Create notification action
      */
+    /**
+     * Create notification action
+     */
     private static async executeCreateNotification(config: any, context: TriggerContext): Promise<void> {
-      const userId = this.interpolateTemplate(config.userId, context);
+      let userId = this.interpolateTemplate(config.userId, context);
       const title = this.interpolateTemplate(config.title, context);
       const message = this.interpolateTemplate(config.message, context);
+      
+      const roles = ['admin', 'sales_executive', 'sales_manager', 'purchase_operations', 'finance_accounts'];
+      let targetUserIds: string[] = [];
 
-      await NotificationService.create({
-        userId,
-        type: config.type || "system_announcement",
-        title,
-        message,
-        entityType: context.entity.entityType,
-        entityId: context.entity.id,
-      });
+      if (roles.includes(userId)) {
+          // It's a role, fetch all users with this role
+          const usersWithRole = await storage.getUsersByRole(userId);
+          if (usersWithRole.length > 0) {
+              targetUserIds = usersWithRole.map(u => u.id);
+              logger.info(`[WorkflowEngine] Broadcasting notification to ${targetUserIds.length} users in role ${userId}`);
+          } else {
+              logger.warn(`[WorkflowEngine] No users found with role ${userId} for notification`);
+              return; 
+          }
+      } else {
+          // It's a specific user ID or invalid
+          targetUserIds = [userId];
+      }
 
-      logger.info(`[WorkflowEngine] Created notification for user: ${userId}`);
+      // Send to all targets
+      for (const targetId of targetUserIds) {
+          await NotificationService.create({
+            userId: targetId,
+            type: config.type || "system_announcement",
+            title,
+            message,
+            entityType: context.entity.entityType,
+            entityId: context.entity.id,
+          });
+      }
+
+      logger.info(`[WorkflowEngine] Created notifications for ${targetUserIds.length} recipients`);
     }
 
     /**
@@ -606,6 +634,58 @@ export class WorkflowEngine {
         }
       } catch (error) {
         logger.error(`[WorkflowEngine] Error running scheduled workflows:`, error);
+      }
+    }
+
+    /**
+     * Assign user action
+     */
+    private static async executeAssignUser(config: any, context: TriggerContext): Promise<void> {
+      let userId = this.interpolateTemplate(config.userId, context);
+      const entityType = context.entity.entityType || "quote";
+      const entityId = context.entity.id;
+
+      // Check if userId is actually a role
+      const roles = ['admin', 'sales_executive', 'sales_manager', 'purchase_operations', 'finance_accounts'];
+      if (roles.includes(userId)) {
+          logger.info(`[WorkflowEngine] Attempting to resolve role: ${userId}`);
+          const usersWithRole = await storage.getUsersByRole(userId);
+          if (usersWithRole.length > 0) {
+              // Strategy: Pick the first active user with this role
+              // Future improvement: Round robin or load balancing
+              userId = usersWithRole[0].id; // Reassigning userId here
+              logger.info(`[WorkflowEngine] Resolved role ${config.userId} to user ${userId} (${usersWithRole[0].name})`);
+          } else {
+              logger.warn(`[WorkflowEngine] No users found with role ${userId} to assign`);
+              return; // Cannot assign
+          }
+      } else {
+          logger.info(`[WorkflowEngine] Using direct user ID or variable: ${userId}`);
+      }
+
+      logger.info(`[WorkflowEngine] Final assignment - Entity: ${entityType} ${entityId}, User: ${userId}`);
+
+      try {
+        if (entityType === "quote") {
+          await storage.updateQuote(entityId, { assignedTo: userId });
+          
+          // Send Nofitication to the assignee
+          await NotificationService.create({
+            userId: userId,
+            type: "system_announcement",
+            title: "New Assignment",
+            message: `You have been assigned to Quote ${context.entity.quoteNumber || 'Update'}`,
+            entityType: "quote",
+            entityId: entityId,
+          });
+          logger.info(`[WorkflowEngine] Sent assignment notification to user ${userId}`);
+
+        } else {
+          logger.warn(`[WorkflowEngine] Assign user not supported for entity type ${entityType}`);
+        }
+      } catch (err) {
+        logger.error(`[WorkflowEngine] Failed to assign user:`, err);
+        throw err;
       }
     }
 }

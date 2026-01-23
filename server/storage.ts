@@ -113,6 +113,7 @@ export interface IStorage {
   updateUserWithTokenCheck(id: string, token: string, data: Partial<User>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
+  getUsersByRole(role: string): Promise<User[]>;
 
   // User Devices
   createUserDevice(device: InsertUserDevice): Promise<UserDevice>;
@@ -417,6 +418,11 @@ export class DatabaseStorage implements IStorage {
   async getAllUsers(): Promise < User[] > {
   return await db.select().from(users).orderBy(desc(users.createdAt));
 }
+
+  async getUsersByRole(role: string): Promise<User[]> {
+    // Cast role to any to match enum type if needed, or string match
+    return await db.select().from(users).where(eq(users.role, role as any));
+  }
 
   // Clients
   async getClient(id: string): Promise < Client | undefined > {

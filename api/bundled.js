@@ -22,6 +22,7 @@ __export(schema_exports, {
   approvalRuleTriggerTypeEnum: () => approvalRuleTriggerTypeEnum,
   approvalRules: () => approvalRules,
   approvalRulesRelations: () => approvalRulesRelations,
+  approvalStatusEnum: () => approvalStatusEnum,
   bankDetails: () => bankDetails,
   billingCycleEnum: () => billingCycleEnum,
   clientCommunications: () => clientCommunications,
@@ -160,7 +161,7 @@ import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, i
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, users, usersRelations, userDevices, userDevicesRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema, workflowStatusEnum, workflowTriggerTypeEnum, workflowActionTypeEnum, workflows, workflowsRelations, workflowTriggers, workflowTriggersRelations, workflowActions, workflowActionsRelations, workflowExecutions, workflowExecutionsRelations, workflowSchedules, workflowSchedulesRelations, insertWorkflowSchema, insertWorkflowTriggerSchema, insertWorkflowActionSchema, insertWorkflowExecutionSchema, insertWorkflowScheduleSchema, insertUserDeviceSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, approvalStatusEnum, users, usersRelations, userDevices, userDevicesRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema, workflowStatusEnum, workflowTriggerTypeEnum, workflowActionTypeEnum, workflows, workflowsRelations, workflowTriggers, workflowTriggersRelations, workflowActions, workflowActionsRelations, workflowExecutions, workflowExecutionsRelations, workflowSchedules, workflowSchedulesRelations, insertWorkflowSchema, insertWorkflowTriggerSchema, insertWorkflowActionSchema, insertWorkflowExecutionSchema, insertWorkflowScheduleSchema, insertUserDeviceSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -177,6 +178,7 @@ var init_schema = __esm({
     debitNoteStatusEnum = pgEnum("debit_note_status", ["draft", "issued", "applied", "cancelled"]);
     subscriptionStatusEnum = pgEnum("subscription_status", ["active", "paused", "cancelled", "expired"]);
     billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "annually"]);
+    approvalStatusEnum = pgEnum("approval_status", ["none", "pending", "approved", "rejected"]);
     users = pgTable("users", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       email: text("email").notNull().unique(),
@@ -289,7 +291,7 @@ var init_schema = __esm({
       publicToken: text("public_token").unique(),
       tokenExpiresAt: timestamp("token_expires_at"),
       // Rule-Based Approval Fields
-      approvalStatus: text("approval_status").notNull().default("none"),
+      approvalStatus: approvalStatusEnum("approval_status").notNull().default("none"),
       // none, pending, approved, rejected
       approvalRequiredBy: userRoleEnum("approval_required_by"),
       // Role required to approve (e.g. sales_manager)
@@ -297,6 +299,7 @@ var init_schema = __esm({
       clientSignature: text("client_signature"),
       clientAcceptedAt: timestamp("client_accepted_at"),
       clientAcceptedName: text("client_accepted_name"),
+      assignedTo: varchar("assigned_to").references(() => users.id),
       createdBy: varchar("created_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
@@ -1424,7 +1427,8 @@ var init_schema = __esm({
       "date_based",
       "field_change",
       "time_based",
-      "manual"
+      "manual",
+      "created"
     ]);
     workflowActionTypeEnum = pgEnum("workflow_action_type", [
       "send_email",
@@ -1869,6 +1873,9 @@ var init_storage = __esm({
       }
       async getAllUsers() {
         return await db.select().from(users).orderBy(desc(users.createdAt));
+      }
+      async getUsersByRole(role) {
+        return await db.select().from(users).where(eq(users.role, role));
       }
       // Clients
       async getClient(id) {
@@ -2442,7 +2449,8 @@ var init_storage = __esm({
         return newWorkflow;
       }
       async updateWorkflow(id, data) {
-        const [updated] = await db.update(workflows).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(workflows.id, id)).returning();
+        const { createdAt, id: _, ...updateData } = data;
+        const [updated] = await db.update(workflows).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq(workflows.id, id)).returning();
         return updated || void 0;
       }
       async deleteWorkflow(id) {
@@ -2453,7 +2461,8 @@ var init_storage = __esm({
         return await db.select().from(workflowTriggers).where(eq(workflowTriggers.workflowId, workflowId));
       }
       async createWorkflowTrigger(trigger) {
-        const [newTrigger] = await db.insert(workflowTriggers).values(trigger).returning();
+        const { createdAt, id: _, ...triggerData } = trigger;
+        const [newTrigger] = await db.insert(workflowTriggers).values(triggerData).returning();
         return newTrigger;
       }
       async updateWorkflowTrigger(id, data) {
@@ -2468,7 +2477,8 @@ var init_storage = __esm({
         return await db.select().from(workflowActions).where(eq(workflowActions.workflowId, workflowId)).orderBy(workflowActions.executionOrder);
       }
       async createWorkflowAction(action) {
-        const [newAction] = await db.insert(workflowActions).values(action).returning();
+        const { createdAt, id: _, ...actionData } = action;
+        const [newAction] = await db.insert(workflowActions).values(actionData).returning();
         return newAction;
       }
       async updateWorkflowAction(id, data) {
@@ -3964,7 +3974,7 @@ async function authMiddleware(req, res, next) {
       if (cachedUser.status !== "active") {
         return res.status(401).json({ error: "Unauthorized" });
       }
-      req.user = { id: cachedUser.id, email: cachedUser.email, role: cachedUser.role };
+      req.user = { id: cachedUser.id, email: cachedUser.email, role: cachedUser.role, name: cachedUser.name || "User" };
       return next();
     }
     const user = await storage.getUser(decoded.id);
@@ -3975,9 +3985,10 @@ async function authMiddleware(req, res, next) {
       id: user.id,
       email: user.email,
       role: user.role,
-      status: user.status
+      status: user.status,
+      name: user.name
     }, 300);
-    req.user = { id: user.id, email: user.email, role: user.role };
+    req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
     next();
   } catch (error) {
     return res.status(401).json({ error: "Invalid token" });
@@ -4061,8 +4072,119 @@ import ExcelJS from "exceljs";
 
 // server/services/invoice-pdf.service.ts
 import PDFDocument from "pdfkit";
+import path2 from "path";
+import fs2 from "fs";
+
+// server/services/pdf-helpers.ts
 import path from "path";
 import fs from "fs";
+import SVGtoPDF from "svg-to-pdfkit";
+async function prepareLogo(logoInput) {
+  if (logoInput && logoInput.startsWith("data:image")) {
+    try {
+      const matches = logoInput.match(/^data:(image\/[a-zA-Z+]+);base64,/);
+      const mimeType = matches ? matches[1] : "unknown";
+      const base64Data = logoInput.split(",")[1];
+      if (base64Data) {
+        const cleanBase64 = base64Data.replace(/\s/g, "");
+        return { logo: Buffer.from(cleanBase64, "base64"), mimeType };
+      }
+    } catch (e) {
+      console.error("Failed to parse logo base64:", e);
+    }
+  }
+  if (logoInput && !logoInput.startsWith("data:")) {
+    const ext = path.extname(logoInput).toLowerCase().replace(".", "");
+    let mime = "application/octet-stream";
+    if (["png", "jpg", "jpeg"].includes(ext)) mime = `image/${ext}`;
+    if (ext === "svg") mime = "image/svg+xml";
+    return { logo: logoInput, mimeType: mime };
+  }
+  const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
+  const p2 = path.join(process.cwd(), "client", "public", "logo.png");
+  try {
+    await fs.promises.access(p1, fs.constants.F_OK);
+    return { logo: p1, mimeType: "image/png" };
+  } catch {
+    try {
+      await fs.promises.access(p2, fs.constants.F_OK);
+      return { logo: p2, mimeType: "image/png" };
+    } catch {
+    }
+  }
+  return { logo: "", mimeType: "" };
+}
+function drawLogo(doc, logo, mimeType, x, y, size) {
+  if (!logo) return false;
+  try {
+    const isBuffer = Buffer.isBuffer(logo);
+    let isSVG = mimeType.includes("svg");
+    if (isBuffer && !isSVG) {
+      const header = logo.subarray(0, 4).toString("hex").toUpperCase();
+      if (header.includes("3C737667") || header.includes("3C3F786D")) {
+        isSVG = true;
+      }
+    }
+    if (!isBuffer && typeof logo === "string" && !isSVG) {
+      if (logo.toLowerCase().endsWith(".svg")) isSVG = true;
+    }
+    if (isSVG) {
+      let svgString = "";
+      if (isBuffer) {
+        svgString = logo.toString("utf-8");
+      } else if (typeof logo === "string") {
+        try {
+          svgString = fs.readFileSync(logo, "utf-8");
+        } catch (e) {
+          console.error("Failed to read SVG file:", e);
+          return false;
+        }
+      }
+      if (svgString) {
+        SVGtoPDF(doc, svgString, x, y, {
+          width: size,
+          height: size,
+          preserveAspectRatio: "xMinYMin meet"
+        });
+        return true;
+      }
+    }
+    doc.image(logo, x, y, { fit: [size, size] });
+    return true;
+  } catch (err) {
+    console.error("Failed to draw logo:", err);
+    return false;
+  }
+}
+
+// server/services/currency-helper.ts
+function formatCurrency(amount, currencyCode = "INR") {
+  const num = Number(amount) || 0;
+  try {
+    if (currencyCode.toUpperCase() === "INR") {
+      return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(num);
+    }
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(num);
+  } catch (error) {
+    console.warn(`Invalid currency code: ${currencyCode}`, error);
+    return `${currencyCode} ${num.toFixed(2)}`;
+  }
+}
+function formatCurrencyPdf(amount, currencyCode = "INR") {
+  return formatCurrency(amount, currencyCode);
+}
+
+// server/services/invoice-pdf.service.ts
 var InvoicePDFService = class _InvoicePDFService {
   // A4 points
   static PAGE_WIDTH = 595.28;
@@ -4079,7 +4201,6 @@ var InvoicePDFService = class _InvoicePDFService {
   static FAINT = "#6B7280";
   static LINE = "#D1D5DB";
   static SOFT = "#F3F4F6";
-  static CURRENCY_PREFIX = "Rs. ";
   // Serials
   static SERIAL_INLINE_LIMIT = 8;
   static SERIAL_APPENDIX_THRESHOLD = 12;
@@ -4127,26 +4248,22 @@ var InvoicePDFService = class _InvoicePDFService {
     }
     doc.end();
   }
-  // Preload assets async
+  // Preload assets async-ish
   static async prepareAssets(doc, data) {
-    let logoToUse = "";
-    if (data.companyLogo) {
-      logoToUse = data.companyLogo;
-    } else {
-      const p1 = path.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      const p2 = path.join(process.cwd(), "client", "public", "logo.png");
-      try {
-        await fs.promises.access(p1, fs.constants.F_OK);
-        logoToUse = p1;
-      } catch {
-        try {
-          await fs.promises.access(p2, fs.constants.F_OK);
-          logoToUse = p2;
-        } catch {
-        }
+    const fontDir = path2.join(process.cwd(), "server", "pdf", "fonts");
+    const regularPath = path2.join(fontDir, "Roboto-Regular.ttf");
+    const boldPath = path2.join(fontDir, "Roboto-Bold.ttf");
+    try {
+      if (fs2.existsSync(regularPath) && fs2.existsSync(boldPath)) {
+        doc.registerFont("Helvetica", regularPath);
+        doc.registerFont("Helvetica-Bold", boldPath);
       }
+    } catch (e) {
+      console.warn("Could not register custom fonts, falling back to standard:", e);
     }
-    data.resolvedLogo = logoToUse;
+    const { logo, mimeType } = await prepareLogo(data.companyLogo);
+    data.resolvedLogo = logo;
+    data.logoMimeType = mimeType;
   }
   // ---------------------------
   // Geometry helpers
@@ -4200,24 +4317,16 @@ var InvoicePDFService = class _InvoicePDFService {
       return "-";
     }
   }
-  static money(v) {
-    const n = Number(v) || 0;
-    return this.CURRENCY_PREFIX + n.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+  static money(v, currency = "INR") {
+    return formatCurrencyPdf(v, currency);
   }
   /** For totals rows (discount etc.) */
-  static moneySigned(v) {
+  static moneySigned(v, currency = "INR") {
     const n = Number(v) || 0;
     if (n < 0) {
-      const abs = Math.abs(n);
-      return "-" + this.CURRENCY_PREFIX + abs.toLocaleString("en-IN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
+      return "-" + formatCurrencyPdf(Math.abs(n), currency);
     }
-    return this.money(n);
+    return formatCurrencyPdf(n, currency);
   }
   static normalizeAddress(addr, maxLines = 3) {
     if (!addr) return "";
@@ -4296,13 +4405,10 @@ var InvoicePDFService = class _InvoicePDFService {
     const logoSize = 26;
     let logoPrinted = false;
     const logoPath = data.resolvedLogo;
+    const mimeType = data.logoMimeType || "";
     if (logoPath) {
-      try {
-        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } catch {
-        logoPrinted = false;
-      }
+      const drawn = drawLogo(doc, logoPath, mimeType, x, topY + 12, logoSize);
+      logoPrinted = drawn;
     }
     const leftX = logoPrinted ? x + logoSize + 8 : x;
     doc.font("Helvetica-Bold").fontSize(11).fillColor(this.INK);
@@ -4663,12 +4769,12 @@ var InvoicePDFService = class _InvoicePDFService {
       doc.text(hsnSac, cx.hsn, y + padY, { width: col.hsn, align: "center", lineBreak: false });
       doc.text(String(qty), cx.qty, y + padY, { width: col.qty, align: "center", lineBreak: false });
       doc.text(unit, cx.unit, y + padY, { width: col.unit, align: "center", lineBreak: false });
-      doc.text(this.money(rate), cx.rate, y + padY, {
+      doc.text(this.money(rate, data.currency || data.quote.currency), cx.rate, y + padY, {
         width: col.rate - 8,
         align: "right",
         lineBreak: false
       });
-      doc.text(this.money(amount), cx.amount, y + padY, {
+      doc.text(this.money(amount, data.currency || data.quote.currency), cx.amount, y + padY, {
         width: col.amount - 8,
         align: "right",
         lineBreak: false
@@ -4710,7 +4816,7 @@ var InvoicePDFService = class _InvoicePDFService {
     if (sgst > 0) totalsRows.push({ label: "SGST", value: sgst });
     if (igst > 0) totalsRows.push({ label: "IGST", value: igst });
     totalsRows.push({ label: "TOTAL", value: total, bold: true });
-    const words = this.amountInWordsINR(total);
+    const words = this.amountInWords(total, data.currency || data.quote.currency);
     const notesText = String(data.notes || data.quote.notes || "").trim();
     const milestone = String(data.milestoneDescription || "").trim();
     const delivery = String(data.deliveryNotes || "").trim();
@@ -4786,7 +4892,7 @@ var InvoicePDFService = class _InvoicePDFService {
       doc.font("Helvetica-Bold").fontSize(7.6).fillColor(this.INK);
       doc.text(r.label, rightX + 8, ry, { width: labelW, lineBreak: false });
       doc.font("Helvetica-Bold").fontSize(r.bold ? 9 : 8).fillColor(this.INK);
-      const moneyStr = r.signed ? this.moneySigned(r.value) : this.money(r.value);
+      const moneyStr = r.signed ? this.moneySigned(r.value, data.currency || data.quote.currency) : this.money(r.value, data.currency || data.quote.currency);
       doc.text(moneyStr, rightX + 8 + labelW, ry - (r.bold ? 1 : 0), {
         width: valW,
         align: "right",
@@ -4796,10 +4902,10 @@ var InvoicePDFService = class _InvoicePDFService {
     });
     const taxBits = [];
     const nbsp = "\xA0";
-    taxBits.push(`Taxable: ${this.money(taxable).replace("Rs. ", "Rs." + nbsp)}`);
-    if (cgst > 0) taxBits.push(`CGST: ${this.money(cgst).replace("Rs. ", "Rs." + nbsp)}`);
-    if (sgst > 0) taxBits.push(`SGST: ${this.money(sgst).replace("Rs. ", "Rs." + nbsp)}`);
-    if (igst > 0) taxBits.push(`IGST: ${this.money(igst).replace("Rs. ", "Rs." + nbsp)}`);
+    taxBits.push(`Taxable: ${this.money(taxable, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (cgst > 0) taxBits.push(`CGST: ${this.money(cgst, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (sgst > 0) taxBits.push(`SGST: ${this.money(sgst, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (igst > 0) taxBits.push(`IGST: ${this.money(igst, data.currency || data.quote.currency).replace("Rs. ", "Rs." + nbsp)}`);
     doc.font("Helvetica").fontSize(6).fillColor(this.FAINT);
     const taxLine = this.truncateToWidth(doc, taxBits.join("  |  "), rightW - 16);
     doc.text(taxLine, rightX + 8, ry + 2, {
@@ -5164,40 +5270,35 @@ var InvoicePDFService = class _InvoicePDFService {
   // ---------------------------
   // Amount in words (INR)
   // ---------------------------
-  static amountInWordsINR(amount) {
+  // ---------------------------
+  // Amount in words (Dynamic Currency)
+  // ---------------------------
+  static amountInWords(amount, currency = "INR") {
+    const isINR = currency.toUpperCase() === "INR";
     const n = Number(amount) || 0;
-    const rupees = Math.floor(n);
-    const paise = Math.round((n - rupees) * 100);
-    const r = this.numberToWordsIndian(rupees);
-    const p = paise > 0 ? this.numberToWordsIndian(paise) : "";
-    if (paise > 0) return `INR ${r} Rupees and ${p} Paise Only`;
-    return `INR ${r} Rupees Only`;
+    const integerPart = Math.floor(Math.abs(n));
+    const decimalPart = Math.round((Math.abs(n) - integerPart) * 100);
+    let mainText = "";
+    if (isINR) {
+      mainText = this.numberToWordsIndian(integerPart);
+    } else {
+      mainText = this.numberToWordsInternational(integerPart);
+    }
+    let decimalText = "";
+    if (decimalPart > 0) {
+      if (isINR) {
+        decimalText = ` and ${this.numberToWordsIndian(decimalPart)} Paise`;
+      } else {
+        decimalText = ` and ${this.numberToWordsInternational(decimalPart)} Cents`;
+      }
+    }
+    return `${currency} ${mainText}${decimalText} Only`;
   }
+  // Indian Numbering System (Lakhs/Crores)
   static numberToWordsIndian(num) {
     const n = Math.floor(Math.abs(num));
     if (n === 0) return "Zero";
-    const ones = [
-      "",
-      "One",
-      "Two",
-      "Three",
-      "Four",
-      "Five",
-      "Six",
-      "Seven",
-      "Eight",
-      "Nine",
-      "Ten",
-      "Eleven",
-      "Twelve",
-      "Thirteen",
-      "Fourteen",
-      "Fifteen",
-      "Sixteen",
-      "Seventeen",
-      "Eighteen",
-      "Nineteen"
-    ];
+    const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
     const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
     const twoDigits = (x) => {
       if (x < 20) return ones[x];
@@ -5224,13 +5325,44 @@ var InvoicePDFService = class _InvoicePDFService {
     if (hundredPart) parts.push(threeDigits(hundredPart));
     return parts.join(" ").replace(/\s+/g, " ").trim();
   }
+  // International Numbering System (Millions/Billions)
+  static numberToWordsInternational(num) {
+    const n = Math.floor(Math.abs(num));
+    if (n === 0) return "Zero";
+    const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+    const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    const twoDigits = (x) => {
+      if (x < 20) return ones[x];
+      const t = Math.floor(x / 10);
+      const o = x % 10;
+      return `${tens[t]}${o ? " " + ones[o] : ""}`.trim();
+    };
+    const threeDigits = (x) => {
+      const h = Math.floor(x / 100);
+      const r = x % 100;
+      let s = "";
+      if (h) s += `${ones[h]} Hundred`;
+      if (r) s += `${h ? " " : ""}${twoDigits(r)}`;
+      return s.trim();
+    };
+    const parts = [];
+    const billion = Math.floor(n / 1e9);
+    const million = Math.floor(n / 1e6 % 1e3);
+    const thousand = Math.floor(n / 1e3 % 1e3);
+    const hundredPart = n % 1e3;
+    if (billion) parts.push(`${threeDigits(billion)} Billion`);
+    if (million) parts.push(`${threeDigits(million)} Million`);
+    if (thousand) parts.push(`${threeDigits(thousand)} Thousand`);
+    if (hundredPart) parts.push(threeDigits(hundredPart));
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
 };
 
 // server/services/sales-order-pdf.service.ts
 init_feature_flags();
 import PDFDocument2 from "pdfkit";
-import path2 from "path";
-import fs2 from "fs";
+import path3 from "path";
+import fs3 from "fs";
 var SalesOrderPDFService = class _SalesOrderPDFService {
   // A4 points
   static PAGE_WIDTH = 595.28;
@@ -5247,7 +5379,6 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
   static FAINT = "#6B7280";
   static LINE = "#D1D5DB";
   static SOFT = "#F3F4F6";
-  static CURRENCY_PREFIX = "Rs. ";
   // Serials
   static SERIAL_INLINE_LIMIT = 8;
   static SERIAL_APPENDIX_THRESHOLD = 12;
@@ -5283,29 +5414,19 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
   }
   // Preload assets async
   static async prepareAssets(doc, data) {
+    const fontDir = path3.join(process.cwd(), "server", "pdf", "fonts");
+    const regularPath = path3.join(fontDir, "Roboto-Regular.ttf");
+    const boldPath = path3.join(fontDir, "Roboto-Bold.ttf");
     try {
-      doc.registerFont("Helvetica", "Helvetica");
-      doc.registerFont("Helvetica-Bold", "Helvetica-Bold");
-    } catch {
-    }
-    let logoToUse = "";
-    if (data.companyLogo) {
-      logoToUse = data.companyLogo;
-    } else {
-      const p1 = path2.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      const p2 = path2.join(process.cwd(), "client", "public", "logo.png");
-      try {
-        await fs2.promises.access(p1, fs2.constants.F_OK);
-        logoToUse = p1;
-      } catch {
-        try {
-          await fs2.promises.access(p2, fs2.constants.F_OK);
-          logoToUse = p2;
-        } catch {
-        }
+      if (fs3.existsSync(regularPath) && fs3.existsSync(boldPath)) {
+        doc.registerFont("Helvetica", regularPath);
+        doc.registerFont("Helvetica-Bold", boldPath);
       }
+    } catch (e) {
     }
-    data.resolvedLogo = logoToUse;
+    const { logo, mimeType } = await prepareLogo(data.companyLogo);
+    data.resolvedLogo = logo;
+    data.logoMimeType = mimeType;
   }
   // ---------------------------
   // Geometry helpers
@@ -5350,24 +5471,16 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       return "-";
     }
   }
-  static money(v) {
-    const n = Number(v) || 0;
-    return this.CURRENCY_PREFIX + n.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+  static money(v, currency = "INR") {
+    return formatCurrencyPdf(v, currency);
   }
   /** For totals rows (discount etc.) */
-  static moneySigned(v) {
+  static moneySigned(v, currency = "INR") {
     const n = Number(v) || 0;
     if (n < 0) {
-      const abs = Math.abs(n);
-      return "-" + this.CURRENCY_PREFIX + abs.toLocaleString("en-IN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
+      return "-" + formatCurrencyPdf(Math.abs(n), currency);
     }
-    return this.money(n);
+    return formatCurrencyPdf(n, currency);
   }
   static normalizeAddress(addr, maxLines = 3) {
     if (!addr) return "";
@@ -5473,14 +5586,12 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     const leftMaxW = this.CONTENT_WIDTH - rightColW - 20;
     let logoBottomY = topY;
     const logoPath = data.resolvedLogo;
+    const mimeType = data.logoMimeType || "";
     let logoPrinted = false;
     const logoSize = 50;
     if (logoPath) {
-      try {
-        doc.image(logoPath, x, topY, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } catch {
-      }
+      const drawn = drawLogo(doc, logoPath, mimeType, x, topY, logoSize);
+      logoPrinted = drawn;
     }
     if (logoPrinted) logoBottomY = topY + logoSize + 10;
     let currentLeftY = Math.max(logoBottomY, topY + 10);
@@ -5704,6 +5815,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       const unit = String(it.unit ?? "pcs");
       const rate = Number(it.unitPrice ?? 0);
       const amount = Number(it.subtotal ?? qty * rate);
+      const currency = data.currency || "INR";
       const hsnSac = String(it.hsnSac ?? it.hsn_sac ?? "").trim() || "-";
       const serials = this.parseSerialNumbers(it.serialNumbers);
       const needsAppendix = serials.length > this.SERIAL_APPENDIX_THRESHOLD;
@@ -5771,12 +5883,12 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       doc.text(hsnSac, cx.hsn, y + padY, { width: col.hsn, align: "center", lineBreak: false });
       doc.text(String(qty), cx.qty, y + padY, { width: col.qty, align: "center", lineBreak: false });
       doc.text(unit, cx.unit, y + padY, { width: col.unit, align: "center", lineBreak: false });
-      doc.text(this.money(rate), cx.rate, y + padY, {
+      doc.text(this.money(rate, data.currency), cx.rate, y + padY, {
         width: col.rate - 8,
         align: "right",
         lineBreak: false
       });
-      doc.text(this.money(amount), cx.amount, y + padY, {
+      doc.text(this.money(amount, data.currency), cx.amount, y + padY, {
         width: col.amount - 8,
         align: "right",
         lineBreak: false
@@ -5820,7 +5932,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     if (sgst > 0) totalsRows.push({ label: "SGST", value: sgst });
     if (igst > 0) totalsRows.push({ label: "IGST", value: igst });
     totalsRows.push({ label: "TOTAL", value: total, bold: true });
-    const words = this.amountInWordsINR(total);
+    const words = this.amountInWords(total, data.currency);
     const notesText = String(data.notes || data.quote.notes || "").trim();
     const delivery = String(data.deliveryNotes || "").trim();
     const termsRaw = String(data.termsAndConditions || "").trim();
@@ -5882,7 +5994,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       doc.font("Helvetica-Bold").fontSize(7.6).fillColor(this.INK);
       doc.text(r.label, rightX + 8, ry, { width: labelW, lineBreak: false });
       doc.font("Helvetica-Bold").fontSize(r.bold ? 9 : 8).fillColor(this.INK);
-      const moneyStr = r.signed ? this.moneySigned(r.value) : this.money(r.value);
+      const moneyStr = r.signed ? this.moneySigned(r.value, data.currency) : this.money(r.value, data.currency);
       doc.text(moneyStr, rightX + 8 + labelW, ry - (r.bold ? 1 : 0), {
         width: valW,
         align: "right",
@@ -5892,10 +6004,10 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     });
     const taxBits = [];
     const nbsp = "\xA0";
-    taxBits.push(`Taxable: ${this.money(taxable).replace("Rs. ", "Rs." + nbsp)}`);
-    if (cgst > 0) taxBits.push(`CGST: ${this.money(cgst).replace("Rs. ", "Rs." + nbsp)}`);
-    if (sgst > 0) taxBits.push(`SGST: ${this.money(sgst).replace("Rs. ", "Rs." + nbsp)}`);
-    if (igst > 0) taxBits.push(`IGST: ${this.money(igst).replace("Rs. ", "Rs." + nbsp)}`);
+    taxBits.push(`Taxable: ${this.money(taxable, data.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (cgst > 0) taxBits.push(`CGST: ${this.money(cgst, data.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (sgst > 0) taxBits.push(`SGST: ${this.money(sgst, data.currency).replace("Rs. ", "Rs." + nbsp)}`);
+    if (igst > 0) taxBits.push(`IGST: ${this.money(igst, data.currency).replace("Rs. ", "Rs." + nbsp)}`);
     doc.font("Helvetica").fontSize(6).fillColor(this.FAINT);
     const taxLine = this.truncateToWidth(doc, taxBits.join("  |  "), rightW - 16);
     doc.text(taxLine, rightX + 8, ry + 2, { width: rightW - 16, align: "right", lineBreak: false });
@@ -6125,40 +6237,35 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
   // ---------------------------
   // Amount in words (INR)
   // ---------------------------
-  static amountInWordsINR(amount) {
+  // ---------------------------
+  // Amount in words (Dynamic Currency)
+  // ---------------------------
+  static amountInWords(amount, currency = "INR") {
+    const isINR = currency.toUpperCase() === "INR";
     const n = Number(amount) || 0;
-    const rupees = Math.floor(n);
-    const paise = Math.round((n - rupees) * 100);
-    const r = this.numberToWordsIndian(rupees);
-    const p = paise > 0 ? this.numberToWordsIndian(paise) : "";
-    if (paise > 0) return `INR ${r} and ${p} Paise Only`;
-    return `INR ${r} Only`;
+    const integerPart = Math.floor(Math.abs(n));
+    const decimalPart = Math.round((Math.abs(n) - integerPart) * 100);
+    let mainText = "";
+    if (isINR) {
+      mainText = this.numberToWordsIndian(integerPart);
+    } else {
+      mainText = this.numberToWordsInternational(integerPart);
+    }
+    let decimalText = "";
+    if (decimalPart > 0) {
+      if (isINR) {
+        decimalText = ` and ${this.numberToWordsIndian(decimalPart)} Paise`;
+      } else {
+        decimalText = ` and ${this.numberToWordsInternational(decimalPart)} Cents`;
+      }
+    }
+    return `${currency} ${mainText}${decimalText} Only`;
   }
+  // Indian Numbering System (Lakhs/Crores)
   static numberToWordsIndian(num) {
     const n = Math.floor(Math.abs(num));
     if (n === 0) return "Zero";
-    const ones = [
-      "",
-      "One",
-      "Two",
-      "Three",
-      "Four",
-      "Five",
-      "Six",
-      "Seven",
-      "Eight",
-      "Nine",
-      "Ten",
-      "Eleven",
-      "Twelve",
-      "Thirteen",
-      "Fourteen",
-      "Fifteen",
-      "Sixteen",
-      "Seventeen",
-      "Eighteen",
-      "Nineteen"
-    ];
+    const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
     const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
     const twoDigits = (x) => {
       if (x < 20) return ones[x];
@@ -6182,6 +6289,37 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     if (crore) parts.push(`${twoDigits(crore)} Crore`);
     if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
     if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+    if (hundredPart) parts.push(threeDigits(hundredPart));
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+  // International Numbering System (Millions/Billions)
+  static numberToWordsInternational(num) {
+    const n = Math.floor(Math.abs(num));
+    if (n === 0) return "Zero";
+    const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+    const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    const twoDigits = (x) => {
+      if (x < 20) return ones[x];
+      const t = Math.floor(x / 10);
+      const o = x % 10;
+      return `${tens[t]}${o ? " " + ones[o] : ""}`.trim();
+    };
+    const threeDigits = (x) => {
+      const h = Math.floor(x / 100);
+      const r = x % 100;
+      let s = "";
+      if (h) s += `${ones[h]} Hundred`;
+      if (r) s += `${h ? " " : ""}${twoDigits(r)}`;
+      return s.trim();
+    };
+    const parts = [];
+    const billion = Math.floor(n / 1e9);
+    const million = Math.floor(n / 1e6 % 1e3);
+    const thousand = Math.floor(n / 1e3 % 1e3);
+    const hundredPart = n % 1e3;
+    if (billion) parts.push(`${threeDigits(billion)} Billion`);
+    if (million) parts.push(`${threeDigits(million)} Million`);
+    if (thousand) parts.push(`${threeDigits(thousand)} Thousand`);
     if (hundredPart) parts.push(threeDigits(hundredPart));
     return parts.join(" ").replace(/\s+/g, " ").trim();
   }
@@ -6631,6 +6769,36 @@ This link will expire in 1 hour.`
       console.error("Failed to send subscription renewal email:", error);
     }
   }
+  static async sendEmail(params) {
+    try {
+      if (this.useResend && this.resend) {
+        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+        if (fromEmail.includes("@gmail.com")) {
+          fromEmail = "onboarding@resend.dev";
+        }
+        await this.resend.emails.send({
+          from: fromEmail,
+          to: params.to,
+          subject: params.subject,
+          html: params.html,
+          text: params.text
+        });
+      } else {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
+          to: params.to,
+          subject: params.subject,
+          html: params.html,
+          text: params.text
+        });
+      }
+      console.log(`[EmailService] Generic email sent to ${params.to}`);
+    } catch (error) {
+      console.error("Failed to send generic email:", error);
+      throw error;
+    }
+  }
 };
 
 // server/utils/financial.ts
@@ -6926,6 +7094,7 @@ router.post(
         baseOrderData = {
           quoteId: quote.id,
           clientId: quote.clientId,
+          currency: quote.currency,
           subtotal: quote.subtotal.toString(),
           discount: quote.discount.toString(),
           cgst: quote.cgst.toString(),
@@ -6957,6 +7126,7 @@ router.post(
         baseOrderData = {
           quoteId: null,
           clientId,
+          currency: otherFields.currency || "INR",
           subtotal: subtotal ? String(subtotal) : "0",
           total: total ? String(total) : "0",
           // Allow other fields or defaults
@@ -7523,6 +7693,7 @@ router.get("/sales-orders/:id/pdf", requirePermission("sales_orders", "view"), a
       quote: quote || { quoteNumber: "-" },
       client,
       items: items || [],
+      currency: order.currency,
       companyName,
       companyAddress,
       companyPhone,
@@ -7701,6 +7872,7 @@ router.post(
           orderNumber,
           clientId: quote.clientId,
           status: "draft",
+          currency: quote.currency,
           subtotal: quote.subtotal,
           discount: quote.discount || "0",
           cgst: quote.cgst || "0",
@@ -8417,15 +8589,13 @@ var clients_routes_default = router4;
 // server/routes/quotes.routes.ts
 init_storage();
 import { Router as Router5 } from "express";
-import { Worker } from "worker_threads";
-import path4 from "path";
 init_numbering_service();
 init_logger();
 
 // server/services/pdf.service.ts
 import PDFDocument3 from "pdfkit";
-import path3 from "path";
-import fs3 from "fs";
+import path4 from "path";
+import fs4 from "fs";
 
 // server/services/pdf-themes.ts
 var professionalTheme = {
@@ -8708,6 +8878,54 @@ var PDFService = class _PDFService {
   // ======================================================================
   // PUBLIC
   // ======================================================================
+  // ======================================================================
+  // WORKER SUPPORT
+  // ======================================================================
+  static async generateQuotePDFInWorker(data) {
+    const { Worker } = await import("worker_threads");
+    return new Promise(async (resolve, reject) => {
+      try {
+        let workerPath;
+        if (process.env.NODE_ENV === "production") {
+          workerPath = path4.join(process.cwd(), "dist", "workers", "pdf.worker.js");
+        } else {
+          workerPath = path4.join(process.cwd(), "server", "workers", "pdf.worker.ts");
+        }
+        const execArgv = [];
+        if (process.env.NODE_ENV !== "production") {
+          const { pathToFileURL } = await import("url");
+          try {
+            const tsxLoaderPath = path4.resolve("node_modules/tsx/dist/loader.mjs");
+            const loaderUrl = pathToFileURL(tsxLoaderPath).href;
+            execArgv.push("--import", loaderUrl);
+          } catch (e) {
+          }
+        }
+        const worker = new Worker(workerPath, {
+          execArgv,
+          workerData: data
+        });
+        worker.on("message", (msg) => {
+          if (msg.status === "success") {
+            resolve(Buffer.from(msg.buffer));
+          } else {
+            reject(new Error(msg.error));
+          }
+          worker.terminate();
+        });
+        worker.on("error", (err) => {
+          reject(err);
+          worker.terminate();
+        });
+        worker.on("exit", (code) => {
+          if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+        });
+        worker.postMessage(data);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
   static async generateQuotePDF(data, res) {
     let selectedTheme;
     if (data.theme) selectedTheme = getTheme(data.theme);
@@ -8756,47 +8974,44 @@ var PDFService = class _PDFService {
   }
   // Optimize: Check assets async
   static async prepareAssets(doc, data) {
-    const fontsDir = path3.join(process.cwd(), "server", "pdf", "fonts");
+    const fontsDir = path4.join(process.cwd(), "server", "pdf", "fonts");
     const tryFont = async (filename) => {
       try {
-        const p = path3.join(fontsDir, filename);
-        await fs3.promises.access(p, fs3.constants.F_OK);
+        const p = path4.join(fontsDir, filename);
+        await fs4.promises.access(p, fs4.constants.F_OK);
         return p;
       } catch {
         return null;
       }
     };
-    const [regPath, boldPath] = await Promise.all([
-      tryFont("Inter-Regular.ttf"),
-      tryFont("Inter-Bold.ttf")
+    const [robotoReg, robotoBold] = await Promise.all([
+      tryFont("Roboto-Regular.ttf"),
+      tryFont("Roboto-Bold.ttf")
     ]);
-    if (regPath && boldPath) {
-      doc.registerFont("Inter", regPath);
-      doc.registerFont("Inter-Bold", boldPath);
-      this.FONT_REG = "Inter";
-      this.FONT_BOLD = "Inter-Bold";
-    } else {
+    if (robotoReg && robotoBold) {
+      doc.registerFont("Helvetica", robotoReg);
+      doc.registerFont("Helvetica-Bold", robotoBold);
       this.FONT_REG = "Helvetica";
       this.FONT_BOLD = "Helvetica-Bold";
-    }
-    let logoToUse = "";
-    if (data.companyLogo) {
-      logoToUse = data.companyLogo;
     } else {
-      const p1 = path3.join(process.cwd(), "client", "public", "AICERA_Logo.png");
-      const p2 = path3.join(process.cwd(), "client", "public", "logo.png");
-      try {
-        await fs3.promises.access(p1, fs3.constants.F_OK);
-        logoToUse = p1;
-      } catch {
-        try {
-          await fs3.promises.access(p2, fs3.constants.F_OK);
-          logoToUse = p2;
-        } catch {
-        }
+      const [regPath, boldPath] = await Promise.all([
+        tryFont("Inter-Regular.ttf"),
+        tryFont("Inter-Bold.ttf")
+      ]);
+      if (regPath && boldPath) {
+        doc.registerFont("Inter", regPath);
+        doc.registerFont("Inter-Bold", boldPath);
+        this.FONT_REG = "Inter";
+        this.FONT_BOLD = "Inter-Bold";
+      } else {
+        this.FONT_REG = "Helvetica";
+        this.FONT_BOLD = "Helvetica-Bold";
       }
     }
-    data.resolvedLogo = logoToUse;
+    let logoToUse = "";
+    const { logo, mimeType } = await prepareLogo(data.companyLogo);
+    data.resolvedLogo = logo;
+    data.logoMimeType = mimeType;
   }
   // ======================================================================
   // THEME + FONTS
@@ -8840,12 +9055,8 @@ var PDFService = class _PDFService {
       return "-";
     }
   }
-  static currency(v) {
-    const n = Number(v) || 0;
-    return `Rs. ${n.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
+  static currency(v, currencyCode = "INR") {
+    return formatCurrencyPdf(v, currencyCode);
   }
   static normalizeAddress(addr, maxLines = 3) {
     if (!addr) return "";
@@ -8946,12 +9157,10 @@ var PDFService = class _PDFService {
     const logoSize = 26;
     let logoPrinted = false;
     const logoPath = data.resolvedLogo;
+    const mimeType = data.logoMimeType || "";
     if (logoPath) {
-      try {
-        doc.image(logoPath, x, topY + 12, { fit: [logoSize, logoSize] });
-        logoPrinted = true;
-      } catch {
-      }
+      const drawn = drawLogo(doc, logoPath, mimeType, x, topY + 12, logoSize);
+      logoPrinted = drawn;
     }
     doc.font(this.FONT_BOLD).fontSize(11).fillColor(this.INK);
     doc.text(title, x, topY - 2, { width: w, align: "center", lineBreak: false });
@@ -9207,8 +9416,8 @@ var PDFService = class _PDFService {
       doc.text(String(qtyVal), cx.qty, midY, { width: qty, align: "center", lineBreak: false });
       doc.text(unitText, cx.unit, midY, { width: unit, align: "center", lineBreak: false });
       doc.font(this.FONT_BOLD).fontSize(8).fillColor(this.INK);
-      doc.text(this.currency(rateVal), cx.rate, midY, { width: rate - 8, align: "right", lineBreak: false });
-      doc.text(this.currency(amtVal), cx.amt, midY, { width: amt - 8, align: "right", lineBreak: false });
+      doc.text(this.currency(rateVal, data.quote.currency), cx.rate, midY, { width: rate - 8, align: "right", lineBreak: false });
+      doc.text(this.currency(amtVal, data.quote.currency), cx.amt, midY, { width: amt - 8, align: "right", lineBreak: false });
       y += rowH;
     }
     doc.y = y + 8;
@@ -9273,7 +9482,7 @@ var PDFService = class _PDFService {
     for (const r of rowList) {
       doc.font(this.FONT_BOLD).fontSize(r.bold ? 8.6 : 7.6).fillColor(this.INK);
       doc.text(r.k, xr + this.PAD_X, ry, { width: labelW - this.PAD_X, lineBreak: false });
-      const moneyStr = this.currency(r.v);
+      const moneyStr = this.currency(r.v, data.quote.currency);
       doc.font(this.FONT_BOLD).fontSize(r.bold ? 9 : 8).fillColor(r.danger ? this.DANGER : this.INK);
       doc.text(moneyStr, xr + labelW, ry, {
         width: valueW,
@@ -9844,6 +10053,7 @@ var WebSocketServiceClass = class {
 var WebSocketService = new WebSocketServiceClass();
 
 // server/services/notification.service.ts
+init_logger();
 var NotificationServiceClass = class {
   /**
    * Create a new notification and deliver via WebSocket
@@ -9873,7 +10083,7 @@ var NotificationServiceClass = class {
       }
       return notification;
     } catch (error) {
-      console.error("[NotificationService] Failed to create notification:", error);
+      logger.error("[NotificationService] Failed to create notification:", error);
       return null;
     }
   }
@@ -9894,7 +10104,7 @@ var NotificationServiceClass = class {
       const userIds = usersWithRole.map((u) => u.id);
       await this.createForMany(userIds, options);
     } catch (error) {
-      console.error("[NotificationService] Failed to create notifications for role:", error);
+      logger.error("[NotificationService] Failed to create notifications for role:", error);
     }
   }
   /**
@@ -9909,7 +10119,7 @@ var NotificationServiceClass = class {
       const result = await db.select().from(notifications).where(and3(...conditions)).orderBy(desc2(notifications.createdAt)).limit(options.limit || 50).offset(options.offset || 0);
       return result;
     } catch (error) {
-      console.error("[NotificationService] Failed to get notifications:", error);
+      logger.error("[NotificationService] Failed to get notifications:", error);
       return [];
     }
   }
@@ -9924,7 +10134,7 @@ var NotificationServiceClass = class {
       ));
       return Number(result?.count || 0);
     } catch (error) {
-      console.error("[NotificationService] Failed to get unread count:", error);
+      logger.error("[NotificationService] Failed to get unread count:", error);
       return 0;
     }
   }
@@ -9942,7 +10152,7 @@ var NotificationServiceClass = class {
       )).returning();
       return !!updated;
     } catch (error) {
-      console.error("[NotificationService] Failed to mark as read:", error);
+      logger.error("[NotificationService] Failed to mark as read:", error);
       return false;
     }
   }
@@ -9960,7 +10170,7 @@ var NotificationServiceClass = class {
       )).returning();
       return result.length;
     } catch (error) {
-      console.error("[NotificationService] Failed to mark all as read:", error);
+      logger.error("[NotificationService] Failed to mark all as read:", error);
       return 0;
     }
   }
@@ -9975,7 +10185,7 @@ var NotificationServiceClass = class {
       )).returning();
       return !!deleted;
     } catch (error) {
-      console.error("[NotificationService] Failed to delete notification:", error);
+      logger.error("[NotificationService] Failed to delete notification:", error);
       return false;
     }
   }
@@ -9987,7 +10197,7 @@ var NotificationServiceClass = class {
       const result = await db.delete(notifications).where(eq4(notifications.userId, userId)).returning();
       return result.length;
     } catch (error) {
-      console.error("[NotificationService] Failed to delete all notifications:", error);
+      logger.error("[NotificationService] Failed to delete all notifications:", error);
       return 0;
     }
   }
@@ -10002,7 +10212,7 @@ var NotificationServiceClass = class {
       console.log(`[NotificationService] Cleaned up ${result.length} old notifications`);
       return result.length;
     } catch (error) {
-      console.error("[NotificationService] Failed to cleanup old notifications:", error);
+      logger.error("[NotificationService] Failed to cleanup old notifications:", error);
       return 0;
     }
   }
@@ -10109,13 +10319,525 @@ var NotificationServiceClass = class {
         }
       );
     } catch (error) {
-      console.error("[NotificationService] Failed to send system announcement:", error);
+      logger.error("[NotificationService] Failed to send system announcement:", error);
     }
   }
 };
 var NotificationService = new NotificationServiceClass();
 
+// server/services/workflow-engine.service.ts
+init_storage();
+init_logger();
+var WorkflowEngine = class {
+  /**
+   * Trigger workflows for a specific entity event
+   * This is called whenever an entity changes (quote status change, invoice created, etc.)
+   */
+  static async triggerWorkflows(entityType, entityId, context) {
+    try {
+      const workflows2 = await storage.getActiveWorkflows(entityType);
+      if (workflows2.length === 0) {
+        logger.debug(`[WorkflowEngine] No active workflows for ${entityType}`);
+        return;
+      }
+      logger.info(`[WorkflowEngine] Found ${workflows2.length} active workflows for ${entityType}`);
+      for (const workflow of workflows2) {
+        try {
+          const shouldExecute = await this.evaluateWorkflow(workflow, context);
+          if (shouldExecute) {
+            logger.info(`[WorkflowEngine] Executing workflow: ${workflow.name} (${workflow.id})`);
+            await this.executeWorkflow(workflow, entityType, entityId, context);
+          }
+        } catch (error) {
+          logger.error(`[WorkflowEngine] Error processing workflow ${workflow.id}:`, error);
+        }
+      }
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error triggering workflows for ${entityType}:`, error);
+    }
+  }
+  /**
+  /**
+       * Evaluate if a workflow should execute based on its triggers
+       */
+  static async evaluateWorkflow(workflow, context) {
+    try {
+      const triggers = await storage.getWorkflowTriggers(workflow.id);
+      if (triggers.length === 0) {
+        logger.warn(`[WorkflowEngine] Workflow ${workflow.id} has no triggers`);
+        return false;
+      }
+      const logic = workflow.triggerLogic || "AND";
+      const results = [];
+      for (const trigger of triggers) {
+        if (!trigger.isActive) continue;
+        const matches = this.evaluateTrigger(trigger, context);
+        results.push(matches);
+      }
+      if (logic === "AND") {
+        return results.every((r) => r === true);
+      } else {
+        return results.some((r) => r === true);
+      }
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error evaluating workflow ${workflow.id}:`, error);
+      return false;
+    }
+  }
+  /**
+   * Evaluate a single trigger condition
+   */
+  static evaluateTrigger(trigger, context) {
+    const conditions = trigger.conditions;
+    switch (trigger.triggerType) {
+      case "status_change":
+        return this.evaluateStatusChange(conditions, context);
+      case "amount_threshold":
+        return this.evaluateAmountThreshold(conditions, context);
+      case "field_change":
+        return this.evaluateFieldChange(conditions, context);
+      case "date_based":
+        return this.evaluateDateBased(conditions, context);
+      case "created":
+        return context.eventType === "created";
+      case "manual":
+        return context.eventType === "manual";
+      default:
+        logger.warn(`[WorkflowEngine] Unknown trigger type: ${trigger.triggerType}`);
+        return false;
+    }
+  }
+  /**
+   * Evaluate status change trigger
+   * Example: { field: "status", from: "draft", to: "approved" }
+   */
+  static evaluateStatusChange(conditions, context) {
+    if (context.eventType !== "status_change") return false;
+    const field = conditions.field || "status";
+    const from = conditions.from;
+    const to = conditions.to;
+    if (from && to) {
+      return context.oldValue === from && context.newValue === to;
+    }
+    if (to) {
+      return context.newValue === to;
+    }
+    if (from) {
+      return context.oldValue === from;
+    }
+    return context.oldValue !== context.newValue;
+  }
+  /**
+   * Evaluate amount threshold trigger
+   * Example: { field: "total", operator: "greater_than", value: 10000 }
+   */
+  static evaluateAmountThreshold(conditions, context) {
+    const field = conditions.field || "total";
+    const operator = conditions.operator;
+    const threshold = parseFloat(conditions.value);
+    const entityValue = parseFloat(context.entity[field] || 0);
+    switch (operator) {
+      case "greater_than":
+        return entityValue > threshold;
+      case "less_than":
+        return entityValue < threshold;
+      case "equals":
+        return entityValue === threshold;
+      case "greater_than_or_equal":
+        return entityValue >= threshold;
+      case "less_than_or_equal":
+        return entityValue <= threshold;
+      default:
+        return false;
+    }
+  }
+  /**
+   * Evaluate field change trigger
+   * Example: { field: "discount", operator: "greater_than", value: 20 }
+   */
+  static evaluateFieldChange(conditions, context) {
+    if (context.eventType !== "field_change") return false;
+    const field = conditions.field;
+    const operator = conditions.operator;
+    const value = conditions.value;
+    const fieldValue = context.entity[field];
+    switch (operator) {
+      case "equals":
+        return fieldValue == value;
+      case "not_equals":
+        return fieldValue != value;
+      case "greater_than":
+        return parseFloat(fieldValue) > parseFloat(value);
+      case "less_than":
+        return parseFloat(fieldValue) < parseFloat(value);
+      case "contains":
+        return String(fieldValue).includes(String(value));
+      default:
+        return false;
+    }
+  }
+  /**
+   * Evaluate date-based trigger
+   * Example: { field: "dueDate", operator: "days_before", value: 7 }
+   */
+  static evaluateDateBased(conditions, context) {
+    const field = conditions.field;
+    const operator = conditions.operator;
+    const days = parseInt(conditions.value);
+    const dateValue = context.entity[field];
+    if (!dateValue) return false;
+    const targetDate = new Date(dateValue);
+    const today = /* @__PURE__ */ new Date();
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1e3 * 60 * 60 * 24));
+    switch (operator) {
+      case "days_before":
+        return diffDays === days && diffDays > 0;
+      case "days_after":
+        return diffDays === -days && diffDays < 0;
+      case "is_overdue":
+        return diffDays < 0;
+      case "is_today":
+        return diffDays === 0;
+      default:
+        return false;
+    }
+  }
+  /**
+   * Execute a workflow's actions
+   */
+  static async executeWorkflow(workflow, entityType, entityId, context) {
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    const execution = await storage.createWorkflowExecution({
+      workflowId: workflow.id,
+      entityType,
+      entityId,
+      status: "running",
+      triggeredBy: context.triggeredBy || "system",
+      executionLog: []
+    });
+    const executionLog = [];
+    try {
+      const actions = await storage.getWorkflowActions(workflow.id);
+      logger.info(`[WorkflowEngine] Executing ${actions.length} actions for workflow ${workflow.id}`);
+      for (const action of actions) {
+        if (!action.isActive) {
+          executionLog.push({
+            actionId: action.id,
+            actionType: action.actionType,
+            status: "skipped",
+            details: "Action is inactive",
+            timestamp: /* @__PURE__ */ new Date()
+          });
+          continue;
+        }
+        try {
+          if (action.conditionExpression) {
+            const shouldExecute = this.evaluateActionCondition(action.conditionExpression, context);
+            if (!shouldExecute) {
+              executionLog.push({
+                actionId: action.id,
+                actionType: action.actionType,
+                status: "skipped",
+                details: "Condition not met",
+                timestamp: /* @__PURE__ */ new Date()
+              });
+              continue;
+            }
+          }
+          if (action.delayMinutes && action.delayMinutes > 0) {
+            logger.info(`[WorkflowEngine] Delaying action ${action.id} by ${action.delayMinutes} minutes`);
+          }
+          const result = await this.executeAction(action, context);
+          executionLog.push(result);
+        } catch (error) {
+          logger.error(`[WorkflowEngine] Error executing action ${action.id}:`, error);
+          executionLog.push({
+            actionId: action.id,
+            actionType: action.actionType,
+            status: "failed",
+            details: "Action execution failed",
+            error: error.message,
+            timestamp: /* @__PURE__ */ new Date()
+          });
+        }
+      }
+      const executionTime = Date.now() - startTime;
+      await storage.updateWorkflowExecution(execution.id, {
+        status: "completed",
+        completedAt: /* @__PURE__ */ new Date(),
+        executionLog,
+        executionTimeMs: executionTime
+      });
+      logger.info(`[WorkflowEngine] Workflow ${workflow.id} completed in ${executionTime}ms`);
+    } catch (error) {
+      await storage.updateWorkflowExecution(execution.id, {
+        status: "failed",
+        completedAt: /* @__PURE__ */ new Date(),
+        executionLog,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+      logger.error(`[WorkflowEngine] Workflow ${workflow.id} failed:`, error);
+    }
+  }
+  /**
+   * Evaluate action condition expression
+   * Example: "{{quote.total}} > 50000"
+   */
+  static evaluateActionCondition(expression, context) {
+    try {
+      let evaluatedExpression = expression;
+      const matches = expression.match(/\{\{([^}]+)\}\}/g);
+      if (matches) {
+        for (const match of matches) {
+          const path5 = match.replace(/\{\{|\}\}/g, "").trim();
+          const value = this.getNestedValue(context.entity, path5);
+          evaluatedExpression = evaluatedExpression.replace(match, String(value));
+        }
+      }
+      return new Function("return " + evaluatedExpression)();
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error evaluating condition: ${expression}`, error);
+      return false;
+    }
+  }
+  /**
+   * Get nested value from object using dot notation
+   * Example: getNestedValue({ quote: { total: 1000 } }, "quote.total") => 1000
+   */
+  static getNestedValue(obj, path5) {
+    return path5.split(".").reduce((current, key) => current?.[key], obj);
+  }
+  /**
+   * Execute a single action
+   */
+  static async executeAction(action, context) {
+    const config = action.actionConfig;
+    try {
+      switch (action.actionType) {
+        case "send_email":
+          await this.executeSendEmail(config, context);
+          break;
+        case "create_notification":
+          await this.executeCreateNotification(config, context);
+          break;
+        case "update_field":
+          await this.executeUpdateField(config, context);
+          break;
+        case "create_activity_log":
+          await this.executeCreateActivityLog(config, context);
+          break;
+        case "assign_user":
+          await this.executeAssignUser(config, context);
+          break;
+        default:
+          logger.warn(`[WorkflowEngine] Unimplemented action type: ${action.actionType}`);
+      }
+      return {
+        actionId: action.id,
+        actionType: action.actionType,
+        status: "success",
+        details: `Successfully executed ${action.actionType}`,
+        timestamp: /* @__PURE__ */ new Date()
+      };
+    } catch (error) {
+      return {
+        actionId: action.id,
+        actionType: action.actionType,
+        status: "failed",
+        details: "Action execution failed",
+        error: error.message,
+        timestamp: /* @__PURE__ */ new Date()
+      };
+    }
+  }
+  /**
+   * Send email action
+   */
+  static async executeSendEmail(config, context) {
+    const to = this.interpolateTemplate(config.to, context);
+    const subject = this.interpolateTemplate(config.subject, context);
+    const body = this.interpolateTemplate(config.body, context);
+    await EmailService.sendEmail({
+      to,
+      subject,
+      html: body
+    });
+    logger.info(`[WorkflowEngine] Would send email to: ${to}, subject: ${subject}`);
+  }
+  /**
+   * Create notification action
+   */
+  /**
+   * Create notification action
+   */
+  static async executeCreateNotification(config, context) {
+    let userId = this.interpolateTemplate(config.userId, context);
+    const title = this.interpolateTemplate(config.title, context);
+    const message = this.interpolateTemplate(config.message, context);
+    const roles = ["admin", "sales_executive", "sales_manager", "purchase_operations", "finance_accounts"];
+    let targetUserIds = [];
+    if (roles.includes(userId)) {
+      const usersWithRole = await storage.getUsersByRole(userId);
+      if (usersWithRole.length > 0) {
+        targetUserIds = usersWithRole.map((u) => u.id);
+        logger.info(`[WorkflowEngine] Broadcasting notification to ${targetUserIds.length} users in role ${userId}`);
+      } else {
+        logger.warn(`[WorkflowEngine] No users found with role ${userId} for notification`);
+        return;
+      }
+    } else {
+      targetUserIds = [userId];
+    }
+    for (const targetId of targetUserIds) {
+      await NotificationService.create({
+        userId: targetId,
+        type: config.type || "system_announcement",
+        title,
+        message,
+        entityType: context.entity.entityType,
+        entityId: context.entity.id
+      });
+    }
+    logger.info(`[WorkflowEngine] Created notifications for ${targetUserIds.length} recipients`);
+  }
+  /**
+   * Update field action
+   */
+  static async executeUpdateField(config, context) {
+    const field = config.field;
+    const value = this.interpolateTemplate(config.value, context);
+    const entityType = context.entity.entityType || "quote";
+    const entityId = context.entity.id;
+    logger.info(`[WorkflowEngine] Updating field ${field} to ${value} for ${entityType} ${entityId}`);
+    try {
+      if (entityType === "quote") {
+        await storage.updateQuote(entityId, { [field]: value });
+      } else if (entityType === "invoice") {
+        logger.warn(`[WorkflowEngine] Update invoice not yet implemented fully`);
+      } else {
+        logger.warn(`[WorkflowEngine] Entity type ${entityType} not supported for generic update`);
+      }
+    } catch (err) {
+      logger.error(`[WorkflowEngine] Failed to update field:`, err);
+      throw err;
+    }
+  }
+  /**
+   * Create activity log action
+   */
+  static async executeCreateActivityLog(config, context) {
+    const action = this.interpolateTemplate(config.action, context);
+    const details = this.interpolateTemplate(config.details, context);
+    await storage.createActivityLog({
+      userId: config.userId || context.entity.createdBy,
+      action,
+      entityType: context.entity.entityType || "workflow",
+      entityId: context.entity.id,
+      metadata: { details }
+    });
+    logger.info(`[WorkflowEngine] Created activity log: ${action}`);
+  }
+  /**
+   * Template interpolation
+   * Replaces {{variable}} with actual values from context
+   */
+  static interpolateTemplate(template, context) {
+    if (!template) return "";
+    let result = template;
+    const matches = template.match(/\{\{([^}]+)\}\}/g);
+    if (matches) {
+      for (const match of matches) {
+        const path5 = match.replace(/\{\{|\}\}/g, "").trim();
+        let value = this.getNestedValue(context.entity, path5);
+        if (!value && path5.includes("_")) {
+          const camelPath = path5.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+          value = this.getNestedValue(context.entity, camelPath);
+        }
+        if (!value) {
+          value = this.getNestedValue({ entity: context.entity, ...context.entity }, path5);
+        }
+        result = result.replace(match, String(value || ""));
+      }
+    }
+    return result;
+  }
+  /**
+   * Run scheduled workflows (called by cron job)
+   */
+  static async runScheduledWorkflows() {
+    try {
+      const schedules = await storage.getActiveWorkflowSchedules();
+      const now = /* @__PURE__ */ new Date();
+      for (const schedule of schedules) {
+        if (schedule.nextRunAt && new Date(schedule.nextRunAt) <= now) {
+          logger.info(`[WorkflowEngine] Running scheduled workflow: ${schedule.workflowId}`);
+          const workflow = await storage.getWorkflow(schedule.workflowId);
+          if (workflow && workflow.status === "active") {
+            await this.triggerWorkflows(workflow.entityType, "scheduled", {
+              eventType: "time_based",
+              entity: {},
+              triggeredBy: "schedule"
+            });
+          }
+          await storage.updateWorkflowSchedule(schedule.id, {
+            lastRunAt: now
+            // nextRunAt: calculateNextRun(schedule.cronExpression),
+          });
+        }
+      }
+    } catch (error) {
+      logger.error(`[WorkflowEngine] Error running scheduled workflows:`, error);
+    }
+  }
+  /**
+   * Assign user action
+   */
+  static async executeAssignUser(config, context) {
+    let userId = this.interpolateTemplate(config.userId, context);
+    const entityType = context.entity.entityType || "quote";
+    const entityId = context.entity.id;
+    const roles = ["admin", "sales_executive", "sales_manager", "purchase_operations", "finance_accounts"];
+    if (roles.includes(userId)) {
+      logger.info(`[WorkflowEngine] Attempting to resolve role: ${userId}`);
+      const usersWithRole = await storage.getUsersByRole(userId);
+      if (usersWithRole.length > 0) {
+        userId = usersWithRole[0].id;
+        logger.info(`[WorkflowEngine] Resolved role ${config.userId} to user ${userId} (${usersWithRole[0].name})`);
+      } else {
+        logger.warn(`[WorkflowEngine] No users found with role ${userId} to assign`);
+        return;
+      }
+    } else {
+      logger.info(`[WorkflowEngine] Using direct user ID or variable: ${userId}`);
+    }
+    logger.info(`[WorkflowEngine] Final assignment - Entity: ${entityType} ${entityId}, User: ${userId}`);
+    try {
+      if (entityType === "quote") {
+        await storage.updateQuote(entityId, { assignedTo: userId });
+        await NotificationService.create({
+          userId,
+          type: "system_announcement",
+          title: "New Assignment",
+          message: `You have been assigned to Quote ${context.entity.quoteNumber || "Update"}`,
+          entityType: "quote",
+          entityId
+        });
+        logger.info(`[WorkflowEngine] Sent assignment notification to user ${userId}`);
+      } else {
+        logger.warn(`[WorkflowEngine] Assign user not supported for entity type ${entityType}`);
+      }
+    } catch (err) {
+      logger.error(`[WorkflowEngine] Failed to assign user:`, err);
+      throw err;
+    }
+  }
+};
+
 // server/routes/quotes.routes.ts
+init_schema();
 init_schema();
 init_db();
 import { eq as eq5 } from "drizzle-orm";
@@ -10479,6 +11201,46 @@ router5.post("/", requireFeature("quotes_create"), authMiddleware, requirePermis
     } catch (notifError) {
       logger.error("Failed to send notifications for new quote:", notifError);
     }
+    try {
+      const client = await storage.getClient(quote.clientId);
+      const enrichedEntity = {
+        ...quote,
+        client,
+        // Allows {{client.name}}
+        client_name: client?.name,
+        // Allows {{client_name}}
+        client_email: client?.email,
+        // Allows {{client_email}}
+        creator_name: req.user?.name || "QuoteProGen Team",
+        // Allows {{creator_name}}
+        creator_email: req.user?.email,
+        // Allows {{creator_email}}
+        formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
+        // Allows {{formatted_total}}
+        formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`
+        // Allows {{formatted_subtotal}}
+      };
+      logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "created",
+        entity: enrichedEntity,
+        triggeredBy: req.user.id
+      });
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "status_change",
+        entity: enrichedEntity,
+        newValue: quote.status,
+        oldValue: null,
+        triggeredBy: req.user.id
+      });
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "amount_threshold",
+        entity: enrichedEntity,
+        triggeredBy: req.user.id
+      });
+    } catch (workflowError) {
+      logger.error("Failed to trigger workflows for new quote:", workflowError);
+    }
     return res.json({ ...quote, approvalStatus, approvalRequiredBy });
   } catch (error) {
     logger.error("Create quote error:", error);
@@ -10623,6 +11385,46 @@ router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePerm
     } catch (notifError) {
       logger.error("Failed to send notifications for updated quote:", notifError);
     }
+    try {
+      const client = await storage.getClient(quote.clientId);
+      const enrichedEntity = {
+        ...quote,
+        client,
+        client_name: client?.name,
+        client_email: client?.email,
+        creator_name: req.user?.name || "QuoteProGen Team",
+        creator_email: req.user?.email,
+        formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
+        formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`
+      };
+      logger.info(`[WorkflowDebug] Enriched Entity for Update: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+      if (updateData.status && updateData.status !== existingQuote.status) {
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "status_change",
+          entity: enrichedEntity,
+          newValue: updateData.status,
+          oldValue: existingQuote.status,
+          triggeredBy: req.user.id
+        });
+      }
+      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+        eventType: "field_change",
+        entity: enrichedEntity,
+        triggeredBy: req.user.id,
+        changes: updateData
+        // Optional context if needed later
+      });
+      const financialFields = ["total", "subtotal", "discount"];
+      if (Object.keys(updateData).some((k) => financialFields.includes(k))) {
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "amount_threshold",
+          entity: enrichedEntity,
+          triggeredBy: req.user.id
+        });
+      }
+    } catch (workflowError) {
+      logger.error("Failed to trigger workflows for updated quote:", workflowError);
+    }
     return res.json(quote);
   } catch (error) {
     logger.error("Update quote error:", error);
@@ -10631,66 +11433,74 @@ router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePerm
 });
 router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_convertToInvoice"), requirePermission("invoices", "create"), async (req, res) => {
   try {
-    const quote = await storage.getQuote(req.params.id);
-    if (!quote) return res.status(404).json({ error: "Quote not found" });
-    if (quote.status === "invoiced") {
-      return res.status(400).json({ error: "Quote is already invoiced" });
-    }
-    const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
-    if (existingSalesOrder) {
-      return res.status(400).json({
-        error: "Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.",
-        salesOrderId: existingSalesOrder.id,
-        salesOrderNumber: existingSalesOrder.orderNumber
+    const result = await db.transaction(async (tx) => {
+      const quote = await storage.getQuote(req.params.id);
+      if (!quote) throw new Error("Quote not found");
+      if (quote.status === "invoiced") {
+        throw new Error("Quote is already invoiced");
+      }
+      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+      if (existingSalesOrder) {
+        const error = new Error("Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.");
+        error.statusCode = 400;
+        error.details = {
+          salesOrderId: existingSalesOrder.id,
+          salesOrderNumber: existingSalesOrder.orderNumber
+        };
+        throw error;
+      }
+      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+      const [invoice] = await tx.insert(invoices).values({
+        invoiceNumber,
+        quoteId: quote.id,
+        clientId: quote.clientId,
+        isMaster: true,
+        masterInvoiceStatus: "draft",
+        paymentStatus: "pending",
+        dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1e3),
+        // Default due date based on validity
+        paidAmount: "0",
+        subtotal: quote.subtotal,
+        discount: quote.discount,
+        cgst: quote.cgst,
+        sgst: quote.sgst,
+        igst: quote.igst,
+        shippingCharges: quote.shippingCharges,
+        total: quote.total,
+        notes: quote.notes,
+        termsAndConditions: quote.termsAndConditions,
+        createdBy: req.user.id
+      }).returning();
+      const quoteItems2 = await storage.getQuoteItems(quote.id);
+      for (const item of quoteItems2) {
+        await tx.insert(invoiceItems).values({
+          invoiceId: invoice.id,
+          productId: item.productId || null,
+          description: item.description,
+          quantity: item.quantity,
+          fulfilledQuantity: 0,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          status: "pending",
+          sortOrder: item.sortOrder,
+          hsnSac: item.hsnSac
+        });
+      }
+      await tx.update(quotes).set({ status: "invoiced", updatedAt: /* @__PURE__ */ new Date() }).where(eq5(quotes.id, quote.id));
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "convert_quote_to_invoice",
+        entityType: "invoice",
+        entityId: invoice.id
       });
-    }
-    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
-    const invoice = await storage.createInvoice({
-      invoiceNumber,
-      quoteId: quote.id,
-      clientId: quote.clientId,
-      isMaster: true,
-      masterInvoiceStatus: "draft",
-      paymentStatus: "pending",
-      dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1e3),
-      // Default due date based on validity
-      paidAmount: "0",
-      subtotal: quote.subtotal,
-      discount: quote.discount,
-      cgst: quote.cgst,
-      sgst: quote.sgst,
-      igst: quote.igst,
-      shippingCharges: quote.shippingCharges,
-      total: quote.total,
-      notes: quote.notes,
-      termsAndConditions: quote.termsAndConditions,
-      createdBy: req.user.id
+      return invoice;
     });
-    const quoteItems2 = await storage.getQuoteItems(quote.id);
-    for (const item of quoteItems2) {
-      await storage.createInvoiceItem({
-        invoiceId: invoice.id,
-        productId: item.productId || null,
-        description: item.description,
-        quantity: item.quantity,
-        fulfilledQuantity: 0,
-        unitPrice: item.unitPrice,
-        subtotal: item.subtotal,
-        status: "pending",
-        sortOrder: item.sortOrder,
-        hsnSac: item.hsnSac
-      });
-    }
-    await storage.updateQuote(quote.id, { status: "invoiced" });
-    await storage.createActivityLog({
-      userId: req.user.id,
-      action: "convert_quote_to_invoice",
-      entityType: "invoice",
-      entityId: invoice.id
-    });
-    return res.json(invoice);
+    return res.json(result);
   } catch (error) {
     logger.error("Convert quote error:", error);
+    if (error.statusCode === 400) {
+      return res.status(400).json({ error: error.message, ...error.details });
+    }
     return res.status(500).json({ error: error.message || "Failed to convert quote" });
   }
 });
@@ -10855,63 +11665,31 @@ router5.get("/:id/pdf", authMiddleware, requireFeature("quotes_pdfGeneration"), 
     logger.info(`[PDF Export] Clean filename: ${cleanFilename}`);
     logger.info(`[PDF Export] Content-Disposition header: attachment; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`);
     logger.info(`[PDF Export] Attempting offload to Worker Thread`);
-    const runWorker = async () => {
-      let workerPath;
-      if (process.env.NODE_ENV === "production") {
-        workerPath = path4.join(process.cwd(), "dist", "workers", "pdf.worker.js");
-      } else {
-        workerPath = path4.join(process.cwd(), "server", "workers", "pdf.worker.ts");
+    const pdfPayload = {
+      quote,
+      client,
+      items,
+      companyName,
+      companyAddress,
+      companyPhone,
+      companyEmail,
+      companyWebsite,
+      companyGSTIN,
+      companyLogo,
+      preparedBy: creator?.name,
+      preparedByEmail: creator?.email,
+      bankDetails: {
+        bankName,
+        accountNumber: bankAccountNumber,
+        accountName: bankAccountName,
+        ifsc: bankIfscCode,
+        branch: bankBranch,
+        swift: bankSwiftCode
       }
-      const { pathToFileURL } = await import("url");
-      const tsxLoaderPath = path4.resolve("node_modules/tsx/dist/loader.mjs");
-      const loaderUrl = pathToFileURL(tsxLoaderPath).href;
-      const worker = new Worker(workerPath, {
-        execArgv: process.env.NODE_ENV === "production" ? [] : ["--import", loaderUrl]
-      });
-      const pdfPayload = {
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        companyLogo,
-        preparedBy: creator?.name,
-        preparedByEmail: creator?.email,
-        bankDetails: {
-          bankName,
-          accountNumber: bankAccountNumber,
-          accountName: bankAccountName,
-          ifsc: bankIfscCode,
-          branch: bankBranch,
-          swift: bankSwiftCode
-        }
-      };
-      return new Promise((resolve, reject) => {
-        worker.on("message", (msg) => {
-          if (msg.status === "success") {
-            resolve(Buffer.from(msg.buffer));
-          } else {
-            reject(new Error(msg.error));
-          }
-          worker.terminate();
-        });
-        worker.on("error", (err) => {
-          reject(err);
-          worker.terminate();
-        });
-        worker.on("exit", (code) => {
-          if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
-        });
-        worker.postMessage(pdfPayload);
-      });
     };
     let pdfBuffer;
     try {
-      pdfBuffer = await runWorker();
+      pdfBuffer = await PDFService.generateQuotePDFInWorker(pdfPayload);
       logger.info(`[PDF Export] Worker returned PDF buffer. Size: ${pdfBuffer.length}`);
     } catch (err) {
       logger.warn(`[PDF Export] Worker failed (${err.message}). Falling back to main thread.`);
@@ -10923,28 +11701,7 @@ router5.get("/:id/pdf", authMiddleware, requireFeature("quotes_pdfGeneration"), 
         stream.on("end", () => resolve());
         stream.on("error", reject);
       });
-      await PDFService.generateQuotePDF({
-        quote,
-        client,
-        items,
-        companyName,
-        companyAddress,
-        companyPhone,
-        companyEmail,
-        companyWebsite,
-        companyGSTIN,
-        companyLogo,
-        preparedBy: creator?.name,
-        preparedByEmail: creator?.email,
-        bankDetails: {
-          bankName,
-          accountNumber: bankAccountNumber,
-          accountName: bankAccountName,
-          ifsc: bankIfscCode,
-          branch: bankBranch,
-          swift: bankSwiftCode
-        }
-      }, stream);
+      await PDFService.generateQuotePDF(pdfPayload, stream);
       await done;
       pdfBuffer = Buffer.concat(chunks);
       logger.info(`[PDF Export] Main thread generated PDF buffer. Size: ${pdfBuffer.length}`);
@@ -11245,129 +12002,137 @@ router6.put("/:id/master-status", authMiddleware, requireFeature("invoices_final
 });
 router6.put("/:id/master-details", authMiddleware, requireFeature("invoices_edit"), requirePermission("invoices", "edit"), async (req, res) => {
   try {
-    const invoice = await storage.getInvoice(req.params.id);
-    if (!invoice) {
-      return res.status(404).json({ error: "Invoice not found" });
-    }
-    const isMasterInvoice = invoice.isMaster;
-    const isChildInvoice = !!invoice.parentInvoiceId;
-    const isRegularInvoice = !isMasterInvoice && !isChildInvoice;
-    if (isMasterInvoice) {
-      if (invoice.masterInvoiceStatus === "locked") {
-        return res.status(400).json({
-          error: "Cannot edit a locked master invoice"
-        });
+    const result = await db.transaction(async (tx) => {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        throw new Error("Invoice not found");
       }
-    } else if (isChildInvoice || isRegularInvoice) {
-      if (invoice.paymentStatus === "paid") {
-        return res.status(400).json({
-          error: "Cannot edit a paid invoice"
-        });
-      }
-    }
-    const isDraft = isMasterInvoice ? !invoice.masterInvoiceStatus || invoice.masterInvoiceStatus === "draft" : invoice.paymentStatus !== "paid";
-    const updateData = {};
-    if (isDraft) {
-      const editableFields = [
-        "notes",
-        "termsAndConditions",
-        "deliveryNotes",
-        "milestoneDescription",
-        "dueDate",
-        "subtotal",
-        "discount",
-        "cgst",
-        "sgst",
-        "igst",
-        "shippingCharges",
-        "total",
-        "paymentStatus",
-        "paidAmount",
-        "bomSection"
-      ];
-      for (const field of editableFields) {
-        if (req.body[field] !== void 0) {
-          updateData[field] = req.body[field];
+      const isMasterInvoice = invoice.isMaster;
+      const isChildInvoice = !!invoice.parentInvoiceId;
+      const isRegularInvoice = !isMasterInvoice && !isChildInvoice;
+      if (isMasterInvoice) {
+        if (invoice.masterInvoiceStatus === "locked") {
+          const error = new Error("Cannot edit a locked master invoice");
+          error.statusCode = 400;
+          throw error;
+        }
+      } else if (isChildInvoice || isRegularInvoice) {
+        if (invoice.paymentStatus === "paid") {
+          const error = new Error("Cannot edit a paid invoice");
+          error.statusCode = 400;
+          throw error;
         }
       }
-      if (req.body.items && Array.isArray(req.body.items)) {
-        if (isChildInvoice && invoice.parentInvoiceId) {
-          const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-          if (masterInvoice) {
-            const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-            const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
-            const siblingInvoices = allChildInvoices.filter(
-              (inv) => inv.parentInvoiceId === masterInvoice.id && inv.id !== invoice.id
-            );
-            const invoicedQuantities = {};
-            for (const sibling of siblingInvoices) {
-              const siblingItems = await storage.getInvoiceItems(sibling.id);
-              for (const item of siblingItems) {
-                const key = item.productId || item.description;
-                invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
+      const isDraft = isMasterInvoice ? !invoice.masterInvoiceStatus || invoice.masterInvoiceStatus === "draft" : invoice.paymentStatus !== "paid";
+      const updateData = {};
+      if (isDraft) {
+        const editableFields = [
+          "notes",
+          "termsAndConditions",
+          "deliveryNotes",
+          "milestoneDescription",
+          "dueDate",
+          "subtotal",
+          "discount",
+          "cgst",
+          "sgst",
+          "igst",
+          "shippingCharges",
+          "total",
+          "paymentStatus",
+          "paidAmount",
+          "bomSection"
+        ];
+        for (const field of editableFields) {
+          if (req.body[field] !== void 0) {
+            updateData[field] = req.body[field];
+          }
+        }
+        if (req.body.items && Array.isArray(req.body.items)) {
+          if (isChildInvoice && invoice.parentInvoiceId) {
+            const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
+            if (masterInvoice) {
+              const masterItems = await storage.getInvoiceItems(masterInvoice.id);
+              const allChildInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
+              const siblingInvoices = allChildInvoices.filter(
+                (inv) => inv.parentInvoiceId === masterInvoice.id && inv.id !== invoice.id
+              );
+              const invoicedQuantities = {};
+              for (const sibling of siblingInvoices) {
+                const siblingItems = await storage.getInvoiceItems(sibling.id);
+                for (const item of siblingItems) {
+                  const key = item.productId || item.description;
+                  invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
+                }
               }
-            }
-            for (const newItem of req.body.items) {
-              const masterItem = masterItems.find((mi) => mi.productId && mi.productId === newItem.productId || mi.description === newItem.description);
-              if (!masterItem) {
-                return res.status(400).json({
-                  error: `Item "${newItem.description}" not found in master invoice`
-                });
-              }
-              const key = newItem.productId || newItem.description;
-              const alreadyInvoiced = invoicedQuantities[key] || 0;
-              const remaining = masterItem.quantity - alreadyInvoiced;
-              if (newItem.quantity > remaining) {
-                return res.status(400).json({
-                  error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
-                });
+              for (const newItem of req.body.items) {
+                const masterItem = masterItems.find((mi) => mi.productId && mi.productId === newItem.productId || mi.description === newItem.description);
+                if (!masterItem) {
+                  const error = new Error(`Item "${newItem.description}" not found in master invoice`);
+                  error.statusCode = 400;
+                  throw error;
+                }
+                const key = newItem.productId || newItem.description;
+                const alreadyInvoiced = invoicedQuantities[key] || 0;
+                const remaining = masterItem.quantity - alreadyInvoiced;
+                if (newItem.quantity > remaining) {
+                  const error = new Error(`Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`);
+                  error.statusCode = 400;
+                  throw error;
+                }
               }
             }
           }
+          await tx.delete(invoiceItems).where(eq7(invoiceItems.invoiceId, invoice.id));
+          for (const item of req.body.items) {
+            await tx.insert(invoiceItems).values({
+              invoiceId: invoice.id,
+              productId: item.productId || null,
+              description: item.description,
+              quantity: item.quantity,
+              fulfilledQuantity: item.fulfilledQuantity || 0,
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
+              serialNumbers: item.serialNumbers || null,
+              status: item.status || "pending",
+              sortOrder: item.sortOrder || 0,
+              hsnSac: item.hsnSac || null
+            });
+          }
         }
-        await storage.deleteInvoiceItems(invoice.id);
-        for (const item of req.body.items) {
-          await storage.createInvoiceItem({
-            invoiceId: invoice.id,
-            productId: item.productId || null,
-            description: item.description,
-            quantity: item.quantity,
-            fulfilledQuantity: item.fulfilledQuantity || 0,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
-            serialNumbers: item.serialNumbers || null,
-            status: item.status || "pending",
-            sortOrder: item.sortOrder || 0,
-            hsnSac: item.hsnSac || null
-          });
+      } else {
+        const allowedFields = ["notes", "termsAndConditions", "deliveryNotes", "milestoneDescription"];
+        for (const field of allowedFields) {
+          if (req.body[field] !== void 0) {
+            updateData[field] = req.body[field];
+          }
         }
       }
-    } else {
-      const allowedFields = ["notes", "termsAndConditions", "deliveryNotes", "milestoneDescription"];
-      for (const field of allowedFields) {
-        if (req.body[field] !== void 0) {
-          updateData[field] = req.body[field];
-        }
+      if (Object.keys(updateData).length === 0 && (!isDraft || !req.body.items)) {
+        const error = new Error("No valid fields to update");
+        error.statusCode = 400;
+        throw error;
       }
-    }
-    if (Object.keys(updateData).length === 0 && (!isDraft || !req.body.items)) {
-      return res.status(400).json({ error: "No valid fields to update" });
-    }
-    let updatedInvoice;
-    if (Object.keys(updateData).length > 0) {
-      updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
-    } else {
-      updatedInvoice = invoice;
-    }
-    await storage.createActivityLog({
-      userId: req.user.id,
-      action: "update_master_invoice",
-      entityType: "invoice",
-      entityId: invoice.id
+      let updatedInvoice;
+      if (Object.keys(updateData).length > 0) {
+        [updatedInvoice] = await tx.update(invoices).set(updateData).where(eq7(invoices.id, req.params.id)).returning();
+      } else {
+        updatedInvoice = invoice;
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_master_invoice",
+        entityType: "invoice",
+        entityId: invoice.id
+      });
+      return { success: true, invoice: updatedInvoice };
     });
-    res.json({ success: true, invoice: updatedInvoice });
+    res.json(result);
   } catch (error) {
     logger.error("Update master invoice error:", error);
+    if (error.statusCode === 400) {
+      return res.status(400).json({ error: error.message });
+    }
     return res.status(500).json({ error: error.message || "Failed to update master invoice" });
   }
 });
@@ -11572,120 +12337,124 @@ router6.delete("/:id", authMiddleware, requireFeature("invoices_delete"), requir
 });
 router6.post("/:id/create-child-invoice", authMiddleware, requireFeature("invoices_childInvoices"), requirePermission("invoices", "create"), async (req, res) => {
   try {
-    const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
-    const masterInvoice = await storage.getInvoice(req.params.id);
-    if (!masterInvoice) {
-      return res.status(404).json({ error: "Master invoice not found" });
-    }
-    if (!masterInvoice.isMaster) {
-      return res.status(400).json({ error: "This is not a master invoice" });
-    }
-    if (masterInvoice.masterInvoiceStatus === "draft") {
-      return res.status(400).json({
-        error: "Master invoice must be confirmed before creating child invoices"
+    const result = await db.transaction(async (tx) => {
+      const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;
+      const masterInvoice = await storage.getInvoice(req.params.id);
+      if (!masterInvoice) {
+        throw new Error("Master invoice not found");
+      }
+      if (!masterInvoice.isMaster) {
+        throw new Error("This is not a master invoice");
+      }
+      if (masterInvoice.masterInvoiceStatus === "draft") {
+        throw new Error("Master invoice must be confirmed before creating child invoices");
+      }
+      const masterItems = await storage.getInvoiceItems(masterInvoice.id);
+      const allChildInvoices = masterInvoice.quoteId ? await storage.getInvoicesByQuote(masterInvoice.quoteId || "") : await storage.getInvoicesBySalesOrder(masterInvoice.salesOrderId || "");
+      const siblingInvoices = allChildInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
+      const invoicedQuantities = {};
+      for (const sibling of siblingInvoices) {
+        const siblingItems = await storage.getInvoiceItems(sibling.id);
+        for (const item of siblingItems) {
+          const key = item.productId || item.description;
+          invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
+        }
+      }
+      const processedItems = [];
+      let subtotal = 0;
+      for (const rawItem of items) {
+        const newItem = { ...rawItem };
+        const masterItem = masterItems.find(
+          (mi) => newItem.itemId && mi.id === newItem.itemId || mi.productId && mi.productId === newItem.productId || mi.description === newItem.description
+        );
+        if (!masterItem) {
+          const error = new Error(`Item "${newItem.description}" not found in master invoice`);
+          error.statusCode = 400;
+          throw error;
+        }
+        if (!newItem.unitPrice) newItem.unitPrice = masterItem.unitPrice;
+        if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
+        if (!newItem.productId) newItem.productId = masterItem.productId;
+        const unitPrice = Number(newItem.unitPrice);
+        const quantity = Number(newItem.quantity);
+        if (isNaN(unitPrice)) {
+          const error = new Error(`Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`);
+          error.statusCode = 400;
+          throw error;
+        }
+        const key = newItem.productId || newItem.description;
+        const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
+        const remaining = masterItem.quantity - alreadyInvoiced;
+        if (quantity > remaining) {
+          const error = new Error(`Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`);
+          error.statusCode = 400;
+          throw error;
+        }
+        subtotal += unitPrice * quantity;
+        processedItems.push(newItem);
+      }
+      const masterSubtotal = Number(masterInvoice.subtotal);
+      const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
+      const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
+      const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
+      const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
+      const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
+      const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
+      const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
+      if (isNaN(total)) {
+        throw new Error("Calculation resulted in NaN. Check inputs.");
+      }
+      const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
+      const [childInvoice] = await tx.insert(invoices).values({
+        invoiceNumber,
+        parentInvoiceId: masterInvoice.id,
+        quoteId: masterInvoice.quoteId,
+        clientId: masterInvoice.clientId,
+        paymentStatus: "pending",
+        dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
+        paidAmount: "0",
+        subtotal: subtotal.toFixed(2),
+        discount,
+        cgst,
+        sgst,
+        igst,
+        shippingCharges,
+        total: total.toFixed(2),
+        notes: notes || masterInvoice.notes,
+        termsAndConditions: masterInvoice.termsAndConditions,
+        isMaster: false,
+        deliveryNotes: deliveryNotes || null,
+        milestoneDescription: milestoneDescription || null,
+        createdBy: req.user.id
+      }).returning();
+      for (const item of processedItems) {
+        await tx.insert(invoiceItems).values({
+          invoiceId: childInvoice.id,
+          productId: item.productId || null,
+          description: item.description,
+          quantity: item.quantity,
+          fulfilledQuantity: 0,
+          unitPrice: item.unitPrice,
+          subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
+          status: "pending",
+          sortOrder: item.sortOrder || 0,
+          hsnSac: item.hsnSac || null
+        });
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "create_child_invoice",
+        entityType: "invoice",
+        entityId: childInvoice.id
       });
-    }
-    const masterItems = await storage.getInvoiceItems(masterInvoice.id);
-    const allChildInvoices = masterInvoice.quoteId ? await storage.getInvoicesByQuote(masterInvoice.quoteId || "") : await storage.getInvoicesBySalesOrder(masterInvoice.salesOrderId || "");
-    const siblingInvoices = allChildInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-    const invoicedQuantities = {};
-    for (const sibling of siblingInvoices) {
-      const siblingItems = await storage.getInvoiceItems(sibling.id);
-      for (const item of siblingItems) {
-        const key = item.productId || item.description;
-        invoicedQuantities[key] = (invoicedQuantities[key] || 0) + item.quantity;
-      }
-    }
-    const processedItems = [];
-    let subtotal = 0;
-    for (const rawItem of items) {
-      const newItem = { ...rawItem };
-      const masterItem = masterItems.find(
-        (mi) => newItem.itemId && mi.id === newItem.itemId || mi.productId && mi.productId === newItem.productId || mi.description === newItem.description
-      );
-      if (!masterItem) {
-        return res.status(400).json({
-          error: `Item "${newItem.description}" not found in master invoice`
-        });
-      }
-      if (!newItem.unitPrice) newItem.unitPrice = masterItem.unitPrice;
-      if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
-      if (!newItem.productId) newItem.productId = masterItem.productId;
-      const unitPrice = Number(newItem.unitPrice);
-      const quantity = Number(newItem.quantity);
-      if (isNaN(unitPrice)) {
-        return res.status(400).json({
-          error: `Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`
-        });
-      }
-      const key = newItem.productId || newItem.description;
-      const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
-      const remaining = masterItem.quantity - alreadyInvoiced;
-      if (quantity > remaining) {
-        return res.status(400).json({
-          error: `Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`
-        });
-      }
-      subtotal += unitPrice * quantity;
-      processedItems.push(newItem);
-    }
-    const masterSubtotal = Number(masterInvoice.subtotal);
-    const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
-    const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
-    const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
-    const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
-    const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
-    const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
-    const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
-    if (isNaN(total)) {
-      return res.status(500).json({ error: "Calculation resulted in NaN. Check inputs." });
-    }
-    const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
-    const childInvoice = await storage.createInvoice({
-      invoiceNumber,
-      parentInvoiceId: masterInvoice.id,
-      quoteId: masterInvoice.quoteId,
-      clientId: masterInvoice.clientId,
-      paymentStatus: "pending",
-      dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
-      paidAmount: "0",
-      subtotal: subtotal.toFixed(2),
-      discount,
-      cgst,
-      sgst,
-      igst,
-      shippingCharges,
-      total: total.toFixed(2),
-      notes: notes || masterInvoice.notes,
-      termsAndConditions: masterInvoice.termsAndConditions,
-      isMaster: false,
-      deliveryNotes: deliveryNotes || null,
-      milestoneDescription: milestoneDescription || null,
-      createdBy: req.user.id
+      return childInvoice;
     });
-    for (const item of processedItems) {
-      await storage.createInvoiceItem({
-        invoiceId: childInvoice.id,
-        productId: item.productId || null,
-        description: item.description,
-        quantity: item.quantity,
-        fulfilledQuantity: 0,
-        unitPrice: item.unitPrice,
-        subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
-        status: "pending",
-        sortOrder: item.sortOrder || 0,
-        hsnSac: item.hsnSac || null
-      });
-    }
-    await storage.createActivityLog({
-      userId: req.user.id,
-      action: "create_child_invoice",
-      entityType: "invoice",
-      entityId: childInvoice.id
-    });
-    return res.json(childInvoice);
+    return res.json(result);
   } catch (error) {
     logger.error("Create child invoice error:", error);
+    if (error.statusCode === 400) {
+      return res.status(400).json({ error: error.message });
+    }
     return res.status(500).json({ error: error.message || "Failed to create child invoice" });
   }
 });
@@ -11820,6 +12589,7 @@ router6.get("/:id/pdf", authMiddleware, requireFeature("invoices_pdfGeneration")
       // Handle missing quote
       client,
       items,
+      currency: invoice.currency,
       companyName,
       companyAddress,
       companyPhone,
@@ -12731,7 +13501,8 @@ router9.get("/vendor-pos", authMiddleware, requireFeature("vendorPO_module"), as
         return {
           ...po,
           vendorName: vendor?.name || "Unknown",
-          quoteNumber: quote?.quoteNumber || "N/A"
+          quoteNumber: quote?.quoteNumber || "N/A",
+          quoteCurrency: quote?.currency
         };
       })
     );
@@ -12753,7 +13524,7 @@ router9.get("/vendor-pos/:id", authMiddleware, requireFeature("vendorPO_module")
     res.json({
       ...po,
       vendor: vendor || {},
-      quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber } : void 0,
+      quote: quote ? { id: quote.id, quoteNumber: quote.quoteNumber, currency: quote.currency } : void 0,
       items
     });
   } catch (error) {
@@ -12946,6 +13717,7 @@ router9.get("/grns/:id", authMiddleware, requireFeature("grn_module"), async (re
       vendorPo: {
         id: po.id,
         poNumber: po.poNumber,
+        currency: po.currency,
         vendor: {
           name: vendor.name,
           email: vendor.email,
@@ -13100,11 +13872,30 @@ router10.post("/settings", authMiddleware, requireFeature("admin_settings"), req
       "companyPhone",
       "companyEmail",
       "companyWebsite",
+      "company_companyName",
+      "company_address",
+      "company_phone",
+      "company_email",
+      "company_website",
       "gstin",
       "pan",
       "cin",
       "logo",
       "companyLogo",
+      "company_gstin",
+      "company_pan",
+      "company_cin",
+      "company_logo",
+      "company_city",
+      "company_state",
+      "company_zipCode",
+      "company_country",
+      "company_tan",
+      "city",
+      "state",
+      "zipCode",
+      "country",
+      "tan",
       // Bank details
       "bankName",
       "bankAccountNumber",
@@ -13112,6 +13903,12 @@ router10.post("/settings", authMiddleware, requireFeature("admin_settings"), req
       "bankIfscCode",
       "bankBranch",
       "bankSwiftCode",
+      "bank_bankName",
+      "bank_accountNumber",
+      "bank_accountName",
+      "bank_ifscCode",
+      "bank_branch",
+      "bank_swiftCode",
       // Document prefixes
       "quotePrefix",
       "invoicePrefix",
@@ -17454,425 +18251,6 @@ var WorkflowService = class {
       isValid: errors.length === 0,
       errors
     };
-  }
-};
-
-// server/services/workflow-engine.service.ts
-init_storage();
-init_logger();
-var WorkflowEngine = class {
-  /**
-   * Trigger workflows for a specific entity event
-   * This is called whenever an entity changes (quote status change, invoice created, etc.)
-   */
-  static async triggerWorkflows(entityType, entityId, context) {
-    try {
-      const workflows2 = await storage.getActiveWorkflows(entityType);
-      if (workflows2.length === 0) {
-        logger.debug(`[WorkflowEngine] No active workflows for ${entityType}`);
-        return;
-      }
-      logger.info(`[WorkflowEngine] Found ${workflows2.length} active workflows for ${entityType}`);
-      for (const workflow of workflows2) {
-        try {
-          const shouldExecute = await this.evaluateWorkflow(workflow, context);
-          if (shouldExecute) {
-            logger.info(`[WorkflowEngine] Executing workflow: ${workflow.name} (${workflow.id})`);
-            await this.executeWorkflow(workflow, entityType, entityId, context);
-          }
-        } catch (error) {
-          logger.error(`[WorkflowEngine] Error processing workflow ${workflow.id}:`, error);
-        }
-      }
-    } catch (error) {
-      logger.error(`[WorkflowEngine] Error triggering workflows for ${entityType}:`, error);
-    }
-  }
-  /**
-  /**
-       * Evaluate if a workflow should execute based on its triggers
-       */
-  static async evaluateWorkflow(workflow, context) {
-    try {
-      const triggers = await storage.getWorkflowTriggers(workflow.id);
-      if (triggers.length === 0) {
-        logger.warn(`[WorkflowEngine] Workflow ${workflow.id} has no triggers`);
-        return false;
-      }
-      const logic = workflow.triggerLogic || "AND";
-      const results = [];
-      for (const trigger of triggers) {
-        if (!trigger.isActive) continue;
-        const matches = this.evaluateTrigger(trigger, context);
-        results.push(matches);
-      }
-      if (logic === "AND") {
-        return results.every((r) => r === true);
-      } else {
-        return results.some((r) => r === true);
-      }
-    } catch (error) {
-      logger.error(`[WorkflowEngine] Error evaluating workflow ${workflow.id}:`, error);
-      return false;
-    }
-  }
-  /**
-   * Evaluate a single trigger condition
-   */
-  static evaluateTrigger(trigger, context) {
-    const conditions = trigger.conditions;
-    switch (trigger.triggerType) {
-      case "status_change":
-        return this.evaluateStatusChange(conditions, context);
-      case "amount_threshold":
-        return this.evaluateAmountThreshold(conditions, context);
-      case "field_change":
-        return this.evaluateFieldChange(conditions, context);
-      case "date_based":
-        return this.evaluateDateBased(conditions, context);
-      case "manual":
-        return context.eventType === "manual";
-      default:
-        logger.warn(`[WorkflowEngine] Unknown trigger type: ${trigger.triggerType}`);
-        return false;
-    }
-  }
-  /**
-   * Evaluate status change trigger
-   * Example: { field: "status", from: "draft", to: "approved" }
-   */
-  static evaluateStatusChange(conditions, context) {
-    if (context.eventType !== "status_change") return false;
-    const field = conditions.field || "status";
-    const from = conditions.from;
-    const to = conditions.to;
-    if (from && to) {
-      return context.oldValue === from && context.newValue === to;
-    }
-    if (to) {
-      return context.newValue === to;
-    }
-    if (from) {
-      return context.oldValue === from;
-    }
-    return context.oldValue !== context.newValue;
-  }
-  /**
-   * Evaluate amount threshold trigger
-   * Example: { field: "total", operator: "greater_than", value: 10000 }
-   */
-  static evaluateAmountThreshold(conditions, context) {
-    const field = conditions.field || "total";
-    const operator = conditions.operator;
-    const threshold = parseFloat(conditions.value);
-    const entityValue = parseFloat(context.entity[field] || 0);
-    switch (operator) {
-      case "greater_than":
-        return entityValue > threshold;
-      case "less_than":
-        return entityValue < threshold;
-      case "equals":
-        return entityValue === threshold;
-      case "greater_than_or_equal":
-        return entityValue >= threshold;
-      case "less_than_or_equal":
-        return entityValue <= threshold;
-      default:
-        return false;
-    }
-  }
-  /**
-   * Evaluate field change trigger
-   * Example: { field: "discount", operator: "greater_than", value: 20 }
-   */
-  static evaluateFieldChange(conditions, context) {
-    if (context.eventType !== "field_change") return false;
-    const field = conditions.field;
-    const operator = conditions.operator;
-    const value = conditions.value;
-    const fieldValue = context.entity[field];
-    switch (operator) {
-      case "equals":
-        return fieldValue == value;
-      case "not_equals":
-        return fieldValue != value;
-      case "greater_than":
-        return parseFloat(fieldValue) > parseFloat(value);
-      case "less_than":
-        return parseFloat(fieldValue) < parseFloat(value);
-      case "contains":
-        return String(fieldValue).includes(String(value));
-      default:
-        return false;
-    }
-  }
-  /**
-   * Evaluate date-based trigger
-   * Example: { field: "dueDate", operator: "days_before", value: 7 }
-   */
-  static evaluateDateBased(conditions, context) {
-    const field = conditions.field;
-    const operator = conditions.operator;
-    const days = parseInt(conditions.value);
-    const dateValue = context.entity[field];
-    if (!dateValue) return false;
-    const targetDate = new Date(dateValue);
-    const today = /* @__PURE__ */ new Date();
-    const diffTime = targetDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1e3 * 60 * 60 * 24));
-    switch (operator) {
-      case "days_before":
-        return diffDays === days && diffDays > 0;
-      case "days_after":
-        return diffDays === -days && diffDays < 0;
-      case "is_overdue":
-        return diffDays < 0;
-      case "is_today":
-        return diffDays === 0;
-      default:
-        return false;
-    }
-  }
-  /**
-   * Execute a workflow's actions
-   */
-  static async executeWorkflow(workflow, entityType, entityId, context) {
-    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const startTime = Date.now();
-    const execution = await storage.createWorkflowExecution({
-      workflowId: workflow.id,
-      entityType,
-      entityId,
-      status: "running",
-      triggeredBy: context.triggeredBy || "system",
-      executionLog: []
-    });
-    const executionLog = [];
-    try {
-      const actions = await storage.getWorkflowActions(workflow.id);
-      logger.info(`[WorkflowEngine] Executing ${actions.length} actions for workflow ${workflow.id}`);
-      for (const action of actions) {
-        if (!action.isActive) {
-          executionLog.push({
-            actionId: action.id,
-            actionType: action.actionType,
-            status: "skipped",
-            details: "Action is inactive",
-            timestamp: /* @__PURE__ */ new Date()
-          });
-          continue;
-        }
-        try {
-          if (action.conditionExpression) {
-            const shouldExecute = this.evaluateActionCondition(action.conditionExpression, context);
-            if (!shouldExecute) {
-              executionLog.push({
-                actionId: action.id,
-                actionType: action.actionType,
-                status: "skipped",
-                details: "Condition not met",
-                timestamp: /* @__PURE__ */ new Date()
-              });
-              continue;
-            }
-          }
-          if (action.delayMinutes && action.delayMinutes > 0) {
-            logger.info(`[WorkflowEngine] Delaying action ${action.id} by ${action.delayMinutes} minutes`);
-          }
-          const result = await this.executeAction(action, context);
-          executionLog.push(result);
-        } catch (error) {
-          logger.error(`[WorkflowEngine] Error executing action ${action.id}:`, error);
-          executionLog.push({
-            actionId: action.id,
-            actionType: action.actionType,
-            status: "failed",
-            details: "Action execution failed",
-            error: error.message,
-            timestamp: /* @__PURE__ */ new Date()
-          });
-        }
-      }
-      const executionTime = Date.now() - startTime;
-      await storage.updateWorkflowExecution(execution.id, {
-        status: "completed",
-        completedAt: /* @__PURE__ */ new Date(),
-        executionLog,
-        executionTimeMs: executionTime
-      });
-      logger.info(`[WorkflowEngine] Workflow ${workflow.id} completed in ${executionTime}ms`);
-    } catch (error) {
-      await storage.updateWorkflowExecution(execution.id, {
-        status: "failed",
-        completedAt: /* @__PURE__ */ new Date(),
-        executionLog,
-        errorMessage: error.message,
-        errorStack: error.stack
-      });
-      logger.error(`[WorkflowEngine] Workflow ${workflow.id} failed:`, error);
-    }
-  }
-  /**
-   * Evaluate action condition expression
-   * Example: "{{quote.total}} > 50000"
-   */
-  static evaluateActionCondition(expression, context) {
-    try {
-      let evaluatedExpression = expression;
-      const matches = expression.match(/\{\{([^}]+)\}\}/g);
-      if (matches) {
-        for (const match of matches) {
-          const path5 = match.replace(/\{\{|\}\}/g, "").trim();
-          const value = this.getNestedValue(context.entity, path5);
-          evaluatedExpression = evaluatedExpression.replace(match, String(value));
-        }
-      }
-      return new Function("return " + evaluatedExpression)();
-    } catch (error) {
-      logger.error(`[WorkflowEngine] Error evaluating condition: ${expression}`, error);
-      return false;
-    }
-  }
-  /**
-   * Get nested value from object using dot notation
-   * Example: getNestedValue({ quote: { total: 1000 } }, "quote.total") => 1000
-   */
-  static getNestedValue(obj, path5) {
-    return path5.split(".").reduce((current, key) => current?.[key], obj);
-  }
-  /**
-   * Execute a single action
-   */
-  static async executeAction(action, context) {
-    const config = action.actionConfig;
-    try {
-      switch (action.actionType) {
-        case "send_email":
-          await this.executeSendEmail(config, context);
-          break;
-        case "create_notification":
-          await this.executeCreateNotification(config, context);
-          break;
-        case "update_field":
-          await this.executeUpdateField(config, context);
-          break;
-        case "create_activity_log":
-          await this.executeCreateActivityLog(config, context);
-          break;
-        default:
-          logger.warn(`[WorkflowEngine] Unimplemented action type: ${action.actionType}`);
-      }
-      return {
-        actionId: action.id,
-        actionType: action.actionType,
-        status: "success",
-        details: `Successfully executed ${action.actionType}`,
-        timestamp: /* @__PURE__ */ new Date()
-      };
-    } catch (error) {
-      return {
-        actionId: action.id,
-        actionType: action.actionType,
-        status: "failed",
-        details: "Action execution failed",
-        error: error.message,
-        timestamp: /* @__PURE__ */ new Date()
-      };
-    }
-  }
-  /**
-   * Send email action
-   */
-  static async executeSendEmail(config, context) {
-    const to = this.interpolateTemplate(config.to, context);
-    const subject = this.interpolateTemplate(config.subject, context);
-    const body = this.interpolateTemplate(config.body, context);
-    logger.info(`[WorkflowEngine] Would send email to: ${to}, subject: ${subject}`);
-  }
-  /**
-   * Create notification action
-   */
-  static async executeCreateNotification(config, context) {
-    const userId = this.interpolateTemplate(config.userId, context);
-    const title = this.interpolateTemplate(config.title, context);
-    const message = this.interpolateTemplate(config.message, context);
-    await NotificationService.create({
-      userId,
-      type: config.type || "system_announcement",
-      title,
-      message,
-      entityType: context.entity.entityType,
-      entityId: context.entity.id
-    });
-    logger.info(`[WorkflowEngine] Created notification for user: ${userId}`);
-  }
-  /**
-   * Update field action
-   */
-  static async executeUpdateField(config, context) {
-    const field = config.field;
-    const value = this.interpolateTemplate(config.value, context);
-    logger.info(`[WorkflowEngine] Would update field ${field} to ${value}`);
-  }
-  /**
-   * Create activity log action
-   */
-  static async executeCreateActivityLog(config, context) {
-    const action = this.interpolateTemplate(config.action, context);
-    const details = this.interpolateTemplate(config.details, context);
-    await storage.createActivityLog({
-      userId: config.userId || context.entity.createdBy,
-      action,
-      entityType: context.entity.entityType || "workflow",
-      entityId: context.entity.id,
-      metadata: { details }
-    });
-    logger.info(`[WorkflowEngine] Created activity log: ${action}`);
-  }
-  /**
-   * Template interpolation
-   * Replaces {{variable}} with actual values from context
-   */
-  static interpolateTemplate(template, context) {
-    if (!template) return "";
-    let result = template;
-    const matches = template.match(/\{\{([^}]+)\}\}/g);
-    if (matches) {
-      for (const match of matches) {
-        const path5 = match.replace(/\{\{|\}\}/g, "").trim();
-        const value = this.getNestedValue(context.entity, path5) || "";
-        result = result.replace(match, String(value));
-      }
-    }
-    return result;
-  }
-  /**
-   * Run scheduled workflows (called by cron job)
-   */
-  static async runScheduledWorkflows() {
-    try {
-      const schedules = await storage.getActiveWorkflowSchedules();
-      const now = /* @__PURE__ */ new Date();
-      for (const schedule of schedules) {
-        if (schedule.nextRunAt && new Date(schedule.nextRunAt) <= now) {
-          logger.info(`[WorkflowEngine] Running scheduled workflow: ${schedule.workflowId}`);
-          const workflow = await storage.getWorkflow(schedule.workflowId);
-          if (workflow && workflow.status === "active") {
-            await this.triggerWorkflows(workflow.entityType, "scheduled", {
-              eventType: "time_based",
-              entity: {},
-              triggeredBy: "schedule"
-            });
-          }
-          await storage.updateWorkflowSchedule(schedule.id, {
-            lastRunAt: now
-            // nextRunAt: calculateNextRun(schedule.cronExpression),
-          });
-        }
-      }
-    } catch (error) {
-      logger.error(`[WorkflowEngine] Error running scheduled workflows:`, error);
-    }
   }
 };
 

@@ -141,6 +141,7 @@ export const quotes = pgTable("quotes", {
   clientSignature: text("client_signature"),
   clientAcceptedAt: timestamp("client_accepted_at"),
   clientAcceptedName: text("client_accepted_name"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

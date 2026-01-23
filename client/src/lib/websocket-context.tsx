@@ -102,8 +102,24 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           setIsConnected(false);
         });
 
-        socketInstance.on("connect_error", (error) => {
+        socketInstance.on("connect_error", async (error) => {
           console.error("[WebSocket] Connection error:", error.message);
+          
+          // If token expired, fetch a new one and retry
+          if (error.message.includes("jwt expired") || error.message.includes("Invalid token") || error.message.includes("Authentication required")) {
+            console.log("[WebSocket] Token expired, refreshing...");
+            try {
+              const response = await fetch("/api/auth/ws-token", { credentials: "include" });
+              if (response.ok) {
+                const { token } = await response.json();
+                socketInstance.auth = { token };
+                // Determine if we should manually reconnect or let the manager handle it
+                // Updating auth payload is enough for the next attempt
+              }
+            } catch (err) {
+              console.error("[WebSocket] Failed to refresh token:", err);
+            }
+          }
         });
 
         // Handle incoming notifications

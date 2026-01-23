@@ -578,6 +578,54 @@ export default function WorkflowBuilderPage() {
                                                      </p>
                                                 </div>
                                             )}
+
+                                            {action.actionType === 'assign_user' && (
+                                                <div className="space-y-4 pt-2">
+                                                    <div className="space-y-2">
+                                                        <Label>Assign Strategy</Label>
+                                                        <Select 
+                                                            value={['admin', 'sales_executive', 'sales_manager', 'purchase_operations', 'finance_accounts'].includes(action.actionConfig.userId) ? action.actionConfig.userId : 'specific'}
+                                                            onValueChange={(val) => {
+                                                                if (val === 'specific') {
+                                                                    updateAction(index, { actionConfig: { ...action.actionConfig, userId: '' } });
+                                                                } else {
+                                                                    updateAction(index, { actionConfig: { ...action.actionConfig, userId: val } });
+                                                                }
+                                                            }}
+                                                        >
+                                                            <SelectTrigger className="bg-white dark:bg-slate-950">
+                                                                <SelectValue placeholder="Select strategy" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="specific">Specific User / Variable</SelectItem>
+                                                                <SelectItem value="sales_executive">Role: Sales Executive</SelectItem>
+                                                                <SelectItem value="sales_manager">Role: Sales Manager</SelectItem>
+                                                                <SelectItem value="admin">Role: Admin</SelectItem>
+                                                                <SelectItem value="purchase_operations">Role: Purchase Operations</SelectItem>
+                                                                <SelectItem value="finance_accounts">Role: Finance & Accounts</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    {!['admin', 'sales_executive', 'sales_manager', 'purchase_operations', 'finance_accounts'].includes(action.actionConfig.userId) && (
+                                                        <div className="space-y-2">
+                                                            <Label>User ID or Variable</Label>
+                                                            <Input 
+                                                                placeholder="User ID or {{quote.createdBy}}" 
+                                                                value={action.actionConfig.userId || ""}
+                                                                onChange={(e) => updateAction(index, { 
+                                                                    actionConfig: { ...action.actionConfig, userId: e.target.value } 
+                                                                })}
+                                                                className="bg-white dark:bg-slate-950 font-mono text-xs"
+                                                            />
+                                                            <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                                <Info className="h-3 w-3" />
+                                                                Enter a specific User ID or use a variable like {'{{quote.createdBy}}'}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
