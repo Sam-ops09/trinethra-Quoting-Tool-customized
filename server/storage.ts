@@ -184,6 +184,7 @@ export interface IStorage {
   // Activity Logs
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
   getActivityLogs(userId: string, limit?: number): Promise<ActivityLog[]>;
+  getAllActivityLogs(limit?: number): Promise<(ActivityLog & { userName: string | null })[]>;
 
   // Settings
   getSetting(key: string): Promise<Setting | undefined>;
@@ -709,6 +710,26 @@ export class DatabaseStorage implements IStorage {
     .orderBy(desc(activityLogs.timestamp))
     .limit(limit);
 }
+
+  async getAllActivityLogs(limit: number = 50): Promise<(ActivityLog & { userName: string | null })[]> {
+    const result = await db
+      .select({
+        id: activityLogs.id,
+        userId: activityLogs.userId,
+        action: activityLogs.action,
+        entityType: activityLogs.entityType,
+        entityId: activityLogs.entityId,
+        metadata: activityLogs.metadata,
+        timestamp: activityLogs.timestamp,
+        userName: users.name,
+      })
+      .from(activityLogs)
+      .leftJoin(users, eq(activityLogs.userId, users.id))
+      .orderBy(desc(activityLogs.timestamp))
+      .limit(limit);
+      
+    return result;
+  }
 
   // Settings
   async getSetting(key: string): Promise < Setting | undefined > {

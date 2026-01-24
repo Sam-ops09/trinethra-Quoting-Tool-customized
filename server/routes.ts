@@ -38,6 +38,8 @@ import creditNotesRoutes from "./routes/credit-notes.routes";
 import debitNotesRoutes from "./routes/debit-notes.routes";
 import { subscriptionRoutes } from "./routes/subscriptions.routes";
 import workflowsRoutes from "./routes/workflows.routes";
+import governanceRoutes from "./routes/governance.routes";
+import activityLogsRoutes from "./routes/activity-logs.routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
@@ -116,6 +118,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Workflow Automation Routes
   app.use("/api/workflows", authMiddleware, workflowsRoutes);
+
+  // Governance & Activity Logs
+  app.use("/api/governance", authMiddleware, governanceRoutes);
+  app.use("/api/activity-logs", authMiddleware, activityLogsRoutes);
 
   // Moved to invoices.routes.ts
 
