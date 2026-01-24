@@ -771,9 +771,12 @@ router.get("/invoice-collections", authMiddleware, requireFeature('analytics_mod
       const totalAmt = toDecimal(invoice.total);
       const remaining = subtract(totalAmt, paidAmt).toNumber();
       
+      // FIX: Accumulate paid amount from ALL invoices, including partial
+      totalPaid = add(totalPaid, paidAmt).toNumber();
+
       if (invoice.paymentStatus === "paid") {
         invoicesByStatus.paid++;
-        totalPaid = add(totalPaid, totalAmt).toNumber();
+        // totalPaid accumulation moved up
 
         const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
         const paidDate = invoice.lastPaymentDate ? new Date(invoice.lastPaymentDate) : new Date(invoice.updatedAt);

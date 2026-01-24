@@ -41,6 +41,7 @@ interface CurrentQuote {
   items: QuoteItem[];
   notes: string;
   termsAndConditions: string;
+  currency?: string;
 }
 
 interface VersionComparisonDialogProps {
@@ -67,7 +68,11 @@ export function VersionComparisonDialog({
   if (!versionNumber) return null;
 
   const formatCurrency = (amount: string | number) => {
-    return `₹${Number(amount).toLocaleString()}`;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: currentQuote.currency || 'INR',
+      maximumFractionDigits: 2
+    }).format(Number(amount));
   };
 
   const hasChanged = (val1: unknown, val2: unknown) => val1 != val2;
@@ -165,8 +170,8 @@ export function VersionComparisonDialog({
                        <div key={i} className="p-2 border rounded bg-slate-50 dark:bg-slate-900/50 text-xs">
                          <div className="font-semibold">{item.description}</div>
                          <div className="flex justify-between mt-1 text-slate-500">
-                           <span>{item.quantity} x ₹{Number(item.unitPrice).toLocaleString()}</span>
-                           <span className="font-mono">₹{Number(item.subtotal).toLocaleString()}</span>
+                           <span>{item.quantity} x {formatCurrency(item.unitPrice)}</span>
+                           <span className="font-mono">{formatCurrency(item.subtotal)}</span>
                          </div>
                        </div>
                      ))}
@@ -179,8 +184,8 @@ export function VersionComparisonDialog({
                        <div key={i} className="p-2 border rounded bg-white dark:bg-slate-900 text-xs">
                          <div className="font-semibold">{item.description}</div>
                          <div className="flex justify-between mt-1 text-slate-500">
-                           <span>{item.quantity} x ₹{Number(item.unitPrice).toLocaleString()}</span>
-                           <span className="font-mono">₹{Number(item.subtotal).toLocaleString()}</span>
+                           <span>{item.quantity} x {formatCurrency(item.unitPrice)}</span>
+                           <span className="font-mono">{formatCurrency(item.subtotal)}</span>
                          </div>
                        </div>
                      ))}
