@@ -478,7 +478,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   invoices_childInvoices: true,
   invoices_masterInvoices: true,
   invoices_milestoneInvoices: true,
-  invoices_emailSending: true,
+  invoices_emailSending: false,
   invoices_pdfGeneration: true,
   invoices_paymentTracking: true,
   invoices_paymentHistory: true,
@@ -629,7 +629,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   email_paymentReminders: false,
   email_overdueNotifications: false,
   email_vendorPO: false,
-  email_templates_module: true,
+  email_templates_module: false,
   email_subscriptionRenewed: false,
 
   // ==================== ADMIN & CONFIGURATION ====================

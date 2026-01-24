@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { Resend } from "resend";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 interface EmailConfig {
   host: string;
@@ -64,6 +65,10 @@ export class EmailService {
   }
 
   static async sendPasswordResetEmail(email: string, resetLink: string): Promise<void> {
+    if (!isFeatureEnabled('email_integration')) {
+        console.log('[EmailService] Email integration disabled, skipping password reset email');
+        return;
+    }
     const htmlContent = `
       <h2>Password Reset Request</h2>
       <p>You requested a password reset. Click the link below to reset your password:</p>
@@ -114,6 +119,10 @@ export class EmailService {
     emailBody: string,
     pdfBuffer: Buffer
   ): Promise<void> {
+    if (!isFeatureEnabled('quotes_emailSending')) {
+        console.log('[EmailService] Quotes email sending disabled, skipping quote email');
+        return;
+    }
     // Convert newlines to HTML with proper formatting
     const lines = emailBody.split('\n');
     const formattedLines: string[] = [];
@@ -224,6 +233,10 @@ export class EmailService {
     emailBody: string,
     pdfBuffer: Buffer
   ): Promise<void> {
+    if (!isFeatureEnabled('sales_orders_emailSending')) {
+        console.log('[EmailService] Sales orders email sending disabled, skipping sales order email');
+        return;
+    }
     // Convert newlines to HTML with proper formatting
     const lines = emailBody.split('\n');
     const formattedLines: string[] = [];
@@ -310,6 +323,10 @@ export class EmailService {
     emailBody: string,
     pdfBuffer: Buffer
   ): Promise<void> {
+    if (!isFeatureEnabled('invoices_emailSending')) {
+        console.log('[EmailService] Invoices email sending disabled, skipping invoice email');
+        return;
+    }
     // Convert newlines to HTML with proper formatting
     const lines = emailBody.split('\n');
     const formattedLines: string[] = [];
@@ -395,6 +412,10 @@ export class EmailService {
     emailSubject: string,
     emailBody: string
   ): Promise<void> {
+    if (!isFeatureEnabled('invoices_emailSending')) {
+        console.log('[EmailService] Invoices email sending disabled, skipping payment reminder email');
+        return;
+    }
     // Convert newlines to HTML with proper formatting
     const lines = emailBody.split('\n');
     const formattedLines: string[] = [];
@@ -458,6 +479,10 @@ export class EmailService {
   }
 
   static async sendWelcomeEmail(email: string, name: string): Promise<void> {
+    if (!isFeatureEnabled('email_welcome')) {
+        console.log('[EmailService] Welcome email sending disabled, skipping welcome email');
+        return;
+    }
     const htmlContent = `
       <h2>Welcome to QuoteProGen!</h2>
       <p>Hi ${name},</p>
@@ -506,6 +531,10 @@ export class EmailService {
     amount: string,
     nextDate: Date
   ): Promise<void> {
+    if (!isFeatureEnabled('email_subscriptionRenewed')) {
+        console.log('[EmailService] Subscription renewal email sending disabled, skipping subscription renewal email');
+        return;
+    }
     const htmlContent = `
       <h2>Subscription Renewed</h2>
       <p>Hello ${clientName},</p>
@@ -552,6 +581,10 @@ export class EmailService {
     html: string;
     text?: string;
   }): Promise<void> {
+    if (!isFeatureEnabled('email_integration')) {
+        console.log('[EmailService] Email integration disabled, skipping generic email');
+        return;
+    }
     try {
       if (this.useResend && this.resend) {
         let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
