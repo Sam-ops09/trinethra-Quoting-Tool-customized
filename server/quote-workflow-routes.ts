@@ -351,141 +351,176 @@ router.post("/quotes/:id/clone",
  */
 
 // Create Sales Order from Quote
+// Create Sales Order from Quote
 router.post("/sales-orders",
   requireFeature('quotes_module'),
   requirePermission("sales_orders", "create"),
   async (req: AuthRequest, res: Response) => {
-    try {
-      const { quoteId, clientId, items, subtotal, total, bomSection, ...otherFields } = req.body;
-      
-      let baseOrderData: any = {};
-      let orderItems: any[] = [];
+    let attempt = 0;
+    const maxRetries = 3;
 
-      if (quoteId) {
-        // --- CASE 1: CREATE FROM QUOTE ---
-        // Check if quote exists
-        const quote = await storage.getQuote(quoteId);
-        if (!quote) {
-          return res.status(404).json({ error: "Quote not found" });
-        }
-
-        if (quote.status !== "approved") {
-          return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
-        }
-
-        // Check if sales order already exists
-        const existingOrder = await storage.getSalesOrderByQuote(quoteId);
-        if (existingOrder) {
-          return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
-        }
-
-        baseOrderData = {
-          quoteId: quote.id,
-          clientId: quote.clientId,
-          currency: quote.currency,
-          subtotal: quote.subtotal.toString(),
-          discount: quote.discount.toString(),
-          cgst: quote.cgst.toString(),
-          sgst: quote.sgst.toString(),
-          igst: quote.igst.toString(),
-          shippingCharges: quote.shippingCharges.toString(),
-          total: quote.total.toString(),
-          notes: quote.notes,
-          termsAndConditions: quote.termsAndConditions,
-          bomSection: quote.bomSection,
-        };
-
-        const existingItems = await storage.getQuoteItems(quoteId);
-        orderItems = existingItems.map(item => ({
-             productId: item.productId || null,
-             description: item.description,
-             quantity: item.quantity,
-             unitPrice: item.unitPrice.toString(),
-             subtotal: item.subtotal.toString(),
-             hsnSac: item.hsnSac,
-             sortOrder: item.sortOrder
-        }));
-
-      } else {
-        // --- CASE 2: STANDALONE SALES ORDER ---
-        if (!clientId) {
-           return res.status(400).json({ error: "Client ID is required for standalone Sales Orders" });
-        }
-        if (!items || !Array.isArray(items) || items.length === 0) {
-           return res.status(400).json({ error: "Items are required for standalone Sales Orders" });
-        }
-
-        baseOrderData = {
-          quoteId: null,
-          clientId: clientId,
-          currency: otherFields.currency || "INR",
-          subtotal: subtotal ? String(subtotal) : "0",
-          total: total ? String(total) : "0",
-          // Allow other fields or defaults
-          notes: otherFields.notes || "",
-          termsAndConditions: otherFields.termsAndConditions || "",
-          shippingCharges: "0",
-          discount: "0",
-          cgst: "0",
-          sgst: "0",
-          igst: "0",
-          bomSection: bomSection || null
-        };
+    while (attempt < maxRetries) {
+      try {
+        const { quoteId, clientId, items, subtotal, total, bomSection, ...otherFields } = req.body;
         
-        orderItems = items.map(item => ({
-             productId: item.productId || null,
-             description: item.description,
-             quantity: item.quantity,
-             unitPrice: String(item.unitPrice || 0),
-             subtotal: String(item.subtotal || 0),
-             hsnSac: item.hsnSac || "",
-             sortOrder: item.sortOrder || 0
-        }));
-      }
+        let baseOrderData: any = {};
+        let orderItems: any[] = [];
 
-      const orderNumber = await NumberingService.generateSalesOrderNumber(); 
-
-      const salesOrder = await db.transaction(async (tx) => {
-          // Create Sales Order
-          const [order] = await tx.insert(schema.salesOrders).values({
-            orderNumber,
-            status: "draft",
-            orderDate: new Date(),
-            ...baseOrderData,
-            createdBy: req.user!.id,
-          }).returning();
-
-          // Create Items
-          for (const item of orderItems) {
-            await tx.insert(schema.salesOrderItems).values({
-              salesOrderId: order.id,
-              productId: item.productId,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              subtotal: item.subtotal,
-              hsnSac: item.hsnSac,
-              sortOrder: item.sortOrder,
-              status: "pending",
-              fulfilledQuantity: 0
-            });
+        if (quoteId) {
+          // --- CASE 1: CREATE FROM QUOTE ---
+          // Check if quote exists
+          const quote = await storage.getQuote(quoteId);
+          if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
           }
 
-          await tx.insert(schema.activityLogs).values({
-            userId: req.user!.id,
-            action: "create", 
-            entityType: "sales_orders" as any,
-            entityId: order.id,
-            timestamp: new Date()
+          if (quote.status !== "approved") {
+            return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
+          }
+
+          // Check if sales order already exists
+          const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+          if (existingOrder) {
+            return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
+          }
+
+          baseOrderData = {
+            quoteId: quote.id,
+            clientId: quote.clientId,
+            currency: quote.currency,
+            subtotal: quote.subtotal.toString(),
+            discount: quote.discount.toString(),
+            cgst: quote.cgst.toString(),
+            sgst: quote.sgst.toString(),
+            igst: quote.igst.toString(),
+            shippingCharges: quote.shippingCharges.toString(),
+            total: quote.total.toString(),
+            notes: quote.notes,
+            termsAndConditions: quote.termsAndConditions,
+            bomSection: quote.bomSection,
+          };
+
+          const existingItems = await storage.getQuoteItems(quoteId);
+          orderItems = existingItems.map(item => ({
+               productId: item.productId || null,
+               description: item.description,
+               quantity: item.quantity,
+               unitPrice: item.unitPrice.toString(),
+               subtotal: item.subtotal.toString(),
+               hsnSac: item.hsnSac,
+               sortOrder: item.sortOrder
+          }));
+
+        } else {
+          // --- CASE 2: STANDALONE SALES ORDER ---
+          if (!clientId) {
+             return res.status(400).json({ error: "Client ID is required for standalone Sales Orders" });
+          }
+          if (!items || !Array.isArray(items) || items.length === 0) {
+             return res.status(400).json({ error: "Items are required for standalone Sales Orders" });
+          }
+
+          // Prepare items first to calculate subtotal
+          orderItems = items.map((item: any, i: number) => ({
+               productId: item.productId || null,
+               description: item.description,
+               quantity: Number(item.quantity || 0),
+               unitPrice: String(item.unitPrice || 0),
+               subtotal: String(Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+               hsnSac: item.hsnSac || "",
+               sortOrder: item.sortOrder || i
+          }));
+
+          // Calculate Financials Server-Side
+          const calcSubtotal = calculateSubtotal(orderItems);
+          const calcDiscount = toDecimal(otherFields.discount || 0);
+          const calcShipping = toDecimal(otherFields.shippingCharges || 0);
+          const calcCgst = toDecimal(otherFields.cgst || 0);
+          const calcSgst = toDecimal(otherFields.sgst || 0);
+          const calcIgst = toDecimal(otherFields.igst || 0);
+
+          const calcTotal = calculateTotal({
+              subtotal: calcSubtotal,
+              discount: calcDiscount,
+              shippingCharges: calcShipping,
+              cgst: calcCgst,
+              sgst: calcSgst,
+              igst: calcIgst
           });
 
-          return order;
-      });
+          baseOrderData = {
+            quoteId: null,
+            clientId: clientId,
+            currency: otherFields.currency || "INR",
+            subtotal: toMoneyString(calcSubtotal),
+            discount: toMoneyString(calcDiscount),
+            shippingCharges: toMoneyString(calcShipping),
+            cgst: toMoneyString(calcCgst),
+            sgst: toMoneyString(calcSgst),
+            igst: toMoneyString(calcIgst),
+            total: toMoneyString(calcTotal),
+            notes: otherFields.notes || "",
+            termsAndConditions: otherFields.termsAndConditions || "",
+            bomSection: bomSection || null
+          };
+        }
 
-      return res.json(salesOrder);
-    } catch (error: any) {
-      logger.error("Create sales order error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create sales order" });
+        // Generate sales order number (freshly for each retry)
+        const orderNumber = await NumberingService.generateSalesOrderNumber(); 
+
+        const salesOrder = await db.transaction(async (tx) => {
+            // Create Sales Order
+            const [order] = await tx.insert(schema.salesOrders).values({
+              orderNumber,
+              status: "draft",
+              orderDate: new Date(),
+              ...baseOrderData,
+              createdBy: req.user!.id,
+            }).returning();
+
+            // Create Items
+            for (const item of orderItems) {
+              await tx.insert(schema.salesOrderItems).values({
+                salesOrderId: order.id,
+                productId: item.productId,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+                hsnSac: item.hsnSac,
+                sortOrder: item.sortOrder,
+                status: "pending",
+                fulfilledQuantity: 0
+              });
+            }
+
+            await tx.insert(schema.activityLogs).values({
+              userId: req.user!.id,
+              action: "create", 
+              entityType: "sales_orders" as any,
+              entityId: order.id,
+              timestamp: new Date()
+            });
+
+            return order;
+        });
+
+        return res.json(salesOrder);
+        
+      } catch (error: any) {
+         // Check for Unique Violation on order_number (constraint name assumption: sales_orders_order_number_unique)
+         if (error.code === '23505' && (error.constraint === 'sales_orders_order_number_unique' || error.message.includes("order_number"))) {
+            console.warn(`[SalesOrder Create] Collision on number, retrying (Attempt ${attempt + 1}/${maxRetries})...`);
+            attempt++;
+            if (attempt >= maxRetries) {
+                return res.status(409).json({ error: "Failed to generate a unique sales order number after multiple retries. Please try again." });
+            }
+            continue;
+        }
+
+        logger.error("Create sales order error:", error);
+        return res.status(500).json({ error: error.message || "Failed to create sales order" });
+      }
     }
   }
 );

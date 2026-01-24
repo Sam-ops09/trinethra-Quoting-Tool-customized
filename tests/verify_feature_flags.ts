@@ -47,10 +47,22 @@ async function request(endpoint: string, method: string = 'GET', body?: any) {
   }
 }
 
+// Import NumberingService to reset counter
+import { NumberingService } from '../server/services/numbering.service';
+
 async function runTests() {
   console.log('Waiting for server to start...');
   await delay(2000);
   console.log('Starting Feature Flag Verification...');
+
+  // Reset counter to avoid collisions from previous tests
+  const year = new Date().getFullYear();
+  // Set to a high number to avoid conflicts with existing seeded data (e.g. 5000)
+  // But wait, existing tests might have created 2026-1033.
+  // NumberingService handles conflicts by retrying, but if we start fresh it's better.
+  // Actually, setting it to something far away is safer.
+  await NumberingService.setCounter('quote', year, 90000);
+  console.log('Reset quote counter to 5000');
 
   // 1. Authenticate
   const email = 'admin@example.com';

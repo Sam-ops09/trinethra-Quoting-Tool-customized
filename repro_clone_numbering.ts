@@ -58,6 +58,15 @@ async function run() {
     }
 
     // 5. Create Original Quote
+    // Cleanup first to avoid unique constraint error
+    const allQuotes = await storage.getAllQuotes();
+    const existingOriginal = allQuotes.find(q => q.quoteNumber === "ORIG-001");
+    // const existingOriginal = await storage.getQuoteByNumber("ORIG-001");
+    if (existingOriginal) {
+        console.log("Cleaning up existing ORIG-001...");
+        await storage.deleteQuote(existingOriginal.id);
+    }
+
     const originalQuote = await storage.createQuote({
       quoteNumber: "ORIG-001",
       clientId: client.id,

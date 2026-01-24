@@ -12,7 +12,8 @@
 import 'dotenv/config';
 import { storage } from '../server/storage';
 
-const API_URL = 'http://localhost:5000/api';
+const PORT = process.env.TEST_PORT || 5000;
+const API_URL = process.env.API_URL || `http://localhost:${PORT}/api`;
 let cookie = '';
 
 // Helper to make authenticated requests

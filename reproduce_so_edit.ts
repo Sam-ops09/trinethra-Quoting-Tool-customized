@@ -1,4 +1,5 @@
 
+import 'dotenv/config';
 import { storage } from "./server/storage";
 import { db } from "./server/db";
 import { salesOrders, salesOrderItems, users, clients, products } from "./shared/schema";

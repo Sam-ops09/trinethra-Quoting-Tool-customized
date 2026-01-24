@@ -1301,6 +1301,88 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
     }
   });
 
+  // Record Payment
+  router.post("/:id/payment", authMiddleware, requireFeature('payments_create'), requirePermission("payments", "create"), async (req: AuthRequest, res: Response) => {
+    try {
+      const { amount, paymentMethod, notes, transactionId } = req.body;
+      const amountNum = Number(amount);
+
+      if (isNaN(amountNum) || amountNum <= 0) {
+        return res.status(400).json({ error: "Invalid payment amount" });
+      }
+
+      const result = await db.transaction(async (tx) => {
+        const invoice = await storage.getInvoice(req.params.id);
+        if (!invoice) {
+          throw new Error("Invoice not found");
+        }
+
+        if (invoice.status === "cancelled") {
+            throw new Error("Cannot record payment for cancelled invoice");
+        }
+
+        const currentPaid = Number(invoice.paidAmount || 0);
+        const total = Number(invoice.total);
+        const newPaid = currentPaid + amountNum;
+
+        if (newPaid > total + 0.01) { // Allow tiny epsilon for float issues, though ideally handled by string decimals
+            throw new Error(`Payment amount exceeds remaining balance. Remaining: ${(total - currentPaid).toFixed(2)}`);
+        }
+
+        // Determine new status
+        let newStatus = "pending";
+        if (Math.abs(newPaid - total) < 0.01) {
+            newStatus = "paid";
+        } else if (newPaid > 0) {
+            newStatus = "partial";
+        }
+
+        // 1. Create Payment History Record
+        await tx.insert(schema.paymentHistory).values({
+            invoiceId: invoice.id,
+            amount: toMoneyString(amount),
+            paymentMethod,
+            transactionId: transactionId || null,
+            notes: notes || null,
+            recordedBy: req.user!.id,
+            paymentDate: new Date(),
+        });
+
+        // 2. Update Invoice
+        const [updatedInvoice] = await tx.update(schema.invoices)
+            .set({
+                paidAmount: toMoneyString(newPaid),
+                remainingAmount: toMoneyString(total - newPaid),
+                paymentStatus: newStatus as any,
+                lastPaymentDate: new Date(),
+                updatedAt: new Date(),
+            })
+            .where(eq(schema.invoices.id, invoice.id))
+            .returning();
+
+        // 3. Log Activity
+        await tx.insert(schema.activityLogs).values({
+            userId: req.user!.id,
+            action: "record_payment",
+            entityType: "invoice",
+            entityId: invoice.id,
+            metadata: {
+                amount: amountNum,
+                method: paymentMethod,
+                newStatus
+            }
+        });
+
+        return updatedInvoice;
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      logger.error("Record payment error:", error);
+      res.status(500).json({ error: error.message || "Failed to record payment" });
+    }
+  });
+
 
   // PATCH: Update Serial Numbers for an Item
   router.patch("/:id/items/:itemId/serials", authMiddleware, requireFeature('serialNumber_tracking'), requirePermission("serial_numbers", "edit"), async (req: AuthRequest, res: Response) => {

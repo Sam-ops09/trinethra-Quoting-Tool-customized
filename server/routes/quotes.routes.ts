@@ -348,182 +348,186 @@ router.get("/:id", requireFeature('quotes_module'), authMiddleware, async (req: 
 });
 
 router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermission("quotes", "create"), async (req: AuthRequest, res: Response) => {
-  try {
-    const { items, ...quoteData } = req.body;
+  let attempt = 0;
+  const maxRetries = 3;
 
-    // Feature Flag Guards
-    if (!isFeatureEnabled('quotes_discount') && Number(quoteData.discount || 0) > 0) {
-      return res.status(403).json({ error: "Discounts are currently disabled" });
-    }
-    if (!isFeatureEnabled('quotes_shippingCharges') && Number(quoteData.shippingCharges || 0) > 0) {
-      return res.status(403).json({ error: "Shipping charges feature is disabled" });
-    }
-    if (!isFeatureEnabled('quotes_notes') && quoteData.notes) {
-      delete quoteData.notes; // Silently drop notes if disabled
-    }
-    if (!isFeatureEnabled('quotes_termsConditions') && quoteData.termsAndConditions) {
-       // Optional: Drop or Error. Let's drop.
-       delete quoteData.termsAndConditions;
-    }
-
-    // Convert ISO string date to Date object
-    if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
-        const parsed = new Date(quoteData.quoteDate);
-        if (!isNaN(parsed.getTime())) {
-        quoteData.quoteDate = parsed;
-        } else {
-        delete quoteData.quoteDate; 
-        }
-    }
-
-    // Get settings for quote prefix
-    const prefixSetting = await storage.getSetting("quotePrefix");
-    const prefix = prefixSetting?.value || "QT";
-
-    // Generate quote number
-    const quoteNumber = await NumberingService.generateQuoteNumber();
-
-    // Prepare items
-    const quoteItemsData = (items || []).map((item: any, i: number) => ({
-        quoteId: "", 
-        productId: item.productId || null,
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice: String(item.unitPrice),
-        subtotal: String(item.quantity * item.unitPrice),
-        sortOrder: i,
-        hsnSac: item.hsnSac || null,
-    }));
-
-    // Calculate Financials Server-Side
-    // We import these dynamically or assume they are imported. 
-    // Need to ensure imports are present at top of file. 
-    // Assuming imports are: toDecimal, calculateSubtotal, calculateTotal, toMoneyString
-    const subtotal = calculateSubtotal(quoteItemsData);
-    
-    // Use provided values or defaults for taxes/discounts
-    const discount = quoteData.discount || 0;
-    const shippingCharges = quoteData.shippingCharges || 0;
-    const cgst = quoteData.cgst || 0;
-    const sgst = quoteData.sgst || 0;
-    const igst = quoteData.igst || 0;
-
-    const total = calculateTotal({
-        subtotal,
-        discount,
-        shippingCharges,
-        cgst,
-        sgst,
-        igst
-    });
-
-    const finalQuoteData = {
-        ...quoteData,
-        quoteNumber,
-        createdBy: req.user!.id,
-        subtotal: toMoneyString(subtotal),
-        discount: toMoneyString(discount),
-        shippingCharges: toMoneyString(shippingCharges),
-        cgst: toMoneyString(cgst),
-        sgst: toMoneyString(sgst),
-        igst: toMoneyString(igst),
-        total: toMoneyString(total),
-    };
-
-    // Rule-Based Approval Check
-    const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(finalQuoteData as any); // Type cast until full integration
-    Object.assign(finalQuoteData, { approvalStatus, approvalRequiredBy });
-
-    // Create quote and items in transaction
-    const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
-
-    await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "create_quote",
-        entityType: "quote",
-        entityId: quote.id,
-    });
-
-    console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2)); 
-    console.log("[DEBUG] Eval Result:", { approvalStatus, approvalRequiredBy });
-
-    // Explicitly return computed status in case DB insert returned restricted object
-    
-    // NOTIFICATIONS
+  while (attempt < maxRetries) {
     try {
-      // 1. Notify creator
-      await NotificationService.create({
-        userId: req.user!.id,
-        type: "quote_status_change",
-        title: "Quote Created",
-        message: `Quote #${quoteNumber} has been created successfully.`,
-        entityType: "quote",
-        entityId: quote.id,
+      const { items, ...quoteData } = req.body;
+
+      // Feature Flag Guards
+      if (!isFeatureEnabled('quotes_discount') && Number(quoteData.discount || 0) > 0) {
+        return res.status(403).json({ error: "Discounts are currently disabled" });
+      }
+      if (!isFeatureEnabled('quotes_shippingCharges') && Number(quoteData.shippingCharges || 0) > 0) {
+        return res.status(403).json({ error: "Shipping charges feature is disabled" });
+      }
+      if (!isFeatureEnabled('quotes_notes') && quoteData.notes) {
+        delete quoteData.notes; // Silently drop notes if disabled
+      }
+      if (!isFeatureEnabled('quotes_termsConditions') && quoteData.termsAndConditions) {
+         // Optional: Drop or Error. Let's drop.
+         delete quoteData.termsAndConditions;
+      }
+
+      // Convert ISO string date to Date object
+      if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
+          const parsed = new Date(quoteData.quoteDate);
+          if (!isNaN(parsed.getTime())) {
+          quoteData.quoteDate = parsed;
+          } else {
+          delete quoteData.quoteDate; 
+          }
+      }
+
+      // Generate quote number (freshly for each attempt if retrying)
+      const quoteNumber = await NumberingService.generateQuoteNumber();
+
+      // Prepare items
+      const quoteItemsData = (items || []).map((item: any, i: number) => ({
+          quoteId: "", 
+          productId: item.productId || null,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: String(item.unitPrice),
+          subtotal: String(item.quantity * item.unitPrice),
+          sortOrder: i,
+          hsnSac: item.hsnSac || null,
+      }));
+
+      // Calculate Financials Server-Side
+      const subtotal = calculateSubtotal(quoteItemsData);
+      
+      // Use provided values or defaults for taxes/discounts
+      const discount = quoteData.discount || 0;
+      const shippingCharges = quoteData.shippingCharges || 0;
+      const cgst = quoteData.cgst || 0;
+      const sgst = quoteData.sgst || 0;
+      const igst = quoteData.igst || 0;
+
+      const total = calculateTotal({
+          subtotal,
+          discount,
+          shippingCharges,
+          cgst,
+          sgst,
+          igst
       });
 
-      // 2. If approval needed, notify admins
-      if (approvalStatus === "pending") {
-        const admins = await db.select().from(users).where(eq(users.role, "admin"));
-        for (const admin of admins) {
-          await NotificationService.notifyApprovalRequest(
-            admin.id,
-            quoteNumber,
-            quote.id,
-            req.user!.email || "User",
-            "Quote creation triggered approval rules"
-          );
-        }
-      }
-    } catch (notifError) {
-      logger.error("Failed to send notifications for new quote:", notifError);
-    }
-
-    // Trigger Workflows
-    try {
-      // Enrich entity with client details for templates
-      const client = await storage.getClient(quote.clientId);
-      const enrichedEntity = {
-        ...quote,
-        client, // Allows {{client.name}}
-        client_name: client?.name, // Allows {{client_name}}
-        client_email: client?.email, // Allows {{client_email}}
-        creator_name: req.user?.name || "QuoteProGen Team", // Allows {{creator_name}}
-        creator_email: req.user?.email, // Allows {{creator_email}}
-        formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`, // Allows {{formatted_total}}
-        formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`, // Allows {{formatted_subtotal}}
+      const finalQuoteData = {
+          ...quoteData,
+          quoteNumber,
+          createdBy: req.user!.id,
+          subtotal: toMoneyString(subtotal),
+          discount: toMoneyString(discount),
+          shippingCharges: toMoneyString(shippingCharges),
+          cgst: toMoneyString(cgst),
+          sgst: toMoneyString(sgst),
+          igst: toMoneyString(igst),
+          total: toMoneyString(total),
       };
 
-      logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+      // Rule-Based Approval Check
+      // Only run this once or valid to rerun? Valid.
+      const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(finalQuoteData as any); 
+      Object.assign(finalQuoteData, { approvalStatus, approvalRequiredBy });
 
-      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-        eventType: "created",
-        entity: enrichedEntity,
-        triggeredBy: req.user!.id,
+      // Create quote and items in transaction
+      const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
+
+      await storage.createActivityLog({
+          userId: req.user!.id,
+          action: "create_quote",
+          entityType: "quote",
+          entityId: quote.id,
       });
+
+      console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2)); 
       
-      // Also trigger for status change (draft)
-      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-        eventType: "status_change",
-        entity: enrichedEntity,
-        newValue: quote.status,
-        oldValue: null,
-        triggeredBy: req.user!.id,
-      });
+      // NOTIFICATIONS
+      try {
+        // 1. Notify creator
+        await NotificationService.create({
+          userId: req.user!.id,
+          type: "quote_status_change",
+          title: "Quote Created",
+          message: `Quote #${quoteNumber} has been created successfully.`,
+          entityType: "quote",
+          entityId: quote.id,
+        });
+
+        // 2. If approval needed, notify admins
+        if (approvalStatus === "pending") {
+          const admins = await db.select().from(users).where(eq(users.role, "admin"));
+          for (const admin of admins) {
+            await NotificationService.notifyApprovalRequest(
+              admin.id,
+              quoteNumber,
+              quote.id,
+              req.user!.email || "User",
+              "Quote creation triggered approval rules"
+            );
+          }
+        }
+      } catch (notifError) {
+        logger.error("Failed to send notifications for new quote:", notifError);
+      }
+
+      // Trigger Workflows
+      try {
+        const client = await storage.getClient(quote.clientId);
+        const enrichedEntity = {
+          ...quote,
+          client,
+          client_name: client?.name,
+          client_email: client?.email,
+          creator_name: req.user?.name || "QuoteProGen Team",
+          creator_email: req.user?.email,
+          formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
+          formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`,
+        };
+
+        logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "created",
+          entity: enrichedEntity,
+          triggeredBy: req.user!.id,
+        });
+        
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "status_change",
+          entity: enrichedEntity,
+          newValue: quote.status,
+          oldValue: null,
+          triggeredBy: req.user!.id,
+        });
+        
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "amount_threshold",
+          entity: enrichedEntity,
+          triggeredBy: req.user!.id,
+        });
+      } catch (workflowError) {
+        logger.error("Failed to trigger workflows for new quote:", workflowError);
+      }
+
+      return res.json({ ...quote, approvalStatus, approvalRequiredBy });
       
-      // Also trigger for amount threshold checks
-      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-        eventType: "amount_threshold",
-        entity: enrichedEntity,
-        triggeredBy: req.user!.id,
-      });
-    } catch (workflowError) {
-      logger.error("Failed to trigger workflows for new quote:", workflowError);
+    } catch (error: any) {
+      // Check for Unique Violation (23505) on quote_number
+      if (error.code === '23505' && error.constraint === 'quotes_quote_number_unique') {
+          console.warn(`[Quote Create] Collision on number, retrying (Attempt ${attempt + 1}/${maxRetries})...`);
+          attempt++;
+          if (attempt >= maxRetries) {
+              return res.status(409).json({ error: "Failed to generate a unique quote number after multiple retries. Please try again." });
+          }
+          continue; // Retry loop
+      }
+
+      logger.error("Create quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create quote" });
     }
-
-    return res.json({ ...quote, approvalStatus, approvalRequiredBy });
-  } catch (error: any) {
-    logger.error("Create quote error:", error);
-    return res.status(500).json({ error: error.message || "Failed to create quote" });
   }
 });
 
@@ -855,7 +859,7 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
 
         for (const item of quoteItems) {
             // Stock Logic - Mirroring Sales Order Conversion Logic
-            if ((item as any).productId && require("../shared/feature-flags").isFeatureEnabled('products_stock_tracking')) {
+            if ((item as any).productId && isFeatureEnabled('products_stock_tracking')) {
                 // Atomic Update with Lock
                 const [product] = await tx.select().from(schema.products)
                     .where(eq(schema.products.id, (item as any).productId));
@@ -865,7 +869,7 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
                     const currentStock = Number(product.stockQuantity);
                     
                     // Validation
-                    const allowNegative = require("../shared/feature-flags").isFeatureEnabled('products_allow_negative_stock');
+                    const allowNegative = isFeatureEnabled('products_allow_negative_stock');
                     
                     if (currentStock < requiredQty) {
                         logger.warn(`[Stock Shortage] Product ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
@@ -879,7 +883,7 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
                             logger.warn(`[Stock Warn] Proceeding with negative stock capability`);
                         }
                         
-                        if (require("../shared/feature-flags").isFeatureEnabled('products_stock_warnings')) {
+                        if (isFeatureEnabled('products_stock_warnings')) {
                             shortageNotes.push(`[SHORTAGE] ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
                         }
                     }
@@ -918,7 +922,7 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
         }
 
         // Update Delivery Notes with Shortages
-        if (require("../shared/feature-flags").isFeatureEnabled('products_stock_warnings') && shortageNotes.length > 0) {
+        if (isFeatureEnabled('products_stock_warnings') && shortageNotes.length > 0) {
             const shortageText = shortageNotes.join("\n");
             await tx.update(schema.invoices)
                 .set({ deliveryNotes: shortageText })
