@@ -32,8 +32,16 @@ router.get("/dashboard", authMiddleware, requireFeature('analytics_module'), req
 
       const approvedQuotes = quotes.filter(q => q.status === "approved" || q.status === "invoiced" || q.status === "closed_paid");
       
-      // Calculate Total Revenue from Invoices (Collected Amount)
-      const totalRevenue = invoices.reduce((sum, inv) => sum + safeToNum(inv.paidAmount), 0);
+      // Calculate Total Revenue from Invoices (Collected Amount) by Currency
+      const revenueByCurrency: Record<string, number> = {};
+      let totalRevenueSum = 0;
+
+      invoices.forEach(inv => {
+          const currency = inv.currency || "INR";
+          const amount = safeToNum(inv.paidAmount);
+          revenueByCurrency[currency] = (revenueByCurrency[currency] || 0) + amount;
+          totalRevenueSum += amount;
+      });
 
       const conversionRate = totalQuotes > 0
         ? ((approvedQuotes.length / totalQuotes) * 100).toFixed(1)
@@ -116,7 +124,8 @@ router.get("/dashboard", authMiddleware, requireFeature('analytics_module'), req
       return res.json({
         totalQuotes,
         totalClients,
-        totalRevenue: totalRevenue.toFixed(2),
+        totalRevenue: totalRevenueSum.toFixed(2),
+        revenueByCurrency,
         conversionRate,
         recentQuotes,
         topClients,

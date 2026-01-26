@@ -71,6 +71,7 @@ interface DashboardMetrics {
     totalQuotes: number;
     totalClients: number;
     totalRevenue: string; // numeric string
+    revenueByCurrency?: Record<string, number>;
     conversionRate: string; // "100.0"
     totalInvoices?: number;
     pendingInvoices?: number;
@@ -99,6 +100,30 @@ interface DashboardMetrics {
 }
 
 /* -------------------- Design Tokens ------------------- */
+
+const formatMultiCurrency = (amounts: Record<string, number> | undefined, defaultVal: number): React.ReactNode => {
+    if (!amounts) return formatCurrency(defaultVal);
+    
+    const entries = Object.entries(amounts).filter(([_, val]) => val !== 0);
+    if (entries.length === 0) return formatCurrency(defaultVal);
+    
+    // Sort by currency code
+    entries.sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (entries.length === 1) {
+        return formatCurrency(entries[0][1], entries[0][0]);
+    }
+
+    return (
+        <div className="flex flex-col gap-0.5">
+            {entries.map(([curr, val]) => (
+                <span key={curr} className="text-2xl sm:text-3xl whitespace-nowrap leading-tight">
+                    {formatCurrency(val, curr)}
+                </span>
+            ))}
+        </div>
+    );
+};
 
 const STATUS_COLORS: Record<string, string> = {
     draft: "hsl(28 22% 83%)",
@@ -170,7 +195,7 @@ function MetricCard({
     index = 0,
 }: {
     label: string;
-    value: string | number;
+    value: string | number | React.ReactNode;
     sub: string;
     icon: any;
     tint?: "primary" | "blue" | "green" | "purple";
@@ -235,9 +260,9 @@ function MetricCard({
                             {label}
                         </p>
                         <div className="flex items-baseline gap-2 mt-1">
-                            <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                            <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                                 {value}
-                            </h3>
+                            </div>
                         </div>
                     </div>
                     <div className={`
@@ -536,7 +561,7 @@ export default function Dashboard() {
                         />
                         <MetricCard
                             label="Total Collected"
-                            value={formatCurrency(totalRevenueNum)}
+                            value={formatMultiCurrency(metrics.revenueByCurrency, totalRevenueNum)}
                             sub="From paid invoices"
                             icon={DollarSign}
                             sparkData={sparkSeries}

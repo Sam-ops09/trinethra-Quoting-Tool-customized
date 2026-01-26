@@ -94,6 +94,28 @@ const getStatusColor = (status: string) => {
     }
 };
 
+const formatMultiCurrency = (amounts: Record<string, number>): React.ReactNode => {
+    const entries = Object.entries(amounts).filter(([_, val]) => val !== 0);
+    if (entries.length === 0) return formatCurrency(0, "INR");
+    
+    // Sort by currency code to keep consistent order
+    entries.sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (entries.length === 1) {
+        return formatCurrency(entries[0][1], entries[0][0]);
+    }
+
+    return (
+        <div className="flex flex-col gap-0.5 py-1">
+            {entries.map(([curr, val]) => (
+                <span key={curr} className="text-xl sm:text-2xl whitespace-nowrap leading-tight">
+                    {formatCurrency(val, curr)}
+                </span>
+            ))}
+        </div>
+    );
+};
+
 export default function Invoices() {
     const [, setLocation] = useLocation();
     const [searchQuery, setSearchQuery] = useState("");
@@ -185,9 +207,25 @@ export default function Invoices() {
             partial: 0,
             paid: 0,
             overdue: 0,
-            totalRevenue: 0,
-            totalCollected: 0
+            revenueByCurrency: {} as Record<string, number>,
+            collectedByCurrency: {} as Record<string, number>,
+            outstandingByCurrency: {} as Record<string, number>
         };
+
+        const revenueByCurrency: Record<string, number> = {};
+        const collectedByCurrency: Record<string, number> = {};
+        const outstandingByCurrency: Record<string, number> = {};
+
+        invoices.forEach(invoice => {
+            const currency = invoice.currency || "INR"; // Default to INR if missing
+            const total = safeNumber(invoice.total);
+            const paid = safeNumber(invoice.paidAmount);
+            const remaining = Math.max(total - paid, 0);
+
+            revenueByCurrency[currency] = (revenueByCurrency[currency] || 0) + total;
+            collectedByCurrency[currency] = (collectedByCurrency[currency] || 0) + paid;
+            outstandingByCurrency[currency] = (outstandingByCurrency[currency] || 0) + remaining;
+        });
 
         return {
             totalCount: invoices.length,
@@ -195,15 +233,11 @@ export default function Invoices() {
             partial: invoices.filter((i) => i.paymentStatus === "partial").length,
             paid: invoices.filter((i) => i.paymentStatus === "paid").length,
             overdue: invoices.filter((i) => i.paymentStatus === "overdue").length,
-            totalRevenue: invoices.reduce((sum, i) => sum + safeNumber(i.total), 0),
-            totalCollected: invoices.reduce((sum, i) => sum + safeNumber(i.paidAmount), 0),
+            revenueByCurrency,
+            collectedByCurrency,
+            outstandingByCurrency
         };
     }, [invoices]);
-
-    const outstanding = Math.max(
-        stats.totalRevenue - stats.totalCollected,
-        0
-    );
 
     if (isLoading) {
         return (
@@ -287,7 +321,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Revenue</p>
-                                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalRevenue)}</p>
+                                    <div className="text-3xl font-bold text-slate-900 dark:text-white">{formatMultiCurrency(stats.revenueByCurrency)}</div>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
                                     <DollarSign className="h-6 w-6 text-slate-600 dark:text-slate-400" />
@@ -306,7 +340,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Collected</p>
-                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.totalCollected)}</p>
+                                    <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatMultiCurrency(stats.collectedByCurrency)}</div>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
                                     <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
@@ -325,7 +359,7 @@ export default function Invoices() {
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="space-y-1.5 min-w-0 flex-1">
                                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Outstanding</p>
-                                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(outstanding)}</p>
+                                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{formatMultiCurrency(stats.outstandingByCurrency)}</div>
                                 </div>
                                 <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0 shadow-md">
                                     <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
