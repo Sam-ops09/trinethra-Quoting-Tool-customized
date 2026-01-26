@@ -90,6 +90,8 @@ __export(schema_exports, {
   insertWorkflowSchema: () => insertWorkflowSchema,
   insertWorkflowTriggerSchema: () => insertWorkflowTriggerSchema,
   invoiceAttachments: () => invoiceAttachments,
+  invoiceComments: () => invoiceComments,
+  invoiceCommentsRelations: () => invoiceCommentsRelations,
   invoiceItemStatusEnum: () => invoiceItemStatusEnum,
   invoiceItems: () => invoiceItems,
   invoiceItemsRelations: () => invoiceItemsRelations,
@@ -114,6 +116,8 @@ __export(schema_exports, {
   quoteVersionsRelations: () => quoteVersionsRelations,
   quotes: () => quotes,
   quotesRelations: () => quotesRelations,
+  salesOrderComments: () => salesOrderComments,
+  salesOrderCommentsRelations: () => salesOrderCommentsRelations,
   salesOrderItemStatusEnum: () => salesOrderItemStatusEnum,
   salesOrderItems: () => salesOrderItems,
   salesOrderItemsRelations: () => salesOrderItemsRelations,
@@ -135,6 +139,8 @@ __export(schema_exports, {
   userStatusEnum: () => userStatusEnum,
   users: () => users,
   usersRelations: () => usersRelations,
+  vendorPoComments: () => vendorPoComments,
+  vendorPoCommentsRelations: () => vendorPoCommentsRelations,
   vendorPoItems: () => vendorPoItems,
   vendorPoItemsRelations: () => vendorPoItemsRelations,
   vendorPoStatusEnum: () => vendorPoStatusEnum,
@@ -161,7 +167,7 @@ import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, i
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, approvalStatusEnum, users, usersRelations, userDevices, userDevicesRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema, workflowStatusEnum, workflowTriggerTypeEnum, workflowActionTypeEnum, workflows, workflowsRelations, workflowTriggers, workflowTriggersRelations, workflowActions, workflowActionsRelations, workflowExecutions, workflowExecutionsRelations, workflowSchedules, workflowSchedulesRelations, insertWorkflowSchema, insertWorkflowTriggerSchema, insertWorkflowActionSchema, insertWorkflowExecutionSchema, insertWorkflowScheduleSchema, insertUserDeviceSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, approvalStatusEnum, users, usersRelations, userDevices, userDevicesRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, salesOrderComments, salesOrderCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, invoiceComments, invoiceCommentsRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoComments, vendorPoCommentsRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema, workflowStatusEnum, workflowTriggerTypeEnum, workflowActionTypeEnum, workflows, workflowsRelations, workflowTriggers, workflowTriggersRelations, workflowActions, workflowActionsRelations, workflowExecutions, workflowExecutionsRelations, workflowSchedules, workflowSchedulesRelations, insertWorkflowSchema, insertWorkflowTriggerSchema, insertWorkflowActionSchema, insertWorkflowExecutionSchema, insertWorkflowScheduleSchema, insertUserDeviceSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -413,7 +419,8 @@ var init_schema = __esm({
       }),
       items: many(salesOrderItems),
       // One sales order can have multiple invoices (e.g. partial)
-      invoices: many(invoices)
+      invoices: many(invoices),
+      comments: many(salesOrderComments)
     }));
     salesOrderItems = pgTable("sales_order_items", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -476,6 +483,28 @@ var init_schema = __esm({
       parentComment: one(quoteComments, {
         fields: [quoteComments.parentCommentId],
         references: [quoteComments.id]
+      })
+    }));
+    salesOrderComments = pgTable("sales_order_comments", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      salesOrderId: varchar("sales_order_id").notNull().references(() => salesOrders.id, { onDelete: "cascade" }),
+      authorType: text("author_type").notNull(),
+      // 'client' or 'internal'
+      authorName: text("author_name").notNull(),
+      authorEmail: text("author_email"),
+      message: text("message").notNull(),
+      parentCommentId: varchar("parent_comment_id"),
+      isInternal: boolean("is_internal").notNull().default(false),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    salesOrderCommentsRelations = relations(salesOrderComments, ({ one }) => ({
+      salesOrder: one(salesOrders, {
+        fields: [salesOrderComments.salesOrderId],
+        references: [salesOrders.id]
+      }),
+      parentComment: one(salesOrderComments, {
+        fields: [salesOrderComments.parentCommentId],
+        references: [salesOrderComments.id]
       })
     }));
     subscriptions = pgTable("subscriptions", {
@@ -608,7 +637,30 @@ var init_schema = __esm({
         references: [users.id]
       }),
       items: many(invoiceItems),
-      payments: many(paymentHistory)
+      payments: many(paymentHistory),
+      comments: many(invoiceComments)
+    }));
+    invoiceComments = pgTable("invoice_comments", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      invoiceId: varchar("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+      authorType: text("author_type").notNull(),
+      // 'client' or 'internal'
+      authorName: text("author_name").notNull(),
+      authorEmail: text("author_email"),
+      message: text("message").notNull(),
+      parentCommentId: varchar("parent_comment_id"),
+      isInternal: boolean("is_internal").notNull().default(false),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    invoiceCommentsRelations = relations(invoiceComments, ({ one }) => ({
+      invoice: one(invoices, {
+        fields: [invoiceComments.invoiceId],
+        references: [invoices.id]
+      }),
+      parentComment: one(invoiceComments, {
+        fields: [invoiceComments.parentCommentId],
+        references: [invoiceComments.id]
+      })
     }));
     paymentHistory = pgTable("payment_history", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -723,7 +775,30 @@ var init_schema = __esm({
         fields: [vendorPurchaseOrders.createdBy],
         references: [users.id]
       }),
-      items: many(vendorPoItems)
+      items: many(vendorPoItems),
+      comments: many(vendorPoComments)
+    }));
+    vendorPoComments = pgTable("vendor_po_comments", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      vendorPoId: varchar("vendor_po_id").notNull().references(() => vendorPurchaseOrders.id, { onDelete: "cascade" }),
+      authorType: text("author_type").notNull(),
+      // 'client' or 'internal'
+      authorName: text("author_name").notNull(),
+      authorEmail: text("author_email"),
+      message: text("message").notNull(),
+      parentCommentId: varchar("parent_comment_id"),
+      isInternal: boolean("is_internal").notNull().default(false),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    vendorPoCommentsRelations = relations(vendorPoComments, ({ one }) => ({
+      vendorPo: one(vendorPurchaseOrders, {
+        fields: [vendorPoComments.vendorPoId],
+        references: [vendorPurchaseOrders.id]
+      }),
+      parentComment: one(vendorPoComments, {
+        fields: [vendorPoComments.parentCommentId],
+        references: [vendorPoComments.id]
+      })
     }));
     vendorPoItems = pgTable("vendor_po_items", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1968,10 +2043,6 @@ var init_storage = __esm({
         const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
         return invoice || void 0;
       }
-      async getInvoiceByQuote(quoteId) {
-        const [invoice] = await db.select().from(invoices).where(eq(invoices.quoteId, quoteId));
-        return invoice || void 0;
-      }
       async getAllInvoices() {
         return await db.select().from(invoices).orderBy(desc(invoices.createdAt));
       }
@@ -2042,6 +2113,19 @@ var init_storage = __esm({
       }
       async getActivityLogs(userId, limit = 50) {
         return await db.select().from(activityLogs).where(eq(activityLogs.userId, userId)).orderBy(desc(activityLogs.timestamp)).limit(limit);
+      }
+      async getAllActivityLogs(limit = 50) {
+        const result = await db.select({
+          id: activityLogs.id,
+          userId: activityLogs.userId,
+          action: activityLogs.action,
+          entityType: activityLogs.entityType,
+          entityId: activityLogs.entityId,
+          metadata: activityLogs.metadata,
+          timestamp: activityLogs.timestamp,
+          userName: users.name
+        }).from(activityLogs).leftJoin(users, eq(activityLogs.userId, users.id)).orderBy(desc(activityLogs.timestamp)).limit(limit);
+        return result;
       }
       // Settings
       async getSetting(key) {
@@ -2423,6 +2507,46 @@ var init_storage = __esm({
       async updateQuoteItemSelection(itemId, isSelected) {
         const [updated] = await db.update(quoteItems).set({ isSelected }).where(eq(quoteItems.id, itemId)).returning();
         return updated || void 0;
+        return updated || void 0;
+      }
+      // Sales Order Comments
+      async getSalesOrderComments(salesOrderId, includeInternal = false) {
+        if (includeInternal) {
+          return await db.select().from(salesOrderComments).where(eq(salesOrderComments.salesOrderId, salesOrderId)).orderBy(salesOrderComments.createdAt);
+        }
+        return await db.select().from(salesOrderComments).where(
+          and(eq(salesOrderComments.salesOrderId, salesOrderId), eq(salesOrderComments.isInternal, false))
+        ).orderBy(salesOrderComments.createdAt);
+      }
+      async createSalesOrderComment(comment) {
+        const [newComment] = await db.insert(salesOrderComments).values(comment).returning();
+        return newComment;
+      }
+      // Vendor PO Comments
+      async getVendorPoComments(vendorPoId, includeInternal = false) {
+        if (includeInternal) {
+          return await db.select().from(vendorPoComments).where(eq(vendorPoComments.vendorPoId, vendorPoId)).orderBy(vendorPoComments.createdAt);
+        }
+        return await db.select().from(vendorPoComments).where(
+          and(eq(vendorPoComments.vendorPoId, vendorPoId), eq(vendorPoComments.isInternal, false))
+        ).orderBy(vendorPoComments.createdAt);
+      }
+      async createVendorPoComment(comment) {
+        const [newComment] = await db.insert(vendorPoComments).values(comment).returning();
+        return newComment;
+      }
+      // Invoice Comments
+      async getInvoiceComments(invoiceId, includeInternal = false) {
+        if (includeInternal) {
+          return await db.select().from(invoiceComments).where(eq(invoiceComments.invoiceId, invoiceId)).orderBy(invoiceComments.createdAt);
+        }
+        return await db.select().from(invoiceComments).where(
+          and(eq(invoiceComments.invoiceId, invoiceId), eq(invoiceComments.isInternal, false))
+        ).orderBy(invoiceComments.createdAt);
+      }
+      async createInvoiceComment(comment) {
+        const [newComment] = await db.insert(invoiceComments).values(comment).returning();
+        return newComment;
       }
       // ==================== WORKFLOW AUTOMATION STORAGE METHODS ====================
       // Workflows
@@ -2931,7 +3055,7 @@ var init_feature_flags = __esm({
       invoices_childInvoices: true,
       invoices_masterInvoices: true,
       invoices_milestoneInvoices: true,
-      invoices_emailSending: true,
+      invoices_emailSending: false,
       invoices_pdfGeneration: true,
       invoices_paymentTracking: true,
       invoices_paymentHistory: true,
@@ -3071,7 +3195,7 @@ var init_feature_flags = __esm({
       email_paymentReminders: false,
       email_overdueNotifications: false,
       email_vendorPO: false,
-      email_templates_module: true,
+      email_templates_module: false,
       email_subscriptionRenewed: false,
       // ==================== ADMIN & CONFIGURATION ====================
       admin_userManagement: true,
@@ -3436,7 +3560,7 @@ __export(serial_number_service_exports, {
   logSerialNumberChange: () => logSerialNumberChange,
   validateSerialNumbers: () => validateSerialNumbers
 });
-import { eq as eq6, and as and4, sql as sql6 } from "drizzle-orm";
+import { eq as eq6, and as and4, sql as sql7 } from "drizzle-orm";
 async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expectedQuantity, options = {
   checkInvoiceScope: true,
   checkQuoteScope: true,
@@ -3472,7 +3596,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
     const invoiceItemsList = await db.select().from(invoiceItems).where(
       and4(
         eq6(invoiceItems.invoiceId, invoiceId),
-        sql6`${invoiceItems.id} != ${invoiceItemId}`
+        sql7`${invoiceItems.id} != ${invoiceItemId}`
       )
     );
     const existingSerialsInInvoice = [];
@@ -3504,7 +3628,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
         const relatedInvoices = await db.select().from(invoices).where(
           and4(
             eq6(invoices.quoteId, quoteId),
-            sql6`${invoices.id} != ${invoiceId}`
+            sql7`${invoices.id} != ${invoiceId}`
           )
         );
         const existingSerialsInQuote = [];
@@ -3535,7 +3659,7 @@ async function validateSerialNumbers(invoiceId, invoiceItemId, serials, expected
   }
   if (options.checkSystemWide) {
     const existingSerials = await db.select({ serialNumber: serialNumbers.serialNumber }).from(serialNumbers).where(
-      sql6`${serialNumbers.serialNumber} IN (${sql6.join(validSerials.map((s) => sql6`${s}`), sql6`, `)})`
+      sql7`${serialNumbers.serialNumber} IN (${sql7.join(validSerials.map((s) => sql7`${s}`), sql7`, `)})`
     );
     const duplicatesInSystem = existingSerials.map((s) => s.serialNumber);
     if (duplicatesInSystem.length > 0) {
@@ -6326,6 +6450,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
 };
 
 // server/services/email.service.ts
+init_feature_flags();
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 var EmailService = class {
@@ -6373,6 +6498,10 @@ var EmailService = class {
     return this.resend;
   }
   static async sendPasswordResetEmail(email, resetLink) {
+    if (!isFeatureEnabled("email_integration")) {
+      console.log("[EmailService] Email integration disabled, skipping password reset email");
+      return;
+    }
     const htmlContent = `
       <h2>Password Reset Request</h2>
       <p>You requested a password reset. Click the link below to reset your password:</p>
@@ -6418,6 +6547,10 @@ This link will expire in 1 hour.`
     }
   }
   static async sendQuoteEmail(email, emailSubject, emailBody, pdfBuffer) {
+    if (!isFeatureEnabled("quotes_emailSending")) {
+      console.log("[EmailService] Quotes email sending disabled, skipping quote email");
+      return;
+    }
     const lines = emailBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
@@ -6505,6 +6638,10 @@ This link will expire in 1 hour.`
     }
   }
   static async sendSalesOrderEmail(email, emailSubject, emailBody, pdfBuffer) {
+    if (!isFeatureEnabled("sales_orders_emailSending")) {
+      console.log("[EmailService] Sales orders email sending disabled, skipping sales order email");
+      return;
+    }
     const lines = emailBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
@@ -6574,6 +6711,10 @@ This link will expire in 1 hour.`
     }
   }
   static async sendInvoiceEmail(email, emailSubject, emailBody, pdfBuffer) {
+    if (!isFeatureEnabled("invoices_emailSending")) {
+      console.log("[EmailService] Invoices email sending disabled, skipping invoice email");
+      return;
+    }
     const lines = emailBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
@@ -6643,6 +6784,10 @@ This link will expire in 1 hour.`
     }
   }
   static async sendPaymentReminderEmail(email, emailSubject, emailBody) {
+    if (!isFeatureEnabled("invoices_emailSending")) {
+      console.log("[EmailService] Invoices email sending disabled, skipping payment reminder email");
+      return;
+    }
     const lines = emailBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
@@ -6696,6 +6841,10 @@ This link will expire in 1 hour.`
     }
   }
   static async sendWelcomeEmail(email, name) {
+    if (!isFeatureEnabled("email_welcome")) {
+      console.log("[EmailService] Welcome email sending disabled, skipping welcome email");
+      return;
+    }
     const htmlContent = `
       <h2>Welcome to QuoteProGen!</h2>
       <p>Hi ${name},</p>
@@ -6731,6 +6880,10 @@ This link will expire in 1 hour.`
     }
   }
   static async sendSubscriptionRenewedEmail(to, clientName, planName, invoiceNumber, amount, nextDate) {
+    if (!isFeatureEnabled("email_subscriptionRenewed")) {
+      console.log("[EmailService] Subscription renewal email sending disabled, skipping subscription renewal email");
+      return;
+    }
     const htmlContent = `
       <h2>Subscription Renewed</h2>
       <p>Hello ${clientName},</p>
@@ -6770,6 +6923,10 @@ This link will expire in 1 hour.`
     }
   }
   static async sendEmail(params) {
+    if (!isFeatureEnabled("email_integration")) {
+      console.log("[EmailService] Email integration disabled, skipping generic email");
+      return;
+    }
     try {
       if (this.useResend && this.resend) {
         let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
@@ -7075,116 +7232,141 @@ router.post(
   requireFeature("quotes_module"),
   requirePermission("sales_orders", "create"),
   async (req, res) => {
-    try {
-      const { quoteId, clientId, items, subtotal, total, bomSection, ...otherFields } = req.body;
-      let baseOrderData = {};
-      let orderItems = [];
-      if (quoteId) {
-        const quote = await storage.getQuote(quoteId);
-        if (!quote) {
-          return res.status(404).json({ error: "Quote not found" });
-        }
-        if (quote.status !== "approved") {
-          return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
-        }
-        const existingOrder = await storage.getSalesOrderByQuote(quoteId);
-        if (existingOrder) {
-          return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
-        }
-        baseOrderData = {
-          quoteId: quote.id,
-          clientId: quote.clientId,
-          currency: quote.currency,
-          subtotal: quote.subtotal.toString(),
-          discount: quote.discount.toString(),
-          cgst: quote.cgst.toString(),
-          sgst: quote.sgst.toString(),
-          igst: quote.igst.toString(),
-          shippingCharges: quote.shippingCharges.toString(),
-          total: quote.total.toString(),
-          notes: quote.notes,
-          termsAndConditions: quote.termsAndConditions,
-          bomSection: quote.bomSection
-        };
-        const existingItems = await storage.getQuoteItems(quoteId);
-        orderItems = existingItems.map((item) => ({
-          productId: item.productId || null,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice.toString(),
-          subtotal: item.subtotal.toString(),
-          hsnSac: item.hsnSac,
-          sortOrder: item.sortOrder
-        }));
-      } else {
-        if (!clientId) {
-          return res.status(400).json({ error: "Client ID is required for standalone Sales Orders" });
-        }
-        if (!items || !Array.isArray(items) || items.length === 0) {
-          return res.status(400).json({ error: "Items are required for standalone Sales Orders" });
-        }
-        baseOrderData = {
-          quoteId: null,
-          clientId,
-          currency: otherFields.currency || "INR",
-          subtotal: subtotal ? String(subtotal) : "0",
-          total: total ? String(total) : "0",
-          // Allow other fields or defaults
-          notes: otherFields.notes || "",
-          termsAndConditions: otherFields.termsAndConditions || "",
-          shippingCharges: "0",
-          discount: "0",
-          cgst: "0",
-          sgst: "0",
-          igst: "0",
-          bomSection: bomSection || null
-        };
-        orderItems = items.map((item) => ({
-          productId: item.productId || null,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: String(item.unitPrice || 0),
-          subtotal: String(item.subtotal || 0),
-          hsnSac: item.hsnSac || "",
-          sortOrder: item.sortOrder || 0
-        }));
-      }
-      const orderNumber = await NumberingService.generateSalesOrderNumber();
-      const salesOrder = await db.transaction(async (tx) => {
-        const [order] = await tx.insert(salesOrders).values({
-          orderNumber,
-          status: "draft",
-          orderDate: /* @__PURE__ */ new Date(),
-          ...baseOrderData,
-          createdBy: req.user.id
-        }).returning();
-        for (const item of orderItems) {
-          await tx.insert(salesOrderItems).values({
-            salesOrderId: order.id,
-            productId: item.productId,
+    let attempt = 0;
+    const maxRetries = 3;
+    while (attempt < maxRetries) {
+      try {
+        const { quoteId, clientId, items, subtotal, total, bomSection, ...otherFields } = req.body;
+        let baseOrderData = {};
+        let orderItems = [];
+        if (quoteId) {
+          const quote = await storage.getQuote(quoteId);
+          if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+          }
+          if (quote.status !== "approved") {
+            return res.status(400).json({ error: "Quote must be approved before converting to a Sales Order." });
+          }
+          const existingOrder = await storage.getSalesOrderByQuote(quoteId);
+          if (existingOrder) {
+            return res.status(400).json({ error: "Sales Order already exists for this quote", id: existingOrder.id });
+          }
+          baseOrderData = {
+            quoteId: quote.id,
+            clientId: quote.clientId,
+            currency: quote.currency,
+            subtotal: quote.subtotal.toString(),
+            discount: quote.discount.toString(),
+            cgst: quote.cgst.toString(),
+            sgst: quote.sgst.toString(),
+            igst: quote.igst.toString(),
+            shippingCharges: quote.shippingCharges.toString(),
+            total: quote.total.toString(),
+            notes: quote.notes,
+            termsAndConditions: quote.termsAndConditions,
+            bomSection: quote.bomSection
+          };
+          const existingItems = await storage.getQuoteItems(quoteId);
+          orderItems = existingItems.map((item) => ({
+            productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.subtotal,
+            unitPrice: item.unitPrice.toString(),
+            subtotal: item.subtotal.toString(),
             hsnSac: item.hsnSac,
-            sortOrder: item.sortOrder,
-            status: "pending",
-            fulfilledQuantity: 0
+            sortOrder: item.sortOrder
+          }));
+        } else {
+          if (!clientId) {
+            return res.status(400).json({ error: "Client ID is required for standalone Sales Orders" });
+          }
+          if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ error: "Items are required for standalone Sales Orders" });
+          }
+          orderItems = items.map((item, i) => ({
+            productId: item.productId || null,
+            description: item.description,
+            quantity: Number(item.quantity || 0),
+            unitPrice: String(item.unitPrice || 0),
+            subtotal: String(Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+            hsnSac: item.hsnSac || "",
+            sortOrder: item.sortOrder || i
+          }));
+          const calcSubtotal = calculateSubtotal(orderItems);
+          const calcDiscount = toDecimal(otherFields.discount || 0);
+          const calcShipping = toDecimal(otherFields.shippingCharges || 0);
+          const calcCgst = toDecimal(otherFields.cgst || 0);
+          const calcSgst = toDecimal(otherFields.sgst || 0);
+          const calcIgst = toDecimal(otherFields.igst || 0);
+          const calcTotal = calculateTotal({
+            subtotal: calcSubtotal,
+            discount: calcDiscount,
+            shippingCharges: calcShipping,
+            cgst: calcCgst,
+            sgst: calcSgst,
+            igst: calcIgst
           });
+          baseOrderData = {
+            quoteId: null,
+            clientId,
+            currency: otherFields.currency || "INR",
+            subtotal: toMoneyString(calcSubtotal),
+            discount: toMoneyString(calcDiscount),
+            shippingCharges: toMoneyString(calcShipping),
+            cgst: toMoneyString(calcCgst),
+            sgst: toMoneyString(calcSgst),
+            igst: toMoneyString(calcIgst),
+            total: toMoneyString(calcTotal),
+            notes: otherFields.notes || "",
+            termsAndConditions: otherFields.termsAndConditions || "",
+            bomSection: bomSection || null
+          };
         }
-        await tx.insert(activityLogs).values({
-          userId: req.user.id,
-          action: "create",
-          entityType: "sales_orders",
-          entityId: order.id,
-          timestamp: /* @__PURE__ */ new Date()
+        const orderNumber = await NumberingService.generateSalesOrderNumber();
+        const salesOrder = await db.transaction(async (tx) => {
+          const [order] = await tx.insert(salesOrders).values({
+            orderNumber,
+            status: "draft",
+            orderDate: /* @__PURE__ */ new Date(),
+            ...baseOrderData,
+            createdBy: req.user.id
+          }).returning();
+          for (const item of orderItems) {
+            await tx.insert(salesOrderItems).values({
+              salesOrderId: order.id,
+              productId: item.productId,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal,
+              hsnSac: item.hsnSac,
+              sortOrder: item.sortOrder,
+              status: "pending",
+              fulfilledQuantity: 0
+            });
+          }
+          await tx.insert(activityLogs).values({
+            userId: req.user.id,
+            action: "create",
+            entityType: "sales_orders",
+            entityId: order.id,
+            timestamp: /* @__PURE__ */ new Date()
+          });
+          return order;
         });
-        return order;
-      });
-      return res.json(salesOrder);
-    } catch (error) {
-      logger.error("Create sales order error:", error);
-      return res.status(500).json({ error: error.message || "Failed to create sales order" });
+        return res.json(salesOrder);
+      } catch (error) {
+        if (error.code === "23505" && (error.constraint === "sales_orders_order_number_unique" || error.message.includes("order_number"))) {
+          console.warn(`[SalesOrder Create] Collision on number, retrying (Attempt ${attempt + 1}/${maxRetries})...`);
+          attempt++;
+          if (attempt >= maxRetries) {
+            return res.status(409).json({ error: "Failed to generate a unique sales order number after multiple retries. Please try again." });
+          }
+          continue;
+        }
+        logger.error("Create sales order error:", error);
+        return res.status(500).json({ error: error.message || "Failed to create sales order" });
+      }
     }
   }
 );
@@ -7283,6 +7465,9 @@ router.patch(
         }
       }
       const result = await db.transaction(async (tx) => {
+        await tx.execute(sql4`SELECT 1 FROM ${salesOrders} WHERE ${salesOrders.id} = ${orderId} FOR UPDATE`);
+        const [freshOrder] = await tx.select().from(salesOrders).where(eq2(salesOrders.id, orderId));
+        if (!freshOrder) throw new Error("Order not found during update");
         const items = req.body.items;
         const updateData = { ...req.body };
         delete updateData.items;
@@ -7296,7 +7481,7 @@ router.patch(
         } else if (updateData.actualDeliveryDate) {
           updateData.actualDeliveryDate = new Date(updateData.actualDeliveryDate);
         }
-        let subtotal = toDecimal(currentOrder.subtotal);
+        let subtotal = toDecimal(freshOrder.subtotal);
         const getVal = (val, current) => val !== void 0 ? val : current;
         if (items && Array.isArray(items)) {
           subtotal = calculateSubtotal(items.map((item) => ({
@@ -7307,14 +7492,14 @@ router.patch(
         }
         const total = calculateTotal({
           subtotal,
-          discount: getVal(updateData.discount, currentOrder.discount),
-          shippingCharges: getVal(updateData.shippingCharges, currentOrder.shippingCharges),
-          cgst: getVal(updateData.cgst, currentOrder.cgst),
-          sgst: getVal(updateData.sgst, currentOrder.sgst),
-          igst: getVal(updateData.igst, currentOrder.igst)
+          discount: getVal(updateData.discount, freshOrder.discount),
+          shippingCharges: getVal(updateData.shippingCharges, freshOrder.shippingCharges),
+          cgst: getVal(updateData.cgst, freshOrder.cgst),
+          sgst: getVal(updateData.sgst, freshOrder.sgst),
+          igst: getVal(updateData.igst, freshOrder.igst)
         });
         updateData.total = toMoneyString(total);
-        const [updatedOrder] = await tx.update(salesOrders).set(updateData).where(eq2(salesOrders.id, orderId)).returning();
+        const [updatedOrder] = await tx.update(salesOrders).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(salesOrders.id, orderId)).returning();
         if (!updatedOrder) throw new Error("Failed to update sales order");
         if (items && Array.isArray(items)) {
           await tx.delete(salesOrderItems).where(eq2(salesOrderItems.salesOrderId, orderId));
@@ -7333,15 +7518,15 @@ router.patch(
             });
           }
         }
-        if (req.body.status && req.body.status !== currentOrder.status) {
-          const orderItems = items && Array.isArray(items) ? items : await storage.getSalesOrderItems(orderId);
+        if (req.body.status && req.body.status !== freshOrder.status) {
+          const orderItems = items && Array.isArray(items) ? items : await tx.select().from(salesOrderItems).where(eq2(salesOrderItems.salesOrderId, orderId));
           const productQuantities = {};
           for (const item of orderItems) {
             if (item.productId) {
               productQuantities[item.productId] = (productQuantities[item.productId] || 0) + (item.quantity || 0);
             }
           }
-          if (req.body.status === "confirmed" && currentOrder.status === "draft") {
+          if (req.body.status === "confirmed" && freshOrder.status === "draft") {
             if (isFeatureEnabled("products_stock_tracking") && isFeatureEnabled("products_reserve_on_order")) {
               for (const [productId, quantity] of Object.entries(productQuantities)) {
                 await tx.update(products).set({
@@ -7352,7 +7537,7 @@ router.patch(
               }
               logger.stock(`[Stock Reserve] Reserved stock inside transaction for SO ${orderId}`);
             }
-          } else if (req.body.status === "cancelled" && currentOrder.status === "confirmed") {
+          } else if (req.body.status === "cancelled" && freshOrder.status === "confirmed") {
             if (isFeatureEnabled("products_stock_tracking") && isFeatureEnabled("products_reserve_on_order")) {
               for (const [productId, quantity] of Object.entries(productQuantities)) {
                 await tx.update(products).set({
@@ -7378,6 +7563,61 @@ router.patch(
     } catch (error) {
       logger.error("Error updating sales order:", error);
       return res.status(500).json({ error: error.message });
+    }
+  }
+);
+router.get(
+  "/sales-orders/:id/comments",
+  requirePermission("sales_orders", "view"),
+  async (req, res) => {
+    try {
+      const order = await storage.getSalesOrder(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Sales Order not found" });
+      }
+      const comments = await storage.getSalesOrderComments(order.id, true);
+      res.json(comments);
+    } catch (error) {
+      logger.error("Get sales order comments error:", error);
+      res.status(500).json({ error: "Failed to fetch comments" });
+    }
+  }
+);
+router.post(
+  "/sales-orders/:id/comments",
+  requirePermission("sales_orders", "edit"),
+  async (req, res) => {
+    try {
+      const { message, isInternal } = req.body;
+      const orderId = req.params.id;
+      if (!message) {
+        return res.status(400).json({ error: "Comment message is required" });
+      }
+      const order = await storage.getSalesOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Sales Order not found" });
+      }
+      const comment = await storage.createSalesOrderComment({
+        salesOrderId: orderId,
+        message,
+        isInternal: !!isInternal,
+        authorType: "internal",
+        authorName: req.user.name,
+        authorEmail: req.user.email,
+        parentCommentId: req.body.parentCommentId || null
+      });
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "add_comment",
+        // reuse generic action or create specific? 'add_sales_order_comment' maybe?
+        entityType: "sales_orders",
+        entityId: orderId,
+        metadata: { commentId: comment.id, isInternal: !!isInternal }
+      });
+      res.status(201).json(comment);
+    } catch (error) {
+      logger.error("Add sales order comment error:", error);
+      res.status(500).json({ error: "Failed to add comment" });
     }
   }
 );
@@ -7449,6 +7689,7 @@ router.post(
         const shortageNotes = [];
         for (const item of items) {
           if (item.productId && isFeatureEnabled("products_stock_tracking")) {
+            await tx.execute(sql4`SELECT 1 FROM ${products} WHERE ${products.id} = ${item.productId} FOR UPDATE`);
             const [product] = await tx.select().from(products).where(eq2(products.id, item.productId));
             if (product) {
               const requiredQty = Number(item.quantity);
@@ -10840,7 +11081,7 @@ var WorkflowEngine = class {
 init_schema();
 init_schema();
 init_db();
-import { eq as eq5 } from "drizzle-orm";
+import { eq as eq5, sql as sql6 } from "drizzle-orm";
 var router5 = Router5();
 router5.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
@@ -11105,146 +11346,148 @@ router5.get("/:id", requireFeature("quotes_module"), authMiddleware, async (req,
   }
 });
 router5.post("/", requireFeature("quotes_create"), authMiddleware, requirePermission("quotes", "create"), async (req, res) => {
-  try {
-    const { items, ...quoteData } = req.body;
-    if (!isFeatureEnabled("quotes_discount") && Number(quoteData.discount || 0) > 0) {
-      return res.status(403).json({ error: "Discounts are currently disabled" });
-    }
-    if (!isFeatureEnabled("quotes_shippingCharges") && Number(quoteData.shippingCharges || 0) > 0) {
-      return res.status(403).json({ error: "Shipping charges feature is disabled" });
-    }
-    if (!isFeatureEnabled("quotes_notes") && quoteData.notes) {
-      delete quoteData.notes;
-    }
-    if (!isFeatureEnabled("quotes_termsConditions") && quoteData.termsAndConditions) {
-      delete quoteData.termsAndConditions;
-    }
-    if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
-      const parsed = new Date(quoteData.quoteDate);
-      if (!isNaN(parsed.getTime())) {
-        quoteData.quoteDate = parsed;
-      } else {
-        delete quoteData.quoteDate;
-      }
-    }
-    const prefixSetting = await storage.getSetting("quotePrefix");
-    const prefix = prefixSetting?.value || "QT";
-    const quoteNumber = await NumberingService.generateQuoteNumber();
-    const quoteItemsData = (items || []).map((item, i) => ({
-      quoteId: "",
-      productId: item.productId || null,
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: String(item.unitPrice),
-      subtotal: String(item.quantity * item.unitPrice),
-      sortOrder: i,
-      hsnSac: item.hsnSac || null
-    }));
-    const subtotal = calculateSubtotal(quoteItemsData);
-    const discount = quoteData.discount || 0;
-    const shippingCharges = quoteData.shippingCharges || 0;
-    const cgst = quoteData.cgst || 0;
-    const sgst = quoteData.sgst || 0;
-    const igst = quoteData.igst || 0;
-    const total = calculateTotal({
-      subtotal,
-      discount,
-      shippingCharges,
-      cgst,
-      sgst,
-      igst
-    });
-    const finalQuoteData = {
-      ...quoteData,
-      quoteNumber,
-      createdBy: req.user.id,
-      subtotal: toMoneyString(subtotal),
-      discount: toMoneyString(discount),
-      shippingCharges: toMoneyString(shippingCharges),
-      cgst: toMoneyString(cgst),
-      sgst: toMoneyString(sgst),
-      igst: toMoneyString(igst),
-      total: toMoneyString(total)
-    };
-    const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(finalQuoteData);
-    Object.assign(finalQuoteData, { approvalStatus, approvalRequiredBy });
-    const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
-    await storage.createActivityLog({
-      userId: req.user.id,
-      action: "create_quote",
-      entityType: "quote",
-      entityId: quote.id
-    });
-    console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2));
-    console.log("[DEBUG] Eval Result:", { approvalStatus, approvalRequiredBy });
+  let attempt = 0;
+  const maxRetries = 3;
+  while (attempt < maxRetries) {
     try {
-      await NotificationService.create({
+      const { items, ...quoteData } = req.body;
+      if (!isFeatureEnabled("quotes_discount") && Number(quoteData.discount || 0) > 0) {
+        return res.status(403).json({ error: "Discounts are currently disabled" });
+      }
+      if (!isFeatureEnabled("quotes_shippingCharges") && Number(quoteData.shippingCharges || 0) > 0) {
+        return res.status(403).json({ error: "Shipping charges feature is disabled" });
+      }
+      if (!isFeatureEnabled("quotes_notes") && quoteData.notes) {
+        delete quoteData.notes;
+      }
+      if (!isFeatureEnabled("quotes_termsConditions") && quoteData.termsAndConditions) {
+        delete quoteData.termsAndConditions;
+      }
+      if (quoteData.quoteDate && typeof quoteData.quoteDate === "string") {
+        const parsed = new Date(quoteData.quoteDate);
+        if (!isNaN(parsed.getTime())) {
+          quoteData.quoteDate = parsed;
+        } else {
+          delete quoteData.quoteDate;
+        }
+      }
+      const quoteNumber = await NumberingService.generateQuoteNumber();
+      const quoteItemsData = (items || []).map((item, i) => ({
+        quoteId: "",
+        productId: item.productId || null,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: String(item.unitPrice),
+        subtotal: String(item.quantity * item.unitPrice),
+        sortOrder: i,
+        hsnSac: item.hsnSac || null
+      }));
+      const subtotal = calculateSubtotal(quoteItemsData);
+      const discount = quoteData.discount || 0;
+      const shippingCharges = quoteData.shippingCharges || 0;
+      const cgst = quoteData.cgst || 0;
+      const sgst = quoteData.sgst || 0;
+      const igst = quoteData.igst || 0;
+      const total = calculateTotal({
+        subtotal,
+        discount,
+        shippingCharges,
+        cgst,
+        sgst,
+        igst
+      });
+      const finalQuoteData = {
+        ...quoteData,
+        quoteNumber,
+        createdBy: req.user.id,
+        subtotal: toMoneyString(subtotal),
+        discount: toMoneyString(discount),
+        shippingCharges: toMoneyString(shippingCharges),
+        cgst: toMoneyString(cgst),
+        sgst: toMoneyString(sgst),
+        igst: toMoneyString(igst),
+        total: toMoneyString(total)
+      };
+      const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(finalQuoteData);
+      Object.assign(finalQuoteData, { approvalStatus, approvalRequiredBy });
+      const quote = await storage.createQuoteTransaction(finalQuoteData, quoteItemsData);
+      await storage.createActivityLog({
         userId: req.user.id,
-        type: "quote_status_change",
-        title: "Quote Created",
-        message: `Quote #${quoteNumber} has been created successfully.`,
+        action: "create_quote",
         entityType: "quote",
         entityId: quote.id
       });
-      if (approvalStatus === "pending") {
-        const admins = await db.select().from(users).where(eq5(users.role, "admin"));
-        for (const admin of admins) {
-          await NotificationService.notifyApprovalRequest(
-            admin.id,
-            quoteNumber,
-            quote.id,
-            req.user.email || "User",
-            "Quote creation triggered approval rules"
-          );
+      console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2));
+      try {
+        await NotificationService.create({
+          userId: req.user.id,
+          type: "quote_status_change",
+          title: "Quote Created",
+          message: `Quote #${quoteNumber} has been created successfully.`,
+          entityType: "quote",
+          entityId: quote.id
+        });
+        if (approvalStatus === "pending") {
+          const admins = await db.select().from(users).where(eq5(users.role, "admin"));
+          for (const admin of admins) {
+            await NotificationService.notifyApprovalRequest(
+              admin.id,
+              quoteNumber,
+              quote.id,
+              req.user.email || "User",
+              "Quote creation triggered approval rules"
+            );
+          }
         }
+      } catch (notifError) {
+        logger.error("Failed to send notifications for new quote:", notifError);
       }
-    } catch (notifError) {
-      logger.error("Failed to send notifications for new quote:", notifError);
+      try {
+        const client = await storage.getClient(quote.clientId);
+        const enrichedEntity = {
+          ...quote,
+          client,
+          client_name: client?.name,
+          client_email: client?.email,
+          creator_name: req.user?.name || "QuoteProGen Team",
+          creator_email: req.user?.email,
+          formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
+          formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`
+        };
+        logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "created",
+          entity: enrichedEntity,
+          triggeredBy: req.user.id
+        });
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "status_change",
+          entity: enrichedEntity,
+          newValue: quote.status,
+          oldValue: null,
+          triggeredBy: req.user.id
+        });
+        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+          eventType: "amount_threshold",
+          entity: enrichedEntity,
+          triggeredBy: req.user.id
+        });
+      } catch (workflowError) {
+        logger.error("Failed to trigger workflows for new quote:", workflowError);
+      }
+      return res.json({ ...quote, approvalStatus, approvalRequiredBy });
+    } catch (error) {
+      if (error.code === "23505" && error.constraint === "quotes_quote_number_unique") {
+        console.warn(`[Quote Create] Collision on number, retrying (Attempt ${attempt + 1}/${maxRetries})...`);
+        attempt++;
+        if (attempt >= maxRetries) {
+          return res.status(409).json({ error: "Failed to generate a unique quote number after multiple retries. Please try again." });
+        }
+        continue;
+      }
+      logger.error("Create quote error:", error);
+      return res.status(500).json({ error: error.message || "Failed to create quote" });
     }
-    try {
-      const client = await storage.getClient(quote.clientId);
-      const enrichedEntity = {
-        ...quote,
-        client,
-        // Allows {{client.name}}
-        client_name: client?.name,
-        // Allows {{client_name}}
-        client_email: client?.email,
-        // Allows {{client_email}}
-        creator_name: req.user?.name || "QuoteProGen Team",
-        // Allows {{creator_name}}
-        creator_email: req.user?.email,
-        // Allows {{creator_email}}
-        formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
-        // Allows {{formatted_total}}
-        formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`
-        // Allows {{formatted_subtotal}}
-      };
-      logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
-      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-        eventType: "created",
-        entity: enrichedEntity,
-        triggeredBy: req.user.id
-      });
-      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-        eventType: "status_change",
-        entity: enrichedEntity,
-        newValue: quote.status,
-        oldValue: null,
-        triggeredBy: req.user.id
-      });
-      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-        eventType: "amount_threshold",
-        entity: enrichedEntity,
-        triggeredBy: req.user.id
-      });
-    } catch (workflowError) {
-      logger.error("Failed to trigger workflows for new quote:", workflowError);
-    }
-    return res.json({ ...quote, approvalStatus, approvalRequiredBy });
-  } catch (error) {
-    logger.error("Create quote error:", error);
-    return res.status(500).json({ error: error.message || "Failed to create quote" });
   }
 });
 router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePermission("quotes", "edit"), async (req, res) => {
@@ -11469,10 +11712,36 @@ router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_c
         total: quote.total,
         notes: quote.notes,
         termsAndConditions: quote.termsAndConditions,
-        createdBy: req.user.id
+        createdBy: req.user.id,
+        bomSection: quote.bomSection || null,
+        // Ensure BOM is carried over
+        deliveryNotes: null
       }).returning();
       const quoteItems2 = await storage.getQuoteItems(quote.id);
+      const shortageNotes = [];
       for (const item of quoteItems2) {
+        if (item.productId && isFeatureEnabled("products_stock_tracking")) {
+          const [product] = await tx.select().from(products).where(eq5(products.id, item.productId));
+          if (product) {
+            const requiredQty = Number(item.quantity);
+            const currentStock = Number(product.stockQuantity);
+            const allowNegative = isFeatureEnabled("products_allow_negative_stock");
+            if (currentStock < requiredQty) {
+              logger.warn(`[Stock Shortage] Product ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
+              if (!allowNegative) {
+                logger.warn(`[Stock Warn] Proceeding with negative stock capability`);
+              }
+              if (isFeatureEnabled("products_stock_warnings")) {
+                shortageNotes.push(`[SHORTAGE] ${item.description}: Required ${requiredQty}, Available ${currentStock}`);
+              }
+            }
+            await tx.update(products).set({
+              stockQuantity: sql6`${products.stockQuantity} - ${requiredQty}`,
+              availableQuantity: sql6`(${products.stockQuantity} - ${requiredQty}) - ${products.reservedQuantity}`,
+              updatedAt: /* @__PURE__ */ new Date()
+            }).where(eq5(products.id, item.productId));
+          }
+        }
         await tx.insert(invoiceItems).values({
           invoiceId: invoice.id,
           productId: item.productId || null,
@@ -11485,6 +11754,11 @@ router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_c
           sortOrder: item.sortOrder,
           hsnSac: item.hsnSac
         });
+      }
+      if (isFeatureEnabled("products_stock_warnings") && shortageNotes.length > 0) {
+        const shortageText = shortageNotes.join("\n");
+        await tx.update(invoices).set({ deliveryNotes: shortageText }).where(eq5(invoices.id, invoice.id));
+        invoice.deliveryNotes = shortageText;
       }
       await tx.update(quotes).set({ status: "invoiced", updatedAt: /* @__PURE__ */ new Date() }).where(eq5(quotes.id, quote.id));
       await tx.insert(activityLogs).values({
@@ -11896,7 +12170,7 @@ init_logger();
 init_db();
 init_schema();
 init_numbering_service();
-import { eq as eq7, sql as sql7 } from "drizzle-orm";
+import { eq as eq7, sql as sql8 } from "drizzle-orm";
 var router6 = Router6();
 router6.get("/", requireFeature("invoices_module"), authMiddleware, async (req, res) => {
   try {
@@ -12092,7 +12366,7 @@ router6.put("/:id/master-details", authMiddleware, requireFeature("invoices_edit
               quantity: item.quantity,
               fulfilledQuantity: item.fulfilledQuantity || 0,
               unitPrice: item.unitPrice,
-              subtotal: item.subtotal || String(Number(item.quantity) * Number(item.unitPrice)),
+              subtotal: toMoneyString(item.subtotal || calculateLineSubtotal(item.quantity, item.unitPrice)),
               serialNumbers: item.serialNumbers || null,
               status: item.status || "pending",
               sortOrder: item.sortOrder || 0,
@@ -12240,8 +12514,8 @@ router6.put("/:id/cancel", authMiddleware, requireFeature("invoices_cancel"), re
         }
         for (const [productId, quantityToRestore] of Object.entries(productStockUpdatesFromSerials)) {
           await tx.update(products).set({
-            stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
-            availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
+            stockQuantity: sql8`${products.stockQuantity} + ${quantityToRestore}`,
+            availableQuantity: sql8`${products.availableQuantity} + ${quantityToRestore}`,
             updatedAt: /* @__PURE__ */ new Date()
           }).where(eq7(products.id, productId));
         }
@@ -12251,8 +12525,8 @@ router6.put("/:id/cancel", authMiddleware, requireFeature("invoices_cancel"), re
             const quantityToRestore = Number(item.quantity) || 0;
             if (quantityToRestore > 0) {
               await tx.update(products).set({
-                stockQuantity: sql7`${products.stockQuantity} + ${quantityToRestore}`,
-                availableQuantity: sql7`${products.availableQuantity} + ${quantityToRestore}`,
+                stockQuantity: sql8`${products.stockQuantity} + ${quantityToRestore}`,
+                availableQuantity: sql8`${products.availableQuantity} + ${quantityToRestore}`,
                 updatedAt: /* @__PURE__ */ new Date()
               }).where(eq7(products.id, item.productId));
             }
@@ -12335,6 +12609,52 @@ router6.delete("/:id", authMiddleware, requireFeature("invoices_delete"), requir
     return res.status(500).json({ error: error.message || "Failed to delete invoice" });
   }
 });
+router6.get("/:id/comments", requireFeature("invoices_module"), authMiddleware, async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const comments = await storage.getInvoiceComments(invoice.id, true);
+    res.json(comments);
+  } catch (error) {
+    logger.error("Get invoice comments error:", error);
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
+router6.post("/:id/comments", requireFeature("invoices_edit"), authMiddleware, requirePermission("invoices", "edit"), async (req, res) => {
+  try {
+    const { message, isInternal } = req.body;
+    const invoiceId = req.params.id;
+    if (!message) {
+      return res.status(400).json({ error: "Comment message is required" });
+    }
+    const invoice = await storage.getInvoice(invoiceId);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const comment = await storage.createInvoiceComment({
+      invoiceId,
+      message,
+      isInternal: !!isInternal,
+      authorType: "internal",
+      authorName: req.user.name,
+      authorEmail: req.user.email,
+      parentCommentId: req.body.parentCommentId || null
+    });
+    await storage.createActivityLog({
+      userId: req.user.id,
+      action: "add_comment",
+      entityType: "invoice",
+      entityId: invoiceId,
+      metadata: { commentId: comment.id, isInternal: !!isInternal }
+    });
+    res.status(201).json(comment);
+  } catch (error) {
+    logger.error("Add invoice comment error:", error);
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
 router6.post("/:id/create-child-invoice", authMiddleware, requireFeature("invoices_childInvoices"), requirePermission("invoices", "create"), async (req, res) => {
   try {
     const result = await db.transaction(async (tx) => {
@@ -12361,7 +12681,7 @@ router6.post("/:id/create-child-invoice", authMiddleware, requireFeature("invoic
         }
       }
       const processedItems = [];
-      let subtotal = 0;
+      let subtotal = toDecimal(0);
       for (const rawItem of items) {
         const newItem = { ...rawItem };
         const masterItem = masterItems.find(
@@ -12375,35 +12695,32 @@ router6.post("/:id/create-child-invoice", authMiddleware, requireFeature("invoic
         if (!newItem.unitPrice) newItem.unitPrice = masterItem.unitPrice;
         if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
         if (!newItem.productId) newItem.productId = masterItem.productId;
-        const unitPrice = Number(newItem.unitPrice);
+        const unitPrice = toDecimal(newItem.unitPrice);
         const quantity = Number(newItem.quantity);
-        if (isNaN(unitPrice)) {
+        if (unitPrice.isNaN()) {
           const error = new Error(`Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`);
           error.statusCode = 400;
           throw error;
         }
         const key = newItem.productId || newItem.description;
         const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
-        const remaining = masterItem.quantity - alreadyInvoiced;
+        const remaining = Number(masterItem.quantity) - alreadyInvoiced;
         if (quantity > remaining) {
           const error = new Error(`Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`);
           error.statusCode = 400;
           throw error;
         }
-        subtotal += unitPrice * quantity;
+        subtotal = subtotal.plus(unitPrice.times(quantity));
         processedItems.push(newItem);
       }
-      const masterSubtotal = Number(masterInvoice.subtotal);
-      const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
-      const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
-      const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
-      const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
-      const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
-      const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
-      const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
-      if (isNaN(total)) {
-        throw new Error("Calculation resulted in NaN. Check inputs.");
-      }
+      const masterSubtotal = toDecimal(masterInvoice.subtotal);
+      const ratio = masterSubtotal.gt(0) ? subtotal.dividedBy(masterSubtotal) : toDecimal(0);
+      const cgst = toDecimal(masterInvoice.cgst || 0).times(ratio);
+      const sgst = toDecimal(masterInvoice.sgst || 0).times(ratio);
+      const igst = toDecimal(masterInvoice.igst || 0).times(ratio);
+      const shippingCharges = toDecimal(masterInvoice.shippingCharges || 0).times(ratio);
+      const discount = toDecimal(masterInvoice.discount || 0).times(ratio);
+      const total = subtotal.plus(cgst).plus(sgst).plus(igst).plus(shippingCharges).minus(discount);
       const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
       const [childInvoice] = await tx.insert(invoices).values({
         invoiceNumber,
@@ -12413,13 +12730,13 @@ router6.post("/:id/create-child-invoice", authMiddleware, requireFeature("invoic
         paymentStatus: "pending",
         dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3),
         paidAmount: "0",
-        subtotal: subtotal.toFixed(2),
-        discount,
-        cgst,
-        sgst,
-        igst,
-        shippingCharges,
-        total: total.toFixed(2),
+        subtotal: toMoneyString(subtotal),
+        discount: toMoneyString(discount),
+        cgst: toMoneyString(cgst),
+        sgst: toMoneyString(sgst),
+        igst: toMoneyString(igst),
+        shippingCharges: toMoneyString(shippingCharges),
+        total: toMoneyString(total),
         notes: notes || masterInvoice.notes,
         termsAndConditions: masterInvoice.termsAndConditions,
         isMaster: false,
@@ -12435,7 +12752,7 @@ router6.post("/:id/create-child-invoice", authMiddleware, requireFeature("invoic
           quantity: item.quantity,
           fulfilledQuantity: 0,
           unitPrice: item.unitPrice,
-          subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2),
+          subtotal: toMoneyString(calculateLineSubtotal(item.quantity, item.unitPrice)),
           status: "pending",
           sortOrder: item.sortOrder || 0,
           hsnSac: item.hsnSac || null
@@ -12852,6 +13169,68 @@ router6.post("/:id/payment-reminder", authMiddleware, requireFeature("invoices_p
     return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
   }
 });
+router6.post("/:id/payment", authMiddleware, requireFeature("payments_create"), requirePermission("payments", "create"), async (req, res) => {
+  try {
+    const { amount, paymentMethod, notes, transactionId } = req.body;
+    const amountNum = Number(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      return res.status(400).json({ error: "Invalid payment amount" });
+    }
+    const result = await db.transaction(async (tx) => {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        throw new Error("Invoice not found");
+      }
+      if (invoice.status === "cancelled") {
+        throw new Error("Cannot record payment for cancelled invoice");
+      }
+      const currentPaid = Number(invoice.paidAmount || 0);
+      const total = Number(invoice.total);
+      const newPaid = currentPaid + amountNum;
+      if (newPaid > total + 0.01) {
+        throw new Error(`Payment amount exceeds remaining balance. Remaining: ${(total - currentPaid).toFixed(2)}`);
+      }
+      let newStatus = "pending";
+      if (Math.abs(newPaid - total) < 0.01) {
+        newStatus = "paid";
+      } else if (newPaid > 0) {
+        newStatus = "partial";
+      }
+      await tx.insert(paymentHistory).values({
+        invoiceId: invoice.id,
+        amount: toMoneyString(amount),
+        paymentMethod,
+        transactionId: transactionId || null,
+        notes: notes || null,
+        recordedBy: req.user.id,
+        paymentDate: /* @__PURE__ */ new Date()
+      });
+      const [updatedInvoice] = await tx.update(invoices).set({
+        paidAmount: toMoneyString(newPaid),
+        remainingAmount: toMoneyString(total - newPaid),
+        paymentStatus: newStatus,
+        lastPaymentDate: /* @__PURE__ */ new Date(),
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq7(invoices.id, invoice.id)).returning();
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "record_payment",
+        entityType: "invoice",
+        entityId: invoice.id,
+        metadata: {
+          amount: amountNum,
+          method: paymentMethod,
+          newStatus
+        }
+      });
+      return updatedInvoice;
+    });
+    res.json(result);
+  } catch (error) {
+    logger.error("Record payment error:", error);
+    res.status(500).json({ error: error.message || "Failed to record payment" });
+  }
+});
 router6.patch("/:id/items/:itemId/serials", authMiddleware, requireFeature("serialNumber_tracking"), requirePermission("serial_numbers", "edit"), async (req, res) => {
   try {
     const { serialNumbers: serialNumbers2 } = req.body;
@@ -12955,7 +13334,7 @@ import { Router as Router7 } from "express";
 init_logger();
 init_db();
 init_schema();
-import { eq as eq8 } from "drizzle-orm";
+import { eq as eq8, sql as sql9 } from "drizzle-orm";
 var router7 = Router7();
 router7.put("/invoices/:id/payment-status", authMiddleware, requireFeature("payments_create"), requirePermission("payments", "create"), async (req, res) => {
   try {
@@ -12989,74 +13368,86 @@ router7.put("/invoices/:id/payment-status", authMiddleware, requireFeature("paym
         }
       }
     }
-    const updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
-    if (invoice.parentInvoiceId) {
-      const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-      if (masterInvoice) {
-        const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
-        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-        const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-          const childPaid = child.id === invoice.id ? Number(updateData.paidAmount || 0) : Number(child.paidAmount || 0);
-          return sum + childPaid;
-        }, 0);
-        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
-        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
-        const masterTotal = Number(masterInvoice.total);
-        let masterPaymentStatus = "pending";
-        if (finalMasterPaidAmount >= masterTotal) {
-          masterPaymentStatus = "paid";
-        } else if (finalMasterPaidAmount > 0) {
-          masterPaymentStatus = "partial";
+    const updatedInvoice = await db.transaction(async (tx) => {
+      if (invoice.parentInvoiceId) {
+        await tx.execute(sql9`SELECT 1 FROM ${invoices} WHERE ${invoices.id} = ${invoice.parentInvoiceId} FOR UPDATE`);
+      }
+      const [uInvoice] = await tx.update(invoices).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq8(invoices.id, invoice.id)).returning();
+      if (!uInvoice) throw new Error("Failed to update invoice");
+      if (invoice.parentInvoiceId) {
+        const [masterInvoice] = await tx.select().from(invoices).where(eq8(invoices.id, invoice.parentInvoiceId));
+        if (masterInvoice) {
+          const allInvoices = await tx.select().from(invoices).where(eq8(invoices.quoteId, masterInvoice.quoteId || ""));
+          const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
+          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
+            return sum + Number(child.paidAmount || 0);
+          }, 0);
+          const masterDirectPayments = await tx.select().from(paymentHistory).where(eq8(paymentHistory.invoiceId, masterInvoice.id));
+          const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+          const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+          const masterTotal = Number(masterInvoice.total);
+          let masterPaymentStatus = "pending";
+          if (finalMasterPaidAmount >= masterTotal) {
+            masterPaymentStatus = "paid";
+          } else if (finalMasterPaidAmount > 0) {
+            masterPaymentStatus = "partial";
+          }
+          await tx.update(invoices).set({
+            paidAmount: String(finalMasterPaidAmount),
+            paymentStatus: masterPaymentStatus,
+            updatedAt: /* @__PURE__ */ new Date()
+          }).where(eq8(invoices.id, masterInvoice.id));
+          if (masterPaymentStatus === "paid") {
+            const quote2 = await tx.query.quotes.findFirst({ where: eq8(quotes.id, masterInvoice.quoteId || "") });
+            if (quote2 && quote2.status === "invoiced") {
+              await tx.update(quotes).set({
+                status: "closed_paid",
+                closedAt: /* @__PURE__ */ new Date(),
+                closedBy: req.user.id,
+                closureNotes: "Auto-closed: All invoices fully paid",
+                updatedAt: /* @__PURE__ */ new Date()
+              }).where(eq8(quotes.id, quote2.id));
+              await tx.insert(activityLogs).values({
+                userId: req.user.id,
+                action: "close_quote",
+                entityType: "quote",
+                entityId: quote2.id,
+                timestamp: /* @__PURE__ */ new Date()
+              });
+            }
+          }
         }
-        await storage.updateInvoice(masterInvoice.id, {
-          paidAmount: String(finalMasterPaidAmount),
-          paymentStatus: masterPaymentStatus
-        });
-        if (masterPaymentStatus === "paid") {
-          const quote2 = await storage.getQuote(masterInvoice.quoteId || "");
+      } else if (uInvoice.paymentStatus === "paid") {
+        const allInvoices = await tx.select().from(invoices).where(eq8(invoices.quoteId, invoice.quoteId || ""));
+        const allPaid = allInvoices.every((inv) => inv.paymentStatus === "paid");
+        if (allPaid) {
+          const quote2 = await tx.query.quotes.findFirst({ where: eq8(quotes.id, invoice.quoteId || "") });
           if (quote2 && quote2.status === "invoiced") {
-            await storage.updateQuote(quote2.id, {
+            await tx.update(quotes).set({
               status: "closed_paid",
               closedAt: /* @__PURE__ */ new Date(),
               closedBy: req.user.id,
-              closureNotes: "Auto-closed: All invoices fully paid"
-            });
-            await storage.createActivityLog({
+              closureNotes: "Auto-closed: All invoices fully paid",
+              updatedAt: /* @__PURE__ */ new Date()
+            }).where(eq8(quotes.id, quote2.id));
+            await tx.insert(activityLogs).values({
               userId: req.user.id,
               action: "close_quote",
               entityType: "quote",
-              entityId: quote2.id
+              entityId: quote2.id,
+              timestamp: /* @__PURE__ */ new Date()
             });
           }
         }
       }
-    } else if (updatedInvoice?.paymentStatus === "paid") {
-      const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
-      const allPaid = allInvoices.every((inv) => inv.paymentStatus === "paid");
-      if (allPaid) {
-        const quote2 = await storage.getQuote(invoice.quoteId || "");
-        if (quote2 && quote2.status === "invoiced") {
-          await storage.updateQuote(quote2.id, {
-            status: "closed_paid",
-            closedAt: /* @__PURE__ */ new Date(),
-            closedBy: req.user.id,
-            closureNotes: "Auto-closed: All invoices fully paid"
-          });
-          await storage.createActivityLog({
-            userId: req.user.id,
-            action: "close_quote",
-            entityType: "quote",
-            entityId: quote2.id
-          });
-        }
-      }
-    }
-    await storage.createActivityLog({
-      userId: req.user.id,
-      action: "update_payment_status",
-      entityType: "invoice",
-      entityId: invoice.id
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "update_payment_status",
+        entityType: "invoice",
+        entityId: invoice.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
+      return uInvoice;
     });
     return res.json(updatedInvoice);
   } catch (error) {
@@ -13113,6 +13504,7 @@ router7.post("/invoices/:id/payment", authMiddleware, requireFeature("payments_c
         updatedAt: /* @__PURE__ */ new Date()
       }).where(eq8(invoices.id, req.params.id)).returning();
       if (invoice.parentInvoiceId) {
+        await tx.execute(sql9`SELECT 1 FROM ${invoices} WHERE ${invoices.id} = ${invoice.parentInvoiceId} FOR UPDATE`);
         const [masterInvoice] = await tx.select().from(invoices).where(eq8(invoices.id, invoice.parentInvoiceId));
         if (masterInvoice) {
           const childInvoices = await tx.select().from(invoices).where(eq8(invoices.parentInvoiceId, masterInvoice.id));
@@ -13269,65 +13661,72 @@ router7.delete("/payment-history/:id", authMiddleware, requireFeature("payments_
     if (!quote) {
       return res.status(404).json({ error: "Related quote not found" });
     }
-    await storage.deletePaymentHistory(req.params.id);
-    const allPayments = await storage.getPaymentHistory(payment.invoiceId);
-    let newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    if (invoice.isMaster) {
-      let childInvoices = [];
-      if (invoice.quoteId) {
-        const allInv = await storage.getInvoicesByQuote(invoice.quoteId);
-        childInvoices = allInv.filter((inv) => inv.parentInvoiceId === invoice.id);
-      } else if (invoice.salesOrderId) {
-        const allInv = await storage.getInvoicesBySalesOrder(invoice.salesOrderId);
-        childInvoices = allInv.filter((inv) => inv.parentInvoiceId === invoice.id);
+    await db.transaction(async (tx) => {
+      if (invoice.parentInvoiceId) {
+        await tx.execute(sql9`SELECT 1 FROM ${invoices} WHERE ${invoices.id} = ${invoice.parentInvoiceId} FOR UPDATE`);
       }
-      const childTotal = childInvoices.reduce((sum, c) => sum + Number(c.paidAmount || 0), 0);
-      newPaidAmount += childTotal;
-    }
-    const totalAmount = Number(invoice.total || quote.total);
-    let newPaymentStatus = "pending";
-    if (newPaidAmount >= totalAmount) {
-      newPaymentStatus = "paid";
-    } else if (newPaidAmount > 0) {
-      newPaymentStatus = "partial";
-    }
-    const lastPayment = allPayments[0];
-    await storage.updateInvoice(payment.invoiceId, {
-      paidAmount: String(newPaidAmount),
-      paymentStatus: newPaymentStatus,
-      lastPaymentDate: lastPayment?.paymentDate || null
-    });
-    if (invoice.parentInvoiceId) {
-      const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-      if (masterInvoice) {
-        const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
-        const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
-        const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-          const childPaid = child.id === invoice.id ? newPaidAmount : Number(child.paidAmount || 0);
-          return sum + childPaid;
-        }, 0);
-        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
-        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
-        const masterTotal = Number(masterInvoice.total);
-        let masterPaymentStatus = "pending";
-        if (finalMasterPaidAmount >= masterTotal) {
-          masterPaymentStatus = "paid";
-        } else if (finalMasterPaidAmount > 0) {
-          masterPaymentStatus = "partial";
+      await tx.delete(paymentHistory).where(eq8(paymentHistory.id, req.params.id));
+      const allPayments = await tx.select().from(paymentHistory).where(eq8(paymentHistory.invoiceId, payment.invoiceId)).orderBy(paymentHistory.paymentDate);
+      let newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      if (invoice.isMaster) {
+        let childInvoices = [];
+        if (invoice.quoteId) {
+          const allInv = await tx.select().from(invoices).where(eq8(invoices.quoteId, invoice.quoteId));
+          childInvoices = allInv.filter((inv) => inv.parentInvoiceId === invoice.id);
+        } else if (invoice.salesOrderId) {
+          const allInv = await tx.select().from(invoices).where(eq8(invoices.salesOrderId, invoice.salesOrderId));
+          childInvoices = allInv.filter((inv) => inv.parentInvoiceId === invoice.id);
         }
-        await storage.updateInvoice(masterInvoice.id, {
-          paidAmount: String(finalMasterPaidAmount),
-          paymentStatus: masterPaymentStatus,
-          lastPaymentDate: finalMasterPaidAmount > 0 ? /* @__PURE__ */ new Date() : null
-        });
+        const childTotal = childInvoices.reduce((sum, c) => sum + Number(c.paidAmount || 0), 0);
+        newPaidAmount += childTotal;
       }
-    }
-    await storage.createActivityLog({
-      userId: req.user.id,
-      action: "delete_payment",
-      entityType: "invoice",
-      entityId: invoice.id
+      const totalAmount = Number(invoice.total || quote.total);
+      let newPaymentStatus = "pending";
+      if (newPaidAmount >= totalAmount) {
+        newPaymentStatus = "paid";
+      } else if (newPaidAmount > 0) {
+        newPaymentStatus = "partial";
+      }
+      const lastPayment = allPayments[allPayments.length - 1];
+      await tx.update(invoices).set({
+        paidAmount: String(newPaidAmount),
+        paymentStatus: newPaymentStatus,
+        lastPaymentDate: lastPayment?.paymentDate || null,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq8(invoices.id, payment.invoiceId));
+      if (invoice.parentInvoiceId) {
+        const [masterInvoice] = await tx.select().from(invoices).where(eq8(invoices.id, invoice.parentInvoiceId));
+        if (masterInvoice) {
+          const allInvoices = await tx.select().from(invoices).where(eq8(invoices.quoteId, masterInvoice.quoteId || ""));
+          const childInvoices = allInvoices.filter((inv) => inv.parentInvoiceId === masterInvoice.id);
+          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
+            return sum + Number(child.paidAmount || 0);
+          }, 0);
+          const masterDirectPayments = await tx.select().from(paymentHistory).where(eq8(paymentHistory.invoiceId, masterInvoice.id));
+          const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+          const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+          const masterTotal = Number(masterInvoice.total);
+          let masterPaymentStatus = "pending";
+          if (finalMasterPaidAmount >= masterTotal) {
+            masterPaymentStatus = "paid";
+          } else if (finalMasterPaidAmount > 0) {
+            masterPaymentStatus = "partial";
+          }
+          await tx.update(invoices).set({
+            paidAmount: String(finalMasterPaidAmount),
+            paymentStatus: masterPaymentStatus,
+            lastPaymentDate: finalMasterPaidAmount > 0 ? /* @__PURE__ */ new Date() : null,
+            updatedAt: /* @__PURE__ */ new Date()
+          }).where(eq8(invoices.id, masterInvoice.id));
+        }
+      }
+      await tx.insert(activityLogs).values({
+        userId: req.user.id,
+        action: "delete_payment",
+        entityType: "invoice",
+        entityId: invoice.id,
+        timestamp: /* @__PURE__ */ new Date()
+      });
     });
     return res.json({ success: true });
   } catch (error) {
@@ -13429,7 +13828,7 @@ init_db();
 init_schema();
 init_numbering_service();
 init_feature_flags();
-import { eq as eq10, sql as sql9, desc as desc3 } from "drizzle-orm";
+import { eq as eq10, sql as sql10, desc as desc3 } from "drizzle-orm";
 var router9 = Router9();
 router9.get("/vendors", authMiddleware, requireFeature("vendors_module"), async (req, res) => {
   try {
@@ -13671,6 +14070,34 @@ router9.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, requireFe
     res.status(500).json({ error: "Failed to update serial numbers" });
   }
 });
+router9.get("/vendor-pos/:id/comments", authMiddleware, async (req, res) => {
+  try {
+    const comments = await storage.getVendorPoComments(req.params.id, true);
+    res.json(comments);
+  } catch (error) {
+    logger.error("Error fetching vendor PO comments:", error);
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
+router9.post("/vendor-pos/:id/comments", authMiddleware, async (req, res) => {
+  try {
+    const { message, isInternal, parentCommentId } = req.body;
+    const comment = await storage.createVendorPoComment({
+      vendorPoId: req.params.id,
+      message,
+      isInternal: !!isInternal,
+      authorType: "internal",
+      // Always internal for now as we don't have vendor portal login yet
+      authorName: req.user.name,
+      authorEmail: req.user.email,
+      parentCommentId: parentCommentId || null
+    });
+    res.status(201).json(comment);
+  } catch (error) {
+    logger.error("Error creating vendor PO comment:", error);
+    res.status(500).json({ error: "Failed to create comment" });
+  }
+});
 router9.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, res) => {
   try {
     const grns = await db.select({
@@ -13769,8 +14196,8 @@ router9.post("/grns", authMiddleware, requireFeature("grn_create"), async (req, 
       const quantityAccepted = quantityReceived - (quantityRejected || 0);
       if (quantityAccepted > 0) {
         await db.update(products).set({
-          stockQuantity: sql9`${products.stockQuantity} + ${quantityAccepted}`,
-          availableQuantity: sql9`${products.availableQuantity} + ${quantityAccepted}`,
+          stockQuantity: sql10`${products.stockQuantity} + ${quantityAccepted}`,
+          availableQuantity: sql10`${products.availableQuantity} + ${quantityAccepted}`,
           updatedAt: /* @__PURE__ */ new Date()
         }).where(eq10(products.id, poItem.productId));
         logger.info(`[GRN] Updated product ${poItem.productId} stock: +${quantityAccepted}`);
@@ -14583,7 +15010,7 @@ import { Router as Router11 } from "express";
 init_logger();
 init_db();
 init_schema();
-import { eq as eq12, sql as sql10 } from "drizzle-orm";
+import { eq as eq12, sql as sql11 } from "drizzle-orm";
 var router11 = Router11();
 router11.get("/search", authMiddleware, async (req, res) => {
   try {
@@ -14637,7 +15064,7 @@ router11.post("/bulk", authMiddleware, requireFeature("serialNumber_tracking"), 
     if (!Array.isArray(serialNumbers2) || serialNumbers2.length === 0) {
       return res.status(400).json({ error: "Serial numbers array is required" });
     }
-    const existing = await db.select().from(serialNumbers).where(sql10`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
+    const existing = await db.select().from(serialNumbers).where(sql11`${serialNumbers.serialNumber} = ANY(${serialNumbers2})`);
     if (existing.length > 0) {
       return res.status(400).json({
         error: "Duplicate serial numbers found",
@@ -15401,7 +15828,7 @@ var analyticsService = new AnalyticsService();
 
 // server/routes/analytics.routes.ts
 init_db();
-import { sql as sql11 } from "drizzle-orm";
+import { sql as sql12 } from "drizzle-orm";
 import ExcelJS2 from "exceljs";
 var router14 = Router14();
 router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
@@ -15916,7 +16343,7 @@ router14.get("/sales-quotes", authMiddleware, requireFeature("dashboard_salesQuo
 });
 router14.get("/vendor-po", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
-    const allPOs = await db.execute(sql11`
+    const allPOs = await db.execute(sql12`
       SELECT * FROM vendor_purchase_orders ORDER BY created_at DESC
     `);
     const allVendors = await storage.getAllVendors();
@@ -16011,9 +16438,9 @@ router14.get("/invoice-collections", authMiddleware, requireFeature("analytics_m
       const paidAmt = toDecimal(invoice.paidAmount);
       const totalAmt = toDecimal(invoice.total);
       const remaining = subtract(totalAmt, paidAmt).toNumber();
+      totalPaid = add(totalPaid, paidAmt).toNumber();
       if (invoice.paymentStatus === "paid") {
         invoicesByStatus.paid++;
-        totalPaid = add(totalPaid, totalAmt).toNumber();
         const invoiceDate = invoice.issueDate ? new Date(invoice.issueDate) : new Date(invoice.createdAt);
         const paidDate = invoice.lastPaymentDate ? new Date(invoice.lastPaymentDate) : new Date(invoice.updatedAt);
         const days = Math.floor((paidDate.getTime() - invoiceDate.getTime()) / (1e3 * 60 * 60 * 24));
@@ -16140,7 +16567,7 @@ router14.get("/invoice-collections", authMiddleware, requireFeature("analytics_m
 });
 router14.get("/serial-tracking", authMiddleware, async (req, res) => {
   try {
-    const serialNumbers2 = await db.execute(sql11`
+    const serialNumbers2 = await db.execute(sql12`
       SELECT * FROM serial_numbers ORDER BY created_at DESC
     `);
     const totalSerials = serialNumbers2.rows.length;
@@ -18456,11 +18883,84 @@ router21.get("/executions/entity/:entityType/:entityId", authMiddleware, async (
 });
 var workflows_routes_default = router21;
 
+// server/routes/governance.routes.ts
+import { Router as Router22 } from "express";
+
+// server/services/governance.service.ts
+init_db();
+init_schema();
+import { eq as eq20, sql as sql14, like, or, and as and11, gte } from "drizzle-orm";
+var GovernanceService = class {
+  async getStats() {
+    const [totalUsersRes] = await db.select({ count: sql14`count(*)` }).from(users);
+    const [activeUsersRes] = await db.select({ count: sql14`count(*)` }).from(users).where(eq20(users.status, "active"));
+    const [totalActivitiesRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs);
+    const [unauthorizedRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs).where(like(activityLogs.action, "unauthorized%"));
+    const [criticalRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs).where(
+      or(
+        like(activityLogs.action, "%delete%"),
+        like(activityLogs.action, "%lock%"),
+        like(activityLogs.action, "unauthorized%"),
+        like(activityLogs.action, "change_user_role")
+      )
+    );
+    const thirtyDaysAgo = /* @__PURE__ */ new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const [approvalsRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs).where(
+      and11(
+        like(activityLogs.action, "%approve%"),
+        gte(activityLogs.timestamp, thirtyDaysAgo)
+      )
+    );
+    return {
+      totalUsers: Number(totalUsersRes?.count || 0),
+      activeUsers: Number(activeUsersRes?.count || 0),
+      totalActivities: Number(totalActivitiesRes?.count || 0),
+      criticalActivities: Number(criticalRes?.count || 0),
+      unauthorizedAttempts: Number(unauthorizedRes?.count || 0),
+      recentApprovals: Number(approvalsRes?.count || 0)
+    };
+  }
+};
+var governanceService = new GovernanceService();
+
+// server/routes/governance.routes.ts
+init_logger();
+var router22 = Router22();
+router22.get("/stats", authMiddleware, requirePermission("analytics", "view"), async (req, res) => {
+  try {
+    const stats = await governanceService.getStats();
+    return res.json(stats);
+  } catch (error) {
+    logger.error("Governance stats error:", error);
+    return res.status(500).json({ error: "Failed to fetch governance stats" });
+  }
+});
+var governance_routes_default = router22;
+
+// server/routes/activity-logs.routes.ts
+import { Router as Router23 } from "express";
+init_storage();
+init_logger();
+var router23 = Router23();
+router23.get("/recent", authMiddleware, requirePermission("analytics", "view"), async (req, res) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+    const logs = await storage.getAllActivityLogs(limit);
+    return res.json(logs);
+  } catch (error) {
+    logger.error("Activity logs error:", error);
+    return res.status(500).json({ error: "Failed to fetch activity logs" });
+  }
+});
+var activity_logs_routes_default = router23;
+
 // server/routes.ts
 init_logger();
 init_cache_service();
 async function registerRoutes(app2) {
   app2.use("/api/auth", auth_routes_default);
+  app2.use("/api", authMiddleware, quote_workflow_routes_default);
   app2.use("/api/users", authMiddleware, users_routes_default);
   app2.use("/api/clients", authMiddleware, clients_routes_default);
   app2.use("/api/quotes", quotes_routes_default);
@@ -18479,6 +18979,8 @@ async function registerRoutes(app2) {
   app2.use("/api", debit_notes_routes_default);
   app2.use("/api", subscriptionRoutes);
   app2.use("/api/workflows", authMiddleware, workflows_routes_default);
+  app2.use("/api/governance", authMiddleware, governance_routes_default);
+  app2.use("/api/activity-logs", authMiddleware, activity_logs_routes_default);
   app2.get("/api/templates", authMiddleware, async (req, res) => {
     try {
       const type = req.query.type;
@@ -18654,7 +19156,6 @@ async function registerRoutes(app2) {
     }
   });
   app2.use("/api/analytics", authMiddleware, analytics_routes_default);
-  app2.use("/api", authMiddleware, quote_workflow_routes_default);
   const httpServer = createServer(app2);
   return httpServer;
 }
