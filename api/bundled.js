@@ -77,6 +77,7 @@ __export(schema_exports, {
   insertSalesOrderSchema: () => insertSalesOrderSchema,
   insertSerialNumberSchema: () => insertSerialNumberSchema,
   insertSettingSchema: () => insertSettingSchema,
+  insertSubscriptionSchema: () => insertSubscriptionSchema,
   insertTaxRateSchema: () => insertTaxRateSchema,
   insertTemplateSchema: () => insertTemplateSchema,
   insertUserDeviceSchema: () => insertUserDeviceSchema,
@@ -167,7 +168,7 @@ import { pgTable, text, varchar, timestamp, integer, decimal, pgEnum, boolean, i
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, approvalStatusEnum, users, usersRelations, userDevices, userDevicesRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, salesOrderComments, salesOrderCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, invoiceComments, invoiceCommentsRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoComments, vendorPoCommentsRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema, workflowStatusEnum, workflowTriggerTypeEnum, workflowActionTypeEnum, workflows, workflowsRelations, workflowTriggers, workflowTriggersRelations, workflowActions, workflowActionsRelations, workflowExecutions, workflowExecutionsRelations, workflowSchedules, workflowSchedulesRelations, insertWorkflowSchema, insertWorkflowTriggerSchema, insertWorkflowActionSchema, insertWorkflowExecutionSchema, insertWorkflowScheduleSchema, insertUserDeviceSchema;
+var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoStatusEnum, invoiceItemStatusEnum, masterInvoiceStatusEnum, salesOrderStatusEnum, salesOrderItemStatusEnum, creditNoteStatusEnum, debitNoteStatusEnum, subscriptionStatusEnum, billingCycleEnum, approvalStatusEnum, users, usersRelations, userDevices, userDevicesRelations, clients, clientsRelations, quotes, approvalRuleTriggerTypeEnum, approvalRules, approvalRulesRelations, quoteVersions, quoteVersionsRelations, salesOrders, salesOrdersRelations, salesOrderItems, salesOrderItemsRelations, quoteItems, quoteComments, quoteCommentsRelations, salesOrderComments, salesOrderCommentsRelations, subscriptions, subscriptionsRelations, invoices, quotesRelations, invoicesRelations, invoiceComments, invoiceCommentsRelations, paymentHistory, paymentHistoryRelations, invoiceItems, invoiceAttachments, invoiceItemsRelations, vendors, vendorsRelations, vendorPurchaseOrders, vendorPurchaseOrdersRelations, vendorPoComments, vendorPoCommentsRelations, vendorPoItems, vendorPoItemsRelations, products, productsRelations, goodsReceivedNotes, goodsReceivedNotesRelations, serialNumbers, serialNumbersRelations, templates, templatesRelations, activityLogs, activityLogsRelations, settings, bankDetails, clientTags, clientTagsRelations, clientCommunications, clientCommunicationsRelations, taxRates, paymentTerms, pricingTiers, currencySettings, emailTemplateTypeEnum, emailTemplates, emailTemplatesRelations, insertUserSchema, insertClientSchema, insertQuoteSchema, insertApprovalRuleSchema, insertQuoteItemSchema, insertInvoiceSchema, insertPaymentHistorySchema, insertTemplateSchema, insertActivityLogSchema, insertSettingSchema, insertBankDetailsSchema, insertClientTagSchema, insertClientCommunicationSchema, insertTaxRateSchema, insertPricingTierSchema, insertCurrencySettingSchema, insertInvoiceItemSchema, insertVendorSchema, insertVendorPurchaseOrderSchema, insertVendorPoItemSchema, insertProductSchema, insertGrnSchema, insertSerialNumberSchema, insertQuoteVersionSchema, insertSalesOrderSchema, insertSalesOrderItemSchema, notificationTypeEnum, notifications, notificationsRelations, collaborationSessions, collaborationSessionsRelations, insertNotificationSchema, insertCollaborationSessionSchema, creditNotes, creditNoteItems, creditNotesRelations, creditNoteItemsRelations, debitNotes, debitNoteItems, debitNotesRelations, debitNoteItemsRelations, insertCreditNoteSchema, insertCreditNoteItemSchema, insertDebitNoteSchema, insertDebitNoteItemSchema, insertSubscriptionSchema, insertInvoiceAttachmentSchema, insertEmailTemplateSchema, workflowStatusEnum, workflowTriggerTypeEnum, workflowActionTypeEnum, workflows, workflowsRelations, workflowTriggers, workflowTriggersRelations, workflowActions, workflowActionsRelations, workflowExecutions, workflowExecutionsRelations, workflowSchedules, workflowSchedulesRelations, insertWorkflowSchema, insertWorkflowTriggerSchema, insertWorkflowActionSchema, insertWorkflowExecutionSchema, insertWorkflowScheduleSchema, insertUserDeviceSchema;
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
@@ -1485,6 +1486,14 @@ var init_schema = __esm({
       id: true,
       createdAt: true
     });
+    insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      lastInvoiceDate: true,
+      subscriptionNumber: true
+      // Generated server-side
+    });
     insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments).omit({
       id: true,
       createdAt: true
@@ -2578,7 +2587,8 @@ var init_storage = __esm({
         return updated || void 0;
       }
       async deleteWorkflow(id) {
-        await db.update(workflows).set({ status: "inactive", updatedAt: /* @__PURE__ */ new Date() }).where(eq(workflows.id, id));
+        await db.delete(workflowExecutions).where(eq(workflowExecutions.workflowId, id));
+        await db.delete(workflows).where(eq(workflows.id, id));
       }
       // Workflow Triggers
       async getWorkflowTriggers(workflowId) {
@@ -9170,9 +9180,9 @@ var PDFService = class _PDFService {
   static async generateQuotePDF(data, res) {
     let selectedTheme;
     if (data.theme) selectedTheme = getTheme(data.theme);
-    else if (data.client.preferredTheme)
+    else if (data.client?.preferredTheme)
       selectedTheme = getTheme(data.client.preferredTheme);
-    else if (data.client.segment)
+    else if (data.client?.segment)
       selectedTheme = getSuggestedTheme(data.client.segment);
     else selectedTheme = getTheme("professional");
     this.applyTheme(selectedTheme);
@@ -9379,6 +9389,7 @@ var PDFService = class _PDFService {
     doc.font(this.FONT_BOLD).fontSize(18).fillColor(this.INK);
     doc.text("COMMERCIAL PROPOSAL", x, 120, { width: w });
     doc.font(this.FONT_REG).fontSize(10).fillColor(this.SUBTLE);
+    doc.font(this.FONT_REG).fontSize(10).fillColor(this.SUBTLE);
     doc.text(`Quote No: ${this.clean(data.quote.quoteNumber || "-")}`, x, 148, { width: w });
     doc.y = 176;
     this.hLine(doc, x, x + w, doc.y);
@@ -9493,8 +9504,8 @@ var PDFService = class _PDFService {
     const leftW = w * 0.56;
     const rightW = w - leftW - gap;
     const clientName = this.clean(data.client.name || "-");
-    const shipAddr = this.normalizeAddress(data.client.shippingAddress || data.client.billingAddress, 10) || "-";
-    const billAddr = this.normalizeAddress(data.client.billingAddress, 10) || "-";
+    const shipAddr = this.normalizeAddress(data.client.shippingAddress || data.client.billingAddress || void 0, 10) || "-";
+    const billAddr = this.normalizeAddress(data.client.billingAddress || void 0, 10) || "-";
     const phone = this.clean(data.client.phone);
     const email = this.clean(data.client.email);
     const contact = [phone ? `Ph: ${phone}` : "", email ? `Email: ${email}` : ""].filter(Boolean).join("  |  ");
@@ -10569,6 +10580,7 @@ var NotificationService = new NotificationServiceClass();
 // server/services/workflow-engine.service.ts
 init_storage();
 init_logger();
+import parser from "cron-parser";
 var WorkflowEngine = class {
   /**
    * Trigger workflows for a specific entity event
@@ -10587,7 +10599,9 @@ var WorkflowEngine = class {
           const shouldExecute = await this.evaluateWorkflow(workflow, context);
           if (shouldExecute) {
             logger.info(`[WorkflowEngine] Executing workflow: ${workflow.name} (${workflow.id})`);
-            await this.executeWorkflow(workflow, entityType, entityId, context);
+            await this.executeWorkflow(workflow, entityType, entityId, context).catch((err) => {
+              logger.error(`[WorkflowEngine] Critical failure executing workflow ${workflow.id}:`, err);
+            });
           }
         } catch (error) {
           logger.error(`[WorkflowEngine] Error processing workflow ${workflow.id}:`, error);
@@ -10824,21 +10838,70 @@ var WorkflowEngine = class {
     }
   }
   /**
-   * Evaluate action condition expression
+   * Evaluate action condition expression safely
    * Example: "{{quote.total}} > 50000"
+   * 
+   * SAFE EVALUATION STRATEGY:
+   * 1. Interpolate variables first
+   * 2. Parse the expression to identify operator and operands
+   * 3. Evaluate strictly without `eval()` or `new Function()`
    */
   static evaluateActionCondition(expression, context) {
     try {
-      let evaluatedExpression = expression;
-      const matches = expression.match(/\{\{([^}]+)\}\}/g);
-      if (matches) {
-        for (const match of matches) {
-          const path5 = match.replace(/\{\{|\}\}/g, "").trim();
+      let evaluatedExpression = expression.trim();
+      const operatorMatch = evaluatedExpression.match(/(>=|<=|===|!==|==|!=|>|<)/);
+      if (!operatorMatch) {
+        if (evaluatedExpression.startsWith("{{") && evaluatedExpression.endsWith("}}")) {
+          const path5 = evaluatedExpression.replace(/\{\{|\}\}/g, "").trim();
           const value = this.getNestedValue(context.entity, path5);
-          evaluatedExpression = evaluatedExpression.replace(match, String(value));
+          return !!value;
         }
+        logger.warn(`[WorkflowEngine] Invalid condition format: ${expression}`);
+        return false;
       }
-      return new Function("return " + evaluatedExpression)();
+      const operator = operatorMatch[0];
+      const parts = evaluatedExpression.split(operator);
+      if (parts.length !== 2) {
+        logger.warn(`[WorkflowEngine] Complex expressions not supported: ${expression}`);
+        return false;
+      }
+      let leftRaw = parts[0].trim();
+      let rightRaw = parts[1].trim();
+      const resolve = (val) => {
+        if (val.startsWith("{{") && val.endsWith("}}")) {
+          const path5 = val.replace(/\{\{|\}\}/g, "").trim();
+          return this.getNestedValue(context.entity, path5);
+        }
+        if (!isNaN(Number(val)) && val !== "") return Number(val);
+        if (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'")) {
+          return val.slice(1, -1);
+        }
+        if (val === "true") return true;
+        if (val === "false") return false;
+        return val;
+      };
+      const leftVal = resolve(leftRaw);
+      const rightVal = resolve(rightRaw);
+      switch (operator) {
+        case ">":
+          return Number(leftVal) > Number(rightVal);
+        case "<":
+          return Number(leftVal) < Number(rightVal);
+        case ">=":
+          return Number(leftVal) >= Number(rightVal);
+        case "<=":
+          return Number(leftVal) <= Number(rightVal);
+        case "==":
+          return leftVal == rightVal;
+        case "!=":
+          return leftVal != rightVal;
+        case "===":
+          return leftVal === rightVal;
+        case "!==":
+          return leftVal !== rightVal;
+        default:
+          return false;
+      }
     } catch (error) {
       logger.error(`[WorkflowEngine] Error evaluating condition: ${expression}`, error);
       return false;
@@ -11024,8 +11087,8 @@ var WorkflowEngine = class {
             });
           }
           await storage.updateWorkflowSchedule(schedule.id, {
-            lastRunAt: now
-            // nextRunAt: calculateNextRun(schedule.cronExpression),
+            lastRunAt: now,
+            nextRunAt: this.calculateNextRun(schedule.cronExpression)
           });
         }
       }
@@ -11073,6 +11136,18 @@ var WorkflowEngine = class {
     } catch (err) {
       logger.error(`[WorkflowEngine] Failed to assign user:`, err);
       throw err;
+    }
+  }
+  /**
+   * Calculate next run time based on cron expression
+   */
+  static calculateNextRun(cronExpression) {
+    try {
+      const interval = parser.parseExpression(cronExpression);
+      return interval.next().toDate();
+    } catch (err) {
+      logger.error(`[WorkflowEngine] Invalid cron expression: ${cronExpression}`, err);
+      return new Date(Date.now() + 24 * 60 * 60 * 1e3);
     }
   }
 };
@@ -11525,13 +11600,22 @@ router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePerm
       return void 0;
     };
     const { items, ...updateFields } = req.body;
+    if (req.body.version !== void 0) {
+      if (Number(req.body.version) !== existingQuote.version) {
+        return res.status(409).json({
+          error: "The quote has been modified by another user. Please refresh and try again.",
+          currentVersion: existingQuote.version
+        });
+      }
+    }
+    const nextVersion = existingQuote.version + 1;
     if (!isFeatureEnabled("quotes_discount") && updateFields.discount && Number(updateFields.discount) > 0) {
       return res.status(403).json({ error: "Discounts are currently disabled" });
     }
     if (!isFeatureEnabled("quotes_shippingCharges") && updateFields.shippingCharges && Number(updateFields.shippingCharges) > 0) {
       return res.status(403).json({ error: "Shipping charges feature is disabled" });
     }
-    const updateData = { ...updateFields };
+    const updateData = { ...updateFields, version: nextVersion };
     if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
     if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
     let quote;
@@ -12315,7 +12399,8 @@ router6.put("/:id/master-details", authMiddleware, requireFeature("invoices_edit
           "total",
           "paymentStatus",
           "paidAmount",
-          "bomSection"
+          "bomSection",
+          "currency"
         ];
         for (const field of editableFields) {
           if (req.body[field] !== void 0) {
@@ -12822,6 +12907,7 @@ router6.get("/:id/master-summary", authMiddleware, async (req, res) => {
         sgst: masterInvoice.sgst,
         igst: masterInvoice.igst,
         shippingCharges: masterInvoice.shippingCharges,
+        currency: masterInvoice.currency,
         createdAt: masterInvoice.createdAt
       },
       items: itemsSummary,
@@ -13135,8 +13221,8 @@ router6.post("/:id/payment-reminder", authMiddleware, requireFeature("invoices_p
       "{COMPANY_NAME}": companyName,
       "{CLIENT_NAME}": client.name,
       "{INVOICE_NUMBER}": invoice.invoiceNumber,
-      "{OUTSTANDING}": `\u20B9${outstanding.toLocaleString()}`,
-      "{TOTAL}": `\u20B9${Number(invoice.total).toLocaleString()}`,
+      "{OUTSTANDING}": outstanding.toLocaleString("en-IN", { style: "currency", currency: invoice.currency || "INR" }),
+      "{TOTAL}": Number(invoice.total).toLocaleString("en-IN", { style: "currency", currency: invoice.currency || "INR" }),
       "{DUE_DATE}": dueDate.toLocaleDateString(),
       "{DAYS_OVERDUE}": daysOverdueText
     };
@@ -13176,6 +13262,7 @@ router6.post("/:id/payment", authMiddleware, requireFeature("payments_create"), 
     if (isNaN(amountNum) || amountNum <= 0) {
       return res.status(400).json({ error: "Invalid payment amount" });
     }
+    const method = paymentMethod || req.body.method || "Other";
     const result = await db.transaction(async (tx) => {
       const invoice = await storage.getInvoice(req.params.id);
       if (!invoice) {
@@ -13199,7 +13286,7 @@ router6.post("/:id/payment", authMiddleware, requireFeature("payments_create"), 
       await tx.insert(paymentHistory).values({
         invoiceId: invoice.id,
         amount: toMoneyString(amount),
-        paymentMethod,
+        paymentMethod: method,
         transactionId: transactionId || null,
         notes: notes || null,
         recordedBy: req.user.id,
@@ -15845,7 +15932,14 @@ router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), r
       return parseFloat(str) || 0;
     };
     const approvedQuotes = quotes2.filter((q) => q.status === "approved" || q.status === "invoiced" || q.status === "closed_paid");
-    const totalRevenue = invoices2.reduce((sum, inv) => sum + safeToNum(inv.paidAmount), 0);
+    const revenueByCurrency = {};
+    let totalRevenueSum = 0;
+    invoices2.forEach((inv) => {
+      const currency = inv.currency || "INR";
+      const amount = safeToNum(inv.paidAmount);
+      revenueByCurrency[currency] = (revenueByCurrency[currency] || 0) + amount;
+      totalRevenueSum += amount;
+    });
     const conversionRate = totalQuotes > 0 ? (approvedQuotes.length / totalQuotes * 100).toFixed(1) : "0";
     const recentQuotes = await Promise.all(
       quotes2.slice(0, 5).map(async (quote) => {
@@ -15855,6 +15949,7 @@ router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), r
           quoteNumber: quote.quoteNumber,
           clientName: client?.name || "Unknown",
           total: quote.total,
+          currency: quote.currency || "INR",
           status: quote.status,
           createdAt: quote.createdAt
         };
@@ -15910,7 +16005,8 @@ router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), r
     return res.json({
       totalQuotes,
       totalClients,
-      totalRevenue: totalRevenue.toFixed(2),
+      totalRevenue: totalRevenueSum.toFixed(2),
+      revenueByCurrency,
       conversionRate,
       recentQuotes,
       topClients,
@@ -18157,20 +18253,12 @@ var SubscriptionService = class {
     const year = (/* @__PURE__ */ new Date()).getFullYear();
     const subNumber = `SUB-${year}-${Math.floor(Math.random() * 1e4).toString().padStart(4, "0")}`;
     console.log(`[SubscriptionService] Creating subscription. Payload:`, JSON.stringify(data, null, 2));
-    const startDate = new Date(data.startDate);
+    const startDate = new Date(data.startDate || /* @__PURE__ */ new Date());
     console.log(`[SubscriptionService] Parsed Start Date: ${startDate.toISOString()}`);
     const [newSubscription] = await db.insert(subscriptions).values({
-      clientId: data.clientId,
-      planName: data.planName,
-      billingCycle: data.billingCycle,
+      ...data,
       startDate,
       nextBillingDate: startDate,
-      amount: data.amount,
-      // Ensure decimal/string format is handled by driver
-      currency: data.currency,
-      itemsSnapshot: data.itemsSnapshot,
-      notes: data.notes,
-      autoRenew: data.autoRenew !== void 0 ? data.autoRenew : true,
       subscriptionNumber: subNumber,
       status: "active",
       createdBy: userId
@@ -18270,43 +18358,46 @@ var SubscriptionService = class {
   }
   /**
    * Generate Invoice for a Subscription
+   * ATOMIC TRANSACTION: Ensures header and items are created together.
    */
   static async generateInvoiceForSubscription(sub) {
     logger.info(`[SubscriptionService] Generating invoice for subscription ${sub.id}`);
-    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
-    const items = JSON.parse(sub.itemsSnapshot || "[]");
-    const [newInvoice] = await db.insert(invoices).values({
-      invoiceNumber,
-      clientId: sub.clientId,
-      subscriptionId: sub.id,
-      status: "draft",
-      // Auto-draft? Or sent? Usually draft for review or auto-send.
-      issueDate: /* @__PURE__ */ new Date(),
-      dueDate: addMonths(/* @__PURE__ */ new Date(), 1),
-      // Default net 30?
-      currency: sub.currency,
-      subtotal: sub.amount.toString(),
-      // Assuming amount is subtotal? Or total? 
-      // Simplified: amount is total for now, logic below
-      total: sub.amount.toString(),
-      notes: `Recurring invoice for ${sub.planName} (${sub.billingCycle})`,
-      createdBy: sub.createdBy
-      // Attributed to creator of sub? Or system?
-    }).returning();
-    if (items.length > 0) {
-      for (const item of items) {
-        const itemSubtotal = item.subtotal || (Number(item.quantity) * Number(item.unitPrice)).toString();
-        await db.insert(invoiceItems).values({
-          invoiceId: newInvoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice.toString(),
-          subtotal: itemSubtotal
-          // ... other fields
-        });
+    return await db.transaction(async (tx) => {
+      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
+      const items = JSON.parse(sub.itemsSnapshot || "[]");
+      const [newInvoice] = await tx.insert(invoices).values({
+        invoiceNumber,
+        clientId: sub.clientId,
+        subscriptionId: sub.id,
+        status: "draft",
+        // Auto-draft? Or sent? Usually draft for review or auto-send.
+        issueDate: /* @__PURE__ */ new Date(),
+        dueDate: addMonths(/* @__PURE__ */ new Date(), 1),
+        // Default net 30?
+        currency: sub.currency,
+        subtotal: sub.amount.toString(),
+        // Assuming amount is subtotal? Or total? 
+        // Simplified: amount is total for now, logic below
+        total: sub.amount.toString(),
+        notes: `Recurring invoice for ${sub.planName} (${sub.billingCycle})`,
+        createdBy: sub.createdBy
+        // Attributed to creator of sub? Or system?
+      }).returning();
+      if (items.length > 0) {
+        for (const item of items) {
+          const itemSubtotal = item.subtotal || (Number(item.quantity) * Number(item.unitPrice)).toString();
+          await tx.insert(invoiceItems).values({
+            invoiceId: newInvoice.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: itemSubtotal
+            // ... other fields
+          });
+        }
       }
-    }
-    return newInvoice;
+      return newInvoice;
+    });
   }
   /**
    * Calculate Proration for plan change
