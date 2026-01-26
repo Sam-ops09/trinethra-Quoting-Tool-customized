@@ -127,6 +127,8 @@ npx tsx debug_analytics_data.ts
 npx tsx tests/verify_feature_flags.ts
 npx tsx tests/verify-analytics-fix.ts
 npx tsx scripts/verify-cache.ts
+npx tsx tests/verify_optimistic_locking.ts
+npx tsx tests/verify_workflow_failure.ts
 ```
 
 ### Expected Output

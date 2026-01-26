@@ -59,11 +59,18 @@ export class WorkflowEngine {
       // Evaluate and execute each workflow
       for (const workflow of workflows) {
         try {
+          // Wrap individual workflow execution to prevent one failure from stopping others
           const shouldExecute = await this.evaluateWorkflow(workflow, context);
           
           if (shouldExecute) {
             logger.info(`[WorkflowEngine] Executing workflow: ${workflow.name} (${workflow.id})`);
-            await this.executeWorkflow(workflow, entityType, entityId, context);
+            
+            // Execute in background to not block the main request if not already async
+            // Ideally this should be a job queue. For now, we await but catch errors strictly.
+            await this.executeWorkflow(workflow, entityType, entityId, context)
+              .catch(err => {
+                 logger.error(`[WorkflowEngine] Critical failure executing workflow ${workflow.id}:`, err);
+              });
           }
         } catch (error) {
           logger.error(`[WorkflowEngine] Error processing workflow ${workflow.id}:`, error);
@@ -72,6 +79,8 @@ export class WorkflowEngine {
       }
     } catch (error) {
       logger.error(`[WorkflowEngine] Error triggering workflows for ${entityType}:`, error);
+      // Don't throw, just log. We don't want to break the business transaction (e.g. creating quote) 
+      // just because workflow engine failed.
     }
   }
 

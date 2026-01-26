@@ -16,7 +16,8 @@ import {
     ArrowLeft, 
     ArrowRight, 
     Check,
-    Save
+    Save,
+    RotateCcw
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +33,10 @@ import type { ExecBOMData, ExecBOMItemRow } from "@/types/bom-types";
 import type { SLAData } from "@/components/quote/sla-section";
 import type { TimelineData } from "@/components/quote/timeline-section";
 import { cn } from "@/lib/utils";
+import Decimal from "decimal.js";
+
+// Configure Decimal for consistent behavior with backend
+Decimal.set({ precision: 20, rounding: 4 }); // 4 = ROUND_HALF_UP
 
 type TaxRate = {
     id: string;
@@ -65,6 +70,7 @@ interface QuoteCreatePayload {
     slaSection?: string | null;
     timelineSection?: string | null;
     currency: string;
+    version?: number;
 }
 
 interface QuoteDetail {
@@ -79,6 +85,7 @@ interface QuoteDetail {
     notes?: string;
     termsAndConditions?: string;
     quoteDate?: string;
+    version: number;
     items: Array<{
         id: string;
         productId?: string | null;
@@ -341,11 +348,21 @@ export default function QuoteCreate() {
             setLocation(`/quotes/${params?.id}`);
         },
         onError: (error: any) => {
-            toast({
-                title: "Failed to update quote",
-                description: error.message,
-                variant: "destructive",
-            });
+            // Check for Optimistic Locking Error
+            if (error.res?.status === 409) {
+                toast({
+                    title: "Conflict Detected",
+                    description: error.message || "This quote has been modified by someone else.",
+                    variant: "destructive",
+                    action: <div onClick={() => window.location.reload()} className="cursor-pointer font-bold underline">Reload</div>
+                });
+            } else {
+                toast({
+                    title: "Failed to update quote",
+                    description: error.message,
+                    variant: "destructive",
+                });
+            }
         },
     });
 
@@ -353,13 +370,24 @@ export default function QuoteCreate() {
 
     const onSubmit = async (values: z.infer<typeof quoteFormSchema>) => {
         const items = values.items;
-        const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-        const discountAmount = (subtotal * values.discount) / 100;
-        const taxableAmount = subtotal - discountAmount;
-        const cgstAmount = (taxableAmount * values.cgst) / 100;
-        const sgstAmount = (taxableAmount * values.sgst) / 100;
-        const igstAmount = (taxableAmount * values.igst) / 100;
-        const total = taxableAmount + cgstAmount + sgstAmount + igstAmount + values.shippingCharges;
+
+        // Use Decimal.js for calculations
+        const subtotal = items.reduce((sum, item) => {
+            const qty = new Decimal(item.quantity);
+            const price = new Decimal(item.unitPrice);
+            return sum.plus(qty.times(price));
+        }, new Decimal(0));
+
+        const discountPercent = new Decimal(values.discount);
+        const discountAmount = subtotal.times(discountPercent).dividedBy(100);
+        const taxableAmount = subtotal.minus(discountAmount);
+
+        const cgstAmount = taxableAmount.times(values.cgst).dividedBy(100);
+        const sgstAmount = taxableAmount.times(values.sgst).dividedBy(100);
+        const igstAmount = taxableAmount.times(values.igst).dividedBy(100);
+        
+        const shippingCharges = new Decimal(values.shippingCharges);
+        const total = taxableAmount.plus(cgstAmount).plus(sgstAmount).plus(igstAmount).plus(shippingCharges);
 
         const quoteData: QuoteCreatePayload = {
             clientId: values.clientId,
@@ -367,16 +395,17 @@ export default function QuoteCreate() {
             validityDays: values.validityDays,
             referenceNumber: values.referenceNumber || undefined,
             attentionTo: values.attentionTo || undefined,
-            discount: discountAmount.toString(),
-            cgst: cgstAmount.toString(),
-            sgst: sgstAmount.toString(),
-            igst: igstAmount.toString(),
-            shippingCharges: values.shippingCharges.toString(),
-            subtotal: subtotal.toString(),
-            total: total.toString(),
+            discount: discountAmount.toFixed(2),
+            cgst: cgstAmount.toFixed(2),
+            sgst: sgstAmount.toFixed(2),
+            igst: igstAmount.toFixed(2),
+            shippingCharges: shippingCharges.toFixed(2),
+            subtotal: subtotal.toFixed(2),
+            total: total.toFixed(2),
             notes: values.notes || undefined,
             termsAndConditions: values.termsAndConditions || undefined,
             status: isEditMode ? (existingQuote?.status as any) : "draft",
+            version: isEditMode ? existingQuote?.version : undefined,
             quoteDate: isEditMode
                 ? existingQuote?.quoteDate || new Date().toISOString()
                 : new Date().toISOString(),

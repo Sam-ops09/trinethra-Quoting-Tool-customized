@@ -177,7 +177,7 @@ router.put("/:id/master-details", authMiddleware, requireFeature('invoices_edit'
             const editableFields = [
                 "notes", "termsAndConditions", "deliveryNotes", "milestoneDescription",
                 "dueDate", "subtotal", "discount", "cgst", "sgst", "igst",
-                "shippingCharges", "total", "paymentStatus", "paidAmount", "bomSection"
+                "shippingCharges", "total", "paymentStatus", "paidAmount", "bomSection", "currency"
             ];
 
             for (const field of editableFields) {
@@ -855,6 +855,7 @@ router.get("/:id/master-summary", authMiddleware, async (req: AuthRequest, res: 
         sgst: masterInvoice.sgst,
         igst: masterInvoice.igst,
         shippingCharges: masterInvoice.shippingCharges,
+        currency: masterInvoice.currency,
         createdAt: masterInvoice.createdAt,
       },
       items: itemsSummary,
@@ -1253,8 +1254,8 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
         "{COMPANY_NAME}": companyName,
         "{CLIENT_NAME}": client.name,
         "{INVOICE_NUMBER}": invoice.invoiceNumber,
-        "{OUTSTANDING}": `₹${outstanding.toLocaleString()}`,
-        "{TOTAL}": `₹${Number(invoice.total).toLocaleString()}`,
+        "{OUTSTANDING}": outstanding.toLocaleString('en-IN', { style: 'currency', currency: invoice.currency || 'INR' }),
+        "{TOTAL}": Number(invoice.total).toLocaleString('en-IN', { style: 'currency', currency: invoice.currency || 'INR' }),
         "{DUE_DATE}": dueDate.toLocaleDateString(),
         "{DAYS_OVERDUE}": daysOverdueText,
       };
@@ -1308,6 +1309,12 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
         return res.status(400).json({ error: "Invalid payment amount" });
       }
 
+      // Default payment method if not provided, or validate it
+      // Also check for 'method' property as some clients might send that
+      const method = paymentMethod || req.body.method || "Other"; 
+
+
+
       const result = await db.transaction(async (tx) => {
         const invoice = await storage.getInvoice(req.params.id);
         if (!invoice) {
@@ -1338,7 +1345,7 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
         await tx.insert(schema.paymentHistory).values({
             invoiceId: invoice.id,
             amount: toMoneyString(amount),
-            paymentMethod,
+            paymentMethod: method,
             transactionId: transactionId || null,
             notes: notes || null,
             recordedBy: req.user!.id,

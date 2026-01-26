@@ -115,8 +115,8 @@ export class PaymentReminderScheduler {
               "{COMPANY_NAME}": companyName,
               "{CLIENT_NAME}": client.name,
               "{INVOICE_NUMBER}": invoice.invoiceNumber,
-              "{OUTSTANDING}": `₹${outstanding.toLocaleString()}`,
-              "{TOTAL}": `₹${Number(invoice.total).toLocaleString()}`,
+              "{OUTSTANDING}": outstanding.toLocaleString('en-IN', { style: 'currency', currency: invoice.currency || 'INR' }),
+              "{TOTAL}": Number(invoice.total).toLocaleString('en-IN', { style: 'currency', currency: invoice.currency || 'INR' }),
               "{DUE_DATE}": dueDate.toLocaleDateString(),
               "{DAYS_OVERDUE}": `${daysOverdue} days`,
             };

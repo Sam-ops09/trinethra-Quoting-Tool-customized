@@ -578,6 +578,24 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
     };
 
     const { items, ...updateFields } = req.body;
+
+    // OPTIMISTIC LOCKING CHECK
+    // Clients must send the version they are editing. 
+    // If not sent, we assume they are editing the latest (legacy behavior) OR enforce it.
+    // For safety, let's enforce it if provided, or warn. 
+    // Ideally, frontend should ALWAYS send it.
+    if (req.body.version !== undefined) {
+        if (Number(req.body.version) !== existingQuote.version) {
+             return res.status(409).json({
+                 error: "The quote has been modified by another user. Please refresh and try again.",
+                 currentVersion: existingQuote.version
+             });
+        }
+    }
+    
+    // Increment version for this update
+    const nextVersion = existingQuote.version + 1;
+
     
     // Feature Flag Guards (Update)
     if (!isFeatureEnabled('quotes_discount') && updateFields.discount && Number(updateFields.discount) > 0) {
@@ -587,7 +605,7 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
       return res.status(403).json({ error: "Shipping charges feature is disabled" });
     }
 
-    const updateData = { ...updateFields };
+    const updateData = { ...updateFields, version: nextVersion };
     if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
     if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
 

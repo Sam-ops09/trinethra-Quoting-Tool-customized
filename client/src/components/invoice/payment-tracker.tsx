@@ -55,6 +55,7 @@ interface PaymentTrackerProps {
     parentInvoiceId?: string | null;
     isMaster?: boolean;
     onUpdate?: () => void;
+    currency?: string;
 }
 
 export function PaymentTracker({
@@ -64,7 +65,8 @@ export function PaymentTracker({
                                    paymentStatus,
                                    parentInvoiceId,
                                    isMaster,
-                                   onUpdate
+                                   onUpdate,
+                                   currency
                                }: PaymentTrackerProps) {
     const { toast } = useToast();
     const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false);
@@ -252,7 +254,7 @@ export function PaymentTracker({
                             </div>
                         </div>
                         <span className="block text-base font-bold text-primary sm:text-lg">
-               {formatCurrency(total)}
+               {formatCurrency(total, currency)}
             </span>
                     </div>
 
@@ -266,7 +268,7 @@ export function PaymentTracker({
                             </div>
                         </div>
                         <span className="block text-base font-bold text-success sm:text-lg">
-               {formatCurrency(paidAmount)}
+               {formatCurrency(paidAmount, currency)}
             </span>
                     </div>
 
@@ -280,7 +282,7 @@ export function PaymentTracker({
                             </div>
                         </div>
                         <span className="block text-base font-bold text-warning sm:text-lg">
-               {formatCurrency(outstanding)}
+               {formatCurrency(outstanding, currency)}
             </span>
                     </div>
                 </div>
@@ -394,7 +396,7 @@ export function PaymentTracker({
                                             <div className="min-w-0 flex-1 space-y-1">
                                                 <div className="flex items-baseline justify-between gap-2">
                           <span className="text-sm font-bold text-primary">
-                            {formatCurrency(parseFloat(payment.amount))}
+                            {formatCurrency(parseFloat(payment.amount), currency)}
                           </span>
                                                     <Badge className="border-primary/30 bg-primary/10 px-1.5 py-0 text-[9px] text-primary">
                                                         {getPaymentMethodLabel(payment.paymentMethod)}
@@ -501,9 +503,9 @@ export function PaymentTracker({
                                 Payment Amount <span className="text-destructive">*</span>
                             </Label>
                             <div className="card-elegant flex items-center gap-3 rounded-2xl border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10 px-4 py-3 sm:px-5 sm:py-4">
-                <span className="shrink-0 text-3xl font-bold text-primary sm:text-4xl">
-                 {formatCurrency(0).charAt(0)}
-                </span>
+                 <span className="shrink-0 text-3xl font-bold text-primary sm:text-4xl">
+                  {formatCurrency(0, currency).charAt(0)}
+                 </span>
                                 <Input
                                     id="payment-amount"
                                     type="number"
@@ -521,7 +523,7 @@ export function PaymentTracker({
                             <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs font-['Open_Sans']">
                                 <span className="text-muted-foreground">Outstanding Balance:</span>
                                 <span className="text-sm font-bold text-warning">
-                   {formatCurrency(outstanding)}
+                   {formatCurrency(outstanding, currency)}
                 </span>
                             </div>
                         </div>

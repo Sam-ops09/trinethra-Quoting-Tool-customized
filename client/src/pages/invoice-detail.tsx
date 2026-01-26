@@ -62,7 +62,7 @@ import { SerialNumberEntry } from "@/components/invoice/serial-number-entry";
 import { MasterInvoiceManager } from "@/components/invoice/master-invoice-manager";
 import { EditInvoiceDialog } from "@/components/invoice/edit-invoice-dialog";
 import { ExecBOMSection } from "@/components/shared/exec-bom-section";
-import { formatCurrency } from "@/lib/currency";
+import { formatCurrency, getCurrencySymbol } from "@/lib/currency";
 import { CommentsSection } from "@/components/comments-section";
 import type { ExecBOMData } from "@/types/bom-types";
 
@@ -981,7 +981,7 @@ export default function InvoiceDetail() {
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     <div className="text-right">
                                                         <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                                            ₹{Number(child.total).toLocaleString()}
+                                                            {formatCurrency(child.total, invoice.currency)}
                                                         </p>
                                                         <Badge className={`${getPaymentStatusColor(child.paymentStatus)} text-[10px] px-1.5 py-0`}>
                                                             {child.paymentStatus}
@@ -1472,6 +1472,7 @@ export default function InvoiceDetail() {
                         paymentStatus={invoice.paymentStatus}
                         parentInvoiceId={invoice.parentInvoiceId}
                         isMaster={invoice.isMaster}
+                        currency={invoice.currency}
                         onUpdate={() => {
                             queryClient.invalidateQueries({
                                 queryKey: ["/api/invoices", params?.id],
@@ -1698,7 +1699,7 @@ export default function InvoiceDetail() {
                             </Label>
                             <div className="flex items-center gap-2 bg-primary/5 border border-primary/30 px-2.5 sm:px-3 py-2.5 sm:py-3 rounded-lg">
                 <span className="text-lg sm:text-2xl font-bold text-primary">
-                  ₹
+                  {getCurrencySymbol(invoice.currency)}
                 </span>
                                 <Input
                                     id="paid-amount"
@@ -1719,8 +1720,8 @@ export default function InvoiceDetail() {
                 <span className="text-muted-foreground">
                   Total invoice amount:
                 </span>
-                                <span className="font-bold text-primary">
-                  {formatCurrency(Number(invoice.total))}
+                <span className="font-bold text-primary">
+                  {formatCurrency(Number(invoice.total), invoice.currency)}
                 </span>
                             </div>
                             {paymentData.paidAmount && (
@@ -1729,7 +1730,7 @@ export default function InvoiceDetail() {
                     Outstanding balance:
                   </span>
                                     <span className="font-bold text-warning">
-                    ₹
+                    {getCurrencySymbol(invoice.currency)}
                                         {(
                                             Number(invoice.total || 0) - Number(paymentData.paidAmount)
                                         ).toLocaleString()}
@@ -1799,7 +1800,7 @@ export default function InvoiceDetail() {
                             <div className="flex justify-between items-center text-xs sm:text-sm">
                                 <span className="text-muted-foreground">Outstanding:</span>
                                 <span className="font-bold text-warning">
-                                    ₹{(Number(invoice.total) - Number(invoice.paidAmount)).toLocaleString()}
+                                    {getCurrencySymbol(invoice.currency)}{(Number(invoice.total) - Number(invoice.paidAmount)).toLocaleString()}
                                 </span>
                             </div>
                             <div className="flex justify-between items-center text-xs sm:text-sm">
@@ -1944,6 +1945,7 @@ export default function InvoiceDetail() {
                     termsAndConditions: invoice.termsAndConditions || "",
                     deliveryNotes: invoice.deliveryNotes || "",
                     milestoneDescription: invoice.milestoneDescription || "",
+                    currency: invoice.currency,
                 }}
                 isDraft={
                     invoice.isMaster
