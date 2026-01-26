@@ -1459,6 +1459,17 @@ export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = z.infer<typeof insertSettingSchema>;
 
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastInvoiceDate: true,
+  subscriptionNumber: true, // Generated server-side
+});
+
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+
 export type BankDetails = typeof bankDetails.$inferSelect;
 export type InsertBankDetails = z.infer<typeof insertBankDetailsSchema>;
 

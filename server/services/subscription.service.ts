@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { subscriptions, invoices, invoiceItems, clients } from "../../shared/schema";
+import { subscriptions, invoices, invoiceItems, clients, type InsertSubscription, type Subscription } from "../../shared/schema";
 import { eq, and, lte, sql } from "drizzle-orm";
 import { NumberingService } from "./numbering.service";
 import { logger } from "../utils/logger";
@@ -38,7 +38,7 @@ export class SubscriptionService {
   /**
    * Create a new subscription
    */
-  static async createSubscription(data: any, userId: string) {
+  static async createSubscription(data: InsertSubscription, userId: string) {
     // Generate subscription number? Or just use UUID/Name?
     // Schema has subscriptionNumber (SUB-2025-001)
     
@@ -51,21 +51,14 @@ export class SubscriptionService {
 
     console.log(`[SubscriptionService] Creating subscription. Payload:`, JSON.stringify(data, null, 2));
 
-    const startDate = new Date(data.startDate);
+    const startDate = new Date(data.startDate || new Date());
     console.log(`[SubscriptionService] Parsed Start Date: ${startDate.toISOString()}`);
 
 
     const [newSubscription] = await db.insert(subscriptions).values({
-      clientId: data.clientId,
-      planName: data.planName,
-      billingCycle: data.billingCycle,
+      ...data,
       startDate: startDate,
       nextBillingDate: startDate,
-      amount: data.amount, // Ensure decimal/string format is handled by driver
-      currency: data.currency,
-      itemsSnapshot: data.itemsSnapshot,
-      notes: data.notes,
-      autoRenew: data.autoRenew !== undefined ? data.autoRenew : true,
       subscriptionNumber: subNumber,
       status: "active",
       createdBy: userId,
@@ -90,7 +83,7 @@ export class SubscriptionService {
   /**
    * Update subscription
    */
-  static async updateSubscription(id: string, data: any) {
+  static async updateSubscription(id: string, data: Partial<InsertSubscription>) {
     const [updated] = await db.update(subscriptions)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(subscriptions.id, id))
@@ -139,7 +132,7 @@ export class SubscriptionService {
   /**
    * Process subscription renewal(s) until up to date
    */
-  static async processSubscriptionRenewal(sub: any) {
+  static async processSubscriptionRenewal(sub: Subscription & { client: any }) {
     const MAX_CYCLES = 12; // Safety break
     let cyclesProcessed = 0;
     
@@ -164,6 +157,7 @@ export class SubscriptionService {
         const invoice = await this.generateInvoiceForSubscription(sub);
 
         // Calculate next date
+        // @ts-ignore
         const nextDate = this.calculateNextBillingDate(currentNextBilling, sub.billingCycle);
         console.log(`[SubscriptionService] New Next Date: ${nextDate.toISOString()}`);
         
@@ -216,49 +210,52 @@ export class SubscriptionService {
 
   /**
    * Generate Invoice for a Subscription
+   * ATOMIC TRANSACTION: Ensures header and items are created together.
    */
-  static async generateInvoiceForSubscription(sub: any) {
+  static async generateInvoiceForSubscription(sub: Subscription) {
     logger.info(`[SubscriptionService] Generating invoice for subscription ${sub.id}`);
 
-    // Generate Invoice Number
-    // Use NumberingService (assuming generic invoice generator)
-    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber(); 
+    return await db.transaction(async (tx) => {
+      // Generate Invoice Number
+      // Use NumberingService (assuming generic invoice generator)
+      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber(); 
 
-    const items = JSON.parse(sub.itemsSnapshot || "[]");
-    
-    // Create Invoice
-    const [newInvoice] = await db.insert(invoices).values({
-      invoiceNumber,
-      clientId: sub.clientId,
-      subscriptionId: sub.id,
-      status: "draft", // Auto-draft? Or sent? Usually draft for review or auto-send.
-      issueDate: new Date(),
-      dueDate: addMonths(new Date(), 1), // Default net 30?
-      currency: sub.currency,
-      subtotal: sub.amount.toString(), // Assuming amount is subtotal? Or total? 
-      // Simplified: amount is total for now, logic below
-      total: sub.amount.toString(),
-      notes: `Recurring invoice for ${sub.planName} (${sub.billingCycle})`,
-      createdBy: sub.createdBy, // Attributed to creator of sub? Or system?
-    }).returning();
+      const items = JSON.parse(sub.itemsSnapshot || "[]");
+      
+      // Create Invoice
+      const [newInvoice] = await tx.insert(invoices).values({
+        invoiceNumber,
+        clientId: sub.clientId,
+        subscriptionId: sub.id,
+        status: "draft", // Auto-draft? Or sent? Usually draft for review or auto-send.
+        issueDate: new Date(),
+        dueDate: addMonths(new Date(), 1), // Default net 30?
+        currency: sub.currency,
+        subtotal: sub.amount.toString(), // Assuming amount is subtotal? Or total? 
+        // Simplified: amount is total for now, logic below
+        total: sub.amount.toString(),
+        notes: `Recurring invoice for ${sub.planName} (${sub.billingCycle})`,
+        createdBy: sub.createdBy, // Attributed to creator of sub? Or system?
+      }).returning();
 
-    // Create Invoice Items
-    if (items.length > 0) {
-      for (const item of items) {
-        const itemSubtotal = item.subtotal || (Number(item.quantity) * Number(item.unitPrice)).toString();
-        
-        await db.insert(invoiceItems).values({
-          invoiceId: newInvoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice.toString(),
-          subtotal: itemSubtotal,
-          // ... other fields
-        });
+      // Create Invoice Items
+      if (items.length > 0) {
+        for (const item of items) {
+          const itemSubtotal = item.subtotal || (Number(item.quantity) * Number(item.unitPrice)).toString();
+          
+          await tx.insert(invoiceItems).values({
+            invoiceId: newInvoice.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: itemSubtotal,
+            // ... other fields
+          });
+        }
       }
-    }
 
-    return newInvoice;
+      return newInvoice;
+    });
   }
 
   /**

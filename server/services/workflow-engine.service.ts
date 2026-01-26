@@ -17,6 +17,7 @@ import type {
   WorkflowTriggerType,
   WorkflowActionType,
 } from "@shared/schema";
+import parser from "cron-parser";
 
 interface TriggerContext {
   eventType: string;
@@ -379,29 +380,83 @@ export class WorkflowEngine {
     }
 
     /**
-     * Evaluate action condition expression
+     * Evaluate action condition expression safely
      * Example: "{{quote.total}} > 50000"
+     * 
+     * SAFE EVALUATION STRATEGY:
+     * 1. Interpolate variables first
+     * 2. Parse the expression to identify operator and operands
+     * 3. Evaluate strictly without `eval()` or `new Function()`
      */
     private static evaluateActionCondition(expression: string, context: TriggerContext): boolean {
       try {
-        // Simple expression evaluation (can be enhanced with a proper expression parser)
-        // For now, we'll handle basic comparisons
+        // 1. Interpolate variables
+        // We use the existing interpolateTemplate but need to handle non-string types for comparison
+        // So we manually resolve values that look like variables
         
-        // Replace {{entity.field}} with actual values
-        let evaluatedExpression = expression;
-        const matches = expression.match(/\{\{([^}]+)\}\}/g);
+        let evaluatedExpression = expression.trim();
         
-        if (matches) {
-          for (const match of matches) {
-            const path = match.replace(/\{\{|\}\}/g, '').trim();
-            const value = this.getNestedValue(context.entity, path);
-            evaluatedExpression = evaluatedExpression.replace(match, String(value));
-          }
+        // Match pattern: operand operator operand
+        // Supported operators: >, <, >=, <=, ==, !=, ===, !==
+        // Order matters: match longer operators first (e.g. >= before >)
+        const operatorMatch = evaluatedExpression.match(/(>=|<=|===|!==|==|!=|>|<)/);
+        
+        if (!operatorMatch) {
+            // No operator found, maybe it's a boolean variable check like "{{quote.isApproved}}"
+            if (evaluatedExpression.startsWith("{{") && evaluatedExpression.endsWith("}}")) {
+                const path = evaluatedExpression.replace(/\{\{|\}\}/g, '').trim();
+                const value = this.getNestedValue(context.entity, path);
+                return !!value;
+            }
+            logger.warn(`[WorkflowEngine] Invalid condition format: ${expression}`);
+            return false;
         }
 
-        // Basic evaluation (enhance this for production)
-        // This is a simplified version - in production, use a proper expression evaluator
-        return new Function("return " + evaluatedExpression)();
+        const operator = operatorMatch[0];
+        const parts = evaluatedExpression.split(operator);
+        
+        if (parts.length !== 2) {
+             logger.warn(`[WorkflowEngine] Complex expressions not supported: ${expression}`);
+             return false;
+        }
+
+        let leftRaw = parts[0].trim();
+        let rightRaw = parts[1].trim();
+
+        // Helper to resolve value
+        const resolve = (val: string): any => {
+            if (val.startsWith("{{") && val.endsWith("}}")) {
+                 const path = val.replace(/\{\{|\}\}/g, '').trim();
+                 return this.getNestedValue(context.entity, path);
+            }
+            // Number literal
+            if (!isNaN(Number(val)) && val !== "") return Number(val);
+            // String literal
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                return val.slice(1, -1);
+            }
+            // Boolean literal
+            if (val === "true") return true;
+            if (val === "false") return false;
+            
+            return val;
+        };
+
+        const leftVal = resolve(leftRaw);
+        const rightVal = resolve(rightRaw);
+
+        switch (operator) {
+            case ">": return Number(leftVal) > Number(rightVal);
+            case "<": return Number(leftVal) < Number(rightVal);
+            case ">=": return Number(leftVal) >= Number(rightVal);
+            case "<=": return Number(leftVal) <= Number(rightVal);
+            case "==": return leftVal == rightVal;
+            case "!=": return leftVal != rightVal;
+            case "===": return leftVal === rightVal;
+            case "!==": return leftVal !== rightVal;
+            default: return false;
+        }
+
       } catch (error) {
         logger.error(`[WorkflowEngine] Error evaluating condition: ${expression}`, error);
         return false;
@@ -634,10 +689,9 @@ export class WorkflowEngine {
             }
 
             // Update last run and calculate next run
-            // (This would use a cron parser to calculate next run time)
             await storage.updateWorkflowSchedule(schedule.id, {
               lastRunAt: now,
-              // nextRunAt: calculateNextRun(schedule.cronExpression),
+              nextRunAt: this.calculateNextRun(schedule.cronExpression),
             });
           }
         }
@@ -696,5 +750,21 @@ export class WorkflowEngine {
         logger.error(`[WorkflowEngine] Failed to assign user:`, err);
         throw err;
       }
+    }
+
+
+    /**
+     * Calculate next run time based on cron expression
+     */
+    private static calculateNextRun(cronExpression: string): Date {
+        try {
+            const interval = parser.parseExpression(cronExpression);
+            return interval.next().toDate();
+        } catch (err) {
+            logger.error(`[WorkflowEngine] Invalid cron expression: ${cronExpression}`, err);
+            // Default to next day same time if failed? Or throw?
+            // For safety, let's just add 24 hours to prevent rapid loop
+            return new Date(Date.now() + 24 * 60 * 60 * 1000);
+        }
     }
 }

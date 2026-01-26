@@ -156,10 +156,10 @@ export class PDFService {
     let selectedTheme: PDFTheme;
     // ... existing implementation remains ...
     if (data.theme) selectedTheme = getTheme(data.theme);
-    else if ((data.client as any).preferredTheme)
-      selectedTheme = getTheme((data.client as any).preferredTheme);
-    else if ((data.client as any).segment)
-      selectedTheme = getSuggestedTheme((data.client as any).segment);
+    else if (data.client?.preferredTheme)
+      selectedTheme = getTheme(data.client.preferredTheme);
+    else if (data.client?.segment)
+      selectedTheme = getSuggestedTheme(data.client.segment);
     else selectedTheme = getTheme("professional");
 
     this.applyTheme(selectedTheme);
@@ -305,14 +305,14 @@ export class PDFService {
     this.drawHeader(doc, data, "COMMERCIAL PROPOSAL");
   }
 
-  private static clean(v: any): string {
+  private static clean(v: unknown): string {
     return String(v ?? "").trim();
   }
 
-  private static safeDate(d: any): string {
+  private static safeDate(d: unknown): string {
     try {
       if (!d) return "-";
-      const dt = new Date(d);
+      const dt = new Date(d as string | number | Date);
       if (Number.isNaN(dt.getTime())) return "-";
       return dt.toLocaleDateString("en-IN");
     } catch {
@@ -460,7 +460,8 @@ export class PDFService {
     doc.text("COMMERCIAL PROPOSAL", x, 120, { width: w });
 
     doc.font(this.FONT_REG).fontSize(10).fillColor(this.SUBTLE);
-    doc.text(`Quote No: ${this.clean((data.quote as any).quoteNumber || "-")}`, x, 148, { width: w });
+    doc.font(this.FONT_REG).fontSize(10).fillColor(this.SUBTLE);
+    doc.text(`Quote No: ${this.clean(data.quote.quoteNumber || "-")}`, x, 148, { width: w });
 
     doc.y = 176;
     this.hLine(doc, x, x + w, doc.y);
@@ -529,8 +530,8 @@ export class PDFService {
     const rightW = 210;
     const rightX = x + w - rightW;
 
-    const quoteNo = this.clean((data.quote as any).quoteNumber || "-");
-    const date = this.safeDate((data.quote as any).quoteDate);
+    const quoteNo = this.clean(data.quote.quoteNumber || "-");
+    const date = this.safeDate(data.quote.quoteDate);
 
     doc.font(this.FONT_REG).fontSize(7.0).fillColor(this.SUBTLE);
     doc.text("Quote No.", rightX, topY + 12, { width: rightW, align: "right", lineBreak: false });
@@ -618,13 +619,13 @@ export class PDFService {
     const leftW = w * 0.56;
     const rightW = w - leftW - gap;
 
-    const clientName = this.clean((data.client as any).name || "-");
+    const clientName = this.clean(data.client.name || "-");
     const shipAddr =
-      this.normalizeAddress((data.client as any).shippingAddress || (data.client as any).billingAddress, 10) || "-";
-    const billAddr = this.normalizeAddress((data.client as any).billingAddress, 10) || "-";
+      this.normalizeAddress(data.client.shippingAddress || data.client.billingAddress || undefined, 10) || "-";
+    const billAddr = this.normalizeAddress(data.client.billingAddress || undefined, 10) || "-";
 
-    const phone = this.clean((data.client as any).phone);
-    const email = this.clean((data.client as any).email);
+    const phone = this.clean(data.client.phone);
+    const email = this.clean(data.client.email);
     const contact = [phone ? `Ph: ${phone}` : "", email ? `Email: ${email}` : ""].filter(Boolean).join("  |  ");
 
     // Measure left blocks
