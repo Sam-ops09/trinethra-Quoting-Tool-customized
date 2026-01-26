@@ -1392,10 +1392,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteWorkflow(id: string): Promise<void> {
-    // Soft delete by setting status to inactive
-    await db.update(workflows)
-      .set({ status: "inactive", updatedAt: new Date() })
-      .where(eq(workflows.id, id));
+    // Hard delete: Clean up executions first (no cascade), then delete workflow (cascades to triggers/actions)
+    await db.delete(workflowExecutions).where(eq(workflowExecutions.workflowId, id));
+    await db.delete(workflows).where(eq(workflows.id, id));
   }
 
   // Workflow Triggers
