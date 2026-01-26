@@ -11,7 +11,7 @@ import { eq, sql } from "drizzle-orm";
 import { NumberingService } from "../services/numbering.service";
 import { InvoicePDFService } from "../services/invoice-pdf.service";
 import { EmailService } from "../services/email.service";
-import { calculateLineSubtotal, toMoneyString } from "../utils/financial";
+import { calculateLineSubtotal, toMoneyString, toDecimal } from "../utils/financial";
 
 const router = Router();
 
@@ -677,7 +677,7 @@ router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoice
         }
 
         const processedItems = [];
-        let subtotal = 0;
+        let subtotal = toDecimal(0);
 
         for (const rawItem of items) {
             const newItem = { ...rawItem };
@@ -685,7 +685,7 @@ router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoice
             const masterItem = masterItems.find(mi => 
                 (newItem.itemId && mi.id === newItem.itemId) || 
                 (mi.productId && mi.productId === newItem.productId) || 
-                mi.description === newItem.description
+                (mi.description === newItem.description)
             );
 
             if (!masterItem) {
@@ -698,10 +698,10 @@ router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoice
             if (!newItem.hsnSac) newItem.hsnSac = masterItem.hsnSac;
             if (!newItem.productId) newItem.productId = masterItem.productId;
 
-            const unitPrice = Number(newItem.unitPrice);
-            const quantity = Number(newItem.quantity);
+            const unitPrice = toDecimal(newItem.unitPrice);
+            const quantity = Number(newItem.quantity); // Quantity is usually efficient as number, but for price calc we mix
 
-            if (isNaN(unitPrice)) {
+            if (unitPrice.isNaN()) {
                 const error: any = new Error(`Invalid Unit Price for item "${newItem.description}". Master item price: ${masterItem.unitPrice}`);
                 error.statusCode = 400;
                 throw error;
@@ -709,7 +709,7 @@ router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoice
 
             const key = newItem.productId || newItem.description;
             const alreadyInvoiced = invoicedQuantities[String(key)] || 0;
-            const remaining = masterItem.quantity - alreadyInvoiced;
+            const remaining = Number(masterItem.quantity) - alreadyInvoiced;
 
             if (quantity > remaining) {
                 const error: any = new Error(`Item "${newItem.description}" quantity (${newItem.quantity}) exceeds remaining quantity (${remaining})`);
@@ -717,24 +717,21 @@ router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoice
                 throw error;
             }
 
-            subtotal += unitPrice * quantity;
+            // Accumulate subtotal using Decimal
+            subtotal = subtotal.plus(unitPrice.times(quantity));
             processedItems.push(newItem);
         }
 
-        const masterSubtotal = Number(masterInvoice.subtotal);
-        const ratio = masterSubtotal > 0 ? subtotal / masterSubtotal : 0;
+        const masterSubtotal = toDecimal(masterInvoice.subtotal);
+        const ratio = masterSubtotal.gt(0) ? subtotal.dividedBy(masterSubtotal) : toDecimal(0);
 
-        const cgst = (Number(masterInvoice.cgst) * ratio).toFixed(2);
-        const sgst = (Number(masterInvoice.sgst) * ratio).toFixed(2);
-        const igst = (Number(masterInvoice.igst) * ratio).toFixed(2);
-        const shippingCharges = (Number(masterInvoice.shippingCharges) * ratio).toFixed(2);
-        const discount = (Number(masterInvoice.discount) * ratio).toFixed(2);
+        const cgst = toDecimal(masterInvoice.cgst || 0).times(ratio);
+        const sgst = toDecimal(masterInvoice.sgst || 0).times(ratio);
+        const igst = toDecimal(masterInvoice.igst || 0).times(ratio);
+        const shippingCharges = toDecimal(masterInvoice.shippingCharges || 0).times(ratio);
+        const discount = toDecimal(masterInvoice.discount || 0).times(ratio);
 
-        const total = subtotal + Number(cgst) + Number(sgst) + Number(igst) + Number(shippingCharges) - Number(discount);
-
-        if (isNaN(total)) {
-            throw new Error("Calculation resulted in NaN. Check inputs.");
-        }
+        const total = subtotal.plus(cgst).plus(sgst).plus(igst).plus(shippingCharges).minus(discount);
 
         const invoiceNumber = await NumberingService.generateChildInvoiceNumber();
 
@@ -747,13 +744,13 @@ router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoice
             paymentStatus: "pending",
             dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             paidAmount: "0",
-            subtotal: subtotal.toFixed(2),
-            discount,
-            cgst,
-            sgst,
-            igst,
-            shippingCharges,
-            total: total.toFixed(2),
+            subtotal: toMoneyString(subtotal),
+            discount: toMoneyString(discount),
+            cgst: toMoneyString(cgst),
+            sgst: toMoneyString(sgst),
+            igst: toMoneyString(igst),
+            shippingCharges: toMoneyString(shippingCharges),
+            total: toMoneyString(total),
             notes: notes || masterInvoice.notes,
             termsAndConditions: masterInvoice.termsAndConditions,
             isMaster: false,

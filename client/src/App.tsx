@@ -63,6 +63,31 @@ import { SessionMonitor } from "@/components/session-monitor";
 import { Button } from "@/components/ui/button";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { isFeatureEnabled } from "@shared/feature-flags";
+import { ErrorBoundary } from "react-error-boundary";
+
+function ErrorFallback({ error, resetErrorBoundary }: { error: any; resetErrorBoundary: () => void }) {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-background p-4">
+      <Card className="w-full max-w-md border-destructive">
+        <CardHeader>
+          <div className="flex items-center justify-center mb-4">
+            <ShieldAlert className="h-16 w-16 text-destructive" />
+          </div>
+          <CardTitle className="text-center text-destructive">Something went wrong</CardTitle>
+          <CardDescription className="text-center">
+            {error.message || "An unexpected error occurred. Please try again."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center gap-4">
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Reload Page
+          </Button>
+          <Button onClick={resetErrorBoundary}>Try Again</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 interface RouteConfig {
   component: React.ComponentType;
@@ -320,25 +345,29 @@ function Router() {
   );
 }
 
+
+
 function App() {
   const defaultTheme = isFeatureEnabled('ui_darkMode') ? 'light' : 'light';
   const showAnalytics = isFeatureEnabled('integration_vercelAnalytics');
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme={defaultTheme}>
-        <AuthProvider>
-          <WebSocketProvider>
-            <TooltipProvider>
-              <Toaster />
-              <SessionMonitor />
-              <Router />
-              {showAnalytics && <VercelAnalytics />}
-            </TooltipProvider>
-          </WebSocketProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.href = '/'}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider defaultTheme={defaultTheme}>
+          <AuthProvider>
+            <WebSocketProvider>
+              <TooltipProvider>
+                <Toaster />
+                <SessionMonitor />
+                <Router />
+                {showAnalytics && <VercelAnalytics />}
+              </TooltipProvider>
+            </WebSocketProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

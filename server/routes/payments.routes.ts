@@ -60,94 +60,112 @@ router.put("/invoices/:id/payment-status", authMiddleware, requireFeature('payme
     }
 
 
-    const updatedInvoice = await storage.updateInvoice(req.params.id, updateData);
+    const updatedInvoice = await db.transaction(async (tx) => {
+      // 1. Lock Master Invoice if needed
+      if (invoice.parentInvoiceId) {
+         await tx.execute(sql`SELECT 1 FROM ${schema.invoices} WHERE ${schema.invoices.id} = ${invoice.parentInvoiceId} FOR UPDATE`);
+      }
 
-    // If this is a child invoice, update the master invoice payment totals
-    if (invoice.parentInvoiceId) {
-      const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-      if (masterInvoice) {
-        // Get all child invoices of this master
-        const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
-        const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
+      // 2. Update Invoice
+      const [uInvoice] = await tx.update(schema.invoices)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(eq(schema.invoices.id, invoice.id))
+        .returning();
+      
+      if (!uInvoice) throw new Error("Failed to update invoice");
 
-        // Calculate total paid amount from all children (including the just-updated one)
-        const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-          const childPaid = child.id === invoice.id ? Number(updateData.paidAmount || 0) : Number(child.paidAmount || 0);
-          return sum + childPaid;
-        }, 0);
+      // 3. If this is a child invoice, update the master invoice payment totals
+      if (invoice.parentInvoiceId) {
+        const [masterInvoice] = await tx.select().from(schema.invoices).where(eq(schema.invoices.id, invoice.parentInvoiceId));
+        if (masterInvoice) {
+          // Get all child invoices
+          const allInvoices = await tx.select().from(schema.invoices).where(eq(schema.invoices.quoteId, masterInvoice.quoteId || ""));
+          const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
 
-        // Add direct payments on master
-        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
-        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-        
-        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+          // Calculate total paid amount from all children
+          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
+            return sum + Number(child.paidAmount || 0); // No manual substitution needed as we are inside tx and already updated
+          }, 0);
 
+          // Add direct payments on master
+          const masterDirectPayments = await tx.select().from(schema.paymentHistory).where(eq(schema.paymentHistory.invoiceId, masterInvoice.id));
+          const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+          
+          const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
 
-        // Update master invoice with aggregated payment data
-        const masterTotal = Number(masterInvoice.total);
-        let masterPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
-        if (finalMasterPaidAmount >= masterTotal) {
-          masterPaymentStatus = "paid";
-        } else if (finalMasterPaidAmount > 0) {
-          masterPaymentStatus = "partial";
+          // Update master invoice with aggregated payment data
+          const masterTotal = Number(masterInvoice.total);
+          let masterPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
+          if (finalMasterPaidAmount >= masterTotal) {
+            masterPaymentStatus = "paid";
+          } else if (finalMasterPaidAmount > 0) {
+            masterPaymentStatus = "partial";
+          }
+
+          await tx.update(schema.invoices).set({
+            paidAmount: String(finalMasterPaidAmount),
+            paymentStatus: masterPaymentStatus,
+            updatedAt: new Date(),
+          }).where(eq(schema.invoices.id, masterInvoice.id));
+
+          // Check if we should auto-close the quote
+          if (masterPaymentStatus === "paid") {
+            const quote = await tx.query.quotes.findFirst({ where: eq(schema.quotes.id, masterInvoice.quoteId || "") });
+            if (quote && quote.status === "invoiced") {
+              await tx.update(schema.quotes).set({
+                status: "closed_paid",
+                closedAt: new Date(),
+                closedBy: req.user!.id,
+                closureNotes: "Auto-closed: All invoices fully paid",
+                updatedAt: new Date(),
+              }).where(eq(schema.quotes.id, quote.id));
+
+              await tx.insert(schema.activityLogs).values({
+                userId: req.user!.id,
+                action: "close_quote",
+                entityType: "quote",
+                entityId: quote.id,
+                timestamp: new Date(),
+              });
+            }
+          }
         }
+      } else if (uInvoice.paymentStatus === "paid") {
+        // For master or standalone invoices, check if we should close the quote
+        const allInvoices = await tx.select().from(schema.invoices).where(eq(schema.invoices.quoteId, invoice.quoteId || ""));
+        const allPaid = allInvoices.every(inv => inv.paymentStatus === "paid");
 
-        await storage.updateInvoice(masterInvoice.id, {
-          paidAmount: String(finalMasterPaidAmount),
-          paymentStatus: masterPaymentStatus,
-        });
-
-        // Check if we should auto-close the quote
-        if (masterPaymentStatus === "paid") {
-          const quote = await storage.getQuote(masterInvoice.quoteId || "");
+        if (allPaid) {
+          const quote = await tx.query.quotes.findFirst({ where: eq(schema.quotes.id, invoice.quoteId || "") });
           if (quote && quote.status === "invoiced") {
-            // All invoices are paid, auto-close the quote
-            await storage.updateQuote(quote.id, {
-              status: "closed_paid",
-              closedAt: new Date(),
-              closedBy: req.user!.id,
-              closureNotes: "Auto-closed: All invoices fully paid",
-            });
+             await tx.update(schema.quotes).set({
+                status: "closed_paid",
+                closedAt: new Date(),
+                closedBy: req.user!.id,
+                closureNotes: "Auto-closed: All invoices fully paid",
+                updatedAt: new Date(),
+              }).where(eq(schema.quotes.id, quote.id));
 
-            await storage.createActivityLog({
-              userId: req.user!.id,
-              action: "close_quote",
-              entityType: "quote",
-              entityId: quote.id,
-            });
+              await tx.insert(schema.activityLogs).values({
+                userId: req.user!.id,
+                action: "close_quote",
+                entityType: "quote",
+                entityId: quote.id,
+                timestamp: new Date(),
+              });
           }
         }
       }
-    } else if (updatedInvoice?.paymentStatus === "paid") {
-      // For master or standalone invoices, check if we should close the quote
-      const allInvoices = await storage.getInvoicesByQuote(invoice.quoteId || "");
-      const allPaid = allInvoices.every(inv => inv.paymentStatus === "paid");
 
-      if (allPaid) {
-        const quote = await storage.getQuote(invoice.quoteId || "");
-        if (quote && quote.status === "invoiced") {
-          await storage.updateQuote(quote.id, {
-            status: "closed_paid",
-            closedAt: new Date(),
-            closedBy: req.user!.id,
-            closureNotes: "Auto-closed: All invoices fully paid",
-          });
-
-          await storage.createActivityLog({
-            userId: req.user!.id,
-            action: "close_quote",
-            entityType: "quote",
-            entityId: quote.id,
-          });
-        }
-      }
-    }
-
-    await storage.createActivityLog({
-      userId: req.user!.id,
-      action: "update_payment_status",
-      entityType: "invoice",
-      entityId: invoice.id,
+      await tx.insert(schema.activityLogs).values({
+        userId: req.user!.id,
+        action: "update_payment_status",
+        entityType: "invoice",
+        entityId: invoice.id,
+        timestamp: new Date(),
+      });
+      
+      return uInvoice;
     });
 
     return res.json(updatedInvoice);
@@ -230,6 +248,9 @@ router.post("/invoices/:id/payment", authMiddleware, requireFeature('payments_cr
 
       // 3. If this is a child invoice, update the master invoice payment totals
       if (invoice.parentInvoiceId) {
+        // Lock the master invoice row to prevent race conditions during concurrent payments on sibling invoices
+        await tx.execute(sql`SELECT 1 FROM ${schema.invoices} WHERE ${schema.invoices.id} = ${invoice.parentInvoiceId} FOR UPDATE`);
+
         const [masterInvoice] = await tx.select().from(schema.invoices)
           .where(eq(schema.invoices.id, invoice.parentInvoiceId));
         
@@ -445,86 +466,107 @@ router.delete("/payment-history/:id", authMiddleware, requireFeature('payments_d
       return res.status(404).json({ error: "Related quote not found" });
     }
 
-    // Delete payment record
-    await storage.deletePaymentHistory(req.params.id);
-
-    // Recalculate invoice totals
-    const allPayments = await storage.getPaymentHistory(payment.invoiceId);
-    let newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-
-    // If this is a master invoice, also include sum of all child invoices
-    if (invoice.isMaster) {
-      let childInvoices: any[] = [];
-      if (invoice.quoteId) {
-        const allInv = await storage.getInvoicesByQuote(invoice.quoteId);
-        childInvoices = allInv.filter((inv: any) => inv.parentInvoiceId === invoice.id);
-      } else if (invoice.salesOrderId) {
-        const allInv = await storage.getInvoicesBySalesOrder(invoice.salesOrderId);
-        childInvoices = allInv.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+    // Wrap deletion and updates in a transaction
+    await db.transaction(async (tx) => {
+      // 1. Lock Master Invoice if needed (Prevent Race Conditions)
+      if (invoice.parentInvoiceId) {
+         await tx.execute(sql`SELECT 1 FROM ${schema.invoices} WHERE ${schema.invoices.id} = ${invoice.parentInvoiceId} FOR UPDATE`);
       }
-      const childTotal = childInvoices.reduce((sum, c) => sum + Number(c.paidAmount || 0), 0);
-      newPaidAmount += childTotal;
-    }
-    // Use invoice.total for child invoices, quote.total for regular invoices
-    const totalAmount = Number(invoice.total || quote.total);
 
-    let newPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
-    if (newPaidAmount >= totalAmount) {
-      newPaymentStatus = "paid";
-    } else if (newPaidAmount > 0) {
-      newPaymentStatus = "partial";
-    }
+      // 2. Delete payment record
+      await tx.delete(schema.paymentHistory).where(eq(schema.paymentHistory.id, req.params.id));
 
-    const lastPayment = allPayments[0]; // Already sorted by date desc
-    await storage.updateInvoice(payment.invoiceId, {
-      paidAmount: String(newPaidAmount),
-      paymentStatus: newPaymentStatus,
-      lastPaymentDate: lastPayment?.paymentDate || null,
+      // 3. Recalculate invoice totals
+      // We must fetch within transaction to see the deletion
+      const allPayments = await tx.select().from(schema.paymentHistory).where(eq(schema.paymentHistory.invoiceId, payment.invoiceId)).orderBy(schema.paymentHistory.paymentDate);
+      
+      let newPaidAmount = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-    });
-
-    // If this is a child invoice, update the master invoice payment totals
-    if (invoice.parentInvoiceId) {
-      const masterInvoice = await storage.getInvoice(invoice.parentInvoiceId);
-      if (masterInvoice) {
-        // Get all child invoices of this master
-        const allInvoices = await storage.getInvoicesByQuote(masterInvoice.quoteId || "");
-        const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
-
-        // Calculate total paid amount from all children (with updated payment for current invoice)
-        const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
-          const childPaid = child.id === invoice.id ? newPaidAmount : Number(child.paidAmount || 0);
-          return sum + childPaid;
-        }, 0);
-
-        // Add direct payments on master
-        const masterDirectPayments = await storage.getPaymentHistory(masterInvoice.id);
-        const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-        
-        const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
-
-        // Update master invoice with aggregated payment data
-        const masterTotal = Number(masterInvoice.total);
-        let masterPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
-        if (finalMasterPaidAmount >= masterTotal) {
-          masterPaymentStatus = "paid";
-        } else if (finalMasterPaidAmount > 0) {
-          masterPaymentStatus = "partial";
+      // If this is a master invoice, also include sum of all child invoices
+      if (invoice.isMaster) {
+        let childInvoices: any[] = [];
+        if (invoice.quoteId) {
+          const allInv = await tx.select().from(schema.invoices).where(eq(schema.invoices.quoteId, invoice.quoteId));
+          childInvoices = allInv.filter((inv: any) => inv.parentInvoiceId === invoice.id);
+        } else if (invoice.salesOrderId) {
+          const allInv = await tx.select().from(schema.invoices).where(eq(schema.invoices.salesOrderId, invoice.salesOrderId));
+          childInvoices = allInv.filter((inv: any) => inv.parentInvoiceId === invoice.id);
         }
-
-        await storage.updateInvoice(masterInvoice.id, {
-          paidAmount: String(finalMasterPaidAmount),
-          paymentStatus: masterPaymentStatus,
-          lastPaymentDate: finalMasterPaidAmount > 0 ? new Date() : null,
-        });
+        const childTotal = childInvoices.reduce((sum, c) => sum + Number(c.paidAmount || 0), 0);
+        newPaidAmount += childTotal;
       }
-    }
 
-    await storage.createActivityLog({
-      userId: req.user!.id,
-      action: "delete_payment",
-      entityType: "invoice",
-      entityId: invoice.id,
+      // Use invoice.total for child invoices, quote.total for regular invoices
+      const totalAmount = Number(invoice.total || quote.total);
+
+      let newPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
+      if (newPaidAmount >= totalAmount) {
+        newPaymentStatus = "paid";
+      } else if (newPaidAmount > 0) {
+        newPaymentStatus = "partial";
+      }
+
+      const lastPayment = allPayments[allPayments.length - 1]; // sorted ASC above
+
+      await tx.update(schema.invoices)
+        .set({
+          paidAmount: String(newPaidAmount),
+          paymentStatus: newPaymentStatus,
+          lastPaymentDate: lastPayment?.paymentDate || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.invoices.id, payment.invoiceId));
+
+      // 4. If this is a child invoice, update the master invoice payment totals
+      if (invoice.parentInvoiceId) {
+        const [masterInvoice] = await tx.select().from(schema.invoices).where(eq(schema.invoices.id, invoice.parentInvoiceId));
+        
+        if (masterInvoice) {
+          // Get all child invoices of this master
+          // Note: We use global query here but since we locked master, other concurrent updates are blocked
+          const allInvoices = await tx.select().from(schema.invoices).where(eq(schema.invoices.quoteId, masterInvoice.quoteId || "")); 
+          // Careful: getInvoicesByQuote uses quoteId.
+          
+          const childInvoices = allInvoices.filter(inv => inv.parentInvoiceId === masterInvoice.id);
+
+          // Calculate total paid amount from all children
+          // We must rely on what's in DB (which we just updated for the current child)
+          const totalChildPaidAmount = childInvoices.reduce((sum, child) => {
+            // No need to manually substitute; we updated the child in step 3 so it's fresh in DB
+            return sum + Number(child.paidAmount || 0);
+          }, 0);
+
+          // Add direct payments on master
+          const masterDirectPayments = await tx.select().from(schema.paymentHistory).where(eq(schema.paymentHistory.invoiceId, masterInvoice.id));
+          const masterDirectTotal = masterDirectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+          
+          const finalMasterPaidAmount = totalChildPaidAmount + masterDirectTotal;
+
+          // Update master invoice with aggregated payment data
+          const masterTotal = Number(masterInvoice.total);
+          let masterPaymentStatus: "pending" | "partial" | "paid" | "overdue" = "pending";
+          if (finalMasterPaidAmount >= masterTotal) {
+            masterPaymentStatus = "paid";
+          } else if (finalMasterPaidAmount > 0) {
+            masterPaymentStatus = "partial";
+          }
+
+          await tx.update(schema.invoices).set({
+            paidAmount: String(finalMasterPaidAmount),
+            paymentStatus: masterPaymentStatus,
+            lastPaymentDate: finalMasterPaidAmount > 0 ? new Date() : null,
+            updatedAt: new Date(),
+          }).where(eq(schema.invoices.id, masterInvoice.id));
+        }
+      }
+
+      await tx.insert(schema.activityLogs).values({
+        userId: req.user!.id,
+        action: "delete_payment",
+        entityType: "invoice",
+        entityId: invoice.id,
+        timestamp: new Date(),
+      });
     });
 
     return res.json({ success: true });

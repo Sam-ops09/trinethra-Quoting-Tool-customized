@@ -450,6 +450,19 @@ async function runAll() {
   
   // 1. Security
   console.log('\n🔒 GROUP 1: SECURITY');
+
+  // SETUP: Configure unique numbering to avoid collisions
+  try {
+      await ensureAdminAndLogin();
+      const uniquePrefix = `AUD-${Date.now().toString().slice(-4)}`; // Short unique prefix
+      console.log(`    [Setup] Setting quote prefix to "${uniquePrefix}"`);
+      await request('/settings', 'POST', { key: 'quotePrefix', value: uniquePrefix });
+      // Reset counter to 1 to ensure clean start for this prefix (optional but clean)
+      // We can't easily reset counter via API without expose, but unique prefix is sufficient.
+  } catch (e) {
+      console.error('    [Setup] Failed to configure settings:', e);
+  }
+
   await testSignupRoleEscalation();
   await testSettingsValidation();
   await testUserSoftDelete();

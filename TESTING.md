@@ -126,6 +126,7 @@ npx tsx scripts/test-pdf-worker.ts
 npx tsx debug_analytics_data.ts
 npx tsx tests/verify_feature_flags.ts
 npx tsx tests/verify-analytics-fix.ts
+npx tsx scripts/verify-cache.ts
 ```
 
 ### Expected Output

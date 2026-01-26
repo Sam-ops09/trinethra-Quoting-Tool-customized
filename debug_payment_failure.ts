@@ -41,6 +41,15 @@ async function run() {
     await request('/auth/login', 'POST', { email: 'admin@example.com', password: 'Admin@123' });
 
     // Setup invoice
+    // Configure unique numbering to avoid collisions
+    const uniquePrefix = `PAY-${Date.now().toString().slice(-4)}`;
+    try {
+        await request('/settings', 'POST', { key: 'quotePrefix', value: uniquePrefix });
+        console.log(`[Setup] Set quote prefix to "${uniquePrefix}"`);
+    } catch (e) {
+        console.log('[Setup] Warning: custom prefix setting failed');
+    }
+
     const client = await request('/clients', 'POST', { name: 'Payment Debug Client', email: `paydebug_${Date.now()}@t.com` });
     const quote = await request('/quotes', 'POST', {
       clientId: client.data.id,

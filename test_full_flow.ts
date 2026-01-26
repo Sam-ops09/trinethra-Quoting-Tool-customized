@@ -142,6 +142,13 @@ async function testSetup() {
   } catch (e: any) {
     fail('Setup Error', e.message);
   }
+
+  // Configure unique numbering for this run
+  try {
+      const uniquePrefix = `FLOW-${Date.now().toString().slice(-4)}`;
+      console.log(`    [Setup] Setting quote prefix to "${uniquePrefix}"`);
+      await request('/settings', 'POST', { key: 'quotePrefix', value: uniquePrefix });
+  } catch (e) {}
 }
 
 // =====================================================

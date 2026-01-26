@@ -98,20 +98,56 @@ async function runTests() {
     }
     const product = productRes.data;
 
-    // 4. Create Invoice 1: Fully Paid (1000)
-    console.log('\nCreating Fully Paid Invoice...');
-    const invoice1Res = await request('/invoices', 'POST', {
-        clientId,
-        items: [{ productId: product.id, quantity: 1, loosePrice: 1000, type: 'product' }],
-        issueDate: new Date().toISOString(),
-        dueDate: new Date().toISOString(),
-    });
+    // Setup: Configure unique numbering to avoid collisions
+    const uniquePrefix = `ANA-${Date.now().toString().slice(-4)}`;
+    try {
+        await request('/settings', 'POST', { key: 'invoicePrefix', value: uniquePrefix });
+        console.log(`[Setup] Set invoice prefix to "${uniquePrefix}"`);
+    } catch (e) {
+        console.log('[Setup] Warning: custom prefix setting failed');
+    }
 
-    if (invoice1Res.status !== 201 && invoice1Res.status !== 200) {
-        console.error('Failed to create invoice 1:', invoice1Res.data);
+    // Helper to create an invoice via the standard flow
+    async function createInvoiceViaWorkflow(clientId: string, price: number, description: string): Promise<any> {
+        console.log(`\nCreating Quote -> SO -> Invoice for amount ${price}...`);
+        
+        // 1. Create Quote
+        const quoteRes = await request('/quotes', 'POST', {
+            clientId,
+            items: [{ productId: product.id, quantity: 1, unitPrice: price, description }],
+            total: price
+        });
+        if (quoteRes.status !== 200 && quoteRes.status !== 201) throw new Error(`Quote creation failed: ${JSON.stringify(quoteRes.data)}`);
+        const quoteId = quoteRes.data.id;
+
+        // 2. Approve Quote
+        await request(`/quotes/${quoteId}`, 'PATCH', { status: 'approved' });
+
+        // 3. Create Sales Order
+        const soRes = await request(`/quotes/${quoteId}/sales-orders`, 'POST', {});
+        if (soRes.status !== 200 && soRes.status !== 201) throw new Error(`SO creation failed: ${JSON.stringify(soRes.data)}`);
+        const soId = soRes.data.id;
+
+        // 4. Confirm & Fulfill SO
+        await request(`/sales-orders/${soId}`, 'PATCH', { status: 'confirmed' });
+        await request(`/sales-orders/${soId}`, 'PATCH', { status: 'fulfilled' });
+
+        // 5. Convert to Invoice
+        const invRes = await request(`/sales-orders/${soId}/convert-to-invoice`, 'POST', {});
+        if (invRes.status !== 200 && invRes.status !== 201) throw new Error(`Invoice conversion failed: ${JSON.stringify(invRes.data)}`);
+        
+        console.log(`Created Invoice: ${invRes.data.id} (${invRes.data.invoiceNumber})`);
+        return invRes.data;
+    }
+
+    // 4. Create Invoice 1: Fully Paid (1000)
+    let invoice1;
+    try {
+        invoice1 = await createInvoiceViaWorkflow(clientId, 1000, 'Full Payment Item');
+    } catch (e) {
+        console.error(e);
         return;
     }
-    const invoice1 = invoice1Res.data;
     
     // Mark as paid
     await request(`/invoices/${invoice1.id}/payment`, 'POST', {
@@ -122,22 +158,16 @@ async function runTests() {
     });
 
     // 5. Create Invoice 2: Partially Paid (Total 1000, Paid 500)
-    console.log('\nCreating Partially Paid Invoice...');
-    const invoice2Res = await request('/invoices', 'POST', {
-        clientId,
-        items: [{ productId: product.id, quantity: 1, loosePrice: 1000, type: 'product' }],
-        issueDate: new Date().toISOString(),
-        dueDate: new Date().toISOString(),
-    });
-    
-    if (invoice2Res.status !== 201 && invoice2Res.status !== 200) {
-        console.error('Failed to create invoice 2:', invoice2Res.data);
+    let invoice2;
+    try {
+        invoice2 = await createInvoiceViaWorkflow(clientId, 1000, 'Partial Payment Item');
+    } catch (e) {
+        console.error(e);
         return;
     }
-    const invoice2 = invoice2Res.data;
 
-     // Pay partial amount
-     await request(`/invoices/${invoice2.id}/payment`, 'POST', {
+    // Pay partial amount
+    await request(`/invoices/${invoice2.id}/payment`, 'POST', {
         amount: 500,
         date: new Date().toISOString(),
         method: 'bank_transfer',

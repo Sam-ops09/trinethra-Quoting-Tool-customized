@@ -160,7 +160,7 @@ export interface IStorage {
 
   // Invoices
   getInvoice(id: string): Promise<Invoice | undefined>;
-  getInvoiceByQuote(quoteId: string): Promise<Invoice | undefined>;
+
   getAllInvoices(): Promise<Invoice[]>;
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
   updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice | undefined>;
@@ -378,7 +378,7 @@ export class DatabaseStorage implements IStorage {
   async createUser(user: Omit<InsertUser, "password"> & { passwordHash: string }): Promise<User> {
   const [newUser] = await db
     .insert(users)
-    .values(user)
+    .values(user as any)
     .returning();
   return newUser;
 }
@@ -462,7 +462,7 @@ export class DatabaseStorage implements IStorage {
 }
 
   async createClient(client: InsertClient & { createdBy: string }): Promise < Client > {
-  const [newClient] = await db.insert(clients).values(client).returning();
+  const [newClient] = await db.insert(clients).values(client as any).returning();
   return newClient;
 }
 
@@ -585,10 +585,7 @@ export class DatabaseStorage implements IStorage {
   return invoice || undefined;
 }
 
-  async getInvoiceByQuote(quoteId: string): Promise < Invoice | undefined > {
-  const [invoice] = await db.select().from(invoices).where(eq(invoices.quoteId, quoteId));
-  return invoice || undefined;
-}
+
 
   async getAllInvoices(): Promise < Invoice[] > {
   return await db.select().from(invoices).orderBy(desc(invoices.createdAt));

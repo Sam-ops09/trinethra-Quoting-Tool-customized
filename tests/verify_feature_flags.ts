@@ -55,22 +55,16 @@ async function runTests() {
   await delay(2000);
   console.log('Starting Feature Flag Verification...');
 
-  // Reset counter to avoid collisions from previous tests
-  const year = new Date().getFullYear();
-  // Set to a high number to avoid conflicts with existing seeded data (e.g. 5000)
-  // But wait, existing tests might have created 2026-1033.
-  // NumberingService handles conflicts by retrying, but if we start fresh it's better.
-  // Actually, setting it to something far away is safer.
-  await NumberingService.setCounter('quote', year, 90000);
-  console.log('Reset quote counter to 5000');
-
-  // 1. Authenticate
+  // Reset counter to avoid collisions is risky. Instead, use a unique prefix.
+  const uniquePrefix = `FLAG-${Date.now().toString().slice(-4)}`;
+  console.log(`Setting unique quote prefix: ${uniquePrefix}`);
+  
+  // Login first to set settings
   const email = 'admin@example.com';
   const password = 'Admin@123';
   let res = await request('/auth/login', 'POST', { email, password });
-  
+
   if (res.status !== 200) {
-      // Try to create admin if not exists (simplified)
       console.log('Login failed, assuming clean DB, trying signup...');
        await request('/auth/signup', 'POST', {
             email, password, name: 'Admin User', role: 'admin'
@@ -78,11 +72,21 @@ async function runTests() {
        res = await request('/auth/login', 'POST', { email, password });
   }
 
+  if (res.status === 200) {
+      await request('/settings', 'POST', { key: 'quotePrefix', value: uniquePrefix });
+  } else {
+      console.error('Failed to login for setup');
+      process.exit(1);
+  }
+  
+  console.log('Logged in and configured.');
+
+  // 1. Authenticate (Already done above, but kept structure)
+  // Re-verify login status just in case
   if (res.status !== 200) {
       console.error('Failed to login');
       process.exit(1);
   }
-  console.log('Logged in.');
 
   // 2. Test Invoices PDF Generation Flag
   console.log('\n--- Testing invoices_pdfGeneration ---');

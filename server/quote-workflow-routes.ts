@@ -630,12 +630,17 @@ router.patch("/sales-orders/:id",
       }
       
       const result = await db.transaction(async (tx) => {
+          // 1. Lock and Refresh Order State to prevent race conditions
+          await tx.execute(sql`SELECT 1 FROM ${schema.salesOrders} WHERE ${schema.salesOrders.id} = ${orderId} FOR UPDATE`);
+          
+          const [freshOrder] = await tx.select().from(schema.salesOrders).where(eq(schema.salesOrders.id, orderId));
+          if (!freshOrder) throw new Error("Order not found during update");
+
           const items = req.body.items;
           const updateData: any = { ...req.body };
           delete updateData.items;
 
           // Date Conversions
-          // Date Conversions - Handle empty strings as null
           if (updateData.expectedDeliveryDate === "") {
             updateData.expectedDeliveryDate = null;
           } else if (updateData.expectedDeliveryDate) {
@@ -649,7 +654,8 @@ router.patch("/sales-orders/:id",
           }
 
           // Server-Side Financial Recalculation using Decimal.js for precision
-          let subtotal = toDecimal(currentOrder.subtotal);
+          // Use freshOrder to ensure we work with latest data
+          let subtotal = toDecimal(freshOrder.subtotal);
           
           // Helper to get Decimal value from update or current
           const getVal = (val: any, current: string | null) => val !== undefined ? val : current;
@@ -666,23 +672,23 @@ router.patch("/sales-orders/:id",
           // Calculate total with Decimal.js precision
           const total = calculateTotal({
               subtotal: subtotal,
-              discount: getVal(updateData.discount, currentOrder.discount),
-              shippingCharges: getVal(updateData.shippingCharges, currentOrder.shippingCharges),
-              cgst: getVal(updateData.cgst, currentOrder.cgst),
-              sgst: getVal(updateData.sgst, currentOrder.sgst),
-              igst: getVal(updateData.igst, currentOrder.igst),
+              discount: getVal(updateData.discount, freshOrder.discount),
+              shippingCharges: getVal(updateData.shippingCharges, freshOrder.shippingCharges),
+              cgst: getVal(updateData.cgst, freshOrder.cgst),
+              sgst: getVal(updateData.sgst, freshOrder.sgst),
+              igst: getVal(updateData.igst, freshOrder.igst),
           });
           updateData.total = toMoneyString(total);
 
-          // 1. Update Order
+          // 2. Update Order
           const [updatedOrder] = await tx.update(schema.salesOrders)
-              .set(updateData)
+              .set({ ...updateData, updatedAt: new Date() })
               .where(eq(schema.salesOrders.id, orderId))
               .returning();
 
           if (!updatedOrder) throw new Error("Failed to update sales order");
 
-          // 2. Update Items (Transaction Safe)
+          // 3. Update Items (Transaction Safe)
           if (items && Array.isArray(items)) {
               await tx.delete(schema.salesOrderItems).where(eq(schema.salesOrderItems.salesOrderId, orderId));
               
@@ -702,12 +708,15 @@ router.patch("/sales-orders/:id",
               }
           }
 
-          // 3. Handle Stock Operations INSIDE Transaction for atomicity
-          if (req.body.status && req.body.status !== currentOrder.status) {
+          // 4. Handle Stock Operations INSIDE Transaction for atomicity
+          // CRITICAL: We compare against freshOrder.status (locked state), not the potentially stale currentOrder
+          if (req.body.status && req.body.status !== freshOrder.status) {
               // Get items for stock update
               const orderItems = items && Array.isArray(items) 
                   ? items 
-                  : await storage.getSalesOrderItems(orderId);
+                  : await tx.select().from(schema.salesOrderItems).where(eq(schema.salesOrderItems.salesOrderId, orderId)); // Use tx to fetch
+                  // Note: If we just inserted items, we used 'items' variable. 
+                  // If we didn't update items, we fetch from DB using tx.
 
               // Group items by productId
               const productQuantities: Record<string, number> = {};
@@ -717,7 +726,7 @@ router.patch("/sales-orders/:id",
                   }
               }
 
-              if (req.body.status === "confirmed" && currentOrder.status === "draft") {
+              if (req.body.status === "confirmed" && freshOrder.status === "draft") {
                   // Reserve stock - only if feature enabled
                   if (isFeatureEnabled('products_stock_tracking') && isFeatureEnabled('products_reserve_on_order')) {
                       for (const [productId, quantity] of Object.entries(productQuantities)) {
@@ -731,7 +740,7 @@ router.patch("/sales-orders/:id",
                       }
                       logger.stock(`[Stock Reserve] Reserved stock inside transaction for SO ${orderId}`);
                   }
-              } else if (req.body.status === "cancelled" && currentOrder.status === "confirmed") {
+              } else if (req.body.status === "cancelled" && freshOrder.status === "confirmed") {
                   // Release stock - only if feature enabled
                   if (isFeatureEnabled('products_stock_tracking') && isFeatureEnabled('products_reserve_on_order')) {
                       for (const [productId, quantity] of Object.entries(productQuantities)) {
@@ -748,7 +757,7 @@ router.patch("/sales-orders/:id",
               }
           }
 
-          // 4. Activity Log inside transaction
+          // 5. Activity Log inside transaction
           await tx.insert(schema.activityLogs).values({
               userId: req.user!.id,
               action: "edit",
@@ -921,6 +930,7 @@ router.post(
               if (item.productId && isFeatureEnabled('products_stock_tracking')) {
                   // Atomic Update
                   // We lock the row for update to prevent race between read and write within this transaction
+                  await tx.execute(sql`SELECT 1 FROM ${schema.products} WHERE ${schema.products.id} = ${item.productId} FOR UPDATE`);
                   const [product] = await tx.select().from(schema.products)
                       .where(eq(schema.products.id, item.productId));
                       

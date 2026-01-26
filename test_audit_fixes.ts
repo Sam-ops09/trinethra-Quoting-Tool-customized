@@ -632,6 +632,16 @@ async function runAllTests() {
   console.log('============================');
   console.log('Testing all 12 bug fixes from the security audit.\n');
 
+  // Configure unique numbering to avoid collisions
+  try {
+      await request('/auth/login', 'POST', { email: 'admin@example.com', password: 'Admin@123' });
+      const uniquePrefix = `AUD2-${Date.now().toString().slice(-4)}`;
+      console.log(`    [Setup] Setting quote prefix to "${uniquePrefix}"`);
+      await request('/settings', 'POST', { key: 'quotePrefix', value: uniquePrefix });
+  } catch (e) {
+      console.log('    [Setup] Note: Could not set unique prefix (Login might have failed if already running)');
+  }
+
   await testSignupRoleEscalation();
   await testTemplateQueries();
   await testIndexedTokenLookup();
