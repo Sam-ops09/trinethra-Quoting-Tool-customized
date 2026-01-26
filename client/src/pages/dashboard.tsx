@@ -80,6 +80,7 @@ interface DashboardMetrics {
         quoteNumber: string;
         clientName: string;
         total: string; // numeric string
+        currency?: string;
         status: QuoteStatus;
         createdAt: string;
     }>;
@@ -845,7 +846,7 @@ export default function Dashboard() {
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="text-right font-bold text-slate-900 dark:text-white py-3">
-                                                        {formatCurrency(toNum(q.total))}
+                                                        {formatCurrency(toNum(q.total), q.currency)}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -881,7 +882,7 @@ export default function Dashboard() {
                                                     {new Date(quote.createdAt).toLocaleDateString()}
                                                 </span>
                                                 <span className="font-bold text-slate-900 dark:text-white">
-                                                    INR {toNum(quote.total).toLocaleString()}
+                                                    {formatCurrency(toNum(quote.total), quote.currency)}
                                                 </span>
                                             </div>
                                         </div>

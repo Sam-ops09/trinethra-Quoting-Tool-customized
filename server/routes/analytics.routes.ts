@@ -55,6 +55,7 @@ router.get("/dashboard", authMiddleware, requireFeature('analytics_module'), req
             quoteNumber: quote.quoteNumber,
             clientName: client?.name || "Unknown",
             total: quote.total,
+            currency: quote.currency || "INR",
             status: quote.status,
             createdAt: quote.createdAt,
           };
