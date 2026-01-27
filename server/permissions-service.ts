@@ -11,7 +11,8 @@ export type UserRole =
   | "sales_manager"
   | "purchase_operations"
   | "finance_accounts"
-  | "viewer";
+  | "viewer"
+  | "guest";
 
 export type ResourceType =
   | "quotes"
@@ -281,6 +282,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, {
       { resource: "payments", action: "view" },
       { resource: "serial_numbers", action: "view" },
     ]
+  },
+  guest: {
+    name: "Guest",
+    description: "Pending approval - No access to business data",
+    permissions: []
   }
 };
 

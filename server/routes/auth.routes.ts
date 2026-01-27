@@ -8,6 +8,7 @@ import { EmailService } from "../services/email.service";
 import { logger } from "../utils/logger";
 import { getJWTSecret, authMiddleware, AuthRequest } from "../middleware";
 import { requireFeature } from "../feature-flags-middleware";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 const router = Router();
 
@@ -33,8 +34,8 @@ router.post("/signup", async (req: Request, res: Response) => {
       email,
       passwordHash: hashedPassword,
       name,
-      role: "viewer",
-      status: "active"
+      role: "guest",
+      status: "pending"
     });
 
     await storage.createActivityLog({
@@ -47,7 +48,7 @@ router.post("/signup", async (req: Request, res: Response) => {
 
     // Send welcome email
     try {
-      if (require("../shared/feature-flags").isFeatureEnabled('email_welcome')) {
+      if (isFeatureEnabled('email_welcome')) {
         await EmailService.sendWelcomeEmail(email, name);
       }
     } catch (error) {
@@ -81,6 +82,11 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     logger.info("User found, checking status");
+    if (user.status === "pending") {
+      logger.info("User account is pending approval");
+      return res.status(403).json({ error: "Account pending approval" });
+    }
+
     if (user.status !== "active") {
       logger.info("User account is not active:", user.status);
       return res.status(401).json({ error: "Account is inactive" });

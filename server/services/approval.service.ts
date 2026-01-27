@@ -15,8 +15,19 @@ export class ApprovalService {
       return { approvalStatus: "none", approvalRequiredBy: null };
     }
 
-    let requiredRole: string | null = null;
     let needsApproval = false;
+    let highestRequiredRoleValue = 0;
+    let highestRequiredRole: string | null = null;
+    
+    // Role Hierarchy for comparison
+    const roleHierarchy: Record<string, number> = {
+        "viewer": 0,
+        "sales_executive": 1,
+        "purchase_operations": 1, 
+        "finance_accounts": 1,
+        "sales_manager": 2,
+        "admin": 3
+    };
 
     for (const rule of rules) {
       if (!rule.isActive) continue;
@@ -31,31 +42,32 @@ export class ApprovalService {
         
         if (subtotal.gt(0)) {
           const discountPercent = discount.div(subtotal).mul(100);
-          if (discountPercent.gt(threshold)) {
+          if (discountPercent.gte(threshold)) { // Changed to gte for strictness
             triggered = true;
           }
         }
       } else if (rule.triggerType === "total_amount") {
         const total = new Decimal(quote.total || 0);
-        if (total.gt(threshold)) {
+        if (total.gte(threshold)) { // Changed to gte for strictness
           triggered = true;
         }
       }
 
       if (triggered) {
         needsApproval = true;
-        // Logic to determine highest role could be complex, for now assume 'sales_manager'
-        // or take the role from the rule. If multiple rules trigger, we might need the "most senior" role.
-        // For simplicity, we'll take the first triggered rule's requirement or default to manager.
-        requiredRole = rule.requiredRole || "sales_manager";
-        // Stop at first trigger or collect all? 
-        // Let's stop at first trigger for MVP.
-        break;
+        const ruleRole = rule.requiredRole || "sales_manager";
+        const roleValue = roleHierarchy[ruleRole] || 2; // Default to manager level if unknown
+        
+        if (roleValue > highestRequiredRoleValue) {
+            highestRequiredRoleValue = roleValue;
+            highestRequiredRole = ruleRole;
+        }
       }
     }
 
     if (needsApproval) {
-      return { approvalStatus: "pending", approvalRequiredBy: requiredRole };
+      // Default to sales_manager if for some reason it's null but approval is needed
+      return { approvalStatus: "pending", approvalRequiredBy: highestRequiredRole || "sales_manager" };
     }
 
     return { approvalStatus: "none", approvalRequiredBy: null };

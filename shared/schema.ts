@@ -5,8 +5,8 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enums
-export const userRoleEnum = pgEnum("user_role", ["admin", "sales_executive", "sales_manager", "purchase_operations", "finance_accounts", "viewer"]);
-export const userStatusEnum = pgEnum("user_status", ["active", "inactive"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "sales_executive", "sales_manager", "purchase_operations", "finance_accounts", "viewer", "guest"]);
+export const userStatusEnum = pgEnum("user_status", ["active", "inactive", "pending"]);
 export const quoteStatusEnum = pgEnum("quote_status", ["draft", "sent", "approved", "rejected", "invoiced", "closed_paid", "closed_cancelled"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "overdue"]);
 export const vendorPoStatusEnum = pgEnum("vendor_po_status", ["draft", "sent", "acknowledged", "fulfilled", "cancelled"]);
@@ -40,7 +40,10 @@ export const users = pgTable("users", {
   delegationReason: text("delegation_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  roleIdx: index("idx_users_role").on(table.role),
+  statusIdx: index("idx_users_status").on(table.status),
+}));
 
 export const usersRelations = relations(users, ({ many }) => ({
   clients: many(clients),
@@ -145,7 +148,12 @@ export const quotes = pgTable("quotes", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  clientIdx: index("idx_quotes_client_id").on(table.clientId),
+  statusIdx: index("idx_quotes_status").on(table.status),
+  creatorIdx: index("idx_quotes_created_by").on(table.createdBy),
+  quoteDateIdx: index("idx_quotes_date").on(table.quoteDate),
+}));
 
 export const approvalRuleTriggerTypeEnum = pgEnum("approval_rule_trigger_type", ["discount_percentage", "total_amount"]);
 
@@ -310,7 +318,10 @@ export const quoteItems = pgTable("quote_items", {
   // Optional item support - client can deselect optional items
   isOptional: boolean("is_optional").notNull().default(false),
   isSelected: boolean("is_selected").notNull().default(true),
-});
+}, (table) => ({
+  quoteIdx: index("idx_quote_items_quote_id").on(table.quoteId),
+  productIdx: index("idx_quote_items_product_id").on(table.productId),
+}));
 
 // Quote Comments table for public comment thread
 export const quoteComments = pgTable("quote_comments", {
@@ -533,7 +544,10 @@ export const paymentHistory = pgTable("payment_history", {
   paymentDate: timestamp("payment_date").notNull().defaultNow(),
   recordedBy: varchar("recorded_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  invoiceIdx: index("idx_payment_history_invoice_id").on(table.invoiceId),
+  dateIdx: index("idx_payment_history_date").on(table.paymentDate),
+}));
 
 export const paymentHistoryRelations = relations(paymentHistory, ({ one }) => ({
   invoice: one(invoices, {
@@ -562,7 +576,10 @@ export const invoiceItems = pgTable("invoice_items", {
   hsnSac: varchar("hsn_sac", { length: 10 }), // HSN/SAC code for GST compliance
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  invoiceIdx: index("idx_invoice_items_invoice_id").on(table.invoiceId),
+  productIdx: index("idx_invoice_items_product_id").on(table.productId),
+}));
 
 export const invoiceAttachments = pgTable("invoice_attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -627,7 +644,11 @@ export const vendorPurchaseOrders = pgTable("vendor_purchase_orders", {
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  vendorIdx: index("idx_vendor_pos_vendor_id").on(table.vendorId),
+  quoteIdx: index("idx_vendor_pos_quote_id").on(table.quoteId),
+  statusIdx: index("idx_vendor_pos_status").on(table.status),
+}));
 
 export const vendorPurchaseOrdersRelations = relations(vendorPurchaseOrders, ({ one, many }) => ({
   quote: one(quotes, {
@@ -687,7 +708,10 @@ export const vendorPoItems = pgTable("vendor_po_items", {
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  vendorPoIdx: index("idx_vendor_po_items_po_id").on(table.vendorPoId),
+  productIdx: index("idx_vendor_po_items_product_id").on(table.productId),
+}));
 
 export const vendorPoItemsRelations = relations(vendorPoItems, ({ one, many }) => ({
   vendorPo: one(vendorPurchaseOrders, {
@@ -857,7 +881,11 @@ export const activityLogs = pgTable("activity_logs", {
   entityId: varchar("entity_id"),
   metadata: jsonb("metadata"),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
-});
+}, (table) => ({
+  userIdx: index("idx_activity_logs_user_id").on(table.userId),
+  entityIdx: index("idx_activity_logs_entity").on(table.entityType, table.entityId),
+  timestampIdx: index("idx_activity_logs_timestamp").on(table.timestamp),
+}));
 
 export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
   user: one(users, {
@@ -1005,185 +1033,70 @@ export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
 }));
 
 // Insert Schemas
-export const insertUserSchema = createInsertSchema(users).pick({
-  email: true,
-  backupEmail: true,
-  passwordHash: true,
-  name: true,
-  role: true,
-  status: true,
-  refreshToken: true,
-  refreshTokenExpiry: true,
-}).extend({
+export const insertUserSchema = createInsertSchema(users).extend({
   password: z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
     "Password must contain uppercase, lowercase, number, and special character"),
 });
 
-export const insertClientSchema = createInsertSchema(clients).omit({
-  id: true,
-  createdAt: true,
-  createdBy: true,
-}).extend({
-  email: z.string().email("Invalid email format"),
-  segment: z.string().optional(),
-  preferredTheme: z.string().optional(),
-});
+export const insertClientSchema = createInsertSchema(clients);
 
-export const insertQuoteSchema = createInsertSchema(quotes).omit({
-  id: true,
-  quoteNumber: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-  approvalStatus: true,
-  approvalRequiredBy: true,
-});
+export const insertQuoteSchema = createInsertSchema(quotes);
 
-export const insertApprovalRuleSchema = createInsertSchema(approvalRules).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertApprovalRuleSchema = createInsertSchema(approvalRules);
 
-export const insertQuoteItemSchema = createInsertSchema(quoteItems).omit({
-  id: true,
-});
+export const insertQuoteItemSchema = createInsertSchema(quoteItems);
 
-export const insertInvoiceSchema = createInsertSchema(invoices).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertInvoiceSchema = createInsertSchema(invoices);
 
-export const insertPaymentHistorySchema = createInsertSchema(paymentHistory).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertPaymentHistorySchema = createInsertSchema(paymentHistory);
 
-export const insertTemplateSchema = createInsertSchema(templates).omit({
-  id: true,
-  createdAt: true,
-  createdBy: true,
-});
+export const insertTemplateSchema = createInsertSchema(templates);
 
-export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
-  id: true,
-  timestamp: true,
-});
+export const insertActivityLogSchema = createInsertSchema(activityLogs);
 
-export const insertSettingSchema = createInsertSchema(settings).omit({
-  id: true,
-  updatedAt: true,
-});
+export const insertSettingSchema = createInsertSchema(settings);
 
-export const insertBankDetailsSchema = createInsertSchema(bankDetails).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertBankDetailsSchema = createInsertSchema(bankDetails);
 
 // PHASE 3 - CLIENT MANAGEMENT INSERT SCHEMAS
-export const insertClientTagSchema = createInsertSchema(clientTags).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertClientTagSchema = createInsertSchema(clientTags);
 
-export const insertClientCommunicationSchema = createInsertSchema(clientCommunications).omit({
-  id: true,
-});
+export const insertClientCommunicationSchema = createInsertSchema(clientCommunications);
 
 // PHASE 3 - TAX & PRICING INSERT SCHEMAS
-export const insertTaxRateSchema = createInsertSchema(taxRates).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertTaxRateSchema = createInsertSchema(taxRates);
 
-export const insertPricingTierSchema = createInsertSchema(pricingTiers).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertPricingTierSchema = createInsertSchema(pricingTiers);
 
-export const insertCurrencySettingSchema = createInsertSchema(currencySettings).omit({
-  id: true,
-  updatedAt: true,
-});
+export const insertCurrencySettingSchema = createInsertSchema(currencySettings);
 
 // NEW FEATURE - INVOICE ITEMS INSERT SCHEMA
-export const insertInvoiceItemSchema = createInsertSchema(invoiceItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertInvoiceItemSchema = createInsertSchema(invoiceItems);
 
 // NEW FEATURE - VENDORS INSERT SCHEMA
-export const insertVendorSchema = createInsertSchema(vendors).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertVendorSchema = createInsertSchema(vendors);
 
 // NEW FEATURE - VENDOR POs INSERT SCHEMA
-export const insertVendorPurchaseOrderSchema = createInsertSchema(vendorPurchaseOrders).omit({
-  id: true,
-  poNumber: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertVendorPurchaseOrderSchema = createInsertSchema(vendorPurchaseOrders);
 
 // NEW FEATURE - VENDOR PO ITEMS INSERT SCHEMA
-export const insertVendorPoItemSchema = createInsertSchema(vendorPoItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertVendorPoItemSchema = createInsertSchema(vendorPoItems);
 
 // PRODUCTS INSERT SCHEMA
-export const insertProductSchema = createInsertSchema(products).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertProductSchema = createInsertSchema(products);
 
 // GRN INSERT SCHEMA
-export const insertGrnSchema = createInsertSchema(goodsReceivedNotes).omit({
-  id: true,
-  grnNumber: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertGrnSchema = createInsertSchema(goodsReceivedNotes);
 
 // SERIAL NUMBERS INSERT SCHEMA
-export const insertSerialNumberSchema = createInsertSchema(serialNumbers).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertSerialNumberSchema = createInsertSchema(serialNumbers);
 
 
-export const insertQuoteVersionSchema = createInsertSchema(quoteVersions).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertQuoteVersionSchema = createInsertSchema(quoteVersions);
 
-export const insertSalesOrderSchema = createInsertSchema(salesOrders).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertSalesOrderSchema = createInsertSchema(salesOrders);
 
-export const insertSalesOrderItemSchema = createInsertSchema(salesOrderItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertSalesOrderItemSchema = createInsertSchema(salesOrderItems);
 
 // REAL-TIME COLLABORATION - NOTIFICATION TYPES ENUM
 export const notificationTypeEnum = pgEnum("notification_type", [
@@ -1246,19 +1159,10 @@ export const collaborationSessionsRelations = relations(collaborationSessions, (
 }));
 
 // NOTIFICATION INSERT SCHEMA
-export const insertNotificationSchema = createInsertSchema(notifications).omit({
-  id: true,
-  createdAt: true,
-  isRead: true,
-  readAt: true,
-});
+export const insertNotificationSchema = createInsertSchema(notifications);
 
 // COLLABORATION SESSION INSERT SCHEMA
-export const insertCollaborationSessionSchema = createInsertSchema(collaborationSessions).omit({
-  id: true,
-  joinedAt: true,
-  lastActivity: true,
-});
+export const insertCollaborationSessionSchema = createInsertSchema(collaborationSessions);
 
 // ==================== CREDIT NOTES ====================
 
@@ -1399,34 +1303,14 @@ export const debitNoteItemsRelations = relations(debitNoteItems, ({ one }) => ({
 }));
 
 // CREDIT NOTE INSERT SCHEMAS
-export const insertCreditNoteSchema = createInsertSchema(creditNotes).omit({
-  id: true,
-  creditNoteNumber: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-  appliedAmount: true,
-});
+export const insertCreditNoteSchema = createInsertSchema(creditNotes);
 
-export const insertCreditNoteItemSchema = createInsertSchema(creditNoteItems).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertCreditNoteItemSchema = createInsertSchema(creditNoteItems);
 
 // DEBIT NOTE INSERT SCHEMAS
-export const insertDebitNoteSchema = createInsertSchema(debitNotes).omit({
-  id: true,
-  debitNoteNumber: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-  appliedAmount: true,
-});
+export const insertDebitNoteSchema = createInsertSchema(debitNotes);
 
-export const insertDebitNoteItemSchema = createInsertSchema(debitNoteItems).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertDebitNoteItemSchema = createInsertSchema(debitNoteItems);
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -1459,13 +1343,7 @@ export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = z.infer<typeof insertSettingSchema>;
 
-export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  lastInvoiceDate: true,
-  subscriptionNumber: true, // Generated server-side
-});
+export const insertSubscriptionSchema = createInsertSchema(subscriptions);
 
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
@@ -1530,21 +1408,13 @@ export type InsertSalesOrder = z.infer<typeof insertSalesOrderSchema>;
 export type SalesOrderItem = typeof salesOrderItems.$inferSelect;
 export type InsertSalesOrderItem = z.infer<typeof insertSalesOrderItemSchema>;
 
-export const insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments).omit({
-    id: true,
-    createdAt: true,
-});
+export const insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments);
 
 export type InvoiceAttachment = typeof invoiceAttachments.$inferSelect;
 export type InsertInvoiceAttachment = z.infer<typeof insertInvoiceAttachmentSchema>;
 
 // EMAIL TEMPLATES INSERT SCHEMA
-export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates);
 
 // EMAIL TEMPLATES TYPES
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
@@ -1766,31 +1636,15 @@ export const workflowSchedulesRelations = relations(workflowSchedules, ({ one })
 
 // INSERT SCHEMAS FOR WORKFLOWS
 
-export const insertWorkflowSchema = createInsertSchema(workflows).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-});
+export const insertWorkflowSchema = createInsertSchema(workflows);
 
-export const insertWorkflowTriggerSchema = createInsertSchema(workflowTriggers).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertWorkflowTriggerSchema = createInsertSchema(workflowTriggers);
 
-export const insertWorkflowActionSchema = createInsertSchema(workflowActions).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertWorkflowActionSchema = createInsertSchema(workflowActions);
 
-export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).omit({
-  id: true,
-});
+export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions);
 
-export const insertWorkflowScheduleSchema = createInsertSchema(workflowSchedules).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertWorkflowScheduleSchema = createInsertSchema(workflowSchedules);
 
 // WORKFLOW TYPES
 
@@ -1814,10 +1668,7 @@ export type WorkflowTriggerType = "status_change" | "amount_threshold" | "date_b
 export type WorkflowActionType = "send_email" | "create_notification" | "update_field" | "assign_user" | "create_task" | "escalate" | "webhook" | "create_activity_log";
 
 // User Devices Types
-export const insertUserDeviceSchema = createInsertSchema(userDevices).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertUserDeviceSchema = createInsertSchema(userDevices);
 
 export type UserDevice = typeof userDevices.$inferSelect;
 export type InsertUserDevice = z.infer<typeof insertUserDeviceSchema>;
