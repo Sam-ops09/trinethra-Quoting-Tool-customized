@@ -26,6 +26,9 @@ import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { VersionComparisonDialog } from "@/components/quote/version-comparison-dialog";
 import { QuoteVersionViewer } from "@/components/quote/quote-version-viewer";
 import { formatCurrency } from "@/lib/currency";
+import { QuoteHeader } from "@/components/quote-detail/QuoteHeader";
+import { QuoteStatusBanner } from "@/components/quote-detail/QuoteStatusBanner";
+import { QuoteInfoCard } from "@/components/quote-detail/QuoteInfoCard";
 
 interface QuoteDetail {
   id: string;

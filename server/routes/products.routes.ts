@@ -67,7 +67,7 @@ router.post("/", authMiddleware, requireFeature('products_create'), requirePermi
        delete req.body.unitPrice; 
     }
 
-    const parseResult = schema.insertProductSchema.safeParse(req.body);
+    const parseResult = schema.insertProductSchema.omit({ createdBy: true, createdAt: true, updatedAt: true }).safeParse(req.body);
     if (!parseResult.success) {
       return res.status(400).json({ error: parseResult.error.errors });
     }

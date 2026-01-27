@@ -10,7 +10,8 @@ export type UserRole =
   | "sales_manager"
   | "purchase_operations"
   | "finance_accounts"
-  | "viewer";
+  | "viewer"
+  | "guest";
 
 export type Resource =
   | "dashboard"
@@ -75,6 +76,11 @@ export const ROLE_INFO: Record<UserRole, { name: string; description: string; ba
     name: "Viewer",
     description: "Read-only access",
     badge: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+  },
+  guest: {
+    name: "Guest",
+    description: "Waiting for approval",
+    badge: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
   }
 };
 
@@ -253,7 +259,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     { resource: "payments", action: "view" },
     { resource: "serial-search", action: "view" },
     { resource: "dashboards", action: "view" },
-  ]
+  ],
+  guest: []
 };
 
 /**

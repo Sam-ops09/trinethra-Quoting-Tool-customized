@@ -30,7 +30,7 @@ router.get("/:id", requireFeature('clients_module'), authMiddleware, async (req:
   }
 });
 
-router.post("/", requireFeature('clients_create'), authMiddleware, requirePermission("clients", "create"), validateRequest(schema.insertClientSchema), async (req: AuthRequest, res: Response) => {
+router.post("/", requireFeature('clients_create'), authMiddleware, requirePermission("clients", "create"), validateRequest(schema.insertClientSchema.omit({ createdBy: true, createdAt: true })), async (req: AuthRequest, res: Response) => {
   try {
     // req.body is now validated by Zod schema
     

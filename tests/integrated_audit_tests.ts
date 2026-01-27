@@ -125,8 +125,8 @@ async function testSignupRoleEscalation() {
     });
 
     if ([200, 201].includes(res.status)) {
-      if (res.data.role === 'viewer') {
-        pass(group, 'Role escalation blocked', 'User created as "viewer"');
+      if (res.data.role === 'viewer' || res.data.role === 'guest') {
+        pass(group, 'Role escalation blocked', `User created as "${res.data.role}"`);
       } else {
         fail(group, 'Role escalation NOT blocked', `Role: ${res.data.role}`);
       }
@@ -251,7 +251,7 @@ async function testStockReversal() {
         await ensureAdminAndLogin();
         // Create Product
         const prod = await request('/products', 'POST', {
-            sku: `REV-${Date.now()}`, name: 'Reversal Item', unitPrice: 100, stockQuantity: 20
+            sku: `REV-${Date.now()}`, name: 'Reversal Item', unitPrice: 10000, stockQuantity: 20
         });
         const prodId = prod.data.id;
 
@@ -259,7 +259,7 @@ async function testStockReversal() {
         const client = await request('/clients', 'POST', { name: 'Rev Client', email: `rev_${Date.now()}@t.com` });
         const quote = await request('/quotes', 'POST', {
             clientId: client.data.id,
-            items: [{ productId: prodId, description: 'Item', quantity: 5, unitPrice: 100 }],
+            items: [{ productId: prodId, description: 'Item', quantity: 5, unitPrice: 10000 }],
             total: 500
         });
         await request(`/quotes/${quote.data.id}`, 'PATCH', { status: 'approved' });
@@ -303,7 +303,7 @@ async function testStockWorkflow() {
         
         // Product
         const prod = await request('/products', 'POST', {
-            sku: `FLOW-${Date.now()}`, name: 'Flow Item', unitPrice: 100, stockQuantity: 10
+            sku: `FLOW-${Date.now()}`, name: 'Flow Item', unitPrice: 10000, stockQuantity: 10
         });
         const prodId = prod.data.id;
 
@@ -311,7 +311,7 @@ async function testStockWorkflow() {
         const client = await request('/clients', 'POST', { name: 'Flow Client', email: `flow_${Date.now()}@t.com` });
         const quote = await request('/quotes', 'POST', {
             clientId: client.data.id,
-            items: [{ productId: prodId, description: 'Item', quantity: 15, unitPrice: 100 }],
+            items: [{ productId: prodId, description: 'Item', quantity: 15, unitPrice: 10000 }],
             total: 1500
         });
 

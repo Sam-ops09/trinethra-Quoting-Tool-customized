@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { calculateQuoteTotals, formatDecimal } from "@/lib/financial-utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { useForm } from "react-hook-form";
@@ -372,22 +373,21 @@ export default function QuoteCreate() {
         const items = values.items;
 
         // Use Decimal.js for calculations
-        const subtotal = items.reduce((sum, item) => {
-            const qty = new Decimal(item.quantity);
-            const price = new Decimal(item.unitPrice);
-            return sum.plus(qty.times(price));
-        }, new Decimal(0));
-
-        const discountPercent = new Decimal(values.discount);
-        const discountAmount = subtotal.times(discountPercent).dividedBy(100);
-        const taxableAmount = subtotal.minus(discountAmount);
-
-        const cgstAmount = taxableAmount.times(values.cgst).dividedBy(100);
-        const sgstAmount = taxableAmount.times(values.sgst).dividedBy(100);
-        const igstAmount = taxableAmount.times(values.igst).dividedBy(100);
-        
-        const shippingCharges = new Decimal(values.shippingCharges);
-        const total = taxableAmount.plus(cgstAmount).plus(sgstAmount).plus(igstAmount).plus(shippingCharges);
+        // Use Shared Financial Utils
+        const {
+            subtotal,
+            discountAmount,
+            cgstAmount,
+            sgstAmount,
+            igstAmount,
+            shipping,
+            total
+        } = calculateQuoteTotals(
+            items,
+            values.discount,
+            values.shippingCharges,
+            { cgst: values.cgst, sgst: values.sgst, igst: values.igst }
+        );
 
         const quoteData: QuoteCreatePayload = {
             clientId: values.clientId,
@@ -395,13 +395,13 @@ export default function QuoteCreate() {
             validityDays: values.validityDays,
             referenceNumber: values.referenceNumber || undefined,
             attentionTo: values.attentionTo || undefined,
-            discount: discountAmount.toFixed(2),
-            cgst: cgstAmount.toFixed(2),
-            sgst: sgstAmount.toFixed(2),
-            igst: igstAmount.toFixed(2),
-            shippingCharges: shippingCharges.toFixed(2),
-            subtotal: subtotal.toFixed(2),
-            total: total.toFixed(2),
+            discount: formatDecimal(discountAmount),
+            cgst: formatDecimal(cgstAmount),
+            sgst: formatDecimal(sgstAmount),
+            igst: formatDecimal(igstAmount),
+            shippingCharges: formatDecimal(shipping),
+            subtotal: formatDecimal(subtotal),
+            total: formatDecimal(total),
             notes: values.notes || undefined,
             termsAndConditions: values.termsAndConditions || undefined,
             status: isEditMode ? (existingQuote?.status as any) : "draft",

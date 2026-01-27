@@ -84,8 +84,8 @@ async function testSignupRoleEscalation() {
 
     if (res.status === 200 || res.status === 201) {
       // User created - check their role
-      if (res.data.role === 'viewer') {
-        pass('Role escalation blocked', 'User created with "viewer" role despite requesting "admin"');
+      if (res.data.role === 'viewer' || res.data.role === 'guest') {
+        pass('Role escalation blocked', `User created with "${res.data.role}" role despite requesting "admin"`);
       } else {
         fail('Role escalation NOT blocked', `User created with role: ${res.data.role}`);
       }

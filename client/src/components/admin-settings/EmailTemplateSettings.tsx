@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DOMPurify from "dompurify";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Card,
@@ -415,7 +416,7 @@ export function EmailTemplateSettings() {
                                                 </div>
                                                 <div
                                                     className="prose prose-sm max-w-none"
-                                                    dangerouslySetInnerHTML={{ __html: previewHtml.body }}
+                                                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml.body) }}
                                                 />
                                             </div>
                                         )}
