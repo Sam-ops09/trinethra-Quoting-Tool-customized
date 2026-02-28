@@ -14,7 +14,7 @@ test.describe('Approval Workflow', () => {
 
     const response = await makeAuthenticatedRequest(
       authRequest,
-      'http://localhost:5000/api/approval-rules',
+      '/api/approval-rules',
       'POST',
       undefined,
       ruleData
@@ -30,7 +30,7 @@ test.describe('Approval Workflow', () => {
     const { request: adminRequest } = await createTestUser(request, { role: 'admin' });
     const ruleRes = await makeAuthenticatedRequest(
       adminRequest,
-      'http://localhost:5000/api/approval-rules',
+      '/api/approval-rules',
       'POST',
       undefined,
       {
@@ -46,7 +46,7 @@ test.describe('Approval Workflow', () => {
     // 2. Create Client
     const clientRes = await makeAuthenticatedRequest(
       adminRequest,
-      'http://localhost:5000/api/clients',
+      '/api/clients',
       'POST',
       undefined,
       testData.client()
@@ -69,7 +69,7 @@ test.describe('Approval Workflow', () => {
 
     const quoteRes = await makeAuthenticatedRequest(
       adminRequest,
-      'http://localhost:5000/api/quotes',
+      '/api/quotes',
       'POST',
       undefined,
       quoteData
@@ -83,10 +83,10 @@ test.describe('Approval Workflow', () => {
     expect(quote.approvalRequiredBy).toBe('sales_manager');
 
     // 5. Attempt to approve as regular user (should fail)
-    const { request: userRequest } = await createTestUser(request, { role: 'user' });
+    const { request: userRequest } = await createTestUser(request, { role: 'viewer' });
     const failApproveRes = await makeAuthenticatedRequest(
       userRequest,
-      `http://localhost:5000/api/quotes/${quote.id}/approve`,
+      `/api/quotes/${quote.id}/approve`,
       'POST'
     );
     expect(failApproveRes.status()).toBe(403);
@@ -95,7 +95,7 @@ test.describe('Approval Workflow', () => {
     const { request: managerRequest } = await createTestUser(request, { role: 'sales_manager' });
     const approveRes = await makeAuthenticatedRequest(
         managerRequest,
-      `http://localhost:5000/api/quotes/${quote.id}/approve`,
+      `/api/quotes/${quote.id}/approve`,
       'POST'
     );
     expect([200, 201]).toContain(approveRes.status());
@@ -109,7 +109,7 @@ test.describe('Approval Workflow', () => {
      const { request: adminRequest } = await createTestUser(request, { role: 'admin' });
      await makeAuthenticatedRequest(
        adminRequest,
-       'http://localhost:5000/api/approval-rules',
+       '/api/approval-rules',
        'POST',
        undefined,
        {
@@ -124,7 +124,7 @@ test.describe('Approval Workflow', () => {
      // 2. Create Client
      const clientRes = await makeAuthenticatedRequest(
        adminRequest,
-       'http://localhost:5000/api/clients',
+       '/api/clients',
        'POST',
        undefined,
        testData.client()
@@ -142,7 +142,7 @@ test.describe('Approval Workflow', () => {
  
      const quoteRes = await makeAuthenticatedRequest(
        adminRequest,
-       'http://localhost:5000/api/quotes',
+       '/api/quotes',
        'POST',
        undefined,
        quoteData

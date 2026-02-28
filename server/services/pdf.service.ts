@@ -106,16 +106,12 @@ export class PDFService {
             // Determine execArgv for TS support in dev
             const execArgv = [];
             if (process.env.NODE_ENV !== "production") {
-                const { pathToFileURL } = await import("url");
-                // Try to resolve tsx loader
                 try {
-                    const tsxLoaderPath = path.resolve("node_modules/tsx/dist/loader.mjs");
-                    // Check if exists? simplify: just use it
-                    const loaderUrl = pathToFileURL(tsxLoaderPath).href;
-                    execArgv.push("--import", loaderUrl);
+                    const { pathToFileURL } = await import('node:url');
+                    const tsxLoaderPath = path.resolve(process.cwd(), "node_modules", "tsx", "dist", "loader.mjs");
+                    execArgv.push("--import", pathToFileURL(tsxLoaderPath).toString());
                 } catch (e) {
-                   // If tsx resolution fails, maybe we are running with ts-node? 
-                   // Fallback or let it fail and catch below
+                    // Fallback handled by the graceful rejection of the worker
                 }
             }
 

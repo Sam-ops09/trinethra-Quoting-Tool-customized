@@ -7,7 +7,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         testData.client()
@@ -26,7 +26,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'GET'
       );
 
@@ -41,7 +41,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       // First create a client
       const createRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         testData.client()
@@ -58,7 +58,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       // Then update it
       const updateRes = await makeAuthenticatedRequest(
         authRequest,
-        `http://localhost:5000/api/clients/${clientId}`,
+        `http://localhost:5001/api/clients/${clientId}`,
         'PATCH',
         undefined,
         { name: 'Updated Client Name' }
@@ -73,7 +73,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       // First create a client
       const createRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         testData.client()
@@ -90,7 +90,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       // Then delete it
       const deleteRes = await makeAuthenticatedRequest(
         authRequest,
-        `http://localhost:5000/api/clients/${clientId}`,
+        `http://localhost:5001/api/clients/${clientId}`,
         'DELETE'
       );
 
@@ -100,7 +100,7 @@ test.describe('Client Management - Phase 3 Features', () => {
 
   test.describe('Client Authorization', () => {
     test('should require authentication', async ({ request }) => {
-      const response = await request.get('http://localhost:5000/api/clients');
+      const response = await request.get('http://localhost:5001/api/clients');
       expect(response.status()).toBe(401);
     });
 
@@ -111,7 +111,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       // Create client as user1
       const clientRes = await makeAuthenticatedRequest(
         user1.request,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         testData.client()
@@ -127,7 +127,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       // Try to access as user2
       const accessRes = await makeAuthenticatedRequest(
         user2.request,
-        `http://localhost:5000/api/clients/${client.id}`,
+        `http://localhost:5001/api/clients/${client.id}`,
         'GET'
       );
 
@@ -142,7 +142,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'GET'
       );
 
@@ -156,7 +156,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         { name: '' } // Invalid: empty name
@@ -170,7 +170,7 @@ test.describe('Client Management - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients/non-existent-id',
+        'http://localhost:5001/api/clients/non-existent-id',
         'GET'
       );
 

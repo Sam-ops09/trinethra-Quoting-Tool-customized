@@ -77,19 +77,54 @@ class NotificationServiceClass {
   }
 
   /**
-   * Create notification for all users with a specific role
+   * Create notification for all users with a specific role using bulk insert
    */
-  async createForRole(role: string, options: Omit<CreateNotificationOptions, "userId">): Promise<void> {
+  async createForRoleBulk(role: string, options: Omit<CreateNotificationOptions, "userId">): Promise<void> {
     try {
       const usersWithRole = await db.select({ id: users.id })
         .from(users)
         .where(eq(users.role, role as any));
 
+      if (usersWithRole.length === 0) return;
+
       const userIds = usersWithRole.map((u) => u.id);
-      await this.createForMany(userIds, options);
+      
+      // Bulk insert notifications
+      const notificationData = userIds.map(userId => ({
+        userId,
+        type: options.type,
+        title: options.title,
+        message: options.message,
+        entityType: options.entityType,
+        entityId: options.entityId,
+        metadata: options.metadata,
+      }));
+
+      await db.insert(notifications).values(notificationData);
+
+      // Deliver via WebSocket - this can be fire-and-forget or parallel
+      userIds.forEach(userId => {
+        WebSocketService.sendNotification(userId, {
+          id: 'bulk', // We don't have individual IDs from bulk insert without returning, but that works for real-time
+          type: options.type,
+          title: options.title,
+          message: options.message,
+          entityType: options.entityType || undefined,
+          entityId: options.entityId || undefined,
+          metadata: options.metadata as any,
+          createdAt: new Date(),
+        });
+      });
     } catch (error) {
-      logger.error("[NotificationService] Failed to create notifications for role:", error);
+      logger.error("[NotificationService] Failed to create bulk notifications for role:", error);
     }
+  }
+
+  /**
+   * Create notification for all users with a specific role
+   */
+  async createForRole(role: string, options: Omit<CreateNotificationOptions, "userId">): Promise<void> {
+    return this.createForRoleBulk(role, options);
   }
 
   /**
@@ -274,6 +309,26 @@ class NotificationServiceClass {
   ): Promise<void> {
     await this.create({
       userId: approverId,
+      type: "approval_request",
+      title: `Approval Required: Quote ${quoteNumber}`,
+      message: `${requesterName} has requested your approval. Reason: ${reason}`,
+      entityType: "quote",
+      entityId: quoteId,
+      metadata: { requesterName, reason, quoteNumber },
+    });
+  }
+
+  /**
+   * Notify when approval is required (Bulk to role)
+   */
+  async notifyApprovalRequestToRole(
+    role: string,
+    quoteNumber: string,
+    quoteId: string,
+    requesterName: string,
+    reason: string
+  ): Promise<void> {
+    await this.createForRole(role, {
       type: "approval_request",
       title: `Approval Required: Quote ${quoteNumber}`,
       message: `${requesterName} has requested your approval. Reason: ${reason}`,

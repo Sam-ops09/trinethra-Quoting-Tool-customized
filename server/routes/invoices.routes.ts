@@ -7,7 +7,7 @@ import { requirePermission } from "../permissions-middleware";
 import { logger } from "../utils/logger";
 import { db } from "../db";
 import * as schema from "../../shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { NumberingService } from "../services/numbering.service";
 import { InvoicePDFService } from "../services/invoice-pdf.service";
 import { EmailService } from "../services/email.service";
@@ -19,18 +19,19 @@ const router = Router();
 
 router.get("/", requireFeature('invoices_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const invoices = await storage.getAllInvoices();
-    const invoicesWithDetails = await Promise.all(
-      invoices.map(async (invoice) => {
-        const client = invoice.clientId ? await storage.getClient(invoice.clientId) : undefined;
-        return {
-          ...invoice,
-          clientName: client?.name || "Unknown",
-        };
-      })
-    );
-    res.json(invoicesWithDetails);
+    const invoicesWithDetails = await db.select()
+      .from(schema.invoices)
+      .leftJoin(schema.clients, eq(schema.invoices.clientId, schema.clients.id))
+      .orderBy(desc(schema.invoices.createdAt));
+
+    const result = invoicesWithDetails.map(({ invoices, clients }) => ({
+      ...invoices,
+      clientName: clients?.name || "Unknown",
+    }));
+
+    res.json(result);
   } catch (error) {
+    logger.error("Failed to fetch invoices:", error);
     res.status(500).json({ error: "Failed to fetch invoices" });
   }
 });
@@ -44,7 +45,10 @@ router.get("/:id", requireFeature('invoices_module'), authMiddleware, async (req
 
     const client = invoice.clientId ? await storage.getClient(invoice.clientId) : undefined;
     const items = await storage.getInvoiceItems(invoice.id);
+    const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId) : undefined;
     const creator = invoice.createdBy ? await storage.getUser(invoice.createdBy) : undefined;
+    
+    logger.info(`DEBUG: Invoice details for ${invoice.id}, quoteId: ${invoice.quoteId}, quote found: ${!!quote}`);
 
     // Get parent invoice if this is a child
     let parentInvoice = undefined;
@@ -79,6 +83,7 @@ router.get("/:id", requireFeature('invoices_module'), authMiddleware, async (req
         ...invoice,
         client,
         items: formattedItems,
+        quote,
         createdByName: creator?.name || "Unknown",
         parentInvoice,
         childInvoices,
@@ -1021,8 +1026,12 @@ router.get("/:id/pdf", authMiddleware, requireFeature('invoices_pdfGeneration'),
         entityId: invoice.id,
     });
   } catch (error: any) {
+    // Check if it's a "Quote/Invoice not found" error which might have been thrown by service or storage
+    if (error.message?.includes("not found")) {
+        return res.status(404).json({ error: error.message });
+    }
     logger.error("Generate invoice PDF error:", error);
-    res.status(500).json({ error: "Failed to generate PDF" });
+    res.status(500).json({ error: "Failed to generate PDF", message: error.message });
   }
 });
 
@@ -1299,6 +1308,22 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
     }
   });
 
+  // Get Payment History
+  router.get("/:id/payment-history", authMiddleware, requireFeature('invoices_module'), requirePermission("invoices", "view"), async (req: AuthRequest, res: Response) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+
+      const history = await storage.getPaymentHistory(invoice.id);
+      res.json(history);
+    } catch (error) {
+      logger.error("Get payment history error:", error);
+      res.status(500).json({ error: "Failed to fetch payment history" });
+    }
+  });
+
   // Record Payment
   router.post("/:id/payment", authMiddleware, requireFeature('payments_create'), requirePermission("payments", "create"), async (req: AuthRequest, res: Response) => {
     try {
@@ -1309,28 +1334,34 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
         return res.status(400).json({ error: "Invalid payment amount" });
       }
 
-      // Default payment method if not provided, or validate it
-      // Also check for 'method' property as some clients might send that
-      const method = paymentMethod || req.body.method || "Other"; 
+      if (!paymentMethod && !req.body.method) {
+        return res.status(400).json({ error: "payment method is required" });
+      }
 
-
+      const method = paymentMethod || req.body.method; 
 
       const result = await db.transaction(async (tx) => {
-        const invoice = await storage.getInvoice(req.params.id);
+        const [invoice] = await tx.select().from(schema.invoices).where(eq(schema.invoices.id, req.params.id));
         if (!invoice) {
-          throw new Error("Invoice not found");
+          const error: any = new Error("Invoice not found");
+          error.statusCode = 404;
+          throw error;
         }
 
         if (invoice.status === "cancelled") {
-            throw new Error("Cannot record payment for cancelled invoice");
+            const error: any = new Error("Cannot record payment for cancelled invoice");
+            error.statusCode = 400;
+            throw error;
         }
 
         const currentPaid = Number(invoice.paidAmount || 0);
         const total = Number(invoice.total);
         const newPaid = currentPaid + amountNum;
 
-        if (newPaid > total + 0.01) { // Allow tiny epsilon for float issues, though ideally handled by string decimals
-            throw new Error(`Payment amount exceeds remaining balance. Remaining: ${(total - currentPaid).toFixed(2)}`);
+        if (newPaid > total + 0.01) { 
+            const error: any = new Error(`Payment amount exceeds remaining balance. Remaining: ${(total - currentPaid).toFixed(2)}`);
+            error.statusCode = 400;
+            throw error;
         }
 
         // Determine new status
@@ -1372,7 +1403,7 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
             entityId: invoice.id,
             metadata: {
                 amount: amountNum,
-                method: paymentMethod,
+                method,
                 newStatus
             }
         });
@@ -1383,7 +1414,12 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
       res.json(result);
     } catch (error: any) {
       logger.error("Record payment error:", error);
-      res.status(500).json({ error: error.message || "Failed to record payment" });
+      
+      let statusCode = error.statusCode || 500;
+      if (error.message.includes("not found")) statusCode = 404;
+      if (error.message.includes("already") || error.message.includes("exceeds") || error.message.includes("required") || error.message.includes("cancelled")) statusCode = 400;
+      
+      return res.status(statusCode).json({ error: error.message || "Failed to record payment" });
     }
   });
 

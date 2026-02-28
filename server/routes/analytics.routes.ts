@@ -5,7 +5,8 @@ import { storage } from "../storage";
 import { logger } from "../utils/logger";
 import { analyticsService } from "../services/analytics.service";
 import { db } from "../db";
-import { sql } from "drizzle-orm";
+import { sql, eq, and, gte, inArray } from "drizzle-orm";
+import * as schema from "../../shared/schema";
 import ExcelJS from "exceljs";
 import { toDecimal, add, subtract, divide } from "../utils/financial";
 
@@ -142,14 +143,34 @@ router.get("/dashboard", authMiddleware, requireFeature('analytics_module'), req
 router.get("/:timeRange(\\d+)", authMiddleware, requireFeature('analytics_module'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
     try {
       const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
-      
-      const quotes = await storage.getAllQuotes();
-      const clients = await storage.getAllClients();
 
-      // Filter by time range
       const cutoffDate = new Date();
       cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
-      const filteredQuotes = quotes.filter(q => new Date(q.createdAt) >= cutoffDate);
+
+      
+      // Optimized query: Filter by User and Date at DB level
+      let filteredQuotes: typeof schema.quotes.$inferSelect[] = [];
+      let clients: typeof schema.clients.$inferSelect[] = [];
+      
+      try {
+        filteredQuotes = await db.select().from(schema.quotes).where(and(
+          eq(schema.quotes.createdBy, req.user!.id),
+          gte(schema.quotes.createdAt, cutoffDate)
+        ));
+
+        // Fetch only relevant clients
+        const rawClientIds = filteredQuotes.map(q => q.clientId).filter(Boolean);
+        const clientIds = rawClientIds.filter((id, index) => rawClientIds.indexOf(id) === index);
+        
+        if (clientIds.length > 0) {
+          clients = await db.select().from(schema.clients).where(inArray(schema.clients.id, clientIds as string[]));
+        }
+      } catch (dbError) {
+        logger.error("Analytics DB fetch error:", dbError);
+        // Fallback to empty arrays if DB fail, to prevent crash
+        filteredQuotes = [];
+        clients = [];
+      }
 
       const approvedQuotes = filteredQuotes.filter(q => q.status === "approved" || q.status === "invoiced");
       const totalRevenue = approvedQuotes.reduce((sum, q) => sum + Number(q.total), 0);
@@ -184,11 +205,13 @@ router.get("/:timeRange(\\d+)", authMiddleware, requireFeature('analytics_module
         });
       }
 
+      const clientMap = new Map(clients.map(c => [c.id, c]));
+
       // Top clients
       const clientRevenue = new Map<string, { name: string; totalRevenue: number; quoteCount: number }>();
       
       for (const quote of approvedQuotes) {
-        const client = await storage.getClient(quote.clientId);
+        const client = clientMap.get(quote.clientId);
         if (!client) continue;
         
         const existing = clientRevenue.get(client.id);

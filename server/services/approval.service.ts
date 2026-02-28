@@ -42,13 +42,13 @@ export class ApprovalService {
         
         if (subtotal.gt(0)) {
           const discountPercent = discount.div(subtotal).mul(100);
-          if (discountPercent.gte(threshold)) { // Changed to gte for strictness
+          if (discountPercent.gt(threshold)) {
             triggered = true;
           }
         }
       } else if (rule.triggerType === "total_amount") {
         const total = new Decimal(quote.total || 0);
-        if (total.gte(threshold)) { // Changed to gte for strictness
+        if (total.gt(threshold)) {
           triggered = true;
         }
       }

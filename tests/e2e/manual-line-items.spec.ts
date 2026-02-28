@@ -1,7 +1,7 @@
 import { test, expect, makeAuthenticatedRequest, createTestUser, testData } from './setup';
 
 test.describe('Manual Line Items & Custom Pricing Workflow', () => {
-  const BASE_URL = 'http://localhost:5000/api';
+  const BASE_URL = 'http://localhost:5001/api';
 
   test('should support manual line items and custom pricing throughout Quote -> SO -> Invoice workflow', async ({ request }) => {
     // 1. Setup User and Client

@@ -7,7 +7,7 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
     // Test with numeric time range
     const response = await makeAuthenticatedRequest(
       authRequest,
-      'http://localhost:5000/api/analytics/12',
+      'http://localhost:5001/api/analytics/12',
       'GET'
     );
 
@@ -32,7 +32,7 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
     for (const timeRange of timeRanges) {
       const response = await makeAuthenticatedRequest(
         authRequest,
-        `http://localhost:5000/api/analytics/${timeRange}`,
+        `http://localhost:5001/api/analytics/${timeRange}`,
         'GET'
       );
 
@@ -47,7 +47,7 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
     // Test that non-numeric strings don't match the numeric constraint
     const response = await makeAuthenticatedRequest(
       authRequest,
-      'http://localhost:5000/api/analytics/forecast',
+      'http://localhost:5001/api/analytics/forecast',
       'GET'
     );
 
@@ -60,7 +60,7 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
     
     const response = await makeAuthenticatedRequest(
       authRequest,
-      'http://localhost:5000/api/analytics/3',
+      'http://localhost:5001/api/analytics/3',
       'GET'
     );
 
@@ -72,7 +72,7 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
     
     const response = await makeAuthenticatedRequest(
       authRequest,
-      'http://localhost:5000/api/analytics/120',
+      'http://localhost:5001/api/analytics/120',
       'GET'
     );
 
@@ -84,7 +84,7 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
     
     const response = await makeAuthenticatedRequest(
       authRequest,
-      'http://localhost:5000/api/analytics/12',
+      'http://localhost:5001/api/analytics/12',
       'GET'
     );
 
@@ -98,7 +98,7 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
   });
 
   test('should require authentication for time range endpoint', async ({ request }) => {
-    const response = await request.get('http://localhost:5000/api/analytics/12');
+    const response = await request.get('http://localhost:5001/api/analytics/12');
     expect(response.status()).toBe(401);
   });
 
@@ -107,11 +107,11 @@ test.describe('Analytics - Time Range Endpoint (\\d+ constraint)', () => {
     
     // Test that these specialized endpoints still work
     const endpoints = [
-      'http://localhost:5000/api/analytics/forecast',
-      'http://localhost:5000/api/analytics/deal-distribution',
-      'http://localhost:5000/api/analytics/regional',
-      'http://localhost:5000/api/analytics/pipeline',
-      'http://localhost:5000/api/analytics/competitor-insights',
+      'http://localhost:5001/api/analytics/forecast',
+      'http://localhost:5001/api/analytics/deal-distribution',
+      'http://localhost:5001/api/analytics/regional',
+      'http://localhost:5001/api/analytics/pipeline',
+      'http://localhost:5001/api/analytics/competitor-insights',
     ];
 
     for (const endpoint of endpoints) {
@@ -131,7 +131,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/forecast',
+        'http://localhost:5001/api/analytics/forecast',
         'GET'
       );
 
@@ -146,7 +146,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/forecast?months=6',
+        'http://localhost:5001/api/analytics/forecast?months=6',
         'GET'
       );
 
@@ -156,7 +156,7 @@ test.describe('Analytics - Phase 3 Features', () => {
     });
 
     test('should return 401 without authentication', async ({ request }) => {
-      const response = await request.get('http://localhost:5000/api/analytics/forecast');
+      const response = await request.get('http://localhost:5001/api/analytics/forecast');
       expect(response.status()).toBe(401);
     });
   });
@@ -169,7 +169,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/deal-distribution',
+        'http://localhost:5001/api/analytics/deal-distribution',
         'GET'
       );
 
@@ -192,7 +192,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/deal-distribution',
+        'http://localhost:5001/api/analytics/deal-distribution',
         'GET'
       );
 
@@ -211,7 +211,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/regional',
+        'http://localhost:5001/api/analytics/regional',
         'GET'
       );
 
@@ -232,7 +232,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/regional',
+        'http://localhost:5001/api/analytics/regional',
         'GET'
       );
 
@@ -250,7 +250,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/custom-report',
+        'http://localhost:5001/api/analytics/custom-report',
         'POST',
         undefined,
         {
@@ -273,7 +273,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/custom-report',
+        'http://localhost:5001/api/analytics/custom-report',
         'POST',
         undefined,
         {
@@ -293,7 +293,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/custom-report',
+        'http://localhost:5001/api/analytics/custom-report',
         'POST',
         undefined,
         {
@@ -316,7 +316,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/pipeline',
+        'http://localhost:5001/api/analytics/pipeline',
         'GET'
       );
 
@@ -338,7 +338,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/pipeline',
+        'http://localhost:5001/api/analytics/pipeline',
         'GET'
       );
 
@@ -353,7 +353,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       request,
     }) => {
       const response = await request.get(
-        'http://localhost:5000/api/analytics/client/test-id/ltv'
+        'http://localhost:5001/api/analytics/client/test-id/ltv'
       );
 
       expect(response.status()).toBe(401);
@@ -367,7 +367,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       // Use a dummy client ID - endpoint should still work
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/client/test-client-id/ltv',
+        'http://localhost:5001/api/analytics/client/test-client-id/ltv',
         'GET'
       );
 
@@ -384,7 +384,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/competitor-insights',
+        'http://localhost:5001/api/analytics/competitor-insights',
         'GET'
       );
 
@@ -396,11 +396,11 @@ test.describe('Analytics - Phase 3 Features', () => {
     test('should require admin role for insights', async ({
       request,
     }) => {
-      const { request: authRequest } = await createTestUser(request, { role: 'user' });
+      const { request: authRequest } = await createTestUser(request, { role: 'viewer' });
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/competitor-insights',
+        'http://localhost:5001/api/analytics/competitor-insights',
         'GET'
       );
 
@@ -413,14 +413,14 @@ test.describe('Analytics - Phase 3 Features', () => {
     test('should return 401 for unauthenticated requests', async ({
       request,
     }) => {
-      const response = await request.get('http://localhost:5000/api/analytics/forecast');
+      const response = await request.get('http://localhost:5001/api/analytics/forecast');
       expect(response.status()).toBe(401);
     });
 
     test('should reject invalid token', async ({
       request,
     }) => {
-      const response = await request.get('http://localhost:5000/api/analytics/forecast', {
+      const response = await request.get('http://localhost:5001/api/analytics/forecast', {
         headers: {
           'Authorization': 'Bearer invalid_token_12345',
         },
@@ -438,7 +438,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/forecast',
+        'http://localhost:5001/api/analytics/forecast',
         'GET'
       );
 
@@ -454,7 +454,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/custom-report',
+        'http://localhost:5001/api/analytics/custom-report',
         'POST',
         undefined,
         {
@@ -473,7 +473,7 @@ test.describe('Analytics - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/analytics/deal-distribution',
+        'http://localhost:5001/api/analytics/deal-distribution',
         'GET'
       );
 

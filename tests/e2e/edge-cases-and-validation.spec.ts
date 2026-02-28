@@ -1,7 +1,7 @@
 import { test, expect, makeAuthenticatedRequest, createTestUser, testData } from './setup';
 
 test.describe('Edge Cases & Validation - Quote & Invoice Testing', () => {
-  const BASE_URL = 'http://localhost:5000/api';
+  const BASE_URL = 'http://localhost:5001/api';
 
   test.describe('4.1 Decimal Precision Testing', () => {
     test('4.1.1 should handle currency precision (scale: 2)', async ({ request }) => {
@@ -153,7 +153,9 @@ test.describe('Edge Cases & Validation - Quote & Invoice Testing', () => {
         {
           clientId: client.id,
           status: 'draft',
-          total: '10000.00',
+          items: [
+             { description: 'Service', quantity: 1, unitPrice: 10000 }
+          ]
         }
       );
       const quote = await quoteRes.json();
@@ -483,7 +485,13 @@ test.describe('Edge Cases & Validation - Quote & Invoice Testing', () => {
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        { 
+          clientId: client.id, 
+          status: 'draft',
+          items: [
+            { description: 'Service', quantity: 1, unitPrice: 1000 }
+          ]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -522,7 +530,13 @@ test.describe('Edge Cases & Validation - Quote & Invoice Testing', () => {
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft', total: '10000.00' }
+        { 
+          clientId: client.id, 
+          status: 'draft', 
+          items: [
+             { description: 'Service', quantity: 1, unitPrice: 10000 }
+          ]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -675,7 +689,13 @@ test.describe('Edge Cases & Validation - Quote & Invoice Testing', () => {
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft', total: '1000.00' }
+        { 
+          clientId: client.id, 
+          status: 'draft', 
+          items: [
+            { description: 'Test Service', quantity: 1, unitPrice: 1000 }
+          ]
+        }
       );
       const quote = await quoteRes.json();
 

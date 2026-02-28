@@ -17,25 +17,27 @@ import { WorkflowEngine } from "../services/workflow-engine.service";
 import { users } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "../db";
-import { eq, sql } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 const router = Router();
 
 router.get("/", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const quotes = await storage.getAllQuotes();
-    const quotesWithClients = await Promise.all(
-      quotes.map(async (quote) => {
-        const client = await storage.getClient(quote.clientId);
-        return {
-          ...quote,
-          clientName: client?.name || "Unknown",
-          clientEmail: client?.email || "",
-        };
-      })
-    );
-    res.json(quotesWithClients);
+    const quotesWithClients = await db.select()
+      .from(schema.quotes)
+      .leftJoin(schema.clients, eq(schema.quotes.clientId, schema.clients.id))
+      .orderBy(desc(schema.quotes.createdAt));
+    
+    // Transform Drizzle result { quotes: ..., clients: ... } to flat object expected by UI
+    const result = quotesWithClients.map(({ quotes, clients }) => ({
+      ...quotes,
+      clientName: clients?.name || "Unknown",
+      clientEmail: clients?.email || "",
+    }));
+
+    res.json(result);
   } catch (error) {
+    logger.error("Failed to fetch quotes:", error);
     res.status(500).json({ error: "Failed to fetch quotes" });
   }
 });
@@ -444,73 +446,68 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
 
       console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2)); 
       
-      // NOTIFICATIONS
-      try {
-        // 1. Notify creator
-        await NotificationService.create({
-          userId: req.user!.id,
-          type: "quote_status_change",
-          title: "Quote Created",
-          message: `Quote #${quoteNumber} has been created successfully.`,
-          entityType: "quote",
-          entityId: quote.id,
-        });
+      // NOTIFICATIONS & WORKFLOWS (Asynchronous to prevent timeouts)
+      (async () => {
+        try {
+          // 1. Notify creator
+          await NotificationService.create({
+            userId: req.user!.id,
+            type: "quote_status_change",
+            title: "Quote Created",
+            message: `Quote #${quoteNumber} has been created successfully.`,
+            entityType: "quote",
+            entityId: quote.id,
+          });
 
-        // 2. If approval needed, notify admins
-        if (approvalStatus === "pending") {
-          const admins = await db.select().from(users).where(eq(users.role, "admin"));
-          for (const admin of admins) {
-            await NotificationService.notifyApprovalRequest(
-              admin.id,
+          // 2. If approval needed, notify admins
+          if (approvalStatus === "pending") {
+            await NotificationService.notifyApprovalRequestToRole(
+              "admin",
               quoteNumber,
               quote.id,
               req.user!.email || "User",
               "Quote creation triggered approval rules"
             );
           }
+
+          // Workflow triggering
+          const client = await storage.getClient(quote.clientId);
+          const enrichedEntity = {
+            ...quote,
+            client,
+            client_name: client?.name,
+            client_email: client?.email,
+            creator_name: req.user?.name || "QuoteProGen Team",
+            creator_email: req.user?.email,
+            formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
+            formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`,
+          };
+
+          logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+
+          await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+            eventType: "created",
+            entity: enrichedEntity,
+            triggeredBy: req.user!.id,
+          });
+          
+          await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+            eventType: "status_change",
+            entity: enrichedEntity,
+            newValue: quote.status,
+            oldValue: null,
+            triggeredBy: req.user!.id,
+          });
+          
+          await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+            eventType: "amount_threshold",
+            entity: enrichedEntity,
+            triggeredBy: req.user!.id,
+          });
+        } catch (error) {
+          logger.error("Side-effect execution error (notifications/workflows):", error);
         }
-      } catch (notifError) {
-        logger.error("Failed to send notifications for new quote:", notifError);
-      }
-
-      // Trigger Workflows
-      try {
-        const client = await storage.getClient(quote.clientId);
-        const enrichedEntity = {
-          ...quote,
-          client,
-          client_name: client?.name,
-          client_email: client?.email,
-          creator_name: req.user?.name || "QuoteProGen Team",
-          creator_email: req.user?.email,
-          formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
-          formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`,
-        };
-
-        logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
-
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "created",
-          entity: enrichedEntity,
-          triggeredBy: req.user!.id,
-        });
-        
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "status_change",
-          entity: enrichedEntity,
-          newValue: quote.status,
-          oldValue: null,
-          triggeredBy: req.user!.id,
-        });
-        
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "amount_threshold",
-          entity: enrichedEntity,
-          triggeredBy: req.user!.id,
-        });
-      } catch (workflowError) {
-        logger.error("Failed to trigger workflows for new quote:", workflowError);
-      }
+      })();
 
       return res.json({ ...quote, approvalStatus, approvalRequiredBy });
       
@@ -661,31 +658,32 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
         metadata: { version: nextVersion, approvalStatus }
     });
 
-    // 6. Notifications & Workflows
-    try {
-        if (updatedQuote.approvalStatus !== existingQuote.approvalStatus) {
-            if (updatedQuote.approvalStatus === "pending") {
-                // Notify Admins
-                const admins = await db.select().from(users).where(eq(users.role, "admin"));
-                for (const admin of admins) {
-                    await NotificationService.notifyApprovalRequest(admin.id, updatedQuote.quoteNumber, updatedQuote.id, req.user!.email || "User", "Update triggered approval.");
+    // 6. Notifications & Workflows (Asynchronous to prevent timeouts)
+    (async () => {
+        try {
+            if (updatedQuote!.approvalStatus !== existingQuote.approvalStatus) {
+                if (updatedQuote!.approvalStatus === "pending") {
+                    // Notify Admins
+                    await NotificationService.notifyApprovalRequestToRole("admin", updatedQuote!.quoteNumber, updatedQuote!.id, req.user!.email || "User", "Update triggered approval.");
+                } else if (["approved", "rejected"].includes(updatedQuote!.approvalStatus)) {
+                    await NotificationService.notifyApprovalDecision(existingQuote.createdBy, updatedQuote!.quoteNumber, updatedQuote!.id, req.user!.email || "User", updatedQuote!.approvalStatus as any);
                 }
-            } else if (["approved", "rejected"].includes(updatedQuote.approvalStatus)) {
-                 await NotificationService.notifyApprovalDecision(existingQuote.createdBy, updatedQuote.quoteNumber, updatedQuote.id, req.user!.email || "User", updatedQuote.approvalStatus as any);
             }
+            
+            // Trigger generic workflow events
+            const client = await storage.getClient(updatedQuote!.clientId);
+            const enriched = { ...updatedQuote, client, client_name: client?.name };
+            
+            await WorkflowEngine.triggerWorkflows("quote", updatedQuote!.id, {
+                eventType: "field_change",
+                entity: enriched,
+                triggeredBy: req.user!.id,
+                changes: updateFields
+            });
+        } catch (err) { 
+            logger.error("Post-update side-effect error (notifications/workflows):", err); 
         }
-        
-        // Trigger generic workflow events
-        const client = await storage.getClient(updatedQuote.clientId);
-        const enriched = { ...updatedQuote, client, client_name: client?.name };
-        
-        await WorkflowEngine.triggerWorkflows("quote", updatedQuote.id, {
-             eventType: "field_change",
-             entity: enriched,
-             triggeredBy: req.user!.id,
-             changes: updateFields
-        });
-    } catch (err) { logger.error("Post-update workflow error", err); }
+    })();
 
     return res.json(updatedQuote);
 
@@ -697,17 +695,25 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
 
 router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_convertToInvoice'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
   try {
-    const result = await db.transaction(async (tx) => {
-        const quote = await storage.getQuote(req.params.id);
-        if (!quote) throw new Error("Quote not found");
+    // Generate a new master invoice number using admin master invoice numbering settings
+    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
 
-        if (quote.status === "invoiced") {
-            throw new Error("Quote is already invoiced");
+    const result = await db.transaction(async (tx) => {
+        const [quote] = await tx.select().from(schema.quotes).where(eq(schema.quotes.id, req.params.id));
+        if (!quote) {
+            const error: any = new Error("Quote not found");
+            error.statusCode = 404;
+            throw error;
         }
 
-        // CRITICAL: Check if sales order exists for this quote
-        // If SO exists, invoice should be created FROM the SO, not from the quote
-        const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+        if (quote.status === "invoiced") {
+            const error: any = new Error("Quote already converted to an invoice");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // Check if sales order exists for this quote
+        const [existingSalesOrder] = await tx.select().from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, req.params.id));
         if (existingSalesOrder) {
             const error: any = new Error("Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.");
             error.statusCode = 400;
@@ -718,9 +724,6 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
             throw error;
         }
 
-        // Generate a new master invoice number using admin master invoice numbering settings
-        const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
-
         // Create the invoice
         const [invoice] = await tx.insert(schema.invoices).values({
             invoiceNumber,
@@ -730,7 +733,8 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
             masterInvoiceStatus: "draft", 
             paymentStatus: "pending", 
             dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1000), // Default due date based on validity
-            paidAmount: "0",
+            paidAmount: "0.00",
+            remainingAmount: quote.total,
             subtotal: quote.subtotal,
             discount: quote.discount,
             cgst: quote.cgst,
@@ -746,7 +750,7 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
         }).returning();
 
         // Get quote items and create invoice items
-        const quoteItems = await storage.getQuoteItems(quote.id);
+        const quoteItems = await tx.select().from(schema.quoteItems).where(eq(schema.quoteItems.quoteId, quote.id)).orderBy(schema.quoteItems.sortOrder);
         const shortageNotes: string[] = [];
 
         for (const item of quoteItems) {
@@ -842,10 +846,15 @@ router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_co
     
   } catch (error: any) {
     logger.error("Convert quote error:", error);
-    if (error.statusCode === 400) {
-        return res.status(400).json({ error: error.message, ...error.details });
-    }
-    return res.status(500).json({ error: error.message || "Failed to convert quote" });
+    
+    let statusCode = error.statusCode || 500;
+    if (error.message.includes("not found")) statusCode = 404;
+    if (error.message.includes("already")) statusCode = 400;
+    
+    return res.status(statusCode).json({ 
+        error: error.message || "Failed to convert quote",
+        details: error.details 
+    });
   }
 });
 
@@ -1042,12 +1051,7 @@ router.get("/:id/pdf", authMiddleware, requireFeature('quotes_pdfGeneration'), a
       const bankBranch = settings.find((s) => s.key === "bank_branch")?.value || "";
       const bankSwiftCode = settings.find((s) => s.key === "bank_swiftCode")?.value || "";
 
-      logger.error("!!! DEBUG BANK DETAILS !!!", {
-          bankName,
-          bankAccountNumber,
-          bankAccountName,
-          bankIfscCode
-      });
+
 
       // Create filename - ensure it's clean and doesn't have problematic characters
       const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, '_');

@@ -1,7 +1,7 @@
 import { storage } from "../storage";
-import { eq, gte, lte } from "drizzle-orm";
+import { eq, gte, lte, and, inArray, count } from "drizzle-orm";
 import { db } from "../db";
-import { quotes, invoices } from "@shared/schema";
+import { quotes, invoices, clients } from "@shared/schema";
 import { cacheService } from "./cache.service";
 
 export class AnalyticsService {
@@ -20,8 +20,11 @@ export class AnalyticsService {
     if (cached) return cached;
 
     try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
+      // Optimized: Select only needed columns
+      const allInvoices = await db.select({
+        createdAt: invoices.createdAt,
+        paidAmount: invoices.paidAmount
+      }).from(invoices);
 
       // Calculate average monthly revenue from last 12 months
       const now = new Date();
@@ -84,7 +87,8 @@ export class AnalyticsService {
     if (cached) return cached;
 
     try {
-      const allQuotes = await storage.getAllQuotes();
+      // Optimized: fetch only totals
+      const allQuotes = await db.select({ total: quotes.total }).from(quotes);
 
       const ranges = [
         { label: "0-10K", min: 0, max: 10000 },
@@ -141,8 +145,18 @@ export class AnalyticsService {
 
     try {
       // Group quotes by region (from client's billing address or default)
-      const allClients = await storage.getAllClients();
-      const allQuotes = await storage.getAllQuotes();
+      // Optimized: fetch only necessary columns
+      const allClients = await db.select({
+        id: clients.id,
+        billingAddress: clients.billingAddress,
+        shippingAddress: clients.shippingAddress,
+        gstin: clients.gstin
+      }).from(clients);
+
+      const allQuotes = await db.select({
+        clientId: quotes.clientId,
+        total: quotes.total
+      }).from(quotes);
 
       const regionData: Record<string, { count: number; revenue: number }> = {};
 
@@ -228,35 +242,52 @@ export class AnalyticsService {
     }>
   > {
     try {
-      let quotes = await storage.getAllQuotes();
-      const clients = await storage.getAllClients();
+      const conditions = [];
 
-      // Filter by date range
       if (params.startDate) {
-        quotes = quotes.filter((q) => new Date(q.createdAt) >= params.startDate!);
+        conditions.push(gte(quotes.createdAt, params.startDate));
       }
       if (params.endDate) {
-        quotes = quotes.filter((q) => new Date(q.createdAt) <= params.endDate!);
+        conditions.push(lte(quotes.createdAt, params.endDate));
       }
-
-      // Filter by status
       if (params.status) {
-        quotes = quotes.filter((q) => q.status === params.status);
+        conditions.push(eq(quotes.status, params.status as any));
       }
-
-      // Filter by amount range
       if (params.minAmount) {
-        quotes = quotes.filter((q) => parseFloat(q.total.toString()) >= params.minAmount!);
+        // Note: casting decimal to number/string for comparison if needed, 
+        // but Drizzle handles standard comparisons usually. 
+        // Since 'total' is decimal, we might need sql helper if simple gte fails, 
+        // but typically gte works if driver supports it. 
+        // For safety/strictness with decimal stored as string:
+        conditions.push(gte(quotes.total, params.minAmount.toString())); 
       }
       if (params.maxAmount) {
-        quotes = quotes.filter((q) => parseFloat(q.total.toString()) <= params.maxAmount!);
+        conditions.push(lte(quotes.total, params.maxAmount.toString()));
       }
 
-      return quotes.map((q) => {
-        const client = clients.find((c) => c.id === q.clientId);
+      // Optimized query with DB filtering
+      const filteredQuotes = await db.select().from(quotes)
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
+      
+      // Get necessary clients only
+      const clientIds = Array.from(new Set(filteredQuotes.map(q => q.clientId).filter(Boolean)));
+      let clientsMap = new Map();
+      
+      if (clientIds.length > 0) {
+        const relevantClients = await db.select({
+             id: clients.id, 
+             name: clients.name 
+          })
+          .from(clients)
+          .where(inArray(clients.id, clientIds as string[]));
+          
+        relevantClients.forEach(c => clientsMap.set(c.id, c.name));
+      }
+
+      return filteredQuotes.map((q) => {
         return {
           quoteNumber: q.quoteNumber,
-          clientName: client?.name || "Unknown",
+          clientName: clientsMap.get(q.clientId) || "Unknown",
           totalAmount: this.roundAmount(parseFloat(q.total.toString())),
           status: q.status,
           createdDate: q.createdAt,
@@ -284,7 +315,11 @@ export class AnalyticsService {
     if (cached) return cached;
 
     try {
-      const allQuotes = await storage.getAllQuotes();
+      // Optimized: fetch only status and total
+      const allQuotes = await db.select({
+        status: quotes.status,
+        total: quotes.total
+      }).from(quotes);
 
       const stages = ["draft", "sent", "approved", "rejected", "invoiced"];
       const pipeline = stages.map((stage) => {
@@ -319,14 +354,22 @@ export class AnalyticsService {
     conversionRate: number;
   }> {
     try {
-      const allQuotes = await storage.getAllQuotes();
-      const clientQuotes = allQuotes.filter((q) => q.clientId === clientId);
+      // Optimized: DB filtering by clientId
+      const clientQuotes = await db.select({
+        id: quotes.id,
+        total: quotes.total
+      }).from(quotes).where(eq(quotes.clientId, clientId));
 
-      const allInvoices = await storage.getAllInvoices();
-      const clientInvoices = allInvoices.filter((i) => {
-        const quote = clientQuotes.find((q) => q.id === i.quoteId);
-        return !!quote;
-      });
+      // Fetch invoices related to this client's quotes
+      const quoteIds = clientQuotes.map(q => q.id);
+      let clientInvoices: { paidAmount: any }[] = [];
+      
+      if (quoteIds.length > 0) {
+        clientInvoices = await db.select({
+          paidAmount: invoices.paidAmount
+        }).from(invoices)
+        .where(inArray(invoices.quoteId, quoteIds));
+      }
 
       const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
       const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
@@ -366,8 +409,14 @@ export class AnalyticsService {
     if (cached) return cached;
 
     try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
+      // Optimized: Fetch only needed columns
+      const allQuotes = await db.select({
+        total: quotes.total,
+        createdAt: quotes.createdAt
+      }).from(quotes);
+
+      // We just need count of invoices for conversion trend
+      const allInvoicesCount = (await db.select({ count: count() }).from(invoices))[0].count;
 
       if (allQuotes.length === 0) {
         return {
@@ -388,8 +437,7 @@ export class AnalyticsService {
       const recentQuotes = allQuotes.filter((q) => new Date(q.createdAt) >= weekAgo);
       const quoteFrequency = recentQuotes.length;
 
-      const conversionCount = allInvoices.length;
-      const conversionTrend = allQuotes.length > 0 ? (conversionCount / allQuotes.length) * 100 : 0;
+      const conversionTrend = allQuotes.length > 0 ? (allInvoicesCount / allQuotes.length) * 100 : 0;
 
       const result = {
         avgQuoteValue: this.roundAmount(avgValue),
@@ -415,5 +463,6 @@ export class AnalyticsService {
     return Math.round(amount * 100) / 100;
   }
 }
+
 
 export const analyticsService = new AnalyticsService();

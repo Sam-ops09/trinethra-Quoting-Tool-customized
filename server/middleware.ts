@@ -36,7 +36,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     // CAS CHING LAYER: Check cache first
     const cacheKey = `user:${decoded.id}`;
     const cachedUser = await cacheService.get<{id: string, email: string, role: string, status: string, name: string}>(cacheKey);
-    
+
     if (cachedUser) {
         if (cachedUser.status !== "active") {
             return res.status(401).json({ error: "Unauthorized" });
@@ -62,6 +62,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     }, 300); // Cache: 5 minutes
 
     req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
+    console.log(`[AuthMiddleware] Authenticated user ${req.user.email} with role ${req.user.role}`);
     next();
   } catch (error) {
     return res.status(401).json({ error: "Invalid token" });

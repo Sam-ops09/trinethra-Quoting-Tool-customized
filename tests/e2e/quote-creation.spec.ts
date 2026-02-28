@@ -1,7 +1,7 @@
 import { test, expect, makeAuthenticatedRequest, createTestUser, testData } from './setup';
 
 test.describe('Quote Creation - Comprehensive Scenarios', () => {
-  const BASE_URL = 'http://localhost:5000/api';
+  const BASE_URL = 'http://localhost:5001/api';
 
   test.describe('1.1 Basic Quote Creation', () => {
     test('1.1.1 should create quote with minimal data', async ({ request }) => {
@@ -32,7 +32,7 @@ test.describe('Quote Creation - Comprehensive Scenarios', () => {
       const quote = await quoteRes.json();
       expect(quote.id).toBeDefined();
       expect(quote.quoteNumber).toBeDefined();
-      expect(quote.quoteNumber).toMatch(/^PO-\d+$/);
+      expect(quote.quoteNumber).toMatch(/^[A-Z0-9-]+-\d{4}-\d+$/);
       expect(quote.clientId).toBe(client.id);
       expect(quote.status).toBe('draft');
       expect(quote.createdBy).toBe(userId);

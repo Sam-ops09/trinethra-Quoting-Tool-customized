@@ -7,6 +7,8 @@ class CacheService {
   private memoryCache: LRUCache<string, any>;
   private useRedis: boolean = false;
   private isConnected: boolean = false;
+  private redisErrorLogged: boolean = false;
+  private static MAX_RETRIES = 5;
 
   constructor() {
     // Initialize in-memory cache as fallback
@@ -18,7 +20,7 @@ class CacheService {
     if (process.env.REDIS_URL) {
       this.initRedis();
     } else {
-      logger.info("Local: Cache service initialized with in-memory storage (No REDIS_URL provided)");
+      logger.info("Cache service initialized with in-memory storage (No REDIS_URL provided)");
     }
   }
 
@@ -26,10 +28,30 @@ class CacheService {
     try {
       this.redisClient = createClient({
         url: process.env.REDIS_URL,
+        socket: {
+          reconnectStrategy: (retries: number) => {
+            if (retries >= CacheService.MAX_RETRIES) {
+              logger.warn(
+                `Redis: Max reconnection attempts (${CacheService.MAX_RETRIES}) reached. Falling back to in-memory cache.`
+              );
+              this.useRedis = false;
+              this.isConnected = false;
+              return false; // Stop reconnecting
+            }
+            // Exponential backoff: 1s, 2s, 4s, 8s, 16s (capped at 30s)
+            const delay = Math.min(Math.pow(2, retries) * 1000, 30000);
+            logger.info(`Redis: Reconnect attempt ${retries + 1}/${CacheService.MAX_RETRIES} in ${delay / 1000}s...`);
+            return delay;
+          },
+        },
       });
 
       this.redisClient.on("error", (err) => {
-        logger.error("Redis Client Error", err);
+        // Only log the first error to avoid flooding the console
+        if (!this.redisErrorLogged) {
+          logger.error("Redis Client Error:", err.message || err);
+          this.redisErrorLogged = true;
+        }
         this.useRedis = false;
         this.isConnected = false;
       });
@@ -38,17 +60,17 @@ class CacheService {
         logger.info("Redis: Connected to Redis server");
         this.useRedis = true;
         this.isConnected = true;
+        this.redisErrorLogged = false; // Reset so future disconnects get logged once
       });
 
       this.redisClient.on("reconnecting", () => {
-        logger.info("Redis: Reconnecting...");
         this.useRedis = false;
         this.isConnected = false;
       });
 
       await this.redisClient.connect();
-    } catch (error) {
-      logger.error("Failed to connect to Redis, falling back to memory cache:", error);
+    } catch (error: any) {
+      logger.warn(`Redis unavailable (${error.message || error}). Using in-memory cache.`);
       this.useRedis = false;
       this.isConnected = false;
     }

@@ -7,7 +7,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/tax-rates',
+        'http://localhost:5001/api/tax-rates',
         'GET'
       );
 
@@ -23,7 +23,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/tax-rates',
+        'http://localhost:5001/api/tax-rates',
         'POST',
         undefined,
         testData.taxRate()
@@ -37,7 +37,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/tax-rates/us-ca',
+        'http://localhost:5001/api/tax-rates/us-ca',
         'PATCH',
         undefined,
         { igstRate: 9.5 }
@@ -51,7 +51,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/tax-rates/us-ca',
+        'http://localhost:5001/api/tax-rates/us-ca',
         'DELETE'
       );
 
@@ -65,7 +65,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/pricing-tiers',
+        'http://localhost:5001/api/pricing-tiers',
         'GET'
       );
 
@@ -81,7 +81,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/pricing-tiers',
+        'http://localhost:5001/api/pricing-tiers',
         'POST',
         undefined,
         testData.pricingTier()
@@ -95,10 +95,10 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/pricing-tiers/tier-1',
+        'http://localhost:5001/api/pricing-tiers/tier-1',
         'PATCH',
         undefined,
-        { discountPercentage: 10 }
+        { discountPercent: "10" }
       );
 
       expect([200, 204, 404]).toContain(response.status());
@@ -109,7 +109,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/pricing-tiers/tier-1',
+        'http://localhost:5001/api/pricing-tiers/tier-1',
         'DELETE'
       );
 
@@ -124,7 +124,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       // Create a quote
       const clientRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         testData.client()
@@ -139,7 +139,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
 
       const quoteRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/quotes',
+        'http://localhost:5001/api/quotes',
         'POST',
         undefined,
         testData.quote({ clientId: client.id })
@@ -157,7 +157,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/quotes',
+        'http://localhost:5001/api/quotes',
         'GET'
       );
 
@@ -170,7 +170,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       // Create a quote
       const clientRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         { ...testData.client(), state: 'CA' } // Add state info
@@ -185,7 +185,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
 
       const quoteRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/quotes',
+        'http://localhost:5001/api/quotes',
         'POST',
         undefined,
         testData.quote({ clientId: client.id })
@@ -197,11 +197,11 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
 
   test.describe('Pricing Authorization', () => {
     test('should require admin for pricing management', async ({ request }) => {
-      const regularUser = await createTestUser(request, { role: 'user' });
+      const regularUser = await createTestUser(request, { role: 'viewer' });
       
       const response = await makeAuthenticatedRequest(
         regularUser.request,
-        'http://localhost:5000/api/pricing-tiers',
+        'http://localhost:5001/api/pricing-tiers',
         'POST',
         undefined,
         testData.pricingTier()
@@ -216,7 +216,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         adminUser.request,
-        'http://localhost:5000/api/tax-rates',
+        'http://localhost:5001/api/tax-rates',
         'GET'
       );
 
@@ -230,10 +230,10 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/pricing-tiers',
+        'http://localhost:5001/api/pricing-tiers',
         'POST',
         undefined,
-        { ...testData.pricingTier(), discountPercentage: 0 }
+        { ...testData.pricingTier(), discountPercent: 0 }
       );
 
       expect([200, 201, 400, 404]).toContain(response.status());
@@ -244,7 +244,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const clientRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/clients',
+        'http://localhost:5001/api/clients',
         'POST',
         undefined,
         testData.client()
@@ -259,7 +259,7 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
 
       const quoteRes = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/quotes',
+        'http://localhost:5001/api/quotes',
         'POST',
         undefined,
         testData.quote({ clientId: client.id, subtotal: 1000000 })
@@ -273,10 +273,10 @@ test.describe('Pricing & Tax Configuration - Phase 3 Features', () => {
       
       const response = await makeAuthenticatedRequest(
         authRequest,
-        'http://localhost:5000/api/pricing-tiers',
+        'http://localhost:5001/api/pricing-tiers',
         'POST',
         undefined,
-        { ...testData.pricingTier(), discountPercentage: 150 } // Invalid: > 100%
+        { ...testData.pricingTier(), discountPercent: 150 } // Invalid: > 100%
       );
 
       expect([400, 422, 200, 201, 404]).toContain(response.status());

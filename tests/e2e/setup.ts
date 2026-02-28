@@ -1,4 +1,9 @@
+import 'dotenv/config';
 import { test as base, APIRequestContext } from '@playwright/test';
+import { db } from '../../server/db';
+import { users } from '../../shared/schema';
+import { storage } from '../../server/storage';
+import { eq } from 'drizzle-orm';
 
 /**
  * Shared test fixture for authentication and API testing
@@ -60,20 +65,47 @@ export async function makeAuthenticatedRequest(
 
   // Use the appropriate method on the request context
   // Cookies are automatically managed by Playwright's request context
-  switch (method.toUpperCase()) {
-    case 'GET':
-      return request.get(url, options);
-    case 'POST':
-      return request.post(url, options);
-    case 'PATCH':
-      return request.patch(url, options);
-    case 'PUT':
-      return request.put(url, options);
-    case 'DELETE':
-      return request.delete(url, options);
-    default:
-      throw new Error(`Unsupported HTTP method: ${method}`);
+  const maxRetries = 3;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      let response;
+      switch (method.toUpperCase()) {
+        case 'GET':
+          response = await request.get(url, options);
+          break;
+        case 'POST':
+          response = await request.post(url, options);
+          break;
+        case 'PATCH':
+          response = await request.patch(url, options);
+          break;
+        case 'PUT':
+          response = await request.put(url, options);
+          break;
+        case 'DELETE':
+          response = await request.delete(url, options);
+          break;
+        default:
+          throw new Error(`Unsupported HTTP method: ${method}`);
+      }
+      
+      if (response.status() === 429 && attempt < maxRetries - 1) {
+        const waitTime = 1000 * (attempt + 1);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      if (attempt < maxRetries - 1) {
+        const waitTime = 1000 * (attempt + 1);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      throw error;
+    }
   }
+  throw new Error('Request failed after retries');
 }
 
 /**
@@ -91,7 +123,7 @@ export async function createTestUser(
     try {
       const signupRes = await makeAuthenticatedRequest(
         request,
-        'http://localhost:5000/api/auth/signup',
+        'http://localhost:5001/api/auth/signup',
         'POST',
         undefined,
         userData
@@ -125,13 +157,41 @@ export async function createTestUser(
       }
       
       if (signupRes.status() !== 200 && signupRes.status() !== 201) {
-        throw new Error(`Signup failed: ${responseData.error}`);
+        // If user already exists (likely due to retry after timeout), proceed to login
+        if (responseData.error && responseData.error.includes('already exists')) {
+          console.log(`[Setup] User ${userData.email} already exists, proceeding to login...`);
+        } else {
+            throw new Error(`Signup failed: ${responseData.error}`);
+        }
+      }
+
+      // AUTO-APPROVE USER IN DB
+      try {
+        console.log(`[Setup] Attempting auto-approval for ${userData.email}...`);
+        const userList = await db.select().from(users).where(eq(users.email, userData.email)).limit(1);
+        if (userList.length > 0) {
+          const user = userList[0];
+          
+          await storage.updateUser(user.id, {
+            status: 'active',
+            role: userData.role || 'viewer'
+          });
+          
+          
+          // Small delay to ensure DB propagation/cache clearing
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+            console.warn(`[Setup] User ${userData.email} not found in DB for auto-approval.`);
+        }
+      } catch (err: any) {
+        console.warn(`[Setup] Failed to auto-approve user: ${err.message}`);
+        console.warn(err);
       }
 
       // Login to establish session
       const loginRes = await makeAuthenticatedRequest(
         request,
-        'http://localhost:5000/api/auth/login',
+        'http://localhost:5001/api/auth/login',
         'POST',
         undefined,
         { email: userData.email, password: userData.password }
@@ -191,23 +251,19 @@ export const testData = {
       name: `Test Client ${uniqueId}`,
       email: `client_${uniqueId}@example.com`,
       phone: '+1234567890',
-      address: '123 Test St',
-      city: 'Test City',
-      state: 'TS',
-      country: 'Test Country',
-      postalCode: '12345',
+      billingAddress: '123 Test St, Test City, TS, Test Country, 12345',
+      shippingAddress: '123 Test St, Test City, TS, Test Country, 12345',
+      contactPerson: `Contact ${uniqueId}`,
       ...override,
     };
   },
 
   quote: (override?: any) => ({
     quoteNumber: `QT${Date.now()}`,
-    title: 'Test Quote',
-    description: 'Test Quote Description',
     status: 'draft' as const,
-    subtotal: 1000,
-    tax: 100,
-    total: 1100,
+    subtotal: "1000",
+    discount: "0",
+    total: "1100",
     ...override,
   }),
 
@@ -215,7 +271,7 @@ export const testData = {
     name: `Tier ${Date.now()}`,
     minAmount: 1000,
     maxAmount: 50000,
-    discountPercentage: 5,
+    discountPercent: 5,
     isActive: true,
     ...override,
   }),

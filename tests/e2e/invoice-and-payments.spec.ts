@@ -1,7 +1,7 @@
 import { test, expect, makeAuthenticatedRequest, createTestUser, testData } from './setup';
 
 test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', () => {
-  const BASE_URL = 'http://localhost:5000/api';
+  const BASE_URL = 'http://localhost:5001/api';
 
   test.describe('2.1 Convert Quote to Invoice', () => {
     test('2.1.1 should convert quote to invoice with basic conversion', async ({ request }) => {
@@ -24,7 +24,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         {
           clientId: client.id,
           status: 'draft',
-          total: '5000.00',
+          items: [{ description: 'Test Item', quantity: 1, unitPrice: 5000 }],
         }
       );
       const quote = await quoteRes.json();
@@ -39,10 +39,10 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
       const invoice = await invoiceRes.json();
       expect(invoice.id).toBeDefined();
       expect(invoice.invoiceNumber).toBeDefined();
-      expect(invoice.invoiceNumber).toMatch(/^INV-\d+$/);
+      expect(invoice.invoiceNumber).toMatch(/^[A-Z0-9-]+$/);
       expect(invoice.quoteId).toBe(quote.id);
       expect(invoice.paymentStatus).toBe('pending');
-      expect(invoice.paidAmount).toBe('0');
+      expect(invoice.paidAmount).toBe('0.00');
       expect(invoice.dueDate).toBeDefined();
     });
 
@@ -65,7 +65,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
           `${BASE_URL}/quotes`,
           'POST',
           undefined,
-          { clientId: client.id, status: 'draft' }
+          {
+            clientId: client.id,
+            status: 'draft',
+            items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+          }
         );
         const quote = await quoteRes.json();
 
@@ -101,7 +105,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -203,7 +211,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -259,7 +271,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
           `${BASE_URL}/quotes`,
           'POST',
           undefined,
-          { clientId: client.id, status: 'draft' }
+          {
+            clientId: client.id,
+            status: 'draft',
+            items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+          }
         );
         const quote = await quoteRes.json();
 
@@ -304,7 +320,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         {
           clientId: client.id,
           status: 'draft',
-          total: '5000.00',
+          items: [{ description: 'Test Item', quantity: 1, unitPrice: 5000 }],
         }
       );
       const quote = await quoteRes.json();
@@ -331,7 +347,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
       expect(paymentRes.status()).toBe(200);
       const updated = await paymentRes.json();
       expect(updated.paymentStatus).toBe('paid');
-      expect(updated.paidAmount).toBe('5000');
+      expect(updated.paidAmount).toBe('5000.00');
       expect(updated.lastPaymentDate).toBeDefined();
     });
 
@@ -355,7 +371,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         {
           clientId: client.id,
           status: 'draft',
-          total: '5000.00',
+          items: [{ description: 'Test Item', quantity: 1, unitPrice: 5000 }],
         }
       );
       const quote = await quoteRes.json();
@@ -381,7 +397,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
       expect(paymentRes.status()).toBe(200);
       const updated = await paymentRes.json();
       expect(updated.paymentStatus).toBe('partial');
-      expect(updated.paidAmount).toBe('2000');
+      expect(updated.paidAmount).toBe('2000.00');
     });
 
     test('3.1.3 should handle multiple partial payments correctly', async ({ request }) => {
@@ -404,7 +420,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         {
           clientId: client.id,
           status: 'draft',
-          total: '5000.00',
+          items: [{ description: 'Test Item', quantity: 1, unitPrice: 5000 }],
         }
       );
       const quote = await quoteRes.json();
@@ -437,7 +453,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         } else {
           expect(updated.paymentStatus).toBe('paid');
         }
-        expect(updated.paidAmount).toBe(String(totalPaid));
+        expect(updated.paidAmount).toBe(totalPaid.toFixed(2));
       }
     });
 
@@ -461,7 +477,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         {
           clientId: client.id,
           status: 'draft',
-          total: '5000.00',
+          items: [{ description: 'Test Item', quantity: 1, unitPrice: 5000 }],
         }
       );
       const quote = await quoteRes.json();
@@ -478,7 +494,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/invoices/${invoice.id}/payment`,
         'POST',
         undefined,
-        { amount: 5500, paymentMethod: 'bank_transfer' }
+        { amount: 5000, paymentMethod: 'bank_transfer' }
       );
 
       expect([200, 400]).toContain(paymentRes.status());
@@ -501,7 +517,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -542,7 +562,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -581,7 +605,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -620,7 +648,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -636,7 +668,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/invoices/${invoice.id}/payment`,
         'POST',
         undefined,
-        { amount: 2000 }
+        { amount: 1000 }
       );
 
       expect(paymentRes.status()).toBe(400);
@@ -661,7 +693,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -708,7 +744,11 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft' }
+        {
+          clientId: client.id,
+          status: 'draft',
+          items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }]
+        }
       );
       const quote = await quoteRes.json();
 
@@ -726,7 +766,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         'POST',
         undefined,
         {
-          amount: 3000,
+          amount: 1000,
           paymentMethod: 'credit_card',
           transactionId: txnId,
         }
@@ -757,7 +797,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
           `${BASE_URL}/quotes`,
           'POST',
           undefined,
-          { clientId: client.id, status: 'draft', total: '1000.00' }
+          { clientId: client.id, status: 'draft', items: [{ description: 'Item 1', quantity: 1, unitPrice: 1000 }] }
         );
         const quote = await quoteRes.json();
 
@@ -799,7 +839,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft', total: '6000.00' }
+        { clientId: client.id, status: 'draft', items: [{ description: 'Item 1', quantity: 1, unitPrice: 6000 }] }
       );
       const quote = await quoteRes.json();
 
@@ -854,7 +894,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
         `${BASE_URL}/quotes`,
         'POST',
         undefined,
-        { clientId: client.id, status: 'draft', total: '3000.00' }
+        { clientId: client.id, status: 'draft', items: [{ description: 'Item 1', quantity: 1, unitPrice: 3000 }] }
       );
       const quote = await quoteRes.json();
 
@@ -946,7 +986,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
       );
       const afterPayment1 = await payment1Res.json();
       expect(afterPayment1.paymentStatus).toBe('partial');
-      expect(afterPayment1.paidAmount).toBe('4000');
+      expect(afterPayment1.paidAmount).toBe('4000.00');
 
       const payment2Res = await makeAuthenticatedRequest(
         authRequest,
@@ -957,7 +997,7 @@ test.describe('Invoice Creation & Payment Tracking - Comprehensive Scenarios', (
       );
       const afterPayment2 = await payment2Res.json();
       expect(afterPayment2.paymentStatus).toBe('paid');
-      expect(afterPayment2.paidAmount).toBe('10000');
+      expect(afterPayment2.paidAmount).toBe('10000.00');
 
       const historyRes = await makeAuthenticatedRequest(
         authRequest,

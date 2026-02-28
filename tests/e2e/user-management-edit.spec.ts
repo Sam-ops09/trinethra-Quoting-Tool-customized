@@ -3,25 +3,26 @@ import { test, expect, makeAuthenticatedRequest, createTestUser } from "./setup"
 test.describe("User Management - Edit Functionality", () => {
   test("admin can edit user information via API", async ({ request }) => {
     // Create admin user
-    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
-
-    // Create a regular user to edit
+    // Create a regular user to edit first
     const userToEdit = await createTestUser(request, {
-      role: "user",
+      role: "viewer",
       name: "Original User Name",
       email: `user${Date.now()}@example.com`
     });
 
+    // Create admin user second
+    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
+
     // Edit the user's information
     const updateData = {
       name: "Updated User Name",
-      role: "manager",
+      role: "sales_manager",
       status: "active",
     };
 
     const response = await makeAuthenticatedRequest(
       admin.request,
-      `http://localhost:5000/api/users/${userToEdit.userId}`,
+      `http://localhost:5001/api/users/${userToEdit.userId}`,
       "PUT",
       undefined,
       updateData
@@ -30,23 +31,24 @@ test.describe("User Management - Edit Functionality", () => {
     expect(response.status()).toBe(200);
     const updatedUser = await response.json();
     expect(updatedUser.name).toBe("Updated User Name");
-    expect(updatedUser.role).toBe("manager");
+    expect(updatedUser.role).toBe("sales_manager");
   });
 
   test("admin can change user status", async ({ request }) => {
     // Create admin user
-    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
-
-    // Create a user to modify
+    // Create a user to modify first
     const userToModify = await createTestUser(request, {
-      role: "user",
+      role: "viewer",
       email: `statususer${Date.now()}@example.com`
     });
+
+    // Create admin user second
+    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
 
     // Change user status to inactive
     const response = await makeAuthenticatedRequest(
       admin.request,
-      `http://localhost:5000/api/users/${userToModify.userId}`,
+      `http://localhost:5001/api/users/${userToModify.userId}`,
       "PUT",
       undefined,
       { status: "inactive" }
@@ -59,19 +61,20 @@ test.describe("User Management - Edit Functionality", () => {
 
   test("admin can reset user password", async ({ request }) => {
     // Create admin user
-    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
-
-    // Create a user whose password will be reset
+    // Create a user whose password will be reset first
     const userToReset = await createTestUser(request, {
-      role: "user",
+      role: "viewer",
       email: `pwdreset${Date.now()}@example.com`,
       password: "OldPassword123"
     });
 
+    // Create admin user second
+    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
+
     // Reset the password
     const response = await makeAuthenticatedRequest(
       admin.request,
-      `http://localhost:5000/api/users/${userToReset.userId}`,
+      `http://localhost:5001/api/users/${userToReset.userId}`,
       "PUT",
       undefined,
       { password: "NewPassword456" }
@@ -80,7 +83,7 @@ test.describe("User Management - Edit Functionality", () => {
     expect(response.status()).toBe(200);
 
     // Verify the user can't login with old password
-    const oldLoginRes = await request.post("http://localhost:5000/api/auth/login", {
+    const oldLoginRes = await request.post("http://localhost:5001/api/auth/login", {
       data: {
         email: userToReset.email,
         password: "OldPassword123"
@@ -89,7 +92,7 @@ test.describe("User Management - Edit Functionality", () => {
     expect(oldLoginRes.status()).toBe(401);
 
     // Verify the user can login with new password
-    const newLoginRes = await request.post("http://localhost:5000/api/auth/login", {
+    const newLoginRes = await request.post("http://localhost:5001/api/auth/login", {
       data: {
         email: userToReset.email,
         password: "NewPassword456"
@@ -100,26 +103,27 @@ test.describe("User Management - Edit Functionality", () => {
 
   test("admin can update multiple fields at once", async ({ request }) => {
     // Create admin user
-    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
-
-    // Create a user to update
+    // Create a user to update first
     const userToUpdate = await createTestUser(request, {
-      role: "user",
+      role: "viewer",
       name: "Original Name",
       email: `multiupdate${Date.now()}@example.com`
     });
 
+    // Create admin user second
+    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
+
     // Update multiple fields
     const updateData = {
       name: "New Name",
-      role: "manager",
+      role: "sales_manager",
       status: "inactive",
       backupEmail: `backup${Date.now()}@example.com`
     };
 
     const response = await makeAuthenticatedRequest(
       admin.request,
-      `http://localhost:5000/api/users/${userToUpdate.userId}`,
+      `http://localhost:5001/api/users/${userToUpdate.userId}`,
       "PUT",
       undefined,
       updateData
@@ -128,7 +132,7 @@ test.describe("User Management - Edit Functionality", () => {
     expect(response.status()).toBe(200);
     const updatedUser = await response.json();
     expect(updatedUser.name).toBe("New Name");
-    expect(updatedUser.role).toBe("manager");
+    expect(updatedUser.role).toBe("sales_manager");
     expect(updatedUser.status).toBe("inactive");
     expect(updatedUser.backupEmail).toBe(updateData.backupEmail);
   });
@@ -136,20 +140,20 @@ test.describe("User Management - Edit Functionality", () => {
   test("non-admin cannot edit users", async ({ request }) => {
     // Create regular user
     const regularUser = await createTestUser(request, {
-      role: "user",
+      role: "viewer",
       email: `regular${Date.now()}@example.com`
     });
 
     // Create another user to try to edit
     const targetUser = await createTestUser(request, {
-      role: "user",
+      role: "viewer",
       email: `target${Date.now()}@example.com`
     });
 
     // Try to edit as non-admin
     const response = await makeAuthenticatedRequest(
       regularUser.request,
-      `http://localhost:5000/api/users/${targetUser.userId}`,
+      `http://localhost:5001/api/users/${targetUser.userId}`,
       "PUT",
       undefined,
       { name: "Unauthorized Change" }
@@ -160,16 +164,17 @@ test.describe("User Management - Edit Functionality", () => {
 
   test("cannot change email to one that already exists", async ({ request }) => {
     // Create admin user
-    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
-
-    // Create two users
+    // Create two users first
     const user1 = await createTestUser(request, { email: `user1${Date.now()}@example.com` });
     const user2 = await createTestUser(request, { email: `user2${Date.now()}@example.com` });
+
+    // Create admin user second
+    const admin = await createTestUser(request, { role: "admin", email: `admin${Date.now()}@example.com` });
 
     // Try to change user2's email to user1's email
     const response = await makeAuthenticatedRequest(
       admin.request,
-      `http://localhost:5000/api/users/${user2.userId}`,
+      `http://localhost:5001/api/users/${user2.userId}`,
       "PUT",
       undefined,
       { email: user1.email }

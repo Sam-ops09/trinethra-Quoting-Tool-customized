@@ -12,9 +12,9 @@ test.describe("Password Reset Security", () => {
       },
     });
 
-    expect(resetResponse.ok()).toBeTruthy();
+    expect(resetResponse.status()).toBe(200);
     const resetData = await resetResponse.json();
-    expect(resetData.message).toContain("reset email");
+    expect(resetData.success).toBe(true);
 
     // Step 2: Get the reset token from the database
     const [user] = await db

@@ -64,6 +64,40 @@ export class EmailService {
     return this.resend;
   }
 
+  private static async sendWithResend(params: any, retries = 3, delay = 1000): Promise<any> {
+    if (!this.resend) throw new Error("Resend service not initialized");
+    
+    for (let i = 0; i <= retries; i++) {
+        try {
+            const response = await this.resend.emails.send(params);
+            if (response.error) {
+                // Check for rate limit error (429)
+                const isRateLimit = (response.error as any).statusCode === 429 || 
+                                    response.error.name === 'rate_limit_exceeded';
+                                    
+                if (isRateLimit && i < retries) {
+                    const waitTime = delay * Math.pow(2, i);
+                    console.warn(`[Resend] Rate limit hit, retrying in ${waitTime}ms (Attempt ${i + 1}/${retries})...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                    continue;
+                }
+                return response; // Return other errors
+            }
+            return response;
+        } catch (error: any) {
+            const isRateLimit = error.statusCode === 429 || error.name === 'rate_limit_exceeded';
+            if (isRateLimit && i < retries) {
+                const waitTime = delay * Math.pow(2, i);
+                console.warn(`[Resend] Caught rate limit error, retrying in ${waitTime}ms (Attempt ${i + 1}/${retries})...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw new Error(`Failed to send email with Resend after ${retries} retries`);
+  }
+
   static async sendPasswordResetEmail(email: string, resetLink: string): Promise<void> {
     if (!isFeatureEnabled('email_integration')) {
         console.log('[EmailService] Email integration disabled, skipping password reset email');
@@ -82,30 +116,45 @@ export class EmailService {
     `;
 
     try {
+      let emailSent = false;
+
       if (this.useResend && this.resend) {
-        // Use Resend API
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
+        try {
+          // Use Resend API
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          
+          await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: "Password Reset Request",
+            html: htmlContent,
+          });
+          emailSent = true;
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send password reset email with Resend, falling back to SMTP:`, resendError);
         }
-        
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: "Password Reset Request",
-          html: htmlContent,
-        });
-      } else {
+      } 
+      
+      if (!emailSent) {
         // Use nodemailer fallback
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
-          to: email,
-          subject: "Password Reset Request",
-          html: htmlContent,
-          text: `Password Reset Request\n\nClick the link below to reset your password:\n${resetLink}\n\nThis link will expire in 1 hour.`,
-        });
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
+            to: email,
+            subject: "Password Reset Request",
+            html: htmlContent,
+            text: `Password Reset Request\n\nClick the link below to reset your password:\n${resetLink}\n\nThis link will expire in 1 hour.`,
+          });
+          emailSent = true;
+        } catch (smtpError) {
+           console.error("[SMTP] Failed to send password reset email:", smtpError);
+           throw smtpError;
+        }
       }
     } catch (error) {
       console.error("Failed to send password reset email:", error);
@@ -165,7 +214,7 @@ export class EmailService {
             console.warn(`[Resend] Gmail domain not supported by Resend, will try fallback`);
             // Don't override, let fallback handle it
           } else {
-            const response = await this.resend.emails.send({
+            const response = await this.sendWithResend({
               from: fromEmail,
               to: email,
               subject: emailSubject,
@@ -267,49 +316,70 @@ export class EmailService {
     const orderNumber = orderNumberMatch ? orderNumberMatch[1] : `Order_${Date.now()}`;
 
     try {
+      let emailSent = false;
+
       if (this.useResend && this.resend) {
-        // Use Resend API
-        const base64Pdf = pdfBuffer.toString("base64");
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
+        try {
+          // Use Resend API
+          const base64Pdf = pdfBuffer.toString("base64");
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
 
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          attachments: [
-            {
-              filename: `${orderNumber}.pdf`,
-              content: base64Pdf,
-            },
-          ],
-        });
+          const response = await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            attachments: [
+              {
+                filename: `${orderNumber}.pdf`,
+                content: base64Pdf,
+              },
+            ],
+          });
 
-        if (response.error) {
-          console.error(`[Resend] Error sending sales order email:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+          if (response.error) {
+            console.warn(`[Resend] Error sending sales order email, falling back to SMTP:`, response.error);
+          } else {
+            console.log(`[Resend] Sales order email sent successfully to ${email}`);
+            emailSent = true;
+          }
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
         }
-      } else {
+      }
+
+      if (!emailSent) {
         // Use nodemailer fallback
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody,
-          attachments: [
-            {
-              filename: `${orderNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf",
-            },
-          ],
-        });
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            text: emailBody,
+            attachments: [
+              {
+                filename: `${orderNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: "application/pdf",
+              },
+            ],
+          });
+          console.log(`[SMTP] Sales order email sent successfully to ${email}`);
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send sales order email:", smtpError);
+          throw smtpError;
+        }
+      }
+
+      if (!emailSent) {
+        throw new Error("Failed to send email via both Resend and SMTP");
       }
     } catch (error) {
       console.error("Failed to send sales order email:", error);
@@ -357,49 +427,70 @@ export class EmailService {
     const invoiceNumber = invoiceNumberMatch ? invoiceNumberMatch[1] : `Invoice_${Date.now()}`;
 
     try {
+      let emailSent = false;
+
       if (this.useResend && this.resend) {
-        // Use Resend API
-        const base64Pdf = pdfBuffer.toString("base64");
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
+        try {
+          // Use Resend API
+          const base64Pdf = pdfBuffer.toString("base64");
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
 
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          attachments: [
-            {
-              filename: `${invoiceNumber}.pdf`,
-              content: base64Pdf,
-            },
-          ],
-        });
+          const response = await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            attachments: [
+              {
+                filename: `${invoiceNumber}.pdf`,
+                content: base64Pdf,
+              },
+            ],
+          });
 
-        if (response.error) {
-          console.error(`[Resend] Error sending invoice email:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+          if (response.error) {
+            console.warn(`[Resend] Error sending invoice email, falling back to SMTP:`, response.error);
+          } else {
+            console.log(`[Resend] Invoice email sent successfully to ${email}`);
+            emailSent = true;
+          }
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
         }
-      } else {
+      }
+
+      if (!emailSent) {
         // Use nodemailer fallback
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "invoices@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody,
-          attachments: [
-            {
-              filename: `${invoiceNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf",
-            },
-          ],
-        });
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "invoices@quoteprogen.com",
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            text: emailBody,
+            attachments: [
+              {
+                filename: `${invoiceNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: "application/pdf",
+              },
+            ],
+          });
+          console.log(`[SMTP] Invoice email sent successfully to ${email}`);
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send invoice email:", smtpError);
+          throw smtpError;
+        }
+      }
+
+      if (!emailSent) {
+        throw new Error("Failed to send email via both Resend and SMTP");
       }
     } catch (error) {
       console.error("Failed to send invoice email:", error);
@@ -442,35 +533,56 @@ export class EmailService {
     `;
 
     try {
-      if (this.useResend && this.resend) {
-        // Use Resend API
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
-        }
-        
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-        });
+      let emailSent = false;
 
-        if (response.error) {
-          console.error(`[Resend] Error sending payment reminder:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+      if (this.useResend && this.resend) {
+        try {
+          // Use Resend API
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          
+          const response = await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+          });
+
+          if (response.error) {
+            console.warn(`[Resend] Error sending payment reminder, falling back to SMTP:`, response.error);
+          } else {
+            console.log(`[Resend] Payment reminder email sent successfully to ${email}`);
+            emailSent = true;
+          }
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
         }
-      } else {
+      }
+
+      if (!emailSent) {
         // Use nodemailer fallback
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody,
-        });
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            text: emailBody,
+          });
+          console.log(`[SMTP] Payment reminder email sent successfully to ${email}`);
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send payment reminder email:", smtpError);
+          throw smtpError;
+        }
+      }
+
+      if (!emailSent) {
+        throw new Error("Failed to send email via both Resend and SMTP");
       }
     } catch (error) {
       console.error("Failed to send payment reminder email:", error);
@@ -493,29 +605,43 @@ export class EmailService {
     `;
 
     try {
+      let emailSent = false;
+      
       if (this.useResend && this.resend) {
-        // Use Resend API
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
+        try {
+          // Use Resend API
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          
+          await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: "Welcome to QuoteProGen!",
+            html: htmlContent,
+          });
+          emailSent = true;
+        } catch (resendError) {
+             console.warn(`[Resend] Failed to send welcome email with Resend, falling back to SMTP:`, resendError);
         }
-        
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: "Welcome to QuoteProGen!",
-          html: htmlContent,
-        });
-      } else {
+      }
+      
+      if (!emailSent) {
         // Use nodemailer fallback
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "welcome@quoteprogen.com",
-          to: email,
-          subject: "Welcome to QuoteProGen!",
-          html: htmlContent,
-        });
+        try {
+            const transporter = await this.getTransporter();
+            await transporter.sendMail({
+              from: process.env.EMAIL_FROM || "welcome@quoteprogen.com",
+              to: email,
+              subject: "Welcome to QuoteProGen!",
+              html: htmlContent,
+            });
+        } catch (smtpError) {
+             console.error("Failed to send welcome email via SMTP:", smtpError);
+             // Don't throw for welcome emails as they are non-critical, but log it
+        }
       }
     } catch (error) {
       console.error("Failed to send welcome email:", error);
@@ -549,27 +675,41 @@ export class EmailService {
     `;
 
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-            fromEmail = "onboarding@resend.dev";
+        try {
+            let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+            if (fromEmail.includes("@gmail.com")) {
+                fromEmail = "onboarding@resend.dev";
+            }
+            await this.sendWithResend({
+              from: fromEmail,
+              to: to,
+              subject: `Subscription Renewed: ${planName}`,
+              html: htmlContent,
+            });
+            emailSent = true;
+        } catch (resendError) {
+             console.warn(`[Resend] Failed to send subscription renewal email with Resend, falling back to SMTP:`, resendError);
         }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: to,
-          subject: `Subscription Renewed: ${planName}`,
-          html: htmlContent,
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
-          to: to,
-          subject: `Subscription Renewed: ${planName}`,
-          html: htmlContent,
-        });
+      } 
+      
+      if (!emailSent) {
+        try {
+            const transporter = await this.getTransporter();
+            await transporter.sendMail({
+              from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
+              to: to,
+              subject: `Subscription Renewed: ${planName}`,
+              html: htmlContent,
+            });
+             emailSent = true;
+        } catch (smtpError) {
+             console.error("Failed to send subscription renewal email via SMTP:", smtpError);
+             // don't throw to avoid breaking scheduler
+        }
       }
-      console.log(`[EmailService] Subscription renewal email sent to ${to}`);
+      if (emailSent) console.log(`[EmailService] Subscription renewal email sent to ${to}`);
     } catch (error) {
       console.error("Failed to send subscription renewal email:", error);
       // don't throw to avoid breaking the scheduler loop
@@ -586,29 +726,43 @@ export class EmailService {
         return;
     }
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-            fromEmail = "onboarding@resend.dev";
+        try {
+            let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+            if (fromEmail.includes("@gmail.com")) {
+                fromEmail = "onboarding@resend.dev";
+            }
+            await this.sendWithResend({
+              from: fromEmail,
+              to: params.to,
+              subject: params.subject,
+              html: params.html,
+              text: params.text,
+            });
+            emailSent = true;
+        } catch (resendError) {
+             console.warn(`[Resend] Failed to send generic email with Resend, falling back to SMTP:`, resendError);
         }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: params.to,
-          subject: params.subject,
-          html: params.html,
-          text: params.text,
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
-          to: params.to,
-          subject: params.subject,
-          html: params.html,
-          text: params.text,
-        });
+      } 
+      
+      if (!emailSent) {
+        try {
+            const transporter = await this.getTransporter();
+            await transporter.sendMail({
+              from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
+              to: params.to,
+              subject: params.subject,
+              html: params.html,
+              text: params.text,
+            });
+            emailSent = true;
+        } catch (smtpError) {
+             console.error("Failed to send generic email via SMTP:", smtpError);
+             throw smtpError;
+        }
       }
-      console.log(`[EmailService] Generic email sent to ${params.to}`);
+      if (emailSent) console.log(`[EmailService] Generic email sent to ${params.to}`);
     } catch (error) {
       console.error("Failed to send generic email:", error);
       throw error;
