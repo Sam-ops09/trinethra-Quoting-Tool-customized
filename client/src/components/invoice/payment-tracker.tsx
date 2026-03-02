@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useUndoAction } from "@/hooks/use-undo-action";
 import { formatCurrency } from "@/lib/currency";
 
 interface PaymentHistoryEntry {
@@ -128,6 +129,14 @@ export function PaymentTracker({
         mutationFn: async (paymentId: string) => {
             return await apiRequest("DELETE", `/api/payment-history/${paymentId}`);
         },
+    });
+
+    const pendingDeleteId = useRef("");
+
+    const undoDeletePayment = useUndoAction({
+        action: () => deletePaymentMutation.mutateAsync(pendingDeleteId.current),
+        message: "Payment deleted",
+        description: "Click Undo to restore this payment",
         onSuccess: () => {
             queryClient.refetchQueries({
                 queryKey: [`/api/invoices/${invoiceId}/payment-history-detailed`]
@@ -154,7 +163,7 @@ export function PaymentTracker({
                 description: error.message || "Failed to delete payment.",
                 variant: "destructive"
             });
-        }
+        },
     });
 
     const handleAddPayment = () => {
@@ -440,9 +449,8 @@ export function PaymentTracker({
                                                     size="icon"
                                                     className="h-6 w-6 shrink-0 rounded opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                                                     onClick={() => {
-                                                        if (confirm("Delete this payment?")) {
-                                                            deletePaymentMutation.mutate(payment.id);
-                                                        }
+                                                        pendingDeleteId.current = payment.id;
+                                                        undoDeletePayment.trigger();
                                                     }}
                                                     data-testid={`button-delete-payment-${payment.id}`}
                                                 >

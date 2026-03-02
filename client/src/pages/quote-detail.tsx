@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { PermissionGuard } from "@/components/permission-guard";
 import { AdvancedSectionsDisplay } from "@/components/quote/advanced-sections-display";
 import { CreateVendorPoDialog } from "@/components/vendor-po/create-vendor-po-dialog";
+import { PdfPreviewDialog } from "@/components/pdf-preview-dialog";
+import { useUndoAction } from "@/hooks/use-undo-action";
 import type { BOMItem } from "@/components/quote/bom-section";
 import type { SLAData } from "@/components/quote/sla-section";
 import type { TimelineData } from "@/components/quote/timeline-section";
@@ -81,6 +83,7 @@ export default function QuoteDetail() {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailData, setEmailData] = useState({ email: "", message: "" });
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
 
   const [showVendorPoDialog, setShowVendorPoDialog] = useState(false);
   const [comparingVersionNumber, setComparingVersionNumber] = useState<number | null>(null);
@@ -324,6 +327,12 @@ export default function QuoteDetail() {
       const res = await apiRequest("POST", `/api/quotes/${params?.id}/reject`, {});
       return await res.json();
     },
+  });
+
+  const undoReject = useUndoAction({
+    action: () => rejectQuoteMutation.mutateAsync(),
+    message: "Quote rejected",
+    description: "Click Undo to cancel rejection",
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quotes", params?.id] });
       toast({
@@ -332,12 +341,12 @@ export default function QuoteDetail() {
       });
     },
     onError: (error: any) => {
-        toast({
-            title: "Error",
-            description: error.message || "Failed to reject quote",
-            variant: "destructive",
-        });
-    }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reject quote",
+        variant: "destructive",
+      });
+    },
   });
 
   const shareMutation = useMutation({
@@ -621,7 +630,7 @@ export default function QuoteDetail() {
                             size="sm" 
                             variant="outline" 
                             className="h-8 border-amber-300 hover:bg-amber-100 text-amber-800 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/40"
-                            onClick={() => rejectQuoteMutation.mutate()}
+                            onClick={() => undoReject.trigger()}
                             disabled={rejectQuoteMutation.isPending}
                          >
                              {rejectQuoteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin"/> : "Reject"}
@@ -717,19 +726,11 @@ export default function QuoteDetail() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      setIsDownloading(true);
-                      downloadPdfMutation.mutate();
-                    }}
-                    disabled={isDownloading}
+                    onClick={() => setShowPdfPreview(true)}
                     data-testid="button-download-pdf"
                     className="flex-1 sm:flex-initial h-7 text-xs"
                   >
-                    {isDownloading ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <Download className="h-3 w-3 mr-1" />
-                    )}
+                    <Download className="h-3 w-3 mr-1" />
                     <span className="hidden xs:inline">PDF</span>
                   </Button>
                 )}
@@ -1355,6 +1356,15 @@ export default function QuoteDetail() {
           />
         )}
       </div>
+
+      {/* PDF Preview Dialog */}
+      <PdfPreviewDialog
+        open={showPdfPreview}
+        onOpenChange={setShowPdfPreview}
+        pdfUrl={`/api/quotes/${params?.id}/pdf`}
+        filename={`Quote-${quote.quoteNumber || "document"}.pdf`}
+        title={`Quote ${quote.quoteNumber} — PDF Preview`}
+      />
 
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent>

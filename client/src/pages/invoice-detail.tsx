@@ -1,5 +1,5 @@
 import { useLocation, useRoute } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,8 @@ import { EditInvoiceDialog } from "@/components/invoice/edit-invoice-dialog";
 import { ExecBOMSection } from "@/components/shared/exec-bom-section";
 import { formatCurrency, getCurrencySymbol } from "@/lib/currency";
 import { CommentsSection } from "@/components/comments-section";
+import { PdfPreviewDialog } from "@/components/pdf-preview-dialog";
+import { useUndoAction } from "@/hooks/use-undo-action";
 import type { ExecBOMData } from "@/types/bom-types";
 
 
@@ -145,6 +147,7 @@ export default function InvoiceDetail() {
     const [showEmailDialog, setShowEmailDialog] = useState(false);
     const [emailData, setEmailData] = useState({ email: "", message: "" });
     const [isDownloading, setIsDownloading] = useState(false);
+    const [showPdfPreview, setShowPdfPreview] = useState(false);
     const [showPaymentDialog, setShowPaymentDialog] = useState(false);
     const [paymentData, setPaymentData] = useState({ status: "", paidAmount: "" });
     const [showSplitWizard, setShowSplitWizard] = useState(false);
@@ -454,6 +457,15 @@ export default function InvoiceDetail() {
         mutationFn: async (reason: string) => {
             return await apiRequest("PUT", `/api/invoices/${params?.id}/cancel`, { cancellationReason: reason });
         },
+    });
+
+    // We need a ref for the reason since the undo hook captures it at trigger time
+    const pendingCancelReason = useRef("");
+
+    const undoCancel = useUndoAction({
+        action: () => cancelMutation.mutateAsync(pendingCancelReason.current),
+        message: "Invoice cancellation pending",
+        description: "Click Undo to keep this invoice active",
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/invoices", params?.id] });
             queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
@@ -461,7 +473,6 @@ export default function InvoiceDetail() {
                 title: "Success",
                 description: "Invoice cancelled successfully.",
             });
-            setShowCancelDialog(false);
             setCancellationReason("");
         },
         onError: (error: any) => {
@@ -695,26 +706,12 @@ export default function InvoiceDetail() {
                                     variant="outline"
                                     size="sm"
                                     className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-success/10 hover:border-success hover:text-success"
-                                    onClick={() => {
-                                        setIsDownloading(true);
-                                        downloadPdfMutation.mutate();
-                                    }}
-                                    disabled={isDownloading}
+                                    onClick={() => setShowPdfPreview(true)}
                                     data-testid="button-download-pdf"
                                   >
-                                    {isDownloading ? (
-                                        <>
-                                            <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
-                                            <span className="hidden sm:inline">Downloading...</span>
-                                            <span className="sm:hidden">PDF...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                            <span className="hidden sm:inline">Download PDF</span>
-                                            <span className="sm:hidden">PDF</span>
-                                        </>
-                                    )}
+                                    <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                    <span className="hidden sm:inline">Preview PDF</span>
+                                    <span className="sm:hidden">PDF</span>
                                   </Button>
                                 )}
 
@@ -2036,7 +2033,9 @@ export default function InvoiceDetail() {
                             variant="destructive"
                             onClick={() => {
                                 if (cancellationReason.trim()) {
-                                    cancelMutation.mutate(cancellationReason);
+                                    pendingCancelReason.current = cancellationReason;
+                                    setShowCancelDialog(false);
+                                    undoCancel.trigger();
                                 }
                             }}
                             disabled={!cancellationReason.trim()}
@@ -2046,6 +2045,15 @@ export default function InvoiceDetail() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* PDF Preview Dialog */}
+            <PdfPreviewDialog
+                open={showPdfPreview}
+                onOpenChange={setShowPdfPreview}
+                pdfUrl={`/api/invoices/${params?.id}/pdf`}
+                filename={`Invoice-${invoice.invoiceNumber || "document"}.pdf`}
+                title={`Invoice ${invoice.invoiceNumber} — PDF Preview`}
+            />
         </div>
     </div>
     );

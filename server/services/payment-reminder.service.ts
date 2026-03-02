@@ -68,8 +68,17 @@ export class PaymentReminderScheduler {
       today.setHours(0, 0, 0, 0);
 
       let remindersSent = 0;
+      let skipped = 0;
+      const MAX_REMINDERS_PER_BATCH = 50; // Avoid flooding SMTP/Resend
+      const DELAY_BETWEEN_EMAILS_MS = 2000; // 2s between each send
 
       for (const invoice of invoices) {
+        // Stop if we've hit the batch limit
+        if (remindersSent >= MAX_REMINDERS_PER_BATCH) {
+          console.log(`[Payment Reminders] Reached batch limit of ${MAX_REMINDERS_PER_BATCH}, remaining invoices will be processed next cycle.`);
+          break;
+        }
+
         // Skip if invoice is already paid
         if (invoice.paymentStatus === "paid") continue;
 
@@ -91,7 +100,6 @@ export class PaymentReminderScheduler {
 
         if (reminderDays.includes(daysOverdue)) {
           try {
-            // Get quote and client details
             // Get client details (support both quote-based and standalone invoices)
             let client;
             if (invoice.clientId) {
@@ -104,6 +112,12 @@ export class PaymentReminderScheduler {
             }
 
             if (!client || !client.email) continue;
+
+            // Skip fake/test email addresses — they'll never deliver
+            if (client.email.endsWith("@example.com") || client.email.endsWith("@test.com")) {
+              skipped++;
+              continue;
+            }
 
             // Calculate outstanding amount
             const outstanding = Number(invoice.total) - Number(invoice.paidAmount);
@@ -133,6 +147,11 @@ export class PaymentReminderScheduler {
             // Add automatic reminder note
             emailBody = `${emailBody}\n\n---\nThis is an automated payment reminder sent ${daysOverdue} days after the due date.`;
 
+            // Rate-limit: wait between sends to avoid 429s
+            if (remindersSent > 0) {
+              await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_EMAILS_MS));
+            }
+
             // Send the reminder
             await EmailService.sendPaymentReminderEmail(
               client.email,
@@ -159,7 +178,7 @@ export class PaymentReminderScheduler {
         }
       }
 
-      console.log(`[Payment Reminders] Check complete. Sent ${remindersSent} reminders.`);
+      console.log(`[Payment Reminders] Check complete. Sent ${remindersSent} reminders${skipped > 0 ? `, skipped ${skipped} test addresses` : ""}.`);
     } catch (error) {
       console.error("[Payment Reminders] Error checking for overdue invoices:", error);
     }

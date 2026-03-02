@@ -173,7 +173,10 @@ export class EmailService {
         return;
     }
     // Convert newlines to HTML with proper formatting
-    const lines = emailBody.split('\n');
+    // Normalize escaped newlines from templates (DB or hardcoded may have literal \n)
+    const normalizedBody = emailBody.split("\\n").join("\n");
+
+    const lines = normalizedBody.split('\n');
     const formattedLines: string[] = [];
     let previousWasEmpty = false;
 
@@ -287,7 +290,10 @@ export class EmailService {
         return;
     }
     // Convert newlines to HTML with proper formatting
-    const lines = emailBody.split('\n');
+    // Normalize escaped newlines from templates
+    const normalizedBody = emailBody.split("\\n").join("\n");
+
+    const lines = normalizedBody.split('\n');
     const formattedLines: string[] = [];
     let previousWasEmpty = false;
 
@@ -398,7 +404,10 @@ export class EmailService {
         return;
     }
     // Convert newlines to HTML with proper formatting
-    const lines = emailBody.split('\n');
+    // Normalize escaped newlines from templates
+    const normalizedBody = emailBody.split("\\n").join("\n");
+
+    const lines = normalizedBody.split('\n');
     const formattedLines: string[] = [];
     let previousWasEmpty = false;
 
@@ -508,7 +517,10 @@ export class EmailService {
         return;
     }
     // Convert newlines to HTML with proper formatting
-    const lines = emailBody.split('\n');
+    // Normalize escaped newlines from templates
+    const normalizedBody = emailBody.split("\\n").join("\n");
+
+    const lines = normalizedBody.split('\n');
     const formattedLines: string[] = [];
     let previousWasEmpty = false;
 
