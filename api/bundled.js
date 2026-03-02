@@ -1,11 +1,5 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -172,8 +166,8 @@ var userRoleEnum, userStatusEnum, quoteStatusEnum, paymentStatusEnum, vendorPoSt
 var init_schema = __esm({
   "shared/schema.ts"() {
     "use strict";
-    userRoleEnum = pgEnum("user_role", ["admin", "sales_executive", "sales_manager", "purchase_operations", "finance_accounts", "viewer"]);
-    userStatusEnum = pgEnum("user_status", ["active", "inactive"]);
+    userRoleEnum = pgEnum("user_role", ["admin", "sales_executive", "sales_manager", "purchase_operations", "finance_accounts", "viewer", "guest"]);
+    userStatusEnum = pgEnum("user_status", ["active", "inactive", "pending"]);
     quoteStatusEnum = pgEnum("quote_status", ["draft", "sent", "approved", "rejected", "invoiced", "closed_paid", "closed_cancelled"]);
     paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "overdue"]);
     vendorPoStatusEnum = pgEnum("vendor_po_status", ["draft", "sent", "acknowledged", "fulfilled", "cancelled"]);
@@ -205,7 +199,10 @@ var init_schema = __esm({
       delegationReason: text("delegation_reason"),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
-    });
+    }, (table) => ({
+      roleIdx: index("idx_users_role").on(table.role),
+      statusIdx: index("idx_users_status").on(table.status)
+    }));
     usersRelations = relations(users, ({ many }) => ({
       clients: many(clients),
       quotes: many(quotes),
@@ -310,7 +307,12 @@ var init_schema = __esm({
       createdBy: varchar("created_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
-    });
+    }, (table) => ({
+      clientIdx: index("idx_quotes_client_id").on(table.clientId),
+      statusIdx: index("idx_quotes_status").on(table.status),
+      creatorIdx: index("idx_quotes_created_by").on(table.createdBy),
+      quoteDateIdx: index("idx_quotes_date").on(table.quoteDate)
+    }));
     approvalRuleTriggerTypeEnum = pgEnum("approval_rule_trigger_type", ["discount_percentage", "total_amount"]);
     approvalRules = pgTable("approval_rules", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -463,7 +465,10 @@ var init_schema = __esm({
       // Optional item support - client can deselect optional items
       isOptional: boolean("is_optional").notNull().default(false),
       isSelected: boolean("is_selected").notNull().default(true)
-    });
+    }, (table) => ({
+      quoteIdx: index("idx_quote_items_quote_id").on(table.quoteId),
+      productIdx: index("idx_quote_items_product_id").on(table.productId)
+    }));
     quoteComments = pgTable("quote_comments", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
@@ -674,7 +679,10 @@ var init_schema = __esm({
       paymentDate: timestamp("payment_date").notNull().defaultNow(),
       recordedBy: varchar("recorded_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow()
-    });
+    }, (table) => ({
+      invoiceIdx: index("idx_payment_history_invoice_id").on(table.invoiceId),
+      dateIdx: index("idx_payment_history_date").on(table.paymentDate)
+    }));
     paymentHistoryRelations = relations(paymentHistory, ({ one }) => ({
       invoice: one(invoices, {
         fields: [paymentHistory.invoiceId],
@@ -703,7 +711,10 @@ var init_schema = __esm({
       // HSN/SAC code for GST compliance
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
-    });
+    }, (table) => ({
+      invoiceIdx: index("idx_invoice_items_invoice_id").on(table.invoiceId),
+      productIdx: index("idx_invoice_items_product_id").on(table.productId)
+    }));
     invoiceAttachments = pgTable("invoice_attachments", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       invoiceId: varchar("invoice_id").notNull().references(() => invoices.id),
@@ -762,7 +773,11 @@ var init_schema = __esm({
       createdBy: varchar("created_by").notNull().references(() => users.id),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
-    });
+    }, (table) => ({
+      vendorIdx: index("idx_vendor_pos_vendor_id").on(table.vendorId),
+      quoteIdx: index("idx_vendor_pos_quote_id").on(table.quoteId),
+      statusIdx: index("idx_vendor_pos_status").on(table.status)
+    }));
     vendorPurchaseOrdersRelations = relations(vendorPurchaseOrders, ({ one, many }) => ({
       quote: one(quotes, {
         fields: [vendorPurchaseOrders.quoteId],
@@ -816,7 +831,10 @@ var init_schema = __esm({
       sortOrder: integer("sort_order").notNull().default(0),
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow()
-    });
+    }, (table) => ({
+      vendorPoIdx: index("idx_vendor_po_items_po_id").on(table.vendorPoId),
+      productIdx: index("idx_vendor_po_items_product_id").on(table.productId)
+    }));
     vendorPoItemsRelations = relations(vendorPoItems, ({ one, many }) => ({
       vendorPo: one(vendorPurchaseOrders, {
         fields: [vendorPoItems.vendorPoId],
@@ -978,7 +996,11 @@ var init_schema = __esm({
       entityId: varchar("entity_id"),
       metadata: jsonb("metadata"),
       timestamp: timestamp("timestamp").notNull().defaultNow()
-    });
+    }, (table) => ({
+      userIdx: index("idx_activity_logs_user_id").on(table.userId),
+      entityIdx: index("idx_activity_logs_entity").on(table.entityType, table.entityId),
+      timestampIdx: index("idx_activity_logs_timestamp").on(table.timestamp)
+    }));
     activityLogsRelations = relations(activityLogs, ({ one }) => ({
       user: one(users, {
         fields: [activityLogs.userId],
@@ -1123,152 +1145,37 @@ var init_schema = __esm({
         references: [users.id]
       })
     }));
-    insertUserSchema = createInsertSchema(users).pick({
-      email: true,
-      backupEmail: true,
-      passwordHash: true,
-      name: true,
-      role: true,
-      status: true,
-      refreshToken: true,
-      refreshTokenExpiry: true
-    }).extend({
+    insertUserSchema = createInsertSchema(users).extend({
       password: z.string().min(8).regex(
         /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
         "Password must contain uppercase, lowercase, number, and special character"
       )
     });
-    insertClientSchema = createInsertSchema(clients).omit({
-      id: true,
-      createdAt: true,
-      createdBy: true
-    }).extend({
-      email: z.string().email("Invalid email format"),
-      segment: z.string().optional(),
-      preferredTheme: z.string().optional()
-    });
-    insertQuoteSchema = createInsertSchema(quotes).omit({
-      id: true,
-      quoteNumber: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true,
-      approvalStatus: true,
-      approvalRequiredBy: true
-    });
-    insertApprovalRuleSchema = createInsertSchema(approvalRules).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
-    insertQuoteItemSchema = createInsertSchema(quoteItems).omit({
-      id: true
-    });
-    insertInvoiceSchema = createInsertSchema(invoices).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
-    insertPaymentHistorySchema = createInsertSchema(paymentHistory).omit({
-      id: true,
-      createdAt: true
-    });
-    insertTemplateSchema = createInsertSchema(templates).omit({
-      id: true,
-      createdAt: true,
-      createdBy: true
-    });
-    insertActivityLogSchema = createInsertSchema(activityLogs).omit({
-      id: true,
-      timestamp: true
-    });
-    insertSettingSchema = createInsertSchema(settings).omit({
-      id: true,
-      updatedAt: true
-    });
-    insertBankDetailsSchema = createInsertSchema(bankDetails).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
-    insertClientTagSchema = createInsertSchema(clientTags).omit({
-      id: true,
-      createdAt: true
-    });
-    insertClientCommunicationSchema = createInsertSchema(clientCommunications).omit({
-      id: true
-    });
-    insertTaxRateSchema = createInsertSchema(taxRates).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
-    insertPricingTierSchema = createInsertSchema(pricingTiers).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
-    insertCurrencySettingSchema = createInsertSchema(currencySettings).omit({
-      id: true,
-      updatedAt: true
-    });
-    insertInvoiceItemSchema = createInsertSchema(invoiceItems).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
-    insertVendorSchema = createInsertSchema(vendors).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
-    insertVendorPurchaseOrderSchema = createInsertSchema(vendorPurchaseOrders).omit({
-      id: true,
-      poNumber: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
-    insertVendorPoItemSchema = createInsertSchema(vendorPoItems).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
-    insertProductSchema = createInsertSchema(products).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
-    insertGrnSchema = createInsertSchema(goodsReceivedNotes).omit({
-      id: true,
-      grnNumber: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
-    insertSerialNumberSchema = createInsertSchema(serialNumbers).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
-    insertQuoteVersionSchema = createInsertSchema(quoteVersions).omit({
-      id: true,
-      createdAt: true
-    });
-    insertSalesOrderSchema = createInsertSchema(salesOrders).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
-    insertSalesOrderItemSchema = createInsertSchema(salesOrderItems).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true
-    });
+    insertClientSchema = createInsertSchema(clients);
+    insertQuoteSchema = createInsertSchema(quotes);
+    insertApprovalRuleSchema = createInsertSchema(approvalRules);
+    insertQuoteItemSchema = createInsertSchema(quoteItems);
+    insertInvoiceSchema = createInsertSchema(invoices);
+    insertPaymentHistorySchema = createInsertSchema(paymentHistory);
+    insertTemplateSchema = createInsertSchema(templates);
+    insertActivityLogSchema = createInsertSchema(activityLogs);
+    insertSettingSchema = createInsertSchema(settings);
+    insertBankDetailsSchema = createInsertSchema(bankDetails);
+    insertClientTagSchema = createInsertSchema(clientTags);
+    insertClientCommunicationSchema = createInsertSchema(clientCommunications);
+    insertTaxRateSchema = createInsertSchema(taxRates);
+    insertPricingTierSchema = createInsertSchema(pricingTiers);
+    insertCurrencySettingSchema = createInsertSchema(currencySettings);
+    insertInvoiceItemSchema = createInsertSchema(invoiceItems);
+    insertVendorSchema = createInsertSchema(vendors);
+    insertVendorPurchaseOrderSchema = createInsertSchema(vendorPurchaseOrders);
+    insertVendorPoItemSchema = createInsertSchema(vendorPoItems);
+    insertProductSchema = createInsertSchema(products);
+    insertGrnSchema = createInsertSchema(goodsReceivedNotes);
+    insertSerialNumberSchema = createInsertSchema(serialNumbers);
+    insertQuoteVersionSchema = createInsertSchema(quoteVersions);
+    insertSalesOrderSchema = createInsertSchema(salesOrders);
+    insertSalesOrderItemSchema = createInsertSchema(salesOrderItems);
     notificationTypeEnum = pgEnum("notification_type", [
       "quote_status_change",
       "approval_request",
@@ -1325,17 +1232,8 @@ var init_schema = __esm({
         references: [users.id]
       })
     }));
-    insertNotificationSchema = createInsertSchema(notifications).omit({
-      id: true,
-      createdAt: true,
-      isRead: true,
-      readAt: true
-    });
-    insertCollaborationSessionSchema = createInsertSchema(collaborationSessions).omit({
-      id: true,
-      joinedAt: true,
-      lastActivity: true
-    });
+    insertNotificationSchema = createInsertSchema(notifications);
+    insertCollaborationSessionSchema = createInsertSchema(collaborationSessions);
     creditNotes = pgTable("credit_notes", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
       creditNoteNumber: text("credit_note_number").notNull().unique(),
@@ -1462,48 +1360,13 @@ var init_schema = __esm({
         references: [products.id]
       })
     }));
-    insertCreditNoteSchema = createInsertSchema(creditNotes).omit({
-      id: true,
-      creditNoteNumber: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true,
-      appliedAmount: true
-    });
-    insertCreditNoteItemSchema = createInsertSchema(creditNoteItems).omit({
-      id: true,
-      createdAt: true
-    });
-    insertDebitNoteSchema = createInsertSchema(debitNotes).omit({
-      id: true,
-      debitNoteNumber: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true,
-      appliedAmount: true
-    });
-    insertDebitNoteItemSchema = createInsertSchema(debitNoteItems).omit({
-      id: true,
-      createdAt: true
-    });
-    insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      lastInvoiceDate: true,
-      subscriptionNumber: true
-      // Generated server-side
-    });
-    insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments).omit({
-      id: true,
-      createdAt: true
-    });
-    insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
+    insertCreditNoteSchema = createInsertSchema(creditNotes);
+    insertCreditNoteItemSchema = createInsertSchema(creditNoteItems);
+    insertDebitNoteSchema = createInsertSchema(debitNotes);
+    insertDebitNoteItemSchema = createInsertSchema(debitNoteItems);
+    insertSubscriptionSchema = createInsertSchema(subscriptions);
+    insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments);
+    insertEmailTemplateSchema = createInsertSchema(emailTemplates);
     workflowStatusEnum = pgEnum("workflow_status", ["active", "inactive", "draft"]);
     workflowTriggerTypeEnum = pgEnum("workflow_trigger_type", [
       "status_change",
@@ -1669,31 +1532,12 @@ var init_schema = __esm({
         references: [workflows.id]
       })
     }));
-    insertWorkflowSchema = createInsertSchema(workflows).omit({
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: true
-    });
-    insertWorkflowTriggerSchema = createInsertSchema(workflowTriggers).omit({
-      id: true,
-      createdAt: true
-    });
-    insertWorkflowActionSchema = createInsertSchema(workflowActions).omit({
-      id: true,
-      createdAt: true
-    });
-    insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).omit({
-      id: true
-    });
-    insertWorkflowScheduleSchema = createInsertSchema(workflowSchedules).omit({
-      id: true,
-      createdAt: true
-    });
-    insertUserDeviceSchema = createInsertSchema(userDevices).omit({
-      id: true,
-      createdAt: true
-    });
+    insertWorkflowSchema = createInsertSchema(workflows);
+    insertWorkflowTriggerSchema = createInsertSchema(workflowTriggers);
+    insertWorkflowActionSchema = createInsertSchema(workflowActions);
+    insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions);
+    insertWorkflowScheduleSchema = createInsertSchema(workflowSchedules);
+    insertUserDeviceSchema = createInsertSchema(userDevices);
   }
 });
 
@@ -1781,11 +1625,13 @@ var init_cache_service = __esm({
   "server/services/cache.service.ts"() {
     "use strict";
     init_logger();
-    CacheService = class {
+    CacheService = class _CacheService {
       redisClient = null;
       memoryCache;
       useRedis = false;
       isConnected = false;
+      redisErrorLogged = false;
+      static MAX_RETRIES = 5;
       constructor() {
         this.memoryCache = new LRUCache({
           max: 500,
@@ -1796,16 +1642,34 @@ var init_cache_service = __esm({
         if (process.env.REDIS_URL) {
           this.initRedis();
         } else {
-          logger.info("Local: Cache service initialized with in-memory storage (No REDIS_URL provided)");
+          logger.info("Cache service initialized with in-memory storage (No REDIS_URL provided)");
         }
       }
       async initRedis() {
         try {
           this.redisClient = createClient({
-            url: process.env.REDIS_URL
+            url: process.env.REDIS_URL,
+            socket: {
+              reconnectStrategy: (retries) => {
+                if (retries >= _CacheService.MAX_RETRIES) {
+                  logger.warn(
+                    `Redis: Max reconnection attempts (${_CacheService.MAX_RETRIES}) reached. Falling back to in-memory cache.`
+                  );
+                  this.useRedis = false;
+                  this.isConnected = false;
+                  return false;
+                }
+                const delay = Math.min(Math.pow(2, retries) * 1e3, 3e4);
+                logger.info(`Redis: Reconnect attempt ${retries + 1}/${_CacheService.MAX_RETRIES} in ${delay / 1e3}s...`);
+                return delay;
+              }
+            }
           });
           this.redisClient.on("error", (err) => {
-            logger.error("Redis Client Error", err);
+            if (!this.redisErrorLogged) {
+              logger.error("Redis Client Error:", err.message || err);
+              this.redisErrorLogged = true;
+            }
             this.useRedis = false;
             this.isConnected = false;
           });
@@ -1813,15 +1677,15 @@ var init_cache_service = __esm({
             logger.info("Redis: Connected to Redis server");
             this.useRedis = true;
             this.isConnected = true;
+            this.redisErrorLogged = false;
           });
           this.redisClient.on("reconnecting", () => {
-            logger.info("Redis: Reconnecting...");
             this.useRedis = false;
             this.isConnected = false;
           });
           await this.redisClient.connect();
         } catch (error) {
-          logger.error("Failed to connect to Redis, falling back to memory cache:", error);
+          logger.warn(`Redis unavailable (${error.message || error}). Using in-memory cache.`);
           this.useRedis = false;
           this.isConnected = false;
         }
@@ -2936,6 +2800,11 @@ var init_permissions_service = __esm({
           { resource: "payments", action: "view" },
           { resource: "serial_numbers", action: "view" }
         ]
+      },
+      guest: {
+        name: "Guest",
+        description: "Pending approval - No access to business data",
+        permissions: []
       }
     };
   }
@@ -3044,7 +2913,7 @@ var init_feature_flags = __esm({
       sales_orders_convertToInvoice: true,
       quotes_convertToVendorPO: true,
       quotes_sendQuote: true,
-      quotes_emailSending: false,
+      quotes_emailSending: true,
       quotes_pdfGeneration: true,
       quotes_templates: true,
       quotes_referenceNumber: true,
@@ -3065,7 +2934,7 @@ var init_feature_flags = __esm({
       invoices_childInvoices: true,
       invoices_masterInvoices: true,
       invoices_milestoneInvoices: true,
-      invoices_emailSending: false,
+      invoices_emailSending: true,
       invoices_pdfGeneration: true,
       invoices_paymentTracking: true,
       invoices_paymentHistory: true,
@@ -4123,6 +3992,7 @@ async function authMiddleware(req, res, next) {
       name: user.name
     }, 300);
     req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
+    console.log(`[AuthMiddleware] Authenticated user ${req.user.email} with role ${req.user.role}`);
     next();
   } catch (error) {
     return res.status(401).json({ error: "Invalid token" });
@@ -4815,7 +4685,7 @@ var InvoicePDFService = class _InvoicePDFService {
     for (let idx = 0; idx < items.length; idx++) {
       const it = items[idx];
       const descRaw = String(it.description ?? "").trim();
-      const desc6 = descRaw || "-";
+      const desc8 = descRaw || "-";
       const qty = Number(it.quantity ?? 0);
       const unit = String(it.unit ?? "pcs");
       const rate = Number(it.unitPrice ?? 0);
@@ -4826,7 +4696,7 @@ var InvoicePDFService = class _InvoicePDFService {
       const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
       doc.save();
       doc.font("Helvetica").fontSize(8).fillColor(this.INK);
-      const allDescLines = this.wrapTextLines(doc, desc6, col.desc - 12, 50);
+      const allDescLines = this.wrapTextLines(doc, desc8, col.desc - 12, 50);
       let descLines = allDescLines;
       if (allDescLines.length > this.TABLE_DESC_MAX_LINES) {
         descLines = allDescLines.slice(0, this.TABLE_DESC_MAX_LINES);
@@ -4913,7 +4783,7 @@ var InvoicePDFService = class _InvoicePDFService {
         align: "right",
         lineBreak: false
       });
-      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc6, serials });
+      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc8, serials });
       y += rowH;
     }
     doc.y = y + 8;
@@ -5944,7 +5814,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
     for (let idx = 0; idx < items.length; idx++) {
       const it = items[idx];
       const descRaw = String(it.description ?? "").trim();
-      const desc6 = descRaw || "-";
+      const desc8 = descRaw || "-";
       const qty = Number(it.quantity ?? 0);
       const unit = String(it.unit ?? "pcs");
       const rate = Number(it.unitPrice ?? 0);
@@ -5956,7 +5826,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       const serialInline = serials.length ? this.serialInlineSummary(serials, needsAppendix) : "";
       doc.save();
       doc.font("Helvetica").fontSize(8).fillColor(this.INK);
-      const descLinesAll = this.wrapTextLines(doc, desc6, col.desc - 12, 30);
+      const descLinesAll = this.wrapTextLines(doc, desc8, col.desc - 12, 30);
       const descLines = descLinesAll;
       const descH = descLines.length * 11;
       let serialLines = [];
@@ -6031,7 +5901,7 @@ var SalesOrderPDFService = class _SalesOrderPDFService {
       doc.strokeColor(this.LINE).lineWidth(0.8);
       doc.moveTo(x0, y + rowH).lineTo(cx.right, y + rowH).stroke();
       doc.restore();
-      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc6, serials });
+      if (needsAppendix) appendix.push({ itemIndex: idx + 1, description: desc8, serials });
       y += rowH;
     }
     doc.y = y + 8;
@@ -6507,6 +6377,35 @@ var EmailService = class {
     }
     return this.resend;
   }
+  static async sendWithResend(params, retries = 3, delay = 1e3) {
+    if (!this.resend) throw new Error("Resend service not initialized");
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const response = await this.resend.emails.send(params);
+        if (response.error) {
+          const isRateLimit = response.error.statusCode === 429 || response.error.name === "rate_limit_exceeded";
+          if (isRateLimit && i < retries) {
+            const waitTime = delay * Math.pow(2, i);
+            console.warn(`[Resend] Rate limit hit, retrying in ${waitTime}ms (Attempt ${i + 1}/${retries})...`);
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+            continue;
+          }
+          return response;
+        }
+        return response;
+      } catch (error) {
+        const isRateLimit = error.statusCode === 429 || error.name === "rate_limit_exceeded";
+        if (isRateLimit && i < retries) {
+          const waitTime = delay * Math.pow(2, i);
+          console.warn(`[Resend] Caught rate limit error, retrying in ${waitTime}ms (Attempt ${i + 1}/${retries})...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error(`Failed to send email with Resend after ${retries} retries`);
+  }
   static async sendPasswordResetEmail(email, resetLink) {
     if (!isFeatureEnabled("email_integration")) {
       console.log("[EmailService] Email integration disabled, skipping password reset email");
@@ -6524,32 +6423,45 @@ var EmailService = class {
       <p>If you didn't request this, you can safely ignore this email.</p>
     `;
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
+        try {
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: "Password Reset Request",
+            html: htmlContent
+          });
+          emailSent = true;
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send password reset email with Resend, falling back to SMTP:`, resendError);
         }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: "Password Reset Request",
-          html: htmlContent
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
-          to: email,
-          subject: "Password Reset Request",
-          html: htmlContent,
-          text: `Password Reset Request
+      }
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
+            to: email,
+            subject: "Password Reset Request",
+            html: htmlContent,
+            text: `Password Reset Request
 
 Click the link below to reset your password:
 ${resetLink}
 
 This link will expire in 1 hour.`
-        });
+          });
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send password reset email:", smtpError);
+          throw smtpError;
+        }
       }
     } catch (error) {
       console.error("Failed to send password reset email:", error);
@@ -6561,7 +6473,8 @@ This link will expire in 1 hour.`
       console.log("[EmailService] Quotes email sending disabled, skipping quote email");
       return;
     }
-    const lines = emailBody.split("\n");
+    const normalizedBody = emailBody.split("\\n").join("\n");
+    const lines = normalizedBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
     for (const line of lines) {
@@ -6592,7 +6505,7 @@ This link will expire in 1 hour.`
           if (fromEmail.includes("@gmail.com")) {
             console.warn(`[Resend] Gmail domain not supported by Resend, will try fallback`);
           } else {
-            const response = await this.resend.emails.send({
+            const response = await this.sendWithResend({
               from: fromEmail,
               to: email,
               subject: emailSubject,
@@ -6652,7 +6565,8 @@ This link will expire in 1 hour.`
       console.log("[EmailService] Sales orders email sending disabled, skipping sales order email");
       return;
     }
-    const lines = emailBody.split("\n");
+    const normalizedBody = emailBody.split("\\n").join("\n");
+    const lines = normalizedBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
     for (const line of lines) {
@@ -6675,45 +6589,63 @@ This link will expire in 1 hour.`
     const orderNumberMatch = emailSubject.match(/Order\s+([A-Z0-9-]+)/i);
     const orderNumber = orderNumberMatch ? orderNumberMatch[1] : `Order_${Date.now()}`;
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        const base64Pdf = pdfBuffer.toString("base64");
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
+        try {
+          const base64Pdf = pdfBuffer.toString("base64");
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          const response = await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            attachments: [
+              {
+                filename: `${orderNumber}.pdf`,
+                content: base64Pdf
+              }
+            ]
+          });
+          if (response.error) {
+            console.warn(`[Resend] Error sending sales order email, falling back to SMTP:`, response.error);
+          } else {
+            console.log(`[Resend] Sales order email sent successfully to ${email}`);
+            emailSent = true;
+          }
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
         }
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          attachments: [
-            {
-              filename: `${orderNumber}.pdf`,
-              content: base64Pdf
-            }
-          ]
-        });
-        if (response.error) {
-          console.error(`[Resend] Error sending sales order email:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+      }
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            text: emailBody,
+            attachments: [
+              {
+                filename: `${orderNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: "application/pdf"
+              }
+            ]
+          });
+          console.log(`[SMTP] Sales order email sent successfully to ${email}`);
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send sales order email:", smtpError);
+          throw smtpError;
         }
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "orders@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody,
-          attachments: [
-            {
-              filename: `${orderNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf"
-            }
-          ]
-        });
+      }
+      if (!emailSent) {
+        throw new Error("Failed to send email via both Resend and SMTP");
       }
     } catch (error) {
       console.error("Failed to send sales order email:", error);
@@ -6725,7 +6657,8 @@ This link will expire in 1 hour.`
       console.log("[EmailService] Invoices email sending disabled, skipping invoice email");
       return;
     }
-    const lines = emailBody.split("\n");
+    const normalizedBody = emailBody.split("\\n").join("\n");
+    const lines = normalizedBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
     for (const line of lines) {
@@ -6748,45 +6681,63 @@ This link will expire in 1 hour.`
     const invoiceNumberMatch = emailSubject.match(/Invoice\s+([A-Z0-9-]+)/i);
     const invoiceNumber = invoiceNumberMatch ? invoiceNumberMatch[1] : `Invoice_${Date.now()}`;
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        const base64Pdf = pdfBuffer.toString("base64");
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
+        try {
+          const base64Pdf = pdfBuffer.toString("base64");
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          const response = await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            attachments: [
+              {
+                filename: `${invoiceNumber}.pdf`,
+                content: base64Pdf
+              }
+            ]
+          });
+          if (response.error) {
+            console.warn(`[Resend] Error sending invoice email, falling back to SMTP:`, response.error);
+          } else {
+            console.log(`[Resend] Invoice email sent successfully to ${email}`);
+            emailSent = true;
+          }
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
         }
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          attachments: [
-            {
-              filename: `${invoiceNumber}.pdf`,
-              content: base64Pdf
-            }
-          ]
-        });
-        if (response.error) {
-          console.error(`[Resend] Error sending invoice email:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+      }
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "invoices@quoteprogen.com",
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            text: emailBody,
+            attachments: [
+              {
+                filename: `${invoiceNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: "application/pdf"
+              }
+            ]
+          });
+          console.log(`[SMTP] Invoice email sent successfully to ${email}`);
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send invoice email:", smtpError);
+          throw smtpError;
         }
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "invoices@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody,
-          attachments: [
-            {
-              filename: `${invoiceNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf"
-            }
-          ]
-        });
+      }
+      if (!emailSent) {
+        throw new Error("Failed to send email via both Resend and SMTP");
       }
     } catch (error) {
       console.error("Failed to send invoice email:", error);
@@ -6798,7 +6749,8 @@ This link will expire in 1 hour.`
       console.log("[EmailService] Invoices email sending disabled, skipping payment reminder email");
       return;
     }
-    const lines = emailBody.split("\n");
+    const normalizedBody = emailBody.split("\\n").join("\n");
+    const lines = normalizedBody.split("\n");
     const formattedLines = [];
     let previousWasEmpty = false;
     for (const line of lines) {
@@ -6819,31 +6771,49 @@ This link will expire in 1 hour.`
       </div>
     `;
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
+        try {
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          const response = await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: emailSubject,
+            html: htmlContent
+          });
+          if (response.error) {
+            console.warn(`[Resend] Error sending payment reminder, falling back to SMTP:`, response.error);
+          } else {
+            console.log(`[Resend] Payment reminder email sent successfully to ${email}`);
+            emailSent = true;
+          }
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send with Resend, falling back to SMTP:`, resendError);
         }
-        const response = await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: emailSubject,
-          html: htmlContent
-        });
-        if (response.error) {
-          console.error(`[Resend] Error sending payment reminder:`, response.error);
-          throw new Error(`Resend API error: ${JSON.stringify(response.error)}`);
+      }
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
+            to: email,
+            subject: emailSubject,
+            html: htmlContent,
+            text: emailBody
+          });
+          console.log(`[SMTP] Payment reminder email sent successfully to ${email}`);
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("[SMTP] Failed to send payment reminder email:", smtpError);
+          throw smtpError;
         }
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
-          to: email,
-          subject: emailSubject,
-          html: htmlContent,
-          text: emailBody
-        });
+      }
+      if (!emailSent) {
+        throw new Error("Failed to send email via both Resend and SMTP");
       }
     } catch (error) {
       console.error("Failed to send payment reminder email:", error);
@@ -6864,26 +6834,37 @@ This link will expire in 1 hour.`
       <p>Best regards,<br/>QuoteProGen Team</p>
     `;
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
-          fromEmail = "onboarding@resend.dev";
+        try {
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            console.warn(`[Resend] Gmail domain not supported by Resend, falling back to: onboarding@resend.dev`);
+            fromEmail = "onboarding@resend.dev";
+          }
+          await this.sendWithResend({
+            from: fromEmail,
+            to: email,
+            subject: "Welcome to QuoteProGen!",
+            html: htmlContent
+          });
+          emailSent = true;
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send welcome email with Resend, falling back to SMTP:`, resendError);
         }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: email,
-          subject: "Welcome to QuoteProGen!",
-          html: htmlContent
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "welcome@quoteprogen.com",
-          to: email,
-          subject: "Welcome to QuoteProGen!",
-          html: htmlContent
-        });
+      }
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "welcome@quoteprogen.com",
+            to: email,
+            subject: "Welcome to QuoteProGen!",
+            html: htmlContent
+          });
+        } catch (smtpError) {
+          console.error("Failed to send welcome email via SMTP:", smtpError);
+        }
       }
     } catch (error) {
       console.error("Failed to send welcome email:", error);
@@ -6907,27 +6888,39 @@ This link will expire in 1 hour.`
       <p>Thank you for your business!</p>
     `;
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          fromEmail = "onboarding@resend.dev";
+        try {
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            fromEmail = "onboarding@resend.dev";
+          }
+          await this.sendWithResend({
+            from: fromEmail,
+            to,
+            subject: `Subscription Renewed: ${planName}`,
+            html: htmlContent
+          });
+          emailSent = true;
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send subscription renewal email with Resend, falling back to SMTP:`, resendError);
         }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to,
-          subject: `Subscription Renewed: ${planName}`,
-          html: htmlContent
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
-          to,
-          subject: `Subscription Renewed: ${planName}`,
-          html: htmlContent
-        });
       }
-      console.log(`[EmailService] Subscription renewal email sent to ${to}`);
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "billing@quoteprogen.com",
+            to,
+            subject: `Subscription Renewed: ${planName}`,
+            html: htmlContent
+          });
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("Failed to send subscription renewal email via SMTP:", smtpError);
+        }
+      }
+      if (emailSent) console.log(`[EmailService] Subscription renewal email sent to ${to}`);
     } catch (error) {
       console.error("Failed to send subscription renewal email:", error);
     }
@@ -6938,29 +6931,42 @@ This link will expire in 1 hour.`
       return;
     }
     try {
+      let emailSent = false;
       if (this.useResend && this.resend) {
-        let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        if (fromEmail.includes("@gmail.com")) {
-          fromEmail = "onboarding@resend.dev";
+        try {
+          let fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+          if (fromEmail.includes("@gmail.com")) {
+            fromEmail = "onboarding@resend.dev";
+          }
+          await this.sendWithResend({
+            from: fromEmail,
+            to: params.to,
+            subject: params.subject,
+            html: params.html,
+            text: params.text
+          });
+          emailSent = true;
+        } catch (resendError) {
+          console.warn(`[Resend] Failed to send generic email with Resend, falling back to SMTP:`, resendError);
         }
-        await this.resend.emails.send({
-          from: fromEmail,
-          to: params.to,
-          subject: params.subject,
-          html: params.html,
-          text: params.text
-        });
-      } else {
-        const transporter = await this.getTransporter();
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
-          to: params.to,
-          subject: params.subject,
-          html: params.html,
-          text: params.text
-        });
       }
-      console.log(`[EmailService] Generic email sent to ${params.to}`);
+      if (!emailSent) {
+        try {
+          const transporter = await this.getTransporter();
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || "noreply@quoteprogen.com",
+            to: params.to,
+            subject: params.subject,
+            html: params.html,
+            text: params.text
+          });
+          emailSent = true;
+        } catch (smtpError) {
+          console.error("Failed to send generic email via SMTP:", smtpError);
+          throw smtpError;
+        }
+      }
+      if (emailSent) console.log(`[EmailService] Generic email sent to ${params.to}`);
     } catch (error) {
       console.error("Failed to send generic email:", error);
       throw error;
@@ -8182,6 +8188,7 @@ import bcrypt from "bcryptjs";
 import jwt2 from "jsonwebtoken";
 import { nanoid } from "nanoid";
 init_logger();
+init_feature_flags();
 var router2 = Router2();
 var JWT_EXPIRES_IN = "15m";
 router2.post("/signup", async (req, res) => {
@@ -8198,8 +8205,8 @@ router2.post("/signup", async (req, res) => {
       email,
       passwordHash: hashedPassword,
       name,
-      role: "viewer",
-      status: "active"
+      role: "guest",
+      status: "pending"
     });
     await storage.createActivityLog({
       userId: user.id,
@@ -8208,7 +8215,7 @@ router2.post("/signup", async (req, res) => {
       entityId: user.id
     });
     try {
-      if (__require("../shared/feature-flags").isFeatureEnabled("email_welcome")) {
+      if (isFeatureEnabled("email_welcome")) {
         await EmailService.sendWelcomeEmail(email, name);
       }
     } catch (error) {
@@ -8235,6 +8242,10 @@ router2.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
     logger.info("User found, checking status");
+    if (user.status === "pending") {
+      logger.info("User account is pending approval");
+      return res.status(403).json({ error: "Account pending approval" });
+    }
     if (user.status !== "active") {
       logger.info("User account is not active:", user.status);
       return res.status(401).json({ error: "Account is inactive" });
@@ -8670,7 +8681,7 @@ router4.get("/:id", requireFeature("clients_module"), authMiddleware, async (req
     return res.status(500).json({ error: "Failed to fetch client" });
   }
 });
-router4.post("/", requireFeature("clients_create"), authMiddleware, requirePermission("clients", "create"), validateRequest(insertClientSchema), async (req, res) => {
+router4.post("/", requireFeature("clients_create"), authMiddleware, requirePermission("clients", "create"), validateRequest(insertClientSchema.omit({ createdBy: true, createdAt: true })), async (req, res) => {
   try {
     if (!isFeatureEnabled("clients_gstin") && req.body.gstin) {
       return res.status(403).json({ error: "GSTIN feature is disabled" });
@@ -9144,11 +9155,10 @@ var PDFService = class _PDFService {
         }
         const execArgv = [];
         if (process.env.NODE_ENV !== "production") {
-          const { pathToFileURL } = await import("url");
           try {
-            const tsxLoaderPath = path4.resolve("node_modules/tsx/dist/loader.mjs");
-            const loaderUrl = pathToFileURL(tsxLoaderPath).href;
-            execArgv.push("--import", loaderUrl);
+            const { pathToFileURL } = await import("node:url");
+            const tsxLoaderPath = path4.resolve(process.cwd(), "node_modules", "tsx", "dist", "loader.mjs");
+            execArgv.push("--import", pathToFileURL(tsxLoaderPath).toString());
           } catch (e) {
           }
         }
@@ -9595,14 +9605,14 @@ var PDFService = class _PDFService {
     const unit = 40;
     const rate = 72;
     const amt = 86;
-    const desc6 = w - (sl + qty + unit + rate + amt);
+    const desc8 = w - (sl + qty + unit + rate + amt);
     const cx = {
       sl: x,
       desc: x + sl,
-      qty: x + sl + desc6,
-      unit: x + sl + desc6 + qty,
-      rate: x + sl + desc6 + qty + unit,
-      amt: x + sl + desc6 + qty + unit + rate,
+      qty: x + sl + desc8,
+      unit: x + sl + desc8 + qty,
+      rate: x + sl + desc8 + qty + unit,
+      amt: x + sl + desc8 + qty + unit + rate,
       right: x + w
     };
     const drawHeader = (yy) => {
@@ -9615,7 +9625,7 @@ var PDFService = class _PDFService {
       doc.restore();
       doc.font(this.FONT_REG).fontSize(7).fillColor(this.SUBTLE);
       doc.text("SL", cx.sl, yy + 7, { width: sl, align: "center", characterSpacing: 0.6, lineBreak: false });
-      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc6 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
+      doc.text("DESCRIPTION", cx.desc + 4, yy + 7, { width: desc8 - 8, align: "left", characterSpacing: 0.6, lineBreak: false });
       doc.text("QTY", cx.qty, yy + 7, { width: qty, align: "center", characterSpacing: 0.6, lineBreak: false });
       doc.text("UNIT", cx.unit, yy + 7, { width: unit, align: "center", characterSpacing: 0.6, lineBreak: false });
       doc.text("RATE", cx.rate, yy + 7, { width: rate - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
@@ -9635,7 +9645,7 @@ var PDFService = class _PDFService {
       const amtVal = Number(it.subtotal ?? qtyVal * rateVal) || 0;
       doc.save();
       doc.font(this.FONT_REG).fontSize(8).fillColor(this.INK);
-      const descLines = this.wrapLines(doc, descText, desc6 - 8, 30);
+      const descLines = this.wrapLines(doc, descText, desc8 - 8, 30);
       doc.restore();
       const rowH = Math.max(minRowH, 8 + descLines.length * 11);
       if (y + rowH > this.bottomY() - 6) {
@@ -9660,7 +9670,7 @@ var PDFService = class _PDFService {
       doc.text(String(i + 1), cx.sl, y + 6, { width: sl, align: "center", lineBreak: false });
       let dy = y + 6;
       for (const ln of descLines) {
-        doc.text(ln, cx.desc + 4, dy, { width: desc6 - 8, lineBreak: false });
+        doc.text(ln, cx.desc + 4, dy, { width: desc8 - 8, lineBreak: false });
         dy += 11;
       }
       const midY = y + 6;
@@ -9959,8 +9969,17 @@ var ApprovalService = class {
     if (!rules || rules.length === 0) {
       return { approvalStatus: "none", approvalRequiredBy: null };
     }
-    let requiredRole = null;
     let needsApproval = false;
+    let highestRequiredRoleValue = 0;
+    let highestRequiredRole = null;
+    const roleHierarchy = {
+      "viewer": 0,
+      "sales_executive": 1,
+      "purchase_operations": 1,
+      "finance_accounts": 1,
+      "sales_manager": 2,
+      "admin": 3
+    };
     for (const rule of rules) {
       if (!rule.isActive) continue;
       let triggered = false;
@@ -9982,12 +10001,16 @@ var ApprovalService = class {
       }
       if (triggered) {
         needsApproval = true;
-        requiredRole = rule.requiredRole || "sales_manager";
-        break;
+        const ruleRole = rule.requiredRole || "sales_manager";
+        const roleValue = roleHierarchy[ruleRole] || 2;
+        if (roleValue > highestRequiredRoleValue) {
+          highestRequiredRoleValue = roleValue;
+          highestRequiredRole = ruleRole;
+        }
       }
     }
     if (needsApproval) {
-      return { approvalStatus: "pending", approvalRequiredBy: requiredRole };
+      return { approvalStatus: "pending", approvalRequiredBy: highestRequiredRole || "sales_manager" };
     }
     return { approvalStatus: "none", approvalRequiredBy: null };
   }
@@ -10348,16 +10371,45 @@ var NotificationServiceClass = class {
     }
   }
   /**
+   * Create notification for all users with a specific role using bulk insert
+   */
+  async createForRoleBulk(role, options) {
+    try {
+      const usersWithRole = await db.select({ id: users.id }).from(users).where(eq4(users.role, role));
+      if (usersWithRole.length === 0) return;
+      const userIds = usersWithRole.map((u) => u.id);
+      const notificationData = userIds.map((userId) => ({
+        userId,
+        type: options.type,
+        title: options.title,
+        message: options.message,
+        entityType: options.entityType,
+        entityId: options.entityId,
+        metadata: options.metadata
+      }));
+      await db.insert(notifications).values(notificationData);
+      userIds.forEach((userId) => {
+        WebSocketService.sendNotification(userId, {
+          id: "bulk",
+          // We don't have individual IDs from bulk insert without returning, but that works for real-time
+          type: options.type,
+          title: options.title,
+          message: options.message,
+          entityType: options.entityType || void 0,
+          entityId: options.entityId || void 0,
+          metadata: options.metadata,
+          createdAt: /* @__PURE__ */ new Date()
+        });
+      });
+    } catch (error) {
+      logger.error("[NotificationService] Failed to create bulk notifications for role:", error);
+    }
+  }
+  /**
    * Create notification for all users with a specific role
    */
   async createForRole(role, options) {
-    try {
-      const usersWithRole = await db.select({ id: users.id }).from(users).where(eq4(users.role, role));
-      const userIds = usersWithRole.map((u) => u.id);
-      await this.createForMany(userIds, options);
-    } catch (error) {
-      logger.error("[NotificationService] Failed to create notifications for role:", error);
-    }
+    return this.createForRoleBulk(role, options);
   }
   /**
    * Get notifications for a user
@@ -10491,6 +10543,19 @@ var NotificationServiceClass = class {
   async notifyApprovalRequest(approverId, quoteNumber, quoteId, requesterName, reason) {
     await this.create({
       userId: approverId,
+      type: "approval_request",
+      title: `Approval Required: Quote ${quoteNumber}`,
+      message: `${requesterName} has requested your approval. Reason: ${reason}`,
+      entityType: "quote",
+      entityId: quoteId,
+      metadata: { requesterName, reason, quoteNumber }
+    });
+  }
+  /**
+   * Notify when approval is required (Bulk to role)
+   */
+  async notifyApprovalRequestToRole(role, quoteNumber, quoteId, requesterName, reason) {
+    await this.createForRole(role, {
       type: "approval_request",
       title: `Approval Required: Quote ${quoteNumber}`,
       message: `${requesterName} has requested your approval. Reason: ${reason}`,
@@ -11154,25 +11219,20 @@ var WorkflowEngine = class {
 
 // server/routes/quotes.routes.ts
 init_schema();
-init_schema();
 init_db();
-import { eq as eq5, sql as sql6 } from "drizzle-orm";
+import { eq as eq5, desc as desc3, sql as sql6 } from "drizzle-orm";
 var router5 = Router5();
 router5.get("/", requireFeature("quotes_module"), authMiddleware, async (req, res) => {
   try {
-    const quotes2 = await storage.getAllQuotes();
-    const quotesWithClients = await Promise.all(
-      quotes2.map(async (quote) => {
-        const client = await storage.getClient(quote.clientId);
-        return {
-          ...quote,
-          clientName: client?.name || "Unknown",
-          clientEmail: client?.email || ""
-        };
-      })
-    );
-    res.json(quotesWithClients);
+    const quotesWithClients = await db.select().from(quotes).leftJoin(clients, eq5(quotes.clientId, clients.id)).orderBy(desc3(quotes.createdAt));
+    const result = quotesWithClients.map(({ quotes: quotes2, clients: clients3 }) => ({
+      ...quotes2,
+      clientName: clients3?.name || "Unknown",
+      clientEmail: clients3?.email || ""
+    }));
+    res.json(result);
   } catch (error) {
+    logger.error("Failed to fetch quotes:", error);
     res.status(500).json({ error: "Failed to fetch quotes" });
   }
 });
@@ -11493,63 +11553,58 @@ router5.post("/", requireFeature("quotes_create"), authMiddleware, requirePermis
         entityId: quote.id
       });
       console.log("[DEBUG] Quote Created:", JSON.stringify(quote, null, 2));
-      try {
-        await NotificationService.create({
-          userId: req.user.id,
-          type: "quote_status_change",
-          title: "Quote Created",
-          message: `Quote #${quoteNumber} has been created successfully.`,
-          entityType: "quote",
-          entityId: quote.id
-        });
-        if (approvalStatus === "pending") {
-          const admins = await db.select().from(users).where(eq5(users.role, "admin"));
-          for (const admin of admins) {
-            await NotificationService.notifyApprovalRequest(
-              admin.id,
+      (async () => {
+        try {
+          await NotificationService.create({
+            userId: req.user.id,
+            type: "quote_status_change",
+            title: "Quote Created",
+            message: `Quote #${quoteNumber} has been created successfully.`,
+            entityType: "quote",
+            entityId: quote.id
+          });
+          if (approvalStatus === "pending") {
+            await NotificationService.notifyApprovalRequestToRole(
+              "admin",
               quoteNumber,
               quote.id,
               req.user.email || "User",
               "Quote creation triggered approval rules"
             );
           }
+          const client = await storage.getClient(quote.clientId);
+          const enrichedEntity = {
+            ...quote,
+            client,
+            client_name: client?.name,
+            client_email: client?.email,
+            creator_name: req.user?.name || "QuoteProGen Team",
+            creator_email: req.user?.email,
+            formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
+            formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`
+          };
+          logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
+          await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+            eventType: "created",
+            entity: enrichedEntity,
+            triggeredBy: req.user.id
+          });
+          await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+            eventType: "status_change",
+            entity: enrichedEntity,
+            newValue: quote.status,
+            oldValue: null,
+            triggeredBy: req.user.id
+          });
+          await WorkflowEngine.triggerWorkflows("quote", quote.id, {
+            eventType: "amount_threshold",
+            entity: enrichedEntity,
+            triggeredBy: req.user.id
+          });
+        } catch (error) {
+          logger.error("Side-effect execution error (notifications/workflows):", error);
         }
-      } catch (notifError) {
-        logger.error("Failed to send notifications for new quote:", notifError);
-      }
-      try {
-        const client = await storage.getClient(quote.clientId);
-        const enrichedEntity = {
-          ...quote,
-          client,
-          client_name: client?.name,
-          client_email: client?.email,
-          creator_name: req.user?.name || "QuoteProGen Team",
-          creator_email: req.user?.email,
-          formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
-          formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`
-        };
-        logger.info(`[WorkflowDebug] Enriched Entity for Create: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "created",
-          entity: enrichedEntity,
-          triggeredBy: req.user.id
-        });
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "status_change",
-          entity: enrichedEntity,
-          newValue: quote.status,
-          oldValue: null,
-          triggeredBy: req.user.id
-        });
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "amount_threshold",
-          entity: enrichedEntity,
-          triggeredBy: req.user.id
-        });
-      } catch (workflowError) {
-        logger.error("Failed to trigger workflows for new quote:", workflowError);
-      }
+      })();
       return res.json({ ...quote, approvalStatus, approvalRequiredBy });
     } catch (error) {
       if (error.code === "23505" && error.constraint === "quotes_quote_number_unique") {
@@ -11576,30 +11631,16 @@ router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePerm
     }
     const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
     if (existingSalesOrder) {
-      return res.status(400).json({
-        error: "Cannot edit a quote that has been converted to a Sales Order."
-      });
+      return res.status(400).json({ error: "Cannot edit a quote that has been converted to a Sales Order." });
     }
     if (["sent", "approved", "rejected", "closed_paid", "closed_cancelled"].includes(existingQuote.status)) {
-      const keys = Object.keys(req.body);
       const allowedKeys = ["status", "closureNotes", "closedBy", "closedAt"];
+      const keys = Object.keys(req.body);
       const hasContentUpdates = keys.some((key) => !allowedKeys.includes(key));
       if (hasContentUpdates) {
-        return res.status(400).json({
-          error: `Quote is in '${existingQuote.status}' state and cannot be edited. Please use the 'Revise' option to create a new version.`
-        });
+        return res.status(400).json({ error: `Quote is in '${existingQuote.status}' state and cannot be edited. Please Revise.` });
       }
     }
-    const toDate = (v) => {
-      if (!v) return void 0;
-      if (v instanceof Date) return v;
-      if (typeof v === "string") {
-        const d = new Date(v);
-        return isNaN(d.getTime()) ? void 0 : d;
-      }
-      return void 0;
-    };
-    const { items, ...updateFields } = req.body;
     if (req.body.version !== void 0) {
       if (Number(req.body.version) !== existingQuote.version) {
         return res.status(409).json({
@@ -11608,19 +11649,15 @@ router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePerm
         });
       }
     }
+    const { items, ...updateFields } = req.body;
     const nextVersion = existingQuote.version + 1;
     if (!isFeatureEnabled("quotes_discount") && updateFields.discount && Number(updateFields.discount) > 0) {
       return res.status(403).json({ error: "Discounts are currently disabled" });
     }
-    if (!isFeatureEnabled("quotes_shippingCharges") && updateFields.shippingCharges && Number(updateFields.shippingCharges) > 0) {
-      return res.status(403).json({ error: "Shipping charges feature is disabled" });
-    }
-    const updateData = { ...updateFields, version: nextVersion };
-    if (updateData.quoteDate) updateData.quoteDate = toDate(updateData.quoteDate);
-    if (updateData.validUntil) updateData.validUntil = toDate(updateData.validUntil);
-    let quote;
+    let proposedQuote = { ...existingQuote, ...updateFields };
+    let finalQuoteItems = [];
     if (items && Array.isArray(items)) {
-      const quoteItemsData = items.map((item, i) => ({
+      finalQuoteItems = items.map((item, i) => ({
         quoteId: req.params.id,
         productId: item.productId || null,
         description: item.description,
@@ -11630,129 +11667,70 @@ router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePerm
         sortOrder: i,
         hsnSac: item.hsnSac || null
       }));
-      const subtotal = calculateSubtotal(quoteItemsData);
-      const discount = updateData.discount !== void 0 ? updateData.discount : existingQuote.discount;
-      const proposedQuote = {
-        ...existingQuote,
-        ...updateData,
-        subtotal: toMoneyString(subtotal)
-        // Recalculate total if items changed
-        // ...
-      };
-      const mergedDataForEval = { ...existingQuote, ...updateData };
-      if (items) {
-        const sub = calculateSubtotal(quoteItemsData);
-        mergedDataForEval.subtotal = toMoneyString(sub);
-        mergedDataForEval.total = toMoneyString(calculateTotal({
-          subtotal: sub,
-          discount: mergedDataForEval.discount || 0,
-          shippingCharges: mergedDataForEval.shippingCharges || 0,
-          cgst: mergedDataForEval.cgst || 0,
-          sgst: mergedDataForEval.sgst || 0,
-          igst: mergedDataForEval.igst || 0
-        }));
-      }
-      const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(mergedDataForEval);
-      Object.assign(updateData, { approvalStatus, approvalRequiredBy });
-      quote = await storage.updateQuoteTransaction(req.params.id, updateData, quoteItemsData);
+      const subtotal = calculateSubtotal(finalQuoteItems);
+      const getNum = (val) => Number(val) || 0;
+      const discount = updateFields.discount !== void 0 ? getNum(updateFields.discount) : getNum(existingQuote.discount);
+      const shipping = updateFields.shippingCharges !== void 0 ? getNum(updateFields.shippingCharges) : getNum(existingQuote.shippingCharges);
+      const cgst = updateFields.cgst !== void 0 ? getNum(updateFields.cgst) : getNum(existingQuote.cgst);
+      const sgst = updateFields.sgst !== void 0 ? getNum(updateFields.sgst) : getNum(existingQuote.sgst);
+      const igst = updateFields.igst !== void 0 ? getNum(updateFields.igst) : getNum(existingQuote.igst);
+      const total = calculateTotal({ subtotal, discount, shippingCharges: shipping, cgst, sgst, igst });
+      proposedQuote.subtotal = toMoneyString(subtotal);
+      proposedQuote.total = toMoneyString(total);
+      proposedQuote.discount = toMoneyString(discount);
+      proposedQuote.shippingCharges = toMoneyString(shipping);
     } else {
-      const mergedDataForEval = { ...existingQuote, ...updateData };
-      const financialFields = ["discount", "shippingCharges", "items", "total"];
-      const isFinancialUpdate = Object.keys(updateData).some((k) => financialFields.includes(k));
-      if (isFinancialUpdate) {
-        const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(mergedDataForEval);
-        Object.assign(updateData, { approvalStatus, approvalRequiredBy });
+      if (updateFields.discount !== void 0 || updateFields.shippingCharges !== void 0) {
+        const currentItems = await storage.getQuoteItems(req.params.id);
+        const subtotal = Number(existingQuote.subtotal);
+        const discount = updateFields.discount !== void 0 ? Number(updateFields.discount) : Number(existingQuote.discount);
       }
-      quote = await storage.updateQuote(req.params.id, updateData);
     }
-    if (!quote) {
-      return res.status(404).json({ error: "Quote not found" });
+    const { approvalStatus, approvalRequiredBy } = await ApprovalService.evaluateQuote(proposedQuote);
+    const finalUpdateData = {
+      ...updateFields,
+      approvalStatus,
+      // This can overwrite user input, which is correct (server authority)
+      approvalRequiredBy,
+      version: nextVersion,
+      updatedAt: /* @__PURE__ */ new Date()
+    };
+    let updatedQuote;
+    if (items && Array.isArray(items)) {
+      updatedQuote = await storage.updateQuoteTransaction(req.params.id, finalUpdateData, finalQuoteItems);
+    } else {
+      updatedQuote = await storage.updateQuote(req.params.id, finalUpdateData);
     }
+    if (!updatedQuote) return res.status(404).json({ error: "Quote not found" });
     await storage.createActivityLog({
       userId: req.user.id,
       action: "update_quote",
       entityType: "quote",
-      entityId: quote.id
+      entityId: updatedQuote.id,
+      metadata: { version: nextVersion, approvalStatus }
     });
-    try {
-      if (updateData.approvalStatus && updateData.approvalStatus !== existingQuote.approvalStatus) {
-        if (["approved", "rejected"].includes(updateData.approvalStatus)) {
-          const action = updateData.approvalStatus === "approved" ? "approved" : "rejected";
-          await NotificationService.notifyApprovalDecision(
-            existingQuote.createdBy,
-            quote.quoteNumber,
-            quote.id,
-            req.user.email || "Approver",
-            action
-          );
-        }
-        if (updateData.approvalStatus === "pending") {
-          const admins = await db.select().from(users).where(eq5(users.role, "admin"));
-          for (const admin of admins) {
-            await NotificationService.notifyApprovalRequest(
-              admin.id,
-              quote.quoteNumber,
-              quote.id,
-              req.user.email || "User",
-              "Quote update triggered approval rules"
-            );
+    (async () => {
+      try {
+        if (updatedQuote.approvalStatus !== existingQuote.approvalStatus) {
+          if (updatedQuote.approvalStatus === "pending") {
+            await NotificationService.notifyApprovalRequestToRole("admin", updatedQuote.quoteNumber, updatedQuote.id, req.user.email || "User", "Update triggered approval.");
+          } else if (["approved", "rejected"].includes(updatedQuote.approvalStatus)) {
+            await NotificationService.notifyApprovalDecision(existingQuote.createdBy, updatedQuote.quoteNumber, updatedQuote.id, req.user.email || "User", updatedQuote.approvalStatus);
           }
         }
-      } else if (updateData.status && updateData.status !== existingQuote.status) {
-        if (updateData.status === "sent") {
-          await NotificationService.notifyQuoteStatusChange(
-            existingQuote.createdBy,
-            quote.quoteNumber,
-            quote.id,
-            existingQuote.status,
-            "sent"
-          );
-        }
-      }
-    } catch (notifError) {
-      logger.error("Failed to send notifications for updated quote:", notifError);
-    }
-    try {
-      const client = await storage.getClient(quote.clientId);
-      const enrichedEntity = {
-        ...quote,
-        client,
-        client_name: client?.name,
-        client_email: client?.email,
-        creator_name: req.user?.name || "QuoteProGen Team",
-        creator_email: req.user?.email,
-        formatted_total: `${quote.currency} ${toMoneyString(quote.total)}`,
-        formatted_subtotal: `${quote.currency} ${toMoneyString(quote.subtotal)}`
-      };
-      logger.info(`[WorkflowDebug] Enriched Entity for Update: Client=${enrichedEntity.client_name}, Creator=${enrichedEntity.creator_name}`);
-      if (updateData.status && updateData.status !== existingQuote.status) {
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "status_change",
-          entity: enrichedEntity,
-          newValue: updateData.status,
-          oldValue: existingQuote.status,
-          triggeredBy: req.user.id
+        const client = await storage.getClient(updatedQuote.clientId);
+        const enriched = { ...updatedQuote, client, client_name: client?.name };
+        await WorkflowEngine.triggerWorkflows("quote", updatedQuote.id, {
+          eventType: "field_change",
+          entity: enriched,
+          triggeredBy: req.user.id,
+          changes: updateFields
         });
+      } catch (err) {
+        logger.error("Post-update side-effect error (notifications/workflows):", err);
       }
-      await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-        eventType: "field_change",
-        entity: enrichedEntity,
-        triggeredBy: req.user.id,
-        changes: updateData
-        // Optional context if needed later
-      });
-      const financialFields = ["total", "subtotal", "discount"];
-      if (Object.keys(updateData).some((k) => financialFields.includes(k))) {
-        await WorkflowEngine.triggerWorkflows("quote", quote.id, {
-          eventType: "amount_threshold",
-          entity: enrichedEntity,
-          triggeredBy: req.user.id
-        });
-      }
-    } catch (workflowError) {
-      logger.error("Failed to trigger workflows for updated quote:", workflowError);
-    }
-    return res.json(quote);
+    })();
+    return res.json(updatedQuote);
   } catch (error) {
     logger.error("Update quote error:", error);
     res.status(500).json({ error: "Failed to update quote" });
@@ -11760,13 +11738,20 @@ router5.patch("/:id", authMiddleware, requireFeature("quotes_edit"), requirePerm
 });
 router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_convertToInvoice"), requirePermission("invoices", "create"), async (req, res) => {
   try {
+    const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
     const result = await db.transaction(async (tx) => {
-      const quote = await storage.getQuote(req.params.id);
-      if (!quote) throw new Error("Quote not found");
-      if (quote.status === "invoiced") {
-        throw new Error("Quote is already invoiced");
+      const [quote] = await tx.select().from(quotes).where(eq5(quotes.id, req.params.id));
+      if (!quote) {
+        const error = new Error("Quote not found");
+        error.statusCode = 404;
+        throw error;
       }
-      const existingSalesOrder = await storage.getSalesOrderByQuote(req.params.id);
+      if (quote.status === "invoiced") {
+        const error = new Error("Quote already converted to an invoice");
+        error.statusCode = 400;
+        throw error;
+      }
+      const [existingSalesOrder] = await tx.select().from(salesOrders).where(eq5(salesOrders.quoteId, req.params.id));
       if (existingSalesOrder) {
         const error = new Error("Cannot create invoice directly from quote. This quote has already been converted to a sales order. Please create the invoice from the sales order instead.");
         error.statusCode = 400;
@@ -11776,7 +11761,6 @@ router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_c
         };
         throw error;
       }
-      const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();
       const [invoice] = await tx.insert(invoices).values({
         invoiceNumber,
         quoteId: quote.id,
@@ -11786,7 +11770,8 @@ router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_c
         paymentStatus: "pending",
         dueDate: new Date(Date.now() + (quote.validityDays || 30) * 24 * 60 * 60 * 1e3),
         // Default due date based on validity
-        paidAmount: "0",
+        paidAmount: "0.00",
+        remainingAmount: quote.total,
         subtotal: quote.subtotal,
         discount: quote.discount,
         cgst: quote.cgst,
@@ -11801,7 +11786,7 @@ router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_c
         // Ensure BOM is carried over
         deliveryNotes: null
       }).returning();
-      const quoteItems2 = await storage.getQuoteItems(quote.id);
+      const quoteItems2 = await tx.select().from(quoteItems).where(eq5(quoteItems.quoteId, quote.id)).orderBy(quoteItems.sortOrder);
       const shortageNotes = [];
       for (const item of quoteItems2) {
         if (item.productId && isFeatureEnabled("products_stock_tracking")) {
@@ -11856,10 +11841,13 @@ router5.post("/:id/convert-to-invoice", authMiddleware, requireFeature("quotes_c
     return res.json(result);
   } catch (error) {
     logger.error("Convert quote error:", error);
-    if (error.statusCode === 400) {
-      return res.status(400).json({ error: error.message, ...error.details });
-    }
-    return res.status(500).json({ error: error.message || "Failed to convert quote" });
+    let statusCode = error.statusCode || 500;
+    if (error.message.includes("not found")) statusCode = 404;
+    if (error.message.includes("already")) statusCode = 400;
+    return res.status(statusCode).json({
+      error: error.message || "Failed to convert quote",
+      details: error.details
+    });
   }
 });
 router5.post("/:id/email", authMiddleware, requireFeature("quotes_emailSending"), requirePermission("quotes", "view"), async (req, res) => {
@@ -12006,12 +11994,6 @@ router5.get("/:id/pdf", authMiddleware, requireFeature("quotes_pdfGeneration"), 
     const bankIfscCode = settings2.find((s) => s.key === "bank_ifscCode")?.value || "";
     const bankBranch = settings2.find((s) => s.key === "bank_branch")?.value || "";
     const bankSwiftCode = settings2.find((s) => s.key === "bank_swiftCode")?.value || "";
-    logger.error("!!! DEBUG BANK DETAILS !!!", {
-      bankName,
-      bankAccountNumber,
-      bankAccountName,
-      bankIfscCode
-    });
     const cleanFilename = `Quote-${quote.quoteNumber}.pdf`.replace(/[^\w\-. ]/g, "_");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Length", "");
@@ -12254,22 +12236,18 @@ init_logger();
 init_db();
 init_schema();
 init_numbering_service();
-import { eq as eq7, sql as sql8 } from "drizzle-orm";
+import { eq as eq7, desc as desc4, sql as sql8 } from "drizzle-orm";
 var router6 = Router6();
 router6.get("/", requireFeature("invoices_module"), authMiddleware, async (req, res) => {
   try {
-    const invoices2 = await storage.getAllInvoices();
-    const invoicesWithDetails = await Promise.all(
-      invoices2.map(async (invoice) => {
-        const client = invoice.clientId ? await storage.getClient(invoice.clientId) : void 0;
-        return {
-          ...invoice,
-          clientName: client?.name || "Unknown"
-        };
-      })
-    );
-    res.json(invoicesWithDetails);
+    const invoicesWithDetails = await db.select().from(invoices).leftJoin(clients, eq7(invoices.clientId, clients.id)).orderBy(desc4(invoices.createdAt));
+    const result = invoicesWithDetails.map(({ invoices: invoices2, clients: clients3 }) => ({
+      ...invoices2,
+      clientName: clients3?.name || "Unknown"
+    }));
+    res.json(result);
   } catch (error) {
+    logger.error("Failed to fetch invoices:", error);
     res.status(500).json({ error: "Failed to fetch invoices" });
   }
 });
@@ -12281,7 +12259,9 @@ router6.get("/:id", requireFeature("invoices_module"), authMiddleware, async (re
     }
     const client = invoice.clientId ? await storage.getClient(invoice.clientId) : void 0;
     const items = await storage.getInvoiceItems(invoice.id);
+    const quote = invoice.quoteId ? await storage.getQuote(invoice.quoteId) : void 0;
     const creator = invoice.createdBy ? await storage.getUser(invoice.createdBy) : void 0;
+    logger.info(`DEBUG: Invoice details for ${invoice.id}, quoteId: ${invoice.quoteId}, quote found: ${!!quote}`);
     let parentInvoice = void 0;
     if (invoice.parentInvoiceId) {
       parentInvoice = await storage.getInvoice(invoice.parentInvoiceId);
@@ -12309,6 +12289,7 @@ router6.get("/:id", requireFeature("invoices_module"), authMiddleware, async (re
       ...invoice,
       client,
       items: formattedItems,
+      quote,
       createdByName: creator?.name || "Unknown",
       parentInvoice,
       childInvoices
@@ -13047,8 +13028,11 @@ router6.get("/:id/pdf", authMiddleware, requireFeature("invoices_pdfGeneration")
       entityId: invoice.id
     });
   } catch (error) {
+    if (error.message?.includes("not found")) {
+      return res.status(404).json({ error: error.message });
+    }
     logger.error("Generate invoice PDF error:", error);
-    res.status(500).json({ error: "Failed to generate PDF" });
+    res.status(500).json({ error: "Failed to generate PDF", message: error.message });
   }
 });
 router6.post("/:id/email", authMiddleware, requireFeature("invoices_emailSending"), requirePermission("invoices", "view"), async (req, res) => {
@@ -13255,6 +13239,19 @@ router6.post("/:id/payment-reminder", authMiddleware, requireFeature("invoices_p
     return res.status(500).json({ error: error.message || "Failed to send payment reminder" });
   }
 });
+router6.get("/:id/payment-history", authMiddleware, requireFeature("invoices_module"), requirePermission("invoices", "view"), async (req, res) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const history = await storage.getPaymentHistory(invoice.id);
+    res.json(history);
+  } catch (error) {
+    logger.error("Get payment history error:", error);
+    res.status(500).json({ error: "Failed to fetch payment history" });
+  }
+});
 router6.post("/:id/payment", authMiddleware, requireFeature("payments_create"), requirePermission("payments", "create"), async (req, res) => {
   try {
     const { amount, paymentMethod, notes, transactionId } = req.body;
@@ -13262,20 +13259,29 @@ router6.post("/:id/payment", authMiddleware, requireFeature("payments_create"), 
     if (isNaN(amountNum) || amountNum <= 0) {
       return res.status(400).json({ error: "Invalid payment amount" });
     }
-    const method = paymentMethod || req.body.method || "Other";
+    if (!paymentMethod && !req.body.method) {
+      return res.status(400).json({ error: "payment method is required" });
+    }
+    const method = paymentMethod || req.body.method;
     const result = await db.transaction(async (tx) => {
-      const invoice = await storage.getInvoice(req.params.id);
+      const [invoice] = await tx.select().from(invoices).where(eq7(invoices.id, req.params.id));
       if (!invoice) {
-        throw new Error("Invoice not found");
+        const error = new Error("Invoice not found");
+        error.statusCode = 404;
+        throw error;
       }
       if (invoice.status === "cancelled") {
-        throw new Error("Cannot record payment for cancelled invoice");
+        const error = new Error("Cannot record payment for cancelled invoice");
+        error.statusCode = 400;
+        throw error;
       }
       const currentPaid = Number(invoice.paidAmount || 0);
       const total = Number(invoice.total);
       const newPaid = currentPaid + amountNum;
       if (newPaid > total + 0.01) {
-        throw new Error(`Payment amount exceeds remaining balance. Remaining: ${(total - currentPaid).toFixed(2)}`);
+        const error = new Error(`Payment amount exceeds remaining balance. Remaining: ${(total - currentPaid).toFixed(2)}`);
+        error.statusCode = 400;
+        throw error;
       }
       let newStatus = "pending";
       if (Math.abs(newPaid - total) < 0.01) {
@@ -13306,7 +13312,7 @@ router6.post("/:id/payment", authMiddleware, requireFeature("payments_create"), 
         entityId: invoice.id,
         metadata: {
           amount: amountNum,
-          method: paymentMethod,
+          method,
           newStatus
         }
       });
@@ -13315,7 +13321,10 @@ router6.post("/:id/payment", authMiddleware, requireFeature("payments_create"), 
     res.json(result);
   } catch (error) {
     logger.error("Record payment error:", error);
-    res.status(500).json({ error: error.message || "Failed to record payment" });
+    let statusCode = error.statusCode || 500;
+    if (error.message.includes("not found")) statusCode = 404;
+    if (error.message.includes("already") || error.message.includes("exceeds") || error.message.includes("required") || error.message.includes("cancelled")) statusCode = 400;
+    return res.status(statusCode).json({ error: error.message || "Failed to record payment" });
   }
 });
 router6.patch("/:id/items/:itemId/serials", authMiddleware, requireFeature("serialNumber_tracking"), requirePermission("serial_numbers", "edit"), async (req, res) => {
@@ -13867,7 +13876,7 @@ router8.post("/", authMiddleware, requireFeature("products_create"), requirePerm
     if (!isFeatureEnabled("products_pricing") && req.body.unitPrice) {
       delete req.body.unitPrice;
     }
-    const parseResult = insertProductSchema.safeParse(req.body);
+    const parseResult = insertProductSchema.omit({ createdBy: true, createdAt: true, updatedAt: true }).safeParse(req.body);
     if (!parseResult.success) {
       return res.status(400).json({ error: parseResult.error.errors });
     }
@@ -13915,7 +13924,7 @@ init_db();
 init_schema();
 init_numbering_service();
 init_feature_flags();
-import { eq as eq10, sql as sql10, desc as desc3 } from "drizzle-orm";
+import { eq as eq10, sql as sql10, desc as desc5 } from "drizzle-orm";
 var router9 = Router9();
 router9.get("/vendors", authMiddleware, requireFeature("vendors_module"), async (req, res) => {
   try {
@@ -14206,7 +14215,7 @@ router9.get("/grns", authMiddleware, requireFeature("grn_module"), async (req, r
     ).leftJoin(
       vendors,
       eq10(vendorPurchaseOrders.vendorId, vendors.id)
-    ).orderBy(desc3(goodsReceivedNotes.receivedDate));
+    ).orderBy(desc5(goodsReceivedNotes.receivedDate));
     res.json(grns);
   } catch (error) {
     logger.error("Error fetching GRNs:", error);
@@ -15586,8 +15595,10 @@ init_storage();
 init_logger();
 
 // server/services/analytics.service.ts
-init_storage();
+init_db();
+init_schema();
 init_cache_service();
+import { eq as eq13, gte, lte, and as and5, inArray, count } from "drizzle-orm";
 var AnalyticsService = class {
   /**
    * Get revenue forecast based on historical data
@@ -15597,8 +15608,10 @@ var AnalyticsService = class {
     const cached = await cacheService.get(cacheKey);
     if (cached) return cached;
     try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
+      const allInvoices = await db.select({
+        createdAt: invoices.createdAt,
+        paidAmount: invoices.paidAmount
+      }).from(invoices);
       const now = /* @__PURE__ */ new Date();
       const monthlyRevenue = {};
       for (let i = 0; i < 12; i++) {
@@ -15643,7 +15656,7 @@ var AnalyticsService = class {
     const cached = await cacheService.get(cacheKey);
     if (cached) return cached;
     try {
-      const allQuotes = await storage.getAllQuotes();
+      const allQuotes = await db.select({ total: quotes.total }).from(quotes);
       const ranges = [
         { label: "0-10K", min: 0, max: 1e4 },
         { label: "10K-50K", min: 1e4, max: 5e4 },
@@ -15685,8 +15698,16 @@ var AnalyticsService = class {
     const cached = await cacheService.get(cacheKey);
     if (cached) return cached;
     try {
-      const allClients = await storage.getAllClients();
-      const allQuotes = await storage.getAllQuotes();
+      const allClients = await db.select({
+        id: clients.id,
+        billingAddress: clients.billingAddress,
+        shippingAddress: clients.shippingAddress,
+        gstin: clients.gstin
+      }).from(clients);
+      const allQuotes = await db.select({
+        clientId: quotes.clientId,
+        total: quotes.total
+      }).from(quotes);
       const regionData = {};
       for (const quote of allQuotes) {
         const client = allClients.find((c) => c.id === quote.clientId);
@@ -15769,28 +15790,36 @@ var AnalyticsService = class {
    */
   async getCustomReport(params) {
     try {
-      let quotes2 = await storage.getAllQuotes();
-      const clients3 = await storage.getAllClients();
+      const conditions = [];
       if (params.startDate) {
-        quotes2 = quotes2.filter((q) => new Date(q.createdAt) >= params.startDate);
+        conditions.push(gte(quotes.createdAt, params.startDate));
       }
       if (params.endDate) {
-        quotes2 = quotes2.filter((q) => new Date(q.createdAt) <= params.endDate);
+        conditions.push(lte(quotes.createdAt, params.endDate));
       }
       if (params.status) {
-        quotes2 = quotes2.filter((q) => q.status === params.status);
+        conditions.push(eq13(quotes.status, params.status));
       }
       if (params.minAmount) {
-        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) >= params.minAmount);
+        conditions.push(gte(quotes.total, params.minAmount.toString()));
       }
       if (params.maxAmount) {
-        quotes2 = quotes2.filter((q) => parseFloat(q.total.toString()) <= params.maxAmount);
+        conditions.push(lte(quotes.total, params.maxAmount.toString()));
       }
-      return quotes2.map((q) => {
-        const client = clients3.find((c) => c.id === q.clientId);
+      const filteredQuotes = await db.select().from(quotes).where(conditions.length > 0 ? and5(...conditions) : void 0);
+      const clientIds = Array.from(new Set(filteredQuotes.map((q) => q.clientId).filter(Boolean)));
+      let clientsMap = /* @__PURE__ */ new Map();
+      if (clientIds.length > 0) {
+        const relevantClients = await db.select({
+          id: clients.id,
+          name: clients.name
+        }).from(clients).where(inArray(clients.id, clientIds));
+        relevantClients.forEach((c) => clientsMap.set(c.id, c.name));
+      }
+      return filteredQuotes.map((q) => {
         return {
           quoteNumber: q.quoteNumber,
-          clientName: client?.name || "Unknown",
+          clientName: clientsMap.get(q.clientId) || "Unknown",
           totalAmount: this.roundAmount(parseFloat(q.total.toString())),
           status: q.status,
           createdDate: q.createdAt
@@ -15809,7 +15838,10 @@ var AnalyticsService = class {
     const cached = await cacheService.get(cacheKey);
     if (cached) return cached;
     try {
-      const allQuotes = await storage.getAllQuotes();
+      const allQuotes = await db.select({
+        status: quotes.status,
+        total: quotes.total
+      }).from(quotes);
       const stages = ["draft", "sent", "approved", "rejected", "invoiced"];
       const pipeline = stages.map((stage) => {
         const stageQuotes = allQuotes.filter((q) => q.status === stage);
@@ -15834,13 +15866,17 @@ var AnalyticsService = class {
    */
   async getClientLifetimeValue(clientId) {
     try {
-      const allQuotes = await storage.getAllQuotes();
-      const clientQuotes = allQuotes.filter((q) => q.clientId === clientId);
-      const allInvoices = await storage.getAllInvoices();
-      const clientInvoices = allInvoices.filter((i) => {
-        const quote = clientQuotes.find((q) => q.id === i.quoteId);
-        return !!quote;
-      });
+      const clientQuotes = await db.select({
+        id: quotes.id,
+        total: quotes.total
+      }).from(quotes).where(eq13(quotes.clientId, clientId));
+      const quoteIds = clientQuotes.map((q) => q.id);
+      let clientInvoices = [];
+      if (quoteIds.length > 0) {
+        clientInvoices = await db.select({
+          paidAmount: invoices.paidAmount
+        }).from(invoices).where(inArray(invoices.quoteId, quoteIds));
+      }
       const totalRevenue = clientInvoices.reduce((sum, i) => sum + parseFloat((i.paidAmount || 0).toString()), 0);
       const avgDealSize = clientQuotes.length > 0 ? totalRevenue / clientQuotes.length : 0;
       const conversionRate = clientQuotes.length > 0 ? clientInvoices.length / clientQuotes.length * 100 : 0;
@@ -15870,8 +15906,11 @@ var AnalyticsService = class {
     const cached = await cacheService.get(cacheKey);
     if (cached) return cached;
     try {
-      const allQuotes = await storage.getAllQuotes();
-      const allInvoices = await storage.getAllInvoices();
+      const allQuotes = await db.select({
+        total: quotes.total,
+        createdAt: quotes.createdAt
+      }).from(quotes);
+      const allInvoicesCount = (await db.select({ count: count() }).from(invoices))[0].count;
       if (allQuotes.length === 0) {
         return {
           avgQuoteValue: 0,
@@ -15887,8 +15926,7 @@ var AnalyticsService = class {
       weekAgo.setDate(weekAgo.getDate() - 7);
       const recentQuotes = allQuotes.filter((q) => new Date(q.createdAt) >= weekAgo);
       const quoteFrequency = recentQuotes.length;
-      const conversionCount = allInvoices.length;
-      const conversionTrend = allQuotes.length > 0 ? conversionCount / allQuotes.length * 100 : 0;
+      const conversionTrend = allQuotes.length > 0 ? allInvoicesCount / allQuotes.length * 100 : 0;
       const result = {
         avgQuoteValue: this.roundAmount(avgValue),
         medianQuoteValue: this.roundAmount(medianValue),
@@ -15915,7 +15953,8 @@ var analyticsService = new AnalyticsService();
 
 // server/routes/analytics.routes.ts
 init_db();
-import { sql as sql12 } from "drizzle-orm";
+init_schema();
+import { sql as sql12, eq as eq14, and as and6, gte as gte2, inArray as inArray2 } from "drizzle-orm";
 import ExcelJS2 from "exceljs";
 var router14 = Router14();
 router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
@@ -16021,11 +16060,25 @@ router14.get("/dashboard", authMiddleware, requireFeature("analytics_module"), r
 router14.get("/:timeRange(\\d+)", authMiddleware, requireFeature("analytics_module"), requirePermission("analytics", "view"), async (req, res) => {
   try {
     const timeRange = req.params.timeRange ? Number(req.params.timeRange) : 12;
-    const quotes2 = await storage.getAllQuotes();
-    const clients3 = await storage.getAllClients();
     const cutoffDate = /* @__PURE__ */ new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - timeRange);
-    const filteredQuotes = quotes2.filter((q) => new Date(q.createdAt) >= cutoffDate);
+    let filteredQuotes = [];
+    let clients3 = [];
+    try {
+      filteredQuotes = await db.select().from(quotes).where(and6(
+        eq14(quotes.createdBy, req.user.id),
+        gte2(quotes.createdAt, cutoffDate)
+      ));
+      const rawClientIds = filteredQuotes.map((q) => q.clientId).filter(Boolean);
+      const clientIds = rawClientIds.filter((id, index2) => rawClientIds.indexOf(id) === index2);
+      if (clientIds.length > 0) {
+        clients3 = await db.select().from(clients).where(inArray2(clients.id, clientIds));
+      }
+    } catch (dbError) {
+      logger.error("Analytics DB fetch error:", dbError);
+      filteredQuotes = [];
+      clients3 = [];
+    }
     const approvedQuotes = filteredQuotes.filter((q) => q.status === "approved" || q.status === "invoiced");
     const totalRevenue = approvedQuotes.reduce((sum, q) => sum + Number(q.total), 0);
     const avgQuoteValue = filteredQuotes.length > 0 ? (filteredQuotes.reduce((sum, q) => sum + Number(q.total), 0) / filteredQuotes.length).toFixed(2) : "0";
@@ -16048,9 +16101,10 @@ router14.get("/:timeRange(\\d+)", authMiddleware, requireFeature("analytics_modu
         conversions: monthApproved.length
       });
     }
+    const clientMap = new Map(clients3.map((c) => [c.id, c]));
     const clientRevenue = /* @__PURE__ */ new Map();
     for (const quote of approvedQuotes) {
-      const client = await storage.getClient(quote.clientId);
+      const client = clientMap.get(quote.clientId);
       if (!client) continue;
       const existing = clientRevenue.get(client.id);
       if (existing) {
@@ -16710,13 +16764,13 @@ import { Router as Router15 } from "express";
 init_logger();
 init_db();
 init_schema();
-import { eq as eq14 } from "drizzle-orm";
+import { eq as eq16 } from "drizzle-orm";
 
 // server/services/email-template.service.ts
 init_db();
 init_schema();
 init_logger();
-import { eq as eq13, and as and5 } from "drizzle-orm";
+import { eq as eq15, and as and7 } from "drizzle-orm";
 var TEMPLATE_VARIABLES = {
   quote: [
     { name: "quote_number", description: "Quote reference number" },
@@ -16836,15 +16890,15 @@ var EmailTemplateService = class {
    */
   static async getTemplate(type) {
     try {
-      const [template] = await db.select().from(emailTemplates).where(and5(
-        eq13(emailTemplates.type, type),
-        eq13(emailTemplates.isActive, true),
-        eq13(emailTemplates.isDefault, true)
+      const [template] = await db.select().from(emailTemplates).where(and7(
+        eq15(emailTemplates.type, type),
+        eq15(emailTemplates.isActive, true),
+        eq15(emailTemplates.isDefault, true)
       )).limit(1);
       if (template) return template;
-      const [anyTemplate] = await db.select().from(emailTemplates).where(and5(
-        eq13(emailTemplates.type, type),
-        eq13(emailTemplates.isActive, true)
+      const [anyTemplate] = await db.select().from(emailTemplates).where(and7(
+        eq15(emailTemplates.type, type),
+        eq15(emailTemplates.isActive, true)
       )).limit(1);
       return anyTemplate || null;
     } catch (error) {
@@ -16958,9 +17012,9 @@ var EmailTemplateService = class {
     ];
     for (const type of types) {
       try {
-        const [existing] = await db.select().from(emailTemplates).where(and5(
-          eq13(emailTemplates.type, type),
-          eq13(emailTemplates.isDefault, true)
+        const [existing] = await db.select().from(emailTemplates).where(and7(
+          eq15(emailTemplates.type, type),
+          eq15(emailTemplates.isDefault, true)
         )).limit(1);
         if (existing) {
           logger.info(`Default email template for ${type} already exists, skipping`);
@@ -17027,7 +17081,7 @@ router15.get(
   authMiddleware,
   async (req, res) => {
     try {
-      const [template] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      const [template] = await db.select().from(emailTemplates).where(eq16(emailTemplates.id, req.params.id)).limit(1);
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
       }
@@ -17088,7 +17142,7 @@ router15.post(
         return res.status(400).json({ error: "Template validation failed", details: validation.errors });
       }
       if (isDefault) {
-        await db.update(emailTemplates).set({ isDefault: false }).where(eq14(emailTemplates.type, type));
+        await db.update(emailTemplates).set({ isDefault: false }).where(eq16(emailTemplates.type, type));
       }
       const [template] = await db.insert(emailTemplates).values({
         name,
@@ -17122,7 +17176,7 @@ router15.put(
       if (req.user.role !== "admin") {
         return res.status(403).json({ error: "Only admins can update email templates" });
       }
-      const [existing] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      const [existing] = await db.select().from(emailTemplates).where(eq16(emailTemplates.id, req.params.id)).limit(1);
       if (!existing) {
         return res.status(404).json({ error: "Template not found" });
       }
@@ -17138,7 +17192,7 @@ router15.put(
         }
       }
       if (isDefault && !existing.isDefault) {
-        await db.update(emailTemplates).set({ isDefault: false }).where(eq14(emailTemplates.type, existing.type));
+        await db.update(emailTemplates).set({ isDefault: false }).where(eq16(emailTemplates.type, existing.type));
       }
       const [template] = await db.update(emailTemplates).set({
         ...name !== void 0 && { name },
@@ -17147,7 +17201,7 @@ router15.put(
         ...isActive !== void 0 && { isActive },
         ...isDefault !== void 0 && { isDefault },
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq14(emailTemplates.id, req.params.id)).returning();
+      }).where(eq16(emailTemplates.id, req.params.id)).returning();
       await storage.createActivityLog({
         userId: req.user.id,
         action: "update_email_template",
@@ -17170,11 +17224,11 @@ router15.delete(
       if (req.user.role !== "admin") {
         return res.status(403).json({ error: "Only admins can delete email templates" });
       }
-      const [existing] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      const [existing] = await db.select().from(emailTemplates).where(eq16(emailTemplates.id, req.params.id)).limit(1);
       if (!existing) {
         return res.status(404).json({ error: "Template not found" });
       }
-      await db.delete(emailTemplates).where(eq14(emailTemplates.id, req.params.id));
+      await db.delete(emailTemplates).where(eq16(emailTemplates.id, req.params.id));
       await storage.createActivityLog({
         userId: req.user.id,
         action: "delete_email_template",
@@ -17194,7 +17248,7 @@ router15.post(
   authMiddleware,
   async (req, res) => {
     try {
-      const [template] = await db.select().from(emailTemplates).where(eq14(emailTemplates.id, req.params.id)).limit(1);
+      const [template] = await db.select().from(emailTemplates).where(eq16(emailTemplates.id, req.params.id)).limit(1);
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
       }
@@ -17287,8 +17341,8 @@ router16.get("/", authMiddleware, async (req, res) => {
 router16.get("/unread-count", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const count = await NotificationService.getUnreadCount(userId);
-    res.json({ count });
+    const count2 = await NotificationService.getUnreadCount(userId);
+    res.json({ count: count2 });
   } catch (error) {
     console.error("[NotificationRoutes] Failed to get unread count:", error);
     res.status(500).json({ error: "Failed to get unread count" });
@@ -17312,8 +17366,8 @@ router16.post("/:id/read", authMiddleware, async (req, res) => {
 router16.post("/read-all", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const count = await NotificationService.markAllAsRead(userId);
-    res.json({ success: true, count });
+    const count2 = await NotificationService.markAllAsRead(userId);
+    res.json({ success: true, count: count2 });
   } catch (error) {
     console.error("[NotificationRoutes] Failed to mark all as read:", error);
     res.status(500).json({ error: "Failed to mark all notifications as read" });
@@ -17337,8 +17391,8 @@ router16.delete("/:id", authMiddleware, async (req, res) => {
 router16.delete("/", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const count = await NotificationService.deleteAll(userId);
-    res.json({ success: true, count });
+    const count2 = await NotificationService.deleteAll(userId);
+    res.json({ success: true, count: count2 });
   } catch (error) {
     console.error("[NotificationRoutes] Failed to delete all notifications:", error);
     res.status(500).json({ error: "Failed to delete all notifications" });
@@ -17350,7 +17404,7 @@ var notificationRoutes = router16;
 import { Router as Router17 } from "express";
 init_db();
 init_schema();
-import { eq as eq15, and as and7 } from "drizzle-orm";
+import { eq as eq17, and as and9 } from "drizzle-orm";
 var router17 = Router17();
 router17.get("/:entityType/:entityId/presence", authMiddleware, async (req, res) => {
   try {
@@ -17376,11 +17430,11 @@ router17.get("/:entityType/:entityId/is-editing", authMiddleware, async (req, re
       userName: users.name,
       isEditing: collaborationSessions.isEditing,
       cursorPosition: collaborationSessions.cursorPosition
-    }).from(collaborationSessions).innerJoin(users, eq15(collaborationSessions.userId, users.id)).where(
-      and7(
-        eq15(collaborationSessions.entityType, entityType),
-        eq15(collaborationSessions.entityId, entityId),
-        eq15(collaborationSessions.isEditing, true)
+    }).from(collaborationSessions).innerJoin(users, eq17(collaborationSessions.userId, users.id)).where(
+      and9(
+        eq17(collaborationSessions.entityType, entityType),
+        eq17(collaborationSessions.entityId, entityId),
+        eq17(collaborationSessions.isEditing, true)
       )
     );
     const othersEditing = sessions.filter((s) => s.userId !== userId);
@@ -17402,10 +17456,10 @@ router17.post("/:entityType/:entityId/heartbeat", authMiddleware, async (req, re
     const { entityType, entityId } = req.params;
     const userId = req.user.id;
     await db.update(collaborationSessions).set({ lastActivity: /* @__PURE__ */ new Date() }).where(
-      and7(
-        eq15(collaborationSessions.entityType, entityType),
-        eq15(collaborationSessions.entityId, entityId),
-        eq15(collaborationSessions.userId, userId)
+      and9(
+        eq17(collaborationSessions.entityType, entityType),
+        eq17(collaborationSessions.entityId, entityId),
+        eq17(collaborationSessions.userId, userId)
       )
     );
     res.json({ success: true });
@@ -17434,10 +17488,10 @@ router17.delete("/:entityType/:entityId/leave", authMiddleware, async (req, res)
     const { entityType, entityId } = req.params;
     const userId = req.user.id;
     await db.delete(collaborationSessions).where(
-      and7(
-        eq15(collaborationSessions.entityType, entityType),
-        eq15(collaborationSessions.entityId, entityId),
-        eq15(collaborationSessions.userId, userId)
+      and9(
+        eq17(collaborationSessions.entityType, entityType),
+        eq17(collaborationSessions.entityId, entityId),
+        eq17(collaborationSessions.userId, userId)
       )
     );
     res.json({ success: true });
@@ -17454,11 +17508,11 @@ init_logger();
 init_db();
 init_schema();
 init_numbering_service();
-import { eq as eq16, desc as desc4 } from "drizzle-orm";
+import { eq as eq18, desc as desc6 } from "drizzle-orm";
 var router18 = Router18();
 router18.get("/credit-notes", authMiddleware, requireFeature("creditNotes_module"), async (req, res) => {
   try {
-    const creditNotes2 = await db.select().from(creditNotes).leftJoin(invoices, eq16(creditNotes.invoiceId, invoices.id)).leftJoin(clients, eq16(creditNotes.clientId, clients.id)).leftJoin(users, eq16(creditNotes.createdBy, users.id)).orderBy(desc4(creditNotes.createdAt));
+    const creditNotes2 = await db.select().from(creditNotes).leftJoin(invoices, eq18(creditNotes.invoiceId, invoices.id)).leftJoin(clients, eq18(creditNotes.clientId, clients.id)).leftJoin(users, eq18(creditNotes.createdBy, users.id)).orderBy(desc6(creditNotes.createdAt));
     const formattedNotes = creditNotes2.map((row) => ({
       ...row.credit_notes,
       invoice: row.invoices ? {
@@ -17483,18 +17537,18 @@ router18.get("/credit-notes", authMiddleware, requireFeature("creditNotes_module
 });
 router18.get("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_module"), async (req, res) => {
   try {
-    const [creditNote] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    const [creditNote] = await db.select().from(creditNotes).where(eq18(creditNotes.id, req.params.id));
     if (!creditNote) {
       return res.status(404).json({ error: "Credit note not found" });
     }
-    const items = await db.select().from(creditNoteItems).where(eq16(creditNoteItems.creditNoteId, req.params.id)).orderBy(creditNoteItems.sortOrder);
+    const items = await db.select().from(creditNoteItems).where(eq18(creditNoteItems.creditNoteId, req.params.id)).orderBy(creditNoteItems.sortOrder);
     let invoice = null;
     if (creditNote.invoiceId) {
-      const [foundInvoice] = await db.select().from(invoices).where(eq16(invoices.id, creditNote.invoiceId));
+      const [foundInvoice] = await db.select().from(invoices).where(eq18(invoices.id, creditNote.invoiceId));
       invoice = foundInvoice || null;
     }
-    const [client] = await db.select().from(clients).where(eq16(clients.id, creditNote.clientId));
-    const [creator] = await db.select().from(users).where(eq16(users.id, creditNote.createdBy));
+    const [client] = await db.select().from(clients).where(eq18(clients.id, creditNote.clientId));
+    const [creator] = await db.select().from(users).where(eq18(users.id, creditNote.createdBy));
     return res.json({
       ...creditNote,
       items,
@@ -17522,7 +17576,7 @@ router18.get("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_mo
 });
 router18.get("/invoices/:invoiceId/credit-notes", authMiddleware, requireFeature("creditNotes_module"), async (req, res) => {
   try {
-    const creditNotes2 = await db.select().from(creditNotes).where(eq16(creditNotes.invoiceId, req.params.invoiceId)).orderBy(desc4(creditNotes.createdAt));
+    const creditNotes2 = await db.select().from(creditNotes).where(eq18(creditNotes.invoiceId, req.params.invoiceId)).orderBy(desc6(creditNotes.createdAt));
     return res.json(creditNotes2);
   } catch (error) {
     logger.error("Get invoice credit notes error:", error);
@@ -17538,14 +17592,14 @@ router18.post("/credit-notes", authMiddleware, requireFeature("creditNotes_creat
     let resolvedClientId;
     let invoice = null;
     if (invoiceId) {
-      const [foundInvoice] = await db.select().from(invoices).where(eq16(invoices.id, invoiceId));
+      const [foundInvoice] = await db.select().from(invoices).where(eq18(invoices.id, invoiceId));
       if (!foundInvoice) {
         return res.status(404).json({ error: "Invoice not found" });
       }
       invoice = foundInvoice;
       resolvedClientId = invoice.clientId;
     } else if (directClientId) {
-      const [client] = await db.select().from(clients).where(eq16(clients.id, directClientId));
+      const [client] = await db.select().from(clients).where(eq18(clients.id, directClientId));
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -17609,7 +17663,7 @@ router18.post("/credit-notes", authMiddleware, requireFeature("creditNotes_creat
 router18.put("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_edit"), requirePermission("credit_notes", "edit"), async (req, res) => {
   try {
     const { reason, items, notes, cgst = "0", sgst = "0", igst = "0", invoiceId } = req.body;
-    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    const [existing] = await db.select().from(creditNotes).where(eq18(creditNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Credit note not found" });
     }
@@ -17628,7 +17682,7 @@ router18.put("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_ed
       if (invoiceId === null) {
         finalInvoiceId = null;
       } else {
-        const [targetInvoice] = await db.select().from(invoices).where(eq16(invoices.id, invoiceId));
+        const [targetInvoice] = await db.select().from(invoices).where(eq18(invoices.id, invoiceId));
         if (!targetInvoice) {
           return res.status(404).json({ error: "Target invoice not found" });
         }
@@ -17650,9 +17704,9 @@ router18.put("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_ed
         subtotal: toMoneyString(subtotal),
         total: toMoneyString(total),
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      }).where(eq18(creditNotes.id, req.params.id)).returning();
       if (items) {
-        await tx.delete(creditNoteItems).where(eq16(creditNoteItems.creditNoteId, req.params.id));
+        await tx.delete(creditNoteItems).where(eq18(creditNoteItems.creditNoteId, req.params.id));
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
@@ -17685,7 +17739,7 @@ router18.put("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_ed
 });
 router18.delete("/credit-notes/:id", authMiddleware, requireFeature("creditNotes_delete"), requirePermission("credit_notes", "delete"), async (req, res) => {
   try {
-    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    const [existing] = await db.select().from(creditNotes).where(eq18(creditNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Credit note not found" });
     }
@@ -17693,8 +17747,8 @@ router18.delete("/credit-notes/:id", authMiddleware, requireFeature("creditNotes
       return res.status(400).json({ error: "Only draft credit notes can be deleted" });
     }
     await db.transaction(async (tx) => {
-      await tx.delete(creditNoteItems).where(eq16(creditNoteItems.creditNoteId, req.params.id));
-      await tx.delete(creditNotes).where(eq16(creditNotes.id, req.params.id));
+      await tx.delete(creditNoteItems).where(eq18(creditNoteItems.creditNoteId, req.params.id));
+      await tx.delete(creditNotes).where(eq18(creditNotes.id, req.params.id));
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "delete_credit_note",
@@ -17711,7 +17765,7 @@ router18.delete("/credit-notes/:id", authMiddleware, requireFeature("creditNotes
 });
 router18.post("/credit-notes/:id/issue", authMiddleware, requireFeature("creditNotes_issue"), requirePermission("credit_notes", "edit"), async (req, res) => {
   try {
-    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    const [existing] = await db.select().from(creditNotes).where(eq18(creditNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Credit note not found" });
     }
@@ -17723,7 +17777,7 @@ router18.post("/credit-notes/:id/issue", authMiddleware, requireFeature("creditN
         status: "issued",
         issueDate: /* @__PURE__ */ new Date(),
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      }).where(eq18(creditNotes.id, req.params.id)).returning();
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "issue_credit_note",
@@ -17741,7 +17795,7 @@ router18.post("/credit-notes/:id/issue", authMiddleware, requireFeature("creditN
 });
 router18.post("/credit-notes/:id/apply", authMiddleware, requireFeature("creditNotes_apply"), requirePermission("credit_notes", "edit"), async (req, res) => {
   try {
-    const [creditNote] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    const [creditNote] = await db.select().from(creditNotes).where(eq18(creditNotes.id, req.params.id));
     if (!creditNote) {
       return res.status(404).json({ error: "Credit note not found" });
     }
@@ -17751,7 +17805,7 @@ router18.post("/credit-notes/:id/apply", authMiddleware, requireFeature("creditN
     if (!creditNote.invoiceId) {
       return res.status(400).json({ error: "Cannot apply a standalone credit note without an invoice" });
     }
-    const [invoice] = await db.select().from(invoices).where(eq16(invoices.id, creditNote.invoiceId));
+    const [invoice] = await db.select().from(invoices).where(eq18(invoices.id, creditNote.invoiceId));
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
@@ -17771,13 +17825,13 @@ router18.post("/credit-notes/:id/apply", authMiddleware, requireFeature("creditN
         status: "applied",
         appliedAmount: creditNote.total,
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      }).where(eq18(creditNotes.id, req.params.id)).returning();
       await tx.update(invoices).set({
         paidAmount: toMoneyString(newPaidAmount),
         remainingAmount: toMoneyString(newRemainingAmount.isNegative() ? toDecimal(0) : newRemainingAmount),
         paymentStatus: newPaymentStatus,
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq16(invoices.id, creditNote.invoiceId));
+      }).where(eq18(invoices.id, creditNote.invoiceId));
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "apply_credit_note",
@@ -17795,7 +17849,7 @@ router18.post("/credit-notes/:id/apply", authMiddleware, requireFeature("creditN
 });
 router18.post("/credit-notes/:id/cancel", authMiddleware, requireFeature("creditNotes_edit"), requirePermission("credit_notes", "edit"), async (req, res) => {
   try {
-    const [existing] = await db.select().from(creditNotes).where(eq16(creditNotes.id, req.params.id));
+    const [existing] = await db.select().from(creditNotes).where(eq18(creditNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Credit note not found" });
     }
@@ -17809,7 +17863,7 @@ router18.post("/credit-notes/:id/cancel", authMiddleware, requireFeature("credit
       const [updated] = await tx.update(creditNotes).set({
         status: "cancelled",
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq16(creditNotes.id, req.params.id)).returning();
+      }).where(eq18(creditNotes.id, req.params.id)).returning();
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "cancel_credit_note",
@@ -17833,11 +17887,11 @@ init_logger();
 init_db();
 init_schema();
 init_numbering_service();
-import { eq as eq17, desc as desc5 } from "drizzle-orm";
+import { eq as eq19, desc as desc7 } from "drizzle-orm";
 var router19 = Router19();
 router19.get("/debit-notes", authMiddleware, requireFeature("debitNotes_module"), async (req, res) => {
   try {
-    const debitNotes2 = await db.select().from(debitNotes).leftJoin(invoices, eq17(debitNotes.invoiceId, invoices.id)).leftJoin(clients, eq17(debitNotes.clientId, clients.id)).leftJoin(users, eq17(debitNotes.createdBy, users.id)).orderBy(desc5(debitNotes.createdAt));
+    const debitNotes2 = await db.select().from(debitNotes).leftJoin(invoices, eq19(debitNotes.invoiceId, invoices.id)).leftJoin(clients, eq19(debitNotes.clientId, clients.id)).leftJoin(users, eq19(debitNotes.createdBy, users.id)).orderBy(desc7(debitNotes.createdAt));
     const formattedNotes = debitNotes2.map((row) => ({
       ...row.debit_notes,
       invoice: row.invoices ? {
@@ -17862,18 +17916,18 @@ router19.get("/debit-notes", authMiddleware, requireFeature("debitNotes_module")
 });
 router19.get("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_module"), async (req, res) => {
   try {
-    const [debitNote] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    const [debitNote] = await db.select().from(debitNotes).where(eq19(debitNotes.id, req.params.id));
     if (!debitNote) {
       return res.status(404).json({ error: "Debit note not found" });
     }
-    const items = await db.select().from(debitNoteItems).where(eq17(debitNoteItems.debitNoteId, req.params.id)).orderBy(debitNoteItems.sortOrder);
+    const items = await db.select().from(debitNoteItems).where(eq19(debitNoteItems.debitNoteId, req.params.id)).orderBy(debitNoteItems.sortOrder);
     let invoice = null;
     if (debitNote.invoiceId) {
-      const [foundInvoice] = await db.select().from(invoices).where(eq17(invoices.id, debitNote.invoiceId));
+      const [foundInvoice] = await db.select().from(invoices).where(eq19(invoices.id, debitNote.invoiceId));
       invoice = foundInvoice || null;
     }
-    const [client] = await db.select().from(clients).where(eq17(clients.id, debitNote.clientId));
-    const [creator] = await db.select().from(users).where(eq17(users.id, debitNote.createdBy));
+    const [client] = await db.select().from(clients).where(eq19(clients.id, debitNote.clientId));
+    const [creator] = await db.select().from(users).where(eq19(users.id, debitNote.createdBy));
     return res.json({
       ...debitNote,
       items,
@@ -17901,7 +17955,7 @@ router19.get("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_modu
 });
 router19.get("/invoices/:invoiceId/debit-notes", authMiddleware, requireFeature("debitNotes_module"), async (req, res) => {
   try {
-    const debitNotes2 = await db.select().from(debitNotes).where(eq17(debitNotes.invoiceId, req.params.invoiceId)).orderBy(desc5(debitNotes.createdAt));
+    const debitNotes2 = await db.select().from(debitNotes).where(eq19(debitNotes.invoiceId, req.params.invoiceId)).orderBy(desc7(debitNotes.createdAt));
     return res.json(debitNotes2);
   } catch (error) {
     logger.error("Get invoice debit notes error:", error);
@@ -17917,14 +17971,14 @@ router19.post("/debit-notes", authMiddleware, requireFeature("debitNotes_create"
     let resolvedClientId;
     let invoice = null;
     if (invoiceId) {
-      const [foundInvoice] = await db.select().from(invoices).where(eq17(invoices.id, invoiceId));
+      const [foundInvoice] = await db.select().from(invoices).where(eq19(invoices.id, invoiceId));
       if (!foundInvoice) {
         return res.status(404).json({ error: "Invoice not found" });
       }
       invoice = foundInvoice;
       resolvedClientId = invoice.clientId;
     } else if (req.body.clientId) {
-      const [client] = await db.select().from(clients).where(eq17(clients.id, req.body.clientId));
+      const [client] = await db.select().from(clients).where(eq19(clients.id, req.body.clientId));
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -17988,7 +18042,7 @@ router19.post("/debit-notes", authMiddleware, requireFeature("debitNotes_create"
 router19.put("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_edit"), requirePermission("debit_notes", "edit"), async (req, res) => {
   try {
     const { reason, items, notes, cgst = "0", sgst = "0", igst = "0", invoiceId } = req.body;
-    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    const [existing] = await db.select().from(debitNotes).where(eq19(debitNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Debit note not found" });
     }
@@ -18007,7 +18061,7 @@ router19.put("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_edit
       if (invoiceId === null) {
         finalInvoiceId = null;
       } else {
-        const [targetInvoice] = await db.select().from(invoices).where(eq17(invoices.id, invoiceId));
+        const [targetInvoice] = await db.select().from(invoices).where(eq19(invoices.id, invoiceId));
         if (!targetInvoice) {
           return res.status(404).json({ error: "Target invoice not found" });
         }
@@ -18029,9 +18083,9 @@ router19.put("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_edit
         subtotal: toMoneyString(subtotal),
         total: toMoneyString(total),
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      }).where(eq19(debitNotes.id, req.params.id)).returning();
       if (items) {
-        await tx.delete(debitNoteItems).where(eq17(debitNoteItems.debitNoteId, req.params.id));
+        await tx.delete(debitNoteItems).where(eq19(debitNoteItems.debitNoteId, req.params.id));
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           const itemSubtotal = toDecimal(item.quantity).times(toDecimal(item.unitPrice));
@@ -18064,7 +18118,7 @@ router19.put("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_edit
 });
 router19.delete("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_delete"), requirePermission("debit_notes", "delete"), async (req, res) => {
   try {
-    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    const [existing] = await db.select().from(debitNotes).where(eq19(debitNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Debit note not found" });
     }
@@ -18072,8 +18126,8 @@ router19.delete("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_d
       return res.status(400).json({ error: "Only draft debit notes can be deleted" });
     }
     await db.transaction(async (tx) => {
-      await tx.delete(debitNoteItems).where(eq17(debitNoteItems.debitNoteId, req.params.id));
-      await tx.delete(debitNotes).where(eq17(debitNotes.id, req.params.id));
+      await tx.delete(debitNoteItems).where(eq19(debitNoteItems.debitNoteId, req.params.id));
+      await tx.delete(debitNotes).where(eq19(debitNotes.id, req.params.id));
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "delete_debit_note",
@@ -18090,7 +18144,7 @@ router19.delete("/debit-notes/:id", authMiddleware, requireFeature("debitNotes_d
 });
 router19.post("/debit-notes/:id/issue", authMiddleware, requireFeature("debitNotes_issue"), requirePermission("debit_notes", "edit"), async (req, res) => {
   try {
-    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    const [existing] = await db.select().from(debitNotes).where(eq19(debitNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Debit note not found" });
     }
@@ -18102,7 +18156,7 @@ router19.post("/debit-notes/:id/issue", authMiddleware, requireFeature("debitNot
         status: "issued",
         issueDate: /* @__PURE__ */ new Date(),
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      }).where(eq19(debitNotes.id, req.params.id)).returning();
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "issue_debit_note",
@@ -18120,7 +18174,7 @@ router19.post("/debit-notes/:id/issue", authMiddleware, requireFeature("debitNot
 });
 router19.post("/debit-notes/:id/apply", authMiddleware, requireFeature("debitNotes_apply"), requirePermission("debit_notes", "edit"), async (req, res) => {
   try {
-    const [debitNote] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    const [debitNote] = await db.select().from(debitNotes).where(eq19(debitNotes.id, req.params.id));
     if (!debitNote) {
       return res.status(404).json({ error: "Debit note not found" });
     }
@@ -18130,7 +18184,7 @@ router19.post("/debit-notes/:id/apply", authMiddleware, requireFeature("debitNot
     if (!debitNote.invoiceId) {
       return res.status(400).json({ error: "Cannot apply a standalone debit note without an invoice" });
     }
-    const [invoice] = await db.select().from(invoices).where(eq17(invoices.id, debitNote.invoiceId));
+    const [invoice] = await db.select().from(invoices).where(eq19(invoices.id, debitNote.invoiceId));
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
@@ -18152,13 +18206,13 @@ router19.post("/debit-notes/:id/apply", authMiddleware, requireFeature("debitNot
         status: "applied",
         appliedAmount: debitNote.total,
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      }).where(eq19(debitNotes.id, req.params.id)).returning();
       await tx.update(invoices).set({
         total: toMoneyString(newInvoiceTotal),
         remainingAmount: toMoneyString(newRemainingAmount),
         paymentStatus: newPaymentStatus,
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq17(invoices.id, debitNote.invoiceId));
+      }).where(eq19(invoices.id, debitNote.invoiceId));
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "apply_debit_note",
@@ -18176,7 +18230,7 @@ router19.post("/debit-notes/:id/apply", authMiddleware, requireFeature("debitNot
 });
 router19.post("/debit-notes/:id/cancel", authMiddleware, requireFeature("debitNotes_edit"), requirePermission("debit_notes", "edit"), async (req, res) => {
   try {
-    const [existing] = await db.select().from(debitNotes).where(eq17(debitNotes.id, req.params.id));
+    const [existing] = await db.select().from(debitNotes).where(eq19(debitNotes.id, req.params.id));
     if (!existing) {
       return res.status(404).json({ error: "Debit note not found" });
     }
@@ -18190,7 +18244,7 @@ router19.post("/debit-notes/:id/cancel", authMiddleware, requireFeature("debitNo
       const [updated] = await tx.update(debitNotes).set({
         status: "cancelled",
         updatedAt: /* @__PURE__ */ new Date()
-      }).where(eq17(debitNotes.id, req.params.id)).returning();
+      }).where(eq19(debitNotes.id, req.params.id)).returning();
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "cancel_debit_note",
@@ -18217,7 +18271,7 @@ init_db();
 init_schema();
 init_numbering_service();
 init_logger();
-import { eq as eq18, and as and10, lte } from "drizzle-orm";
+import { eq as eq20, and as and12, lte as lte2 } from "drizzle-orm";
 import { addMonths, addYears, startOfDay, differenceInDays } from "date-fns";
 init_feature_flags();
 var SubscriptionService = class {
@@ -18229,7 +18283,7 @@ var SubscriptionService = class {
       with: {
         client: true
       },
-      orderBy: (subscriptions2, { desc: desc6 }) => [desc6(subscriptions2.createdAt)]
+      orderBy: (subscriptions2, { desc: desc8 }) => [desc8(subscriptions2.createdAt)]
     });
   }
   /**
@@ -18237,11 +18291,11 @@ var SubscriptionService = class {
    */
   static async getSubscriptionById(id) {
     return await db.query.subscriptions.findFirst({
-      where: eq18(subscriptions.id, id),
+      where: eq20(subscriptions.id, id),
       with: {
         client: true,
         invoices: {
-          orderBy: (invoices2, { desc: desc6 }) => [desc6(invoices2.issueDate)]
+          orderBy: (invoices2, { desc: desc8 }) => [desc8(invoices2.issueDate)]
         }
       }
     });
@@ -18266,7 +18320,7 @@ var SubscriptionService = class {
     if (newSubscription.status === "active" && newSubscription.nextBillingDate <= /* @__PURE__ */ new Date()) {
       logger.info(`[SubscriptionService] New subscription ${newSubscription.id} starts in past/today. Processing immediate renewal.`);
       const subWithClient = await db.query.subscriptions.findFirst({
-        where: eq18(subscriptions.id, newSubscription.id),
+        where: eq20(subscriptions.id, newSubscription.id),
         with: { client: true }
       });
       if (subWithClient) {
@@ -18279,14 +18333,14 @@ var SubscriptionService = class {
    * Update subscription
    */
   static async updateSubscription(id, data) {
-    const [updated] = await db.update(subscriptions).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq18(subscriptions.id, id)).returning();
+    const [updated] = await db.update(subscriptions).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq20(subscriptions.id, id)).returning();
     return updated;
   }
   /**
    * Cancel subscription
    */
   static async cancelSubscription(id) {
-    const [updated] = await db.update(subscriptions).set({ status: "cancelled", autoRenew: false, updatedAt: /* @__PURE__ */ new Date() }).where(eq18(subscriptions.id, id)).returning();
+    const [updated] = await db.update(subscriptions).set({ status: "cancelled", autoRenew: false, updatedAt: /* @__PURE__ */ new Date() }).where(eq20(subscriptions.id, id)).returning();
     return updated;
   }
   /**
@@ -18295,9 +18349,9 @@ var SubscriptionService = class {
   static async processDueSubscriptions() {
     const today = startOfDay(/* @__PURE__ */ new Date());
     const dueSubscriptions = await db.query.subscriptions.findMany({
-      where: and10(
-        eq18(subscriptions.status, "active"),
-        lte(subscriptions.nextBillingDate, today)
+      where: and12(
+        eq20(subscriptions.status, "active"),
+        lte2(subscriptions.nextBillingDate, today)
       ),
       with: {
         client: true
@@ -18331,7 +18385,7 @@ var SubscriptionService = class {
           nextBillingDate: nextDate,
           lastInvoiceDate: /* @__PURE__ */ new Date(),
           updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq18(subscriptions.id, sub.id));
+        }).where(eq20(subscriptions.id, sub.id));
         if (isFeatureEnabled("email_subscriptionRenewed")) {
           if (sub.client && sub.client.email) {
             await EmailService.sendSubscriptionRenewedEmail(
@@ -18440,7 +18494,7 @@ var SubscriptionService = class {
 init_numbering_service();
 init_db();
 init_schema();
-import { eq as eq19 } from "drizzle-orm";
+import { eq as eq21 } from "drizzle-orm";
 var router20 = Router20();
 router20.get("/subscriptions", authMiddleware, requireFeature("subscriptions_module"), async (req, res) => {
   try {
@@ -18541,7 +18595,7 @@ router20.put("/subscriptions/:id", authMiddleware, requireFeature("subscriptions
               prorataCredit: (currentCredit + creditAmount).toString(),
               notes: (existing.notes || "") + `
 [${(/* @__PURE__ */ new Date()).toISOString()}] Applied proration credit: ${creditAmount}`
-            }).where(eq19(subscriptions.id, req.params.id));
+            }).where(eq21(subscriptions.id, req.params.id));
           }
         }
       }
@@ -18558,7 +18612,7 @@ router20.put("/subscriptions/:id", authMiddleware, requireFeature("subscriptions
       if (startDate) {
         updateData.startDate = new Date(startDate);
       }
-      const [updated] = await tx.update(subscriptions).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq19(subscriptions.id, req.params.id)).returning();
+      const [updated] = await tx.update(subscriptions).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq21(subscriptions.id, req.params.id)).returning();
       await tx.insert(activityLogs).values({
         userId: req.user.id,
         action: "update_subscription",
@@ -18980,11 +19034,11 @@ import { Router as Router22 } from "express";
 // server/services/governance.service.ts
 init_db();
 init_schema();
-import { eq as eq20, sql as sql14, like, or, and as and11, gte } from "drizzle-orm";
+import { eq as eq22, sql as sql14, like, or, and as and13, gte as gte3 } from "drizzle-orm";
 var GovernanceService = class {
   async getStats() {
     const [totalUsersRes] = await db.select({ count: sql14`count(*)` }).from(users);
-    const [activeUsersRes] = await db.select({ count: sql14`count(*)` }).from(users).where(eq20(users.status, "active"));
+    const [activeUsersRes] = await db.select({ count: sql14`count(*)` }).from(users).where(eq22(users.status, "active"));
     const [totalActivitiesRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs);
     const [unauthorizedRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs).where(like(activityLogs.action, "unauthorized%"));
     const [criticalRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs).where(
@@ -18998,9 +19052,9 @@ var GovernanceService = class {
     const thirtyDaysAgo = /* @__PURE__ */ new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const [approvalsRes] = await db.select({ count: sql14`count(*)` }).from(activityLogs).where(
-      and11(
+      and13(
         like(activityLogs.action, "%approve%"),
-        gte(activityLogs.timestamp, thirtyDaysAgo)
+        gte3(activityLogs.timestamp, thirtyDaysAgo)
       )
     );
     return {
