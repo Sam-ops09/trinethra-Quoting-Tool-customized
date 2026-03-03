@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, CheckCircle2, XCircle, MessageSquare, Send, FileText, User, Calendar, DollarSign, Clock, Building2, Receipt, Home, ChevronRight, Hash } from "lucide-react";
 import { format } from "date-fns";
 import { Quote, QuoteItem, QuoteComment } from "@shared/schema";
+import { isFeatureEnabled } from "@shared/feature-flags";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,18 @@ type PublicQuoteData = Quote & {
   sender: {
     name: string;
     email: string;
+  };
+  branding?: {
+    companyName?: string;
+    companyLogo?: string;
+    companyEmail?: string;
+    companyPhone?: string;
+    publicPage_brandColor?: string;
+    publicPage_accentColor?: string;
+    publicPage_headerText?: string;
+    publicPage_footerText?: string;
+    publicPage_showLogo?: string;
+    publicPage_showTerms?: string;
   };
 };
 
@@ -291,9 +304,39 @@ export default function PublicQuote() {
   const isPending = quote.status === "sent" || quote.status === "draft";
   const hasOptionalItems = quote.items.some(item => item.isOptional);
 
+  // Branding
+  const brandingEnabled = isFeatureEnabled('quotes_publicBranding');
+  const b = brandingEnabled ? (quote.branding || {}) : {};
+  const brandColor = b.publicPage_brandColor || "#0f172a";
+  const showLogo = b.publicPage_showLogo !== "false";
+
   return (
-    <div className="min-h-screen w-full bg-background">
+    <div
+      className="min-h-screen w-full bg-background"
+      style={{ "--brand-color": brandColor, "--brand-accent": b.publicPage_accentColor || brandColor } as React.CSSProperties}
+    >
       <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-[1600px] mx-auto space-y-4 sm:space-y-6 lg:space-y-8">
+
+        {/* Company Branding Header */}
+        {(b.companyName || b.companyLogo) && (
+          <div className="flex items-center gap-3 p-4 rounded-2xl border border-border/70 bg-card/95 backdrop-blur-sm shadow-sm">
+            {showLogo && b.companyLogo && (
+              <img src={b.companyLogo} alt={b.companyName || "Company"} className="h-10 w-auto object-contain rounded" />
+            )}
+            <div className="flex-1 min-w-0">
+              {b.companyName && <p className="text-sm font-bold text-foreground">{b.companyName}</p>}
+              {b.publicPage_headerText && (
+                <p className="text-xs text-muted-foreground">{b.publicPage_headerText}</p>
+              )}
+            </div>
+            {(b.companyEmail || b.companyPhone) && (
+              <div className="text-right text-[11px] text-muted-foreground hidden sm:block">
+                {b.companyEmail && <p>{b.companyEmail}</p>}
+                {b.companyPhone && <p>{b.companyPhone}</p>}
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Breadcrumbs */}
         <nav className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 shadow-sm w-fit">
@@ -663,6 +706,13 @@ export default function PublicQuote() {
             )}
           </CardContent>
         </Card>
+
+        {/* Branding Footer */}
+        {b.publicPage_footerText && (
+          <div className="text-center text-xs text-muted-foreground py-4 border-t border-border/50">
+            {b.publicPage_footerText}
+          </div>
+        )}
       </div>
     </div>
   );

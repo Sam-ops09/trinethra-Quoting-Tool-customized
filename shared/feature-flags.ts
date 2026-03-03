@@ -64,6 +64,7 @@ export interface FeatureFlags {
   quotes_close: boolean;
   quotes_clone: boolean;
   quotes_version: boolean;
+  quotes_publicBranding: boolean;
   sales_orders_module: boolean;
   sales_orders_pdfGeneration: boolean;
   sales_orders_emailSending: boolean;
@@ -91,6 +92,15 @@ export interface FeatureFlags {
   quotes_shippingCharges: boolean;
   quotes_notes: boolean;
   quotes_termsConditions: boolean;
+  
+  // Suggested Improvements
+  quotes_optionalItems: boolean;
+  quotes_profitMargin: boolean;
+  quotes_eSignature: boolean;
+  quotes_activityTracking: boolean;
+  quotes_autoExpiration: boolean;
+  quotes_dynamicTemplates: boolean;
+  quotes_multiOption: boolean;
 
   // ==================== INVOICE FEATURES ====================
 
@@ -354,6 +364,10 @@ export interface FeatureFlags {
   integration_vercelAnalytics: boolean;
   integration_externalApi: boolean;
 
+  // ==================== NOTIFICATIONS ====================
+
+  notifications_whatsapp: boolean;
+
   // ==================== WORKFLOW AUTOMATION ====================
 
   // Workflow Module
@@ -445,6 +459,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_close: true,
   quotes_clone: true,
   quotes_version: true,
+  quotes_publicBranding: true,
   sales_orders_module: true,
   sales_orders_pdfGeneration: true,
   sales_orders_emailSending: false,
@@ -466,6 +481,13 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_shippingCharges: true,
   quotes_notes: true,
   quotes_termsConditions: true,
+  quotes_optionalItems: true,
+  quotes_profitMargin: true,
+  quotes_eSignature: true,
+  quotes_activityTracking: true,
+  quotes_autoExpiration: true,
+  quotes_dynamicTemplates: true,
+  quotes_multiOption: true,
 
   // ==================== INVOICE FEATURES ====================
   invoices_module: true,
@@ -684,6 +706,9 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   // ==================== INTEGRATIONS ====================
   integration_vercelAnalytics: true,
   integration_externalApi: true,
+
+  // ==================== NOTIFICATIONS ====================
+  notifications_whatsapp: true,
 
   // ==================== WORKFLOW AUTOMATION ====================
   // Workflow Module

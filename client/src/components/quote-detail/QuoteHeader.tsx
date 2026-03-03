@@ -10,6 +10,7 @@ import {
   Send,
   Loader2,
   Package,
+  MessageCircle,
 } from "lucide-react";
 import { PermissionGuard } from "@/components/permission-guard";
 import { useAuth } from "@/lib/auth-context";
@@ -24,6 +25,7 @@ interface QuoteHeaderProps {
   onSendEmail: () => void;
   onCreateSalesOrder: () => void;
   onCreateVendorPO: () => void;
+  onShareWhatsApp?: () => void;
   isDownloading: boolean;
   clonePending: boolean;
   createSalesOrderPending: boolean;
@@ -39,6 +41,7 @@ export function QuoteHeader({
   onSendEmail,
   onCreateSalesOrder,
   onCreateVendorPO,
+  onShareWhatsApp,
   isDownloading,
   clonePending,
   createSalesOrderPending,
@@ -53,6 +56,7 @@ export function QuoteHeader({
   const canConvertToSalesOrder = useFeatureFlag('quotes_convertToSalesOrder');
   const canClone = useFeatureFlag('quotes_clone');
   const canCreateVendorPO = useFeatureFlag('vendorPO_create');
+  const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
 
   const canEdit = quote.status !== "invoiced" && user && hasPermission(user.role, "quotes", "edit");
 
@@ -180,6 +184,18 @@ export function QuoteHeader({
                         Email
                       </Button>
                   </PermissionGuard>
+              )}
+
+              {/* Share via WhatsApp */}
+              {canShareWhatsApp && onShareWhatsApp && (
+                <Button
+                  variant="outline"
+                  onClick={onShareWhatsApp}
+                  className="h-10 px-4 rounded-xl border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  WhatsApp
+                </Button>
               )}
 
               {/* Create Sales Order */}

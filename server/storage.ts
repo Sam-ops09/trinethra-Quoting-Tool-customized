@@ -728,6 +728,65 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async getActivityLogsPaginated(filters: {
+    offset?: number;
+    limit?: number;
+    entityType?: string;
+    action?: string;
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{ logs: (ActivityLog & { userName: string | null })[]; total: number }> {
+    const { offset = 0, limit = 50, entityType, action, userId, startDate, endDate } = filters;
+
+    const conditions: any[] = [];
+    if (entityType) conditions.push(eq(activityLogs.entityType, entityType));
+    if (action) conditions.push(sql`${activityLogs.action} ILIKE ${'%' + action + '%'}`);
+    if (userId) conditions.push(eq(activityLogs.userId, userId));
+    if (startDate) conditions.push(sql`${activityLogs.timestamp} >= ${startDate}`);
+    if (endDate) conditions.push(sql`${activityLogs.timestamp} <= ${endDate}`);
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(activityLogs)
+      .where(whereClause);
+
+    const logs = await db
+      .select({
+        id: activityLogs.id,
+        userId: activityLogs.userId,
+        action: activityLogs.action,
+        entityType: activityLogs.entityType,
+        entityId: activityLogs.entityId,
+        metadata: activityLogs.metadata,
+        timestamp: activityLogs.timestamp,
+        userName: users.name,
+      })
+      .from(activityLogs)
+      .leftJoin(users, eq(activityLogs.userId, users.id))
+      .where(whereClause)
+      .orderBy(desc(activityLogs.timestamp))
+      .offset(offset)
+      .limit(limit);
+
+    return { logs, total: countResult?.count || 0 };
+  }
+
+  async getActivityLogStats(): Promise<{ entityType: string; count: number }[]> {
+    const result = await db
+      .select({
+        entityType: activityLogs.entityType,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(activityLogs)
+      .groupBy(activityLogs.entityType)
+      .orderBy(sql`count(*) desc`);
+
+    return result;
+  }
+
   // Settings
   async getSetting(key: string): Promise < Setting | undefined > {
   const [setting] = await db.select().from(settings).where(eq(settings.key, key));

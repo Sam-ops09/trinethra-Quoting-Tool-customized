@@ -123,7 +123,20 @@ export default function Invoices() {
     const [sortBy, setSortBy] = useState<SortOption>("newest");
     const [viewMode, setViewMode] = useState<ViewMode>("list");
     const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+    const [isExporting, setIsExporting] = useState(false);
     const { toast } = useToast();
+
+    const handleExportCsv = () => {
+        const params = new URLSearchParams();
+        if (statusFilter !== "all") params.set("paymentStatus", statusFilter);
+        params.set("_t", Date.now().toString()); // cache bust
+        const a = document.createElement("a");
+        a.href = `/api/export/invoices?${params.toString()}`;
+        a.download = `invoices_export_${new Date().toISOString().split("T")[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
 
     // Feature flags
     const canGeneratePDF = useFeatureFlag('invoices_pdfGeneration');
@@ -432,6 +445,17 @@ export default function Invoices() {
                                         <SelectItem value="client">Client Name</SelectItem>
                                     </SelectContent>
                                 </Select>
+
+                                <Button
+                                    variant="outline"
+                                    onClick={handleExportCsv}
+                                    disabled={isExporting}
+                                    className="h-11 px-4 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 font-medium"
+                                    title="Export to CSV"
+                                >
+                                    {isExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                                    <span className="hidden sm:inline">CSV</span>
+                                </Button>
 
                                 <div className="hidden sm:flex items-center gap-1 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-1">
                                     <Button

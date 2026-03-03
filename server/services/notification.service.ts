@@ -403,6 +403,32 @@ class NotificationServiceClass {
   }
 
   /**
+   * Notify when a quote is expiring soon or has expired
+   */
+  async notifyQuoteExpiring(
+    userId: string,
+    quoteNumber: string,
+    quoteId: string,
+    daysUntilExpiry: number,
+    totalAmount: string
+  ): Promise<void> {
+    const isExpired = daysUntilExpiry <= 0;
+    await this.create({
+      userId,
+      type: "quote_status_change",
+      title: isExpired
+        ? `Quote ${quoteNumber} Has Expired`
+        : `Quote ${quoteNumber} Expiring Soon`,
+      message: isExpired
+        ? `Quote ${quoteNumber} (₹${totalAmount}) has expired today. Consider following up with the client or closing the quote.`
+        : `Quote ${quoteNumber} (₹${totalAmount}) will expire in ${daysUntilExpiry} day${daysUntilExpiry > 1 ? "s" : ""}. Follow up with the client before it expires.`,
+      entityType: "quote",
+      entityId: quoteId,
+      metadata: { quoteNumber, daysUntilExpiry, totalAmount, isExpired },
+    });
+  }
+
+  /**
    * Notify when someone joins a document
    */
   async notifyCollaboratorJoined(

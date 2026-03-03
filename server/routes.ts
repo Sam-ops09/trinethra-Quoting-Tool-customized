@@ -40,6 +40,8 @@ import { subscriptionRoutes } from "./routes/subscriptions.routes";
 import workflowsRoutes from "./routes/workflows.routes";
 import governanceRoutes from "./routes/governance.routes";
 import activityLogsRoutes from "./routes/activity-logs.routes";
+import exportRoutes from "./routes/export.routes";
+import whatsappRoutes from "./routes/whatsapp.routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
@@ -122,6 +124,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Governance & Activity Logs
   app.use("/api/governance", authMiddleware, governanceRoutes);
   app.use("/api/activity-logs", authMiddleware, activityLogsRoutes);
+
+  // Data Export Routes (CSV)
+  app.use("/api/export", authMiddleware, exportRoutes);
+  app.use("/api/whatsapp", authMiddleware, whatsappRoutes);
 
   // Moved to invoices.routes.ts
 

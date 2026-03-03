@@ -2,6 +2,7 @@ import { useLocation, useRoute } from "wouter";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy, ShieldAlert, XCircle, MessageSquare } from "lucide-react";
 import { ToastAction } from "@/components/ui/toast";
@@ -111,6 +112,7 @@ export default function QuoteDetail() {
   const canConvertToSalesOrder = useFeatureFlag('quotes_convertToSalesOrder');
   const canSendQuote = useFeatureFlag('quotes_sendQuote');
   const canClone = useFeatureFlag('quotes_clone');
+  const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
 
   // Comment state
   const [newComment, setNewComment] = useState("");
@@ -748,6 +750,26 @@ export default function QuoteDetail() {
                       <span className="hidden xs:inline">Email</span>
                     </Button>
                   </PermissionGuard>
+                )}
+                {canShareWhatsApp && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/whatsapp/share-quote/${params?.id}`, { credentials: "include" });
+                        if (!res.ok) throw new Error("Failed to generate WhatsApp link");
+                        const data = await res.json();
+                        window.open(data.url, "_blank");
+                      } catch {
+                        toast({ title: "Error", description: "Failed to share via WhatsApp", variant: "destructive" });
+                      }
+                    }}
+                    className="flex-1 sm:flex-initial h-7 text-xs border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/20"
+                  >
+                    <MessageCircle className="h-3 w-3 mr-1" />
+                    <span className="hidden xs:inline">WhatsApp</span>
+                  </Button>
                 )}
                 {canSendQuote && quote.status === "draft" && (
                   <PermissionGuard resource="quotes" action="create" tooltipText="Only authorized users can send quotes">

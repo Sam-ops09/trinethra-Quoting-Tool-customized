@@ -59,6 +59,9 @@ router.post("/settings", authMiddleware, requireFeature('admin_settings'), requi
       "emailFrom", "emailReplyTo", "emailFooter",
       // Terms and conditions
       "defaultTermsAndConditions", "defaultNotes",
+      // Public page branding
+      "publicPage_brandColor", "publicPage_accentColor", "publicPage_headerText",
+      "publicPage_footerText", "publicPage_showLogo", "publicPage_showTerms",
     ];
 
     const validateSettingKey = (key: string): boolean => {

@@ -17,6 +17,7 @@ import {
     Zap,
     FileWarning,
     Repeat,
+    Activity,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLocation } from "wouter";
@@ -235,6 +236,14 @@ const adminItems = [
         icon: BarChart3,
         roles: ["admin", "sales_manager", "finance_accounts"],
         description: "System analytics",
+        featureFlag: 'pages_adminAnalytics' as const,
+    },
+    {
+        title: "Audit Trail",
+        url: "/admin/audit-trail",
+        icon: Activity,
+        roles: ["admin"],
+        description: "System activity logs",
         featureFlag: 'pages_adminAnalytics' as const,
     },
     {

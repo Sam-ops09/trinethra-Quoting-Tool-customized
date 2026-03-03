@@ -55,6 +55,7 @@ import SubscriptionDetail from "@/pages/subscription-detail";
 import Workflows from "@/pages/workflows";
 import WorkflowBuilder from "@/pages/workflow-builder";
 import WorkflowExecutions from "@/pages/workflow-executions";
+import AuditTrail from "@/pages/audit-trail";
 import { Loader2, ShieldAlert } from "lucide-react";
 import React from "react";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
@@ -297,6 +298,9 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_governanceDashboard') && (
             <Route path="/admin/governance" component={() => <ProtectedRoute component={GovernanceDashboard} requiredPath="/admin/governance" />} />
           )}
+
+          {/* Audit Trail */}
+          <Route path="/admin/audit-trail" component={() => <ProtectedRoute component={AuditTrail} requiredPath="/admin/analytics" />} />
 
           {/* Workflows */}
           {isFeatureEnabled('pages_workflows') && (

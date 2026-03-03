@@ -55,6 +55,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PermissionGuard } from "@/components/permission-guard";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { MessageCircle } from "lucide-react";
 import { PaymentTracker } from "@/components/invoice/payment-tracker";
 import { Separator } from "@/components/ui/separator";
 import { InvoiceSplitWizard } from "@/components/invoice/split-wizard";
@@ -143,6 +144,7 @@ export default function InvoiceDetail() {
     const canFinalizeInvoice = useFeatureFlag('invoices_finalize');
     const canLockInvoice = useFeatureFlag('invoices_lock');
     const canCancelInvoice = useFeatureFlag('invoices_cancel');
+    const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
 
     const [showEmailDialog, setShowEmailDialog] = useState(false);
     const [emailData, setEmailData] = useState({ email: "", message: "" });
@@ -729,6 +731,29 @@ export default function InvoiceDetail() {
                                     <span className="sm:hidden">Email</span>
                                   </Button>
                                 </PermissionGuard>
+                                )}
+
+                                {/* WhatsApp Share */}
+                                {canShareWhatsApp && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/20"
+                                    onClick={async () => {
+                                      try {
+                                        const res = await fetch(`/api/whatsapp/share-invoice/${params?.id}`, { credentials: "include" });
+                                        if (!res.ok) throw new Error("Failed to generate WhatsApp link");
+                                        const data = await res.json();
+                                        window.open(data.url, "_blank");
+                                      } catch {
+                                        toast({ title: "Error", description: "Failed to share via WhatsApp", variant: "destructive" });
+                                      }
+                                    }}
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                    <span className="hidden sm:inline">WhatsApp</span>
+                                    <span className="sm:hidden">WA</span>
+                                  </Button>
                                 )}
 
                                 {/* Payment Reminder Button - Show for pending, partial, or overdue invoices */}

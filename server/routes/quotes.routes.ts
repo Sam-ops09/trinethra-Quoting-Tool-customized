@@ -66,6 +66,21 @@ router.get("/public/:token", async (req: any, res: Response) => {
         const items = await storage.getQuoteItems(quote.id);
         const creator = await storage.getUser(quote.createdBy);
 
+        // Fetch branding settings for the public page
+        const brandingKeys = [
+            "companyName", "companyLogo", "companyEmail", "companyPhone",
+            "publicPage_brandColor", "publicPage_accentColor",
+            "publicPage_headerText", "publicPage_footerText",
+            "publicPage_showLogo", "publicPage_showTerms",
+        ];
+        const allSettings = await storage.getAllSettings();
+        const branding: Record<string, string> = {};
+        for (const s of allSettings) {
+            if (brandingKeys.includes(s.key)) {
+                branding[s.key] = s.value;
+            }
+        }
+
         res.json({
             id: quote.id,
             quoteNumber: quote.quoteNumber,
@@ -94,7 +109,8 @@ router.get("/public/:token", async (req: any, res: Response) => {
             sender: {
                 name: creator?.name,
                 email: creator?.email
-            }
+            },
+            branding,
         });
     } catch (error) {
         logger.error("Public quote fetch error:", error);

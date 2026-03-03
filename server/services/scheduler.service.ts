@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { SubscriptionService } from "./subscription.service";
+import { QuoteExpiryAlertService } from "./quote-expiry.service";
 import { logger } from "../utils/logger";
 
 export class SchedulerService {
@@ -20,5 +21,17 @@ export class SchedulerService {
     });
 
     logger.info("[Scheduler] Subscription scheduler initialized (0 0 * * *)");
+
+    // Run every day at 8:00 AM — check for expiring quotes
+    cron.schedule("0 8 * * *", async () => {
+      logger.info("[Scheduler] Running daily quote expiry check...");
+      try {
+        await QuoteExpiryAlertService.checkAndNotify();
+      } catch (error) {
+        logger.error("[Scheduler] Error checking quote expiry:", error);
+      }
+    });
+
+    logger.info("[Scheduler] Quote expiry scheduler initialized (0 8 * * *)");
   }
 }
