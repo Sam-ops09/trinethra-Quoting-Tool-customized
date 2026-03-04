@@ -6,6 +6,7 @@ import { requireFeature } from "../feature-flags-middleware";
 import { isFeatureEnabled } from "../../shared/feature-flags";
 import { requirePermission } from "../permissions-middleware";
 import * as schema from "../../shared/schema";
+import { buildChangeDiff } from "../utils/audit-diff";
 
 const router = Router();
 
@@ -89,17 +90,25 @@ router.put("/:id", requireFeature('clients_edit'), authMiddleware, requirePermis
       return res.status(400).json({ error: "Invalid email format" });
     }
 
+    // Snapshot before update for audit diff
+    const existingClient = await storage.getClient(req.params.id);
+
     const client = await storage.updateClient(req.params.id, req.body);
 
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
 
+    const changes = existingClient ? buildChangeDiff(existingClient as any, client as any, [
+      "name", "email", "phone", "company", "gstin", "billingAddress", "shippingAddress",
+    ]) : null;
+
     await storage.createActivityLog({
       userId: req.user!.id,
       action: "update_client",
       entityType: "client",
       entityId: client.id,
+      metadata: changes ? { changes } : undefined,
     });
 
     return res.json(client);

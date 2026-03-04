@@ -296,12 +296,22 @@ router.post("/invoices/:id/payment", authMiddleware, requireFeature('payments_cr
         }
       }
 
-      // 4. Log activity
+      // 4. Log activity (enriched with payment details)
       await tx.insert(schema.activityLogs).values({
         userId: req.user!.id,
         action: "record_payment",
         entityType: "invoice",
         entityId: invoice.id,
+        metadata: {
+          paymentId: paymentRecord.id,
+          amount: String(amount),
+          paymentMethod,
+          transactionId: transactionId || null,
+          changes: [
+            { field: "paidAmount", from: invoice.paidAmount, to: toMoneyString(newPaidAmount) },
+            { field: "paymentStatus", from: invoice.paymentStatus, to: newPaymentStatus },
+          ],
+        },
         timestamp: new Date(),
       });
 

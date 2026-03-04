@@ -42,6 +42,7 @@ import governanceRoutes from "./routes/governance.routes";
 import activityLogsRoutes from "./routes/activity-logs.routes";
 import exportRoutes from "./routes/export.routes";
 import whatsappRoutes from "./routes/whatsapp.routes";
+import searchRoutes from "./routes/search.routes";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "../shared/schema";
@@ -127,6 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Data Export Routes (CSV)
   app.use("/api/export", authMiddleware, exportRoutes);
+
+  // Global Search
+  app.use("/api/search", authMiddleware, searchRoutes);
 
   // Moved to invoices.routes.ts
 

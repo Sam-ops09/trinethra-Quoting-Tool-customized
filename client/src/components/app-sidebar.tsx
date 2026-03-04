@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/sheet";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationCenter } from "./notification-center";
+import { GlobalSearch } from "./global-search";
 import { motion, AnimatePresence, useScroll, useMotionValueEvent, Variants } from "framer-motion";
 import { isFeatureEnabled } from "@shared/feature-flags";
 
@@ -462,6 +463,7 @@ export function AppSidebar() {
 
                     {/* RIGHT — NOTIFICATIONS, USER, THEME, MOBILE TOGGLE */}
                     <div className="flex items-center gap-2 sm:gap-4">
+                        <GlobalSearch />
                         <NotificationCenter />
                         {isFeatureEnabled('ui_themeToggle') && <ThemeToggle />}
 

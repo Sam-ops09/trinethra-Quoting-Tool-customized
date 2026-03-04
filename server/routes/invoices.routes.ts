@@ -12,6 +12,7 @@ import { NumberingService } from "../services/numbering.service";
 import { InvoicePDFService } from "../services/invoice-pdf.service";
 import { EmailService } from "../services/email.service";
 import { calculateLineSubtotal, toMoneyString, toDecimal } from "../utils/financial";
+import { buildChangeDiff } from "../utils/audit-diff";
 import { eInvoiceService, EInvoiceService } from "../services/e-invoice.service";
 import { EInvoiceValidator } from "../services/e-invoice-validator.service";
 
@@ -279,11 +280,18 @@ router.put("/:id/master-details", authMiddleware, requireFeature('invoices_edit'
             updatedInvoice = invoice;
         }
 
+        const changes = buildChangeDiff(invoice as any, updatedInvoice as any, [
+            "notes", "termsAndConditions", "deliveryNotes", "milestoneDescription",
+            "subtotal", "discount", "cgst", "sgst", "igst", "shippingCharges",
+            "total", "paymentStatus", "paidAmount", "currency", "dueDate",
+        ]);
+
         await tx.insert(schema.activityLogs).values({
             userId: req.user!.id,
             action: "update_master_invoice",
             entityType: "invoice",
             entityId: invoice.id,
+            metadata: changes ? { changes } : null,
         });
 
         return { success: true, invoice: updatedInvoice };

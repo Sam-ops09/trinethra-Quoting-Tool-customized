@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Send, Check, X, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy, ShieldAlert, XCircle, MessageSquare } from "lucide-react";
+import { ArrowLeft, Download, Send, Check, X, Plus, Receipt, Loader2, Pencil, Package, FileText, User, Mail, Phone, MapPin, Calendar, Hash, Home, ChevronRight, History, Copy, ShieldAlert, XCircle, MessageSquare } from "lucide-react";
 import { ToastAction } from "@/components/ui/toast";
 import type { QuoteComment } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,6 +74,7 @@ interface QuoteDetail {
   updatedAt: string;
   approvalStatus: string; // none, pending, approved, rejected
   approvalRequiredBy?: string;
+  validUntil?: string;
 }
 
 export default function QuoteDetail() {
@@ -154,6 +155,58 @@ export default function QuoteDetail() {
   const { data: comments = [] } = useQuery<QuoteComment[]>({
     queryKey: [`/api/quotes/${params?.id}/comments`],
     enabled: !!params?.id,
+  });
+
+  const { data: attachments } = useQuery<any[]>({
+    queryKey: [`/api/quotes/${params?.id}/attachments`],
+    enabled: !!params?.id,
+  });
+
+  const uploadAttachmentMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      await new Promise(resolve => reader.onload = resolve);
+      const base64 = reader.result as string;
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/attachments`, {
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream',
+        content: base64.split(',')[1]
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${params?.id}/attachments`] });
+      toast({ title: "Attachment uploaded successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Upload Failed", description: error.message || "Could not upload file", variant: "destructive" });
+    }
+  });
+
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: async (attachmentId: string) => {
+      const res = await apiRequest("DELETE", `/api/quotes/attachments/${attachmentId}`);
+      if (!res.ok) throw new Error("Failed to delete attachment");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/quotes/${params?.id}/attachments`] });
+      toast({ title: "Attachment deleted" });
+    }
+  });
+
+  const extendValidityMutation = useMutation({
+    mutationFn: async (days: number) => {
+      const res = await apiRequest("POST", `/api/quotes/${params?.id}/extend-validity`, { days });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", params?.id] });
+      toast({ title: "Validity Extended", description: "Quote remains valid." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to extend validity", variant: "destructive" });
+    }
   });
 
   const addCommentMutation = useMutation({
@@ -679,7 +732,21 @@ export default function QuoteDetail() {
                     <span className="hidden xs:inline">Edit</span>
                   </Button>
                 )}
-                {["draft", "sent", "approved", "rejected"].includes(quote.status) && (
+                {(quote.status === "expired" || (quote.validUntil && new Date(quote.validUntil) < new Date())) && (
+                  <PermissionGuard resource="quotes" action="edit">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => extendValidityMutation.mutate(15)}
+                      disabled={extendValidityMutation.isPending}
+                      className="flex-1 sm:flex-initial h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+                    >
+                      {extendValidityMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Calendar className="h-3 w-3 mr-1" />}
+                      Extend 15d
+                    </Button>
+                  </PermissionGuard>
+                )}
+                {["draft", "sent", "approved", "rejected", "expired"].includes(quote.status) && (
                    <PermissionGuard resource="quotes" action="edit" tooltipText="Only authorized users can revise quotes">
                       <Button
                         variant="outline"
@@ -1075,12 +1142,73 @@ export default function QuoteDetail() {
               </Card>
             )}
 
-            {/* Advanced Sections Display */}
             <AdvancedSectionsDisplay
               bomData={quote.bomSection ? JSON.parse(quote.bomSection) : undefined}
               slaData={quote.slaSection ? JSON.parse(quote.slaSection) : undefined}
               timelineData={quote.timelineSection ? JSON.parse(quote.timelineSection) : undefined}
             />
+
+            {/* Attachments Section */}
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3 flex justify-between items-center flex-row">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center shrink-0">
+                    <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <CardTitle className="text-sm font-bold">Attachments</CardTitle>
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    id="quote-attachment-upload"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadAttachmentMutation.mutate(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => document.getElementById('quote-attachment-upload')?.click()}
+                    disabled={uploadAttachmentMutation.isPending}
+                  >
+                    {uploadAttachmentMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+                    Upload
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3">
+                {attachments && attachments.length > 0 ? (
+                  <div className="space-y-2">
+                    {attachments.map(att => (
+                      <div key={att.id} className="flex justify-between items-center p-2 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <a href={`/api/quotes/attachments/${att.id}`} target="_blank" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2 font-medium">
+                          <FileText className="h-3 w-3" />
+                          {att.filename}
+                        </a>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            if (confirm("Delete this attachment?")) {
+                              deleteAttachmentMutation.mutate(att.id);
+                            }
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-2">No attachments found.</p>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Quote Summary Sidebar */}

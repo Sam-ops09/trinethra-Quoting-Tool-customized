@@ -105,6 +105,17 @@ export default function PublicQuote() {
     enabled: !!params?.token,
   });
 
+  // Fetch attachments
+  const { data: attachments = [] } = useQuery<any[]>({
+    queryKey: ["/api/quotes/public/attachments", params?.token],
+    queryFn: async () => {
+      const res = await fetch(`/api/quotes/public/${params?.token}/attachments`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!params?.token,
+  });
+
   // Accept mutation with signature
   const acceptMutation = useMutation({
     mutationFn: async () => {
@@ -647,6 +658,36 @@ export default function PublicQuote() {
             </CardHeader>
             <CardContent className="p-4 sm:p-5 pt-0">
               <div className="whitespace-pre-wrap text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">{quote.termsAndConditions}</div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Attachments Section */}
+        {attachments && attachments.length > 0 && (
+          <Card className="border border-border/70 bg-card/95 backdrop-blur-sm shadow-sm">
+            <CardHeader className="p-4 sm:p-5 pb-2 sm:pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm sm:text-base font-semibold">Attachments</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5 pt-0">
+              <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {attachments.map((att: any) => (
+                  <a
+                    key={att.id}
+                    href={`/api/quotes/public/${params?.token}/attachments/${att.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center p-3 rounded-lg bg-muted/50 border border-border/50 hover:bg-muted transition-colors gap-3 group"
+                  >
+                    <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                      <FileText className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground truncate">{att.filename}</span>
+                  </a>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

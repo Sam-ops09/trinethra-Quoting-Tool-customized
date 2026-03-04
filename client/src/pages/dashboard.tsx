@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
     FileText,
@@ -331,8 +331,28 @@ export default function Dashboard() {
     const [, setLocation] = useLocation();
     const [timeRange, setTimeRange] = useState("last-90");
 
+    const dateParams = useMemo(() => {
+        const today = new Date();
+        let fromDate = new Date();
+        const toDate = today;
+
+        switch (timeRange) {
+            case "last-7": fromDate.setDate(today.getDate() - 7); break;
+            case "last-30": fromDate.setDate(today.getDate() - 30); break;
+            case "ytd": fromDate = new Date(today.getFullYear(), 0, 1); break;
+            case "last-90":
+            default: fromDate.setDate(today.getDate() - 90); break;
+        }
+        return `?from=${fromDate.toISOString().split('T')[0]}&to=${toDate.toISOString().split('T')[0]}`;
+    }, [timeRange]);
+
     const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
-        queryKey: ["/api/analytics/dashboard"],
+        queryKey: ["/api/analytics/dashboard", dateParams],
+        queryFn: async () => {
+            const res = await fetch(`/api/analytics/dashboard${dateParams}`);
+            if (!res.ok) throw new Error("Failed to load dashboard metrics");
+            return res.json();
+        }
     });
 
     if (isLoading) return <Loading />;

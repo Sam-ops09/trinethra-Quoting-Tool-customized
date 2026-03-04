@@ -6,6 +6,7 @@ import { requireFeature } from "../feature-flags-middleware";
 import { requirePermission } from "../permissions-middleware";
 import { NumberingService } from "../services/numbering.service";
 import { logger } from "../utils/logger";
+import { buildChangeDiff } from "../utils/audit-diff";
 import { calculateSubtotal, calculateTotal, toMoneyString } from "../utils/financial";
 import { EmailService } from "../services/email.service";
 import { PDFService } from "../services/pdf.service";
@@ -733,13 +734,19 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
 
     if (!updatedQuote) return res.status(404).json({ error: "Quote not found" });
 
-    // 5. Audit Logging
+    // 5. Audit Logging (with field-level diff)
+    const changes = buildChangeDiff(existingQuote as any, updatedQuote as any, [
+        "status", "total", "subtotal", "discount", "cgst", "sgst", "igst",
+        "shippingCharges", "currency", "validUntil", "validityDays",
+        "notes", "termsAndConditions", "attentionTo", "referenceNumber",
+        "approvalStatus", "approvalRequiredBy",
+    ]);
     await storage.createActivityLog({
         userId: req.user!.id,
         action: "update_quote",
         entityType: "quote",
         entityId: updatedQuote.id,
-        metadata: { version: nextVersion, approvalStatus }
+        metadata: { version: nextVersion, approvalStatus, changes }
     });
 
     // 6. Notifications & Workflows (Asynchronous to prevent timeouts)

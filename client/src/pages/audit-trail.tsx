@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import {
   Home,
-  ChevronRight,
   Shield,
   Activity,
   FileText,
@@ -25,8 +24,15 @@ import {
   Search,
   ChevronLeft,
   ChevronDown,
+  ChevronRight,
   ArrowRight,
 } from "lucide-react";
+
+interface FieldChange {
+  field: string;
+  from: any;
+  to: any;
+}
 
 type AuditLog = {
   id: string;
@@ -253,64 +259,13 @@ export default function AuditTrail() {
               </div>
             ) : (
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
-                  >
-                    {/* Entity Badge */}
-                    <div className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${ENTITY_COLORS[log.entityType] || "bg-slate-100 text-slate-600"}`}>
-                      {ENTITY_ICONS[log.entityType] || <Activity className="h-3.5 w-3.5" />}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold text-slate-900 dark:text-white">
-                          {log.userName || "System"}
-                        </span>
-                        <ArrowRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />
-                        <span className="text-xs text-slate-700 dark:text-slate-300">
-                          {formatAction(log.action)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <Badge
-                          variant="secondary"
-                          className={`text-[10px] px-1.5 py-0 ${ENTITY_COLORS[log.entityType] || ""}`}
-                        >
-                          {log.entityType}
-                        </Badge>
-                        {log.entityId && (
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px]">
-                            {log.entityId.substring(0, 8)}...
-                          </span>
-                        )}
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                          {timeAgo(log.timestamp)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Timestamp */}
-                    <div className="text-right shrink-0 hidden sm:block">
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                        {new Date(log.timestamp).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                        {new Date(log.timestamp).toLocaleTimeString("en-US", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                {logs.map((log) => {
+                  const hasChanges = Array.isArray(log.metadata?.changes) && log.metadata.changes.length > 0;
+                  return <AuditLogItem key={log.id} log={log} hasChanges={hasChanges} />;
+                })}
               </div>
             )}
+
 
             {/* Pagination */}
             {totalPages > 1 && (
@@ -343,6 +298,101 @@ export default function AuditTrail() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// Extracted Component for Log Item to hold expanded state
+function AuditLogItem({ log, hasChanges }: { log: AuditLog, hasChanges: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  
+  return (
+    <div className="flex flex-col px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+      <div className="flex items-start gap-3">
+        {/* Entity Badge */}
+        <div className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${ENTITY_COLORS[log.entityType] || "bg-slate-100 text-slate-600"}`}>
+          {ENTITY_ICONS[log.entityType] || <Activity className="h-3.5 w-3.5" />}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-slate-900 dark:text-white">
+              {log.userName || "System"}
+            </span>
+            <ArrowRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />
+            <span className="text-xs text-slate-700 dark:text-slate-300">
+              {formatAction(log.action)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <Badge
+              variant="secondary"
+              className={`text-[10px] px-1.5 py-0 ${ENTITY_COLORS[log.entityType] || ""}`}
+            >
+              {log.entityType}
+            </Badge>
+            {log.entityId && (
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px]">
+                {log.entityId.substring(0, 8)}...
+              </span>
+            )}
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+              {timeAgo(log.timestamp)}
+            </span>
+            {hasChanges && (
+              <button 
+                onClick={() => setExpanded(!expanded)}
+                className="ml-2 flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+              >
+                {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                {expanded ? "Hide Changes" : "View Changes"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Timestamp */}
+        <div className="text-right shrink-0 hidden sm:block">
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">
+            {new Date(log.timestamp).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            })}
+          </p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">
+            {new Date(log.timestamp).toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        </div>
+      </div>
+      
+      {/* Collapsible Diff Viewer */}
+      {hasChanges && expanded && (
+        <div className="mt-3 ml-12 mb-2 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800 space-y-2">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Changes</div>
+          <div className="space-y-1.5">
+            {log.metadata.changes.map((change: FieldChange, idx: number) => (
+              <div key={idx} className="flex items-start gap-4 text-xs font-mono">
+                <div className="w-24 shrink-0 text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                  {change.field}
+                </div>
+                <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 min-w-0">
+                  <span className="text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded break-all max-w-full">
+                    {change.from == null ? 'null' : (typeof change.from === 'object' ? JSON.stringify(change.from) : String(change.from))}
+                  </span>
+                  <ArrowRight className="h-3 w-3 text-slate-400 hidden sm:block shrink-0" />
+                  <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded break-all max-w-full">
+                    {change.to == null ? 'null' : (typeof change.to === 'object' ? JSON.stringify(change.to) : String(change.to))}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
