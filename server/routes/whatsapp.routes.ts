@@ -1,10 +1,14 @@
 import { Router, Response } from "express";
 import { authMiddleware, AuthRequest } from "../middleware";
+import { requireFeature } from "../feature-flags-middleware";
 import { WhatsAppService } from "../services/whatsapp.service";
 import { storage } from "../storage";
 import { logger } from "../utils/logger";
 
 const router = Router();
+
+// Gated by WhatsApp feature flag
+router.use(requireFeature('notifications_whatsapp'));
 
 /**
  * PUBLIC GET /api/whatsapp/public/share-quote/:token

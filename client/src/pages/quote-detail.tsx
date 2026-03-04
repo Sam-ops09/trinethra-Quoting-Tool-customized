@@ -114,6 +114,15 @@ export default function QuoteDetail() {
   const canSendQuote = useFeatureFlag('quotes_sendQuote');
   const canClone = useFeatureFlag('quotes_clone');
   const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
+  const canEdit = useFeatureFlag('quotes_edit');
+  const canDelete = useFeatureFlag('quotes_delete');
+  const canApprove = useFeatureFlag('quotes_approve');
+  const canCancel = useFeatureFlag('quotes_cancel');
+  const canClose = useFeatureFlag('quotes_close');
+  const canVersion = useFeatureFlag('quotes_version');
+  const canViewBOM = useFeatureFlag('quotes_bomSection');
+  const canViewSLA = useFeatureFlag('quotes_slaSection');
+  const canViewTimeline = useFeatureFlag('quotes_timelineSection');
 
   // Comment state
   const [newComment, setNewComment] = useState("");
@@ -720,7 +729,7 @@ export default function QuoteDetail() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-1.5">
-                {quote.status !== "invoiced" && quote.status === "draft" && (
+                {quote.status !== "invoiced" && quote.status === "draft" && canEdit && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -746,7 +755,7 @@ export default function QuoteDetail() {
                     </Button>
                   </PermissionGuard>
                 )}
-                {["draft", "sent", "approved", "rejected", "expired"].includes(quote.status) && (
+                {["draft", "sent", "approved", "rejected", "expired"].includes(quote.status) && canVersion && (
                    <PermissionGuard resource="quotes" action="edit" tooltipText="Only authorized users can revise quotes">
                       <Button
                         variant="outline"
@@ -1142,10 +1151,10 @@ export default function QuoteDetail() {
               </Card>
             )}
 
-            <AdvancedSectionsDisplay
-              bomData={quote.bomSection ? JSON.parse(quote.bomSection) : undefined}
-              slaData={quote.slaSection ? JSON.parse(quote.slaSection) : undefined}
-              timelineData={quote.timelineSection ? JSON.parse(quote.timelineSection) : undefined}
+            <AdvancedSectionsDisplay 
+              bomData={canViewBOM ? (quote.bomSection ? JSON.parse(quote.bomSection) : undefined) : undefined}
+              slaData={canViewSLA ? (quote.slaSection ? JSON.parse(quote.slaSection) : undefined) : undefined}
+              timelineData={canViewTimeline ? (quote.timelineSection ? JSON.parse(quote.timelineSection) : undefined) : undefined}
             />
 
             {/* Attachments Section */}

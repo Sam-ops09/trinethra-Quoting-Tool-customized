@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Search, Edit, Package, AlertTriangle, CheckCircle, Grid3x3, List, Box, DollarSign, Home, ChevronRight } from "lucide-react";
+import { Plus, Search, Edit, Package, AlertTriangle, CheckCircle, Grid3x3, List, Box, DollarSign, Home, ChevronRight, Trash } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
@@ -429,17 +429,37 @@ export default function Products() {
                     <Separator />
 
                     {/* Edit Button */}
-                    <PermissionGuard resource="products" action="edit">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(product)}
-                        className="w-full h-8 text-xs"
-                      >
-                        <Edit className="h-3 w-3 mr-1.5" />
-                        Edit Product
-                      </Button>
-                    </PermissionGuard>
+                    <div className="flex gap-2">
+                      <PermissionGuard resource="products" action="edit">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(product)}
+                          className="flex-1 h-8 text-xs"
+                        >
+                          <Edit className="h-3 w-3 mr-1.5" />
+                          Edit Product
+                        </Button>
+                      </PermissionGuard>
+                      {useFeatureFlag('products_delete') && (
+                        <PermissionGuard resource="products" action="delete">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                            onClick={async () => {
+                              if (confirm("Are you sure you want to delete this product?")) {
+                                await apiRequest("DELETE", `/api/products/${product.id}`);
+                                queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+                                toast({ title: "Product deleted successfully" });
+                              }
+                            }}
+                          >
+                            <Trash className="h-3.5 w-3.5" />
+                          </Button>
+                        </PermissionGuard>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               );

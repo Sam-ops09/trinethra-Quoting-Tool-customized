@@ -16,7 +16,7 @@ const JWT_EXPIRES_IN = "15m";
 const REFRESH_TOKEN_EXPIRES_IN = "7d";
 
 // Signup
-router.post("/signup", async (req: Request, res: Response) => {
+router.post("/signup", requireFeature('pages_signup'), async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
     if (!email || !password || !name) {
@@ -234,7 +234,7 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res: Response) => {
 });
 
 // Reset Password Request
-router.post("/reset-password", requireFeature('pages_resetPassword'), async (req: Request, res: Response) => {
+router.post("/reset-password", requireFeature('pages_resetPassword'), requireFeature('security_passwordReset'), async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
     const user = await storage.getUserByEmail(email);
@@ -271,7 +271,7 @@ router.post("/reset-password", requireFeature('pages_resetPassword'), async (req
 });
 
 // Confirm Password Reset with Token
-router.post("/reset-password-confirm", requireFeature('pages_resetPassword'), async (req: Request, res: Response) => {
+router.post("/reset-password-confirm", requireFeature('pages_resetPassword'), requireFeature('security_passwordReset'), async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = req.body;
 

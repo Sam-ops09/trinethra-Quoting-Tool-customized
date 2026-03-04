@@ -6,10 +6,11 @@ import { ilike, or, eq } from "drizzle-orm";
 // but actually quoteNumber is integer, referenceNumber is text.
 // Let's use raw SQL for unified LIKE on numbers, or just rely on ILIKE for text fields.
 import { sql } from "drizzle-orm";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requireFeature('ui_searchFilters'), async (req, res) => {
   try {
     const q = req.query.q as string;
     console.log("[Search] Received search request for:", q);

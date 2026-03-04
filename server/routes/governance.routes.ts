@@ -4,10 +4,11 @@ import { authMiddleware, AuthRequest } from "../middleware";
 import { requirePermission } from "../permissions-middleware";
 import { governanceService } from "../services/governance.service";
 import { logger } from "../utils/logger";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
 
-router.get("/stats", authMiddleware, requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/stats", authMiddleware, requireFeature('admin_governance'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
     try {
         const stats = await governanceService.getStats();
         return res.json(stats);

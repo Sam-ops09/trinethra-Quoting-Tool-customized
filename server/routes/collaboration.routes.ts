@@ -4,8 +4,12 @@ import { authMiddleware, AuthRequest } from "../middleware";
 import { db } from "../db";
 import { collaborationSessions, users } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
+
+// Gate all collaboration routes behind feature flag
+router.use(requireFeature('advanced_websockets'));
 
 /**
  * GET /api/collaboration/:entityType/:entityId/presence

@@ -10,8 +10,30 @@ import { eq } from "drizzle-orm";
 import { NumberingService } from "../services/numbering.service";
 import { EmailService } from "../services/email.service";
 import { requireFeature } from "../feature-flags-middleware";
+import { getAllThemes, getSuggestedTheme } from "../services/pdf-themes";
 
 const router = Router();
+
+// ==================== THEME ROUTES ====================
+router.get("/themes", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const themes = getAllThemes();
+    return res.json(themes);
+  } catch (error) {
+    logger.error("Error fetching themes:", error);
+    return res.status(500).json({ error: "Failed to fetch themes" });
+  }
+});
+
+router.get("/themes/segment/:segment", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const theme = getSuggestedTheme(req.params.segment);
+    return res.json(theme);
+  } catch (error) {
+    logger.error("Error fetching suggested theme:", error);
+    return res.status(500).json({ error: "Failed to fetch suggested theme" });
+  }
+});
 
 // ==================== SETTINGS ROUTES ====================
 router.get("/settings", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
@@ -440,7 +462,7 @@ router.post("/numbering/set-counter", authMiddleware, requireFeature('admin_sett
 // ==================== TAX RATES & PAYMENT TERMS ROUTES ====================
 
 // Get all tax rates
-router.get("/tax-rates", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/tax-rates", authMiddleware, requireFeature('admin_taxRates'), async (req: AuthRequest, res: Response) => {
   try {
     const rates = await db.select().from(schema.taxRates).where(eq(schema.taxRates.isActive, true));
     // Transform to simpler format for frontend
@@ -465,7 +487,7 @@ router.get("/tax-rates", authMiddleware, async (req: AuthRequest, res: Response)
 });
 
 // Create tax rate
-router.post("/tax-rates", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/tax-rates", authMiddleware, requireFeature('admin_taxRates'), requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
   try {
     // Manual check removed
 
@@ -511,7 +533,7 @@ router.post("/tax-rates", authMiddleware, requireFeature('admin_settings'), requ
 });
 
 // Delete tax rate
-router.delete("/tax-rates/:id", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
+router.delete("/tax-rates/:id", authMiddleware, requireFeature('admin_taxRates'), requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
   try {
     // Manual check removed
 
@@ -532,7 +554,7 @@ router.delete("/tax-rates/:id", authMiddleware, requireFeature('admin_settings')
 });
 
 // Get all payment terms
-router.get("/payment-terms", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/payment-terms", authMiddleware, requireFeature('admin_paymentTerms'), async (req: AuthRequest, res: Response) => {
   try {
     const terms = await db.select().from(schema.paymentTerms).where(eq(schema.paymentTerms.isActive, true));
     return res.json(terms);
@@ -543,7 +565,7 @@ router.get("/payment-terms", authMiddleware, async (req: AuthRequest, res: Respo
 });
 
 // Create payment term
-router.post("/payment-terms", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/payment-terms", authMiddleware, requireFeature('admin_paymentTerms'), requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
   try {
     // Manual check removed
 
@@ -581,7 +603,7 @@ router.post("/payment-terms", authMiddleware, requireFeature('admin_settings'), 
 });
 
 // Delete payment term
-router.delete("/payment-terms/:id", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
+router.delete("/payment-terms/:id", authMiddleware, requireFeature('admin_paymentTerms'), requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
   try {
     // Manual check removed
 

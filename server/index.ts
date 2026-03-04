@@ -53,7 +53,9 @@ const authLimiter = rateLimit({
   skip: () => isTestEnv, // Skip rate limiting entirely in test mode
 });
 
-if (!isTestEnv) {
+import { isFeatureEnabled } from "../shared/feature-flags";
+
+if (!isTestEnv && isFeatureEnabled('security_rateLimiting')) {
   app.use("/api/", limiter);
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/signup", authLimiter);

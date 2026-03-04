@@ -4,8 +4,12 @@ import { authMiddleware, AuthRequest } from "../middleware";
 import { storage } from "../storage";
 import { cacheService } from "../services/cache.service";
 import { logger } from "../utils/logger";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
+
+// Gate all template routes behind feature flag
+router.use(requireFeature('admin_templates'));
 
 router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
     try {

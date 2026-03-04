@@ -4,11 +4,12 @@ import { authMiddleware, AuthRequest } from "../middleware";
 import { requirePermission } from "../permissions-middleware";
 import { storage } from "../storage";
 import { logger } from "../utils/logger";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
 
 // GET /api/activity-logs — paginated listing with filters
-router.get("/", authMiddleware, requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/", authMiddleware, requireFeature('admin_activityLogs'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
     try {
         const offset = parseInt(req.query.offset as string) || 0;
         const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
@@ -30,7 +31,7 @@ router.get("/", authMiddleware, requirePermission("analytics", "view"), async (r
 });
 
 // GET /api/activity-logs/stats — aggregate counts by entity type
-router.get("/stats", authMiddleware, requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/stats", authMiddleware, requireFeature('admin_activityLogs'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
     try {
         const stats = await storage.getActivityLogStats();
         return res.json(stats);
@@ -41,7 +42,7 @@ router.get("/stats", authMiddleware, requirePermission("analytics", "view"), asy
 });
 
 // GET /api/activity-logs/recent — legacy endpoint (keep backwards compatible)
-router.get("/recent", authMiddleware, requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/recent", authMiddleware, requireFeature('admin_activityLogs'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
     try {
         const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
         const logs = await storage.getAllActivityLogs(limit);

@@ -26,7 +26,11 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRight,
+  Lock,
 } from "lucide-react";
+import { isFeatureEnabled } from "@shared/feature-flags";
+import { useAuth } from "@/lib/auth-context";
+import { CardDescription, CardFooter } from "@/components/ui/card";
 
 interface FieldChange {
   field: string;
@@ -91,6 +95,32 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function AuditTrail() {
+  const { user } = useAuth();
+  const isEnabled = isFeatureEnabled('admin_activityLogs') || isFeatureEnabled('security_auditLogs');
+
+  if (!isEnabled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-3 bg-slate-50 dark:bg-slate-950">
+        <Card className="w-full max-w-md border-red-200 dark:border-red-800">
+          <CardHeader className="text-center p-4">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+              <Lock className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <CardTitle className="text-base text-red-600 dark:text-red-400">Feature Disabled</CardTitle>
+            <CardDescription className="text-xs mt-1">
+              The Audit Trail module is currently disabled via feature flags (`security_auditLogs`).
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="justify-center pb-4">
+            <Badge variant="outline" className="border-red-300 text-red-600 dark:text-red-400 text-[10px]">
+              Access Gated
+            </Badge>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
   const [, setLocation] = useLocation();
   const [page, setPage] = useState(0);
   const [entityFilter, setEntityFilter] = useState<string>("all");

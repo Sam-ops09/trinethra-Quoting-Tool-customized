@@ -6,8 +6,12 @@ import * as schema from "@shared/schema";
 import { eq, gte, lte, and, desc } from "drizzle-orm";
 import { logger } from "../utils/logger";
 import ExcelJS from "exceljs";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
+
+// Gate all export routes behind feature flag
+router.use(requireFeature('advanced_excelExport'));
 
 // ==================== HELPERS ====================
 

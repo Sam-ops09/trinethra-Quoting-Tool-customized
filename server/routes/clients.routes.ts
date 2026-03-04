@@ -10,7 +10,10 @@ import { buildChangeDiff } from "../utils/audit-diff";
 
 const router = Router();
 
-router.get("/", requireFeature('clients_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+// Apply client module feature flag to all routes
+router.use(requireFeature("clients_module"));
+
+router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const clients = await storage.getAllClients();
     res.json(clients);
@@ -19,7 +22,7 @@ router.get("/", requireFeature('clients_module'), authMiddleware, async (req: Au
   }
 });
 
-router.get("/:id", requireFeature('clients_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const client = await storage.getClient(req.params.id);
     if (!client) {
@@ -114,6 +117,34 @@ router.put("/:id", requireFeature('clients_edit'), authMiddleware, requirePermis
     return res.json(client);
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to update client" });
+  }
+});
+
+router.patch("/:id/theme", authMiddleware, requireFeature('clients_edit'), requirePermission("clients", "edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { preferredTheme } = req.body;
+
+    if (!preferredTheme) {
+      return res.status(400).json({ error: "Preferred theme is required" });
+    }
+
+    const client = await storage.updateClient(req.params.id, { preferredTheme });
+
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "update_client_theme",
+      entityType: "client",
+      entityId: client.id,
+      metadata: { theme: preferredTheme },
+    });
+
+    return res.json(client);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Failed to update client theme" });
   }
 });
 

@@ -18,9 +18,12 @@ import { EInvoiceValidator } from "../services/e-invoice-validator.service";
 
 const router = Router();
 
+// Apply invoice module feature flag to all routes
+router.use(requireFeature("invoices_module"));
+
 // ==================== INVOICES ROUTES ====================
 
-router.get("/", requireFeature('invoices_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const invoicesWithDetails = await db.select()
       .from(schema.invoices)

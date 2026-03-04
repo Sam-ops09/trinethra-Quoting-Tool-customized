@@ -141,6 +141,8 @@ export default function Invoices() {
     // Feature flags
     const canGeneratePDF = useFeatureFlag('invoices_pdfGeneration');
     const canSendEmail = useFeatureFlag('invoices_emailSending');
+    const canViewAnalytics = useFeatureFlag('analytics_invoiceMetrics');
+    const canTrackPayments = useFeatureFlag('invoices_paymentTracking');
 
     const { data: invoices, isLoading } = useQuery<Invoice[]>({
         queryKey: ["/api/invoices"],
@@ -314,94 +316,97 @@ export default function Invoices() {
                                     </div>
                                 </div>
                             </div>
-                            <Button 
-                                onClick={() => setLocation("/invoices/analytics")}
-                                className="bg-white/50 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 backdrop-blur-sm"
-                                variant="outline"
-                            >
-                                <BarChart3 className="h-4 w-4 mr-2" />
-                                Analytics
-                            </Button>
+                            {canViewAnalytics && (
+                                <Button 
+                                    onClick={() => setLocation("/invoices/analytics")}
+                                    className="bg-white/50 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 backdrop-blur-sm"
+                                    variant="outline"
+                                >
+                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                    Analytics
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* Premium Stats Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Total Revenue */}
-                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                        <CardContent className="relative p-5">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="space-y-1.5 min-w-0 flex-1">
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Revenue</p>
-                                    <div className="text-3xl font-bold text-slate-900 dark:text-white">{formatMultiCurrency(stats.revenueByCurrency)}</div>
+                {canViewAnalytics && (
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Total Revenue */}
+                        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                            <CardContent className="relative p-5">
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="space-y-1.5 min-w-0 flex-1">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Revenue</p>
+                                        <div className="text-3xl font-bold text-slate-900 dark:text-white">{formatMultiCurrency(stats.revenueByCurrency)}</div>
+                                    </div>
+                                    <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
+                                        <DollarSign className="h-6 w-6 text-slate-600 dark:text-slate-400" />
+                                    </div>
                                 </div>
-                                <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-md">
-                                    <DollarSign className="h-6 w-6 text-slate-600 dark:text-slate-400" />
+                                <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                    <Receipt className="h-3.5 w-3.5" />
+                                    <span>{stats.totalCount} invoices</span>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                <Receipt className="h-3.5 w-3.5" />
-                                <span>{stats.totalCount} invoices</span>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
 
-                    {/* Collected */}
-                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                        <CardContent className="relative p-5">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="space-y-1.5 min-w-0 flex-1">
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Collected</p>
-                                    <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatMultiCurrency(stats.collectedByCurrency)}</div>
+                        {/* Collected */}
+                        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                            <CardContent className="relative p-5">
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="space-y-1.5 min-w-0 flex-1">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Collected</p>
+                                        <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatMultiCurrency(stats.collectedByCurrency)}</div>
+                                    </div>
+                                    <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
+                                        <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
                                 </div>
-                                <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
-                                    <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                    <TrendingUp className="h-3.5 w-3.5" />
+                                    <span>{stats.paid} paid</span>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                                <TrendingUp className="h-3.5 w-3.5" />
-                                <span>{stats.paid} paid</span>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
 
-                    {/* Outstanding */}
-                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                        <CardContent className="relative p-5">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="space-y-1.5 min-w-0 flex-1">
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Outstanding</p>
-                                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{formatMultiCurrency(stats.outstandingByCurrency)}</div>
+                        {/* Outstanding */}
+                        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                            <CardContent className="relative p-5">
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="space-y-1.5 min-w-0 flex-1">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Outstanding</p>
+                                        <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{formatMultiCurrency(stats.outstandingByCurrency)}</div>
+                                    </div>
+                                    <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0 shadow-md">
+                                        <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                                    </div>
                                 </div>
-                                <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0 shadow-md">
-                                    <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                    <span>{stats.partial + stats.pending} pending</span>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
-                                <span>{stats.partial + stats.pending} pending</span>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
 
-                    {/* Paid Count */}
-                    <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                        <CardContent className="relative p-5">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="space-y-1.5 min-w-0 flex-1">
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Paid</p>
-                                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.paid}</p>
+                        {/* Paid Count */}
+                        <Card className="group relative overflow-hidden rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                            <CardContent className="relative p-5">
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="space-y-1.5 min-w-0 flex-1">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Paid</p>
+                                        <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.paid}</p>
+                                    </div>
+                                    <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
+                                        <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
                                 </div>
-                                <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0 shadow-md">
-                                    <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                    <span>Completed</span>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                                <span>Completed</span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
 
                 {/* Premium Filters */}
                 <Card className="rounded-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-lg">
@@ -630,26 +635,28 @@ export default function Invoices() {
                                                             </div>
                                                         </div>
 
-                                                        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
-                                                            <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-950 flex items-center justify-center shrink-0">
-                                                                <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                                                            </div>
-                                                            <div className="min-w-0 flex-1">
-                                                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Progress</p>
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                                        <div
-                                                                            className={cn("h-full rounded-full transition-all",
-                                                                                percentPaid >= 100 ? "bg-emerald-500" :
-                                                                                percentPaid > 0 ? "bg-amber-500" : "bg-slate-300"
-                                                                            )}
-                                                                            style={{ width: `${percentPaid}%` }}
-                                                                        />
+                                                        {canTrackPayments && (
+                                                            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                                <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-950 flex items-center justify-center shrink-0">
+                                                                    <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Progress</p>
+                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                        <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className={cn("h-full rounded-full transition-all",
+                                                                                    percentPaid >= 100 ? "bg-emerald-500" :
+                                                                                    percentPaid > 0 ? "bg-amber-500" : "bg-slate-300"
+                                                                                )}
+                                                                                style={{ width: `${percentPaid}%` }}
+                                                                            />
+                                                                        </div>
+                                                                        <span className="text-xs font-bold text-slate-900 dark:text-white">{Math.round(percentPaid)}%</span>
                                                                     </div>
-                                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{Math.round(percentPaid)}%</span>
                                                                 </div>
                                                             </div>
-                                                        </div>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -779,22 +786,23 @@ export default function Invoices() {
                                                 </p>
                                             </div>
 
-                                            {/* Progress */}
-                                            <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Progress</span>
-                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{Math.round(percentPaid)}%</span>
+                                            {canTrackPayments && (
+                                                <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Progress</span>
+                                                        <span className="text-xs font-bold text-slate-900 dark:text-white">{Math.round(percentPaid)}%</span>
+                                                    </div>
+                                                    <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={cn("h-full rounded-full transition-all",
+                                                                percentPaid >= 100 ? "bg-emerald-500" :
+                                                                percentPaid > 0 ? "bg-amber-500" : "bg-slate-300"
+                                                            )}
+                                                            style={{ width: `${percentPaid}%` }}
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={cn("h-full rounded-full transition-all",
-                                                            percentPaid >= 100 ? "bg-emerald-500" :
-                                                            percentPaid > 0 ? "bg-amber-500" : "bg-slate-300"
-                                                        )}
-                                                        style={{ width: `${percentPaid}%` }}
-                                                    />
-                                                </div>
-                                            </div>
+                                            )}
 
                                             {/* Amount */}
                                             <div className="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800">

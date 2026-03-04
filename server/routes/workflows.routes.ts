@@ -71,7 +71,7 @@ router.get("/:id", authMiddleware, requirePermission("settings", "view"), async 
  * POST /api/workflows
  * Create a new workflow
  */
-router.post("/", authMiddleware, requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/", authMiddleware, requireFeature('workflows_create'), requirePermission("settings", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const { workflow, triggers, actions, schedule } = req.body;
 
@@ -115,7 +115,7 @@ router.post("/", authMiddleware, requirePermission("settings", "create"), async 
  * PATCH /api/workflows/:id
  * Update a workflow
  */
-router.patch("/:id", authMiddleware, requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authMiddleware, requireFeature('workflows_edit'), requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { workflow, triggers, actions } = req.body;
@@ -154,7 +154,7 @@ router.patch("/:id", authMiddleware, requirePermission("settings", "edit"), asyn
  * DELETE /api/workflows/:id
  * Delete a workflow (soft delete)
  */
-router.delete("/:id", authMiddleware, requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authMiddleware, requireFeature('workflows_delete'), requirePermission("settings", "delete"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -208,7 +208,7 @@ router.post("/:id/toggle", authMiddleware, requirePermission("settings", "edit")
  * POST /api/workflows/:id/test
  * Test workflow execution (simulation mode)
  */
-router.post("/:id/test", authMiddleware, requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/test", authMiddleware, requireFeature('workflows_test'), requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { testData } = req.body;
@@ -255,7 +255,7 @@ router.post("/:id/test", authMiddleware, requirePermission("settings", "edit"), 
  * POST /api/workflows/:id/execute
  * Manually execute a workflow
  */
-router.post("/:id/execute", authMiddleware, requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/execute", authMiddleware, requireFeature('workflows_execute'), requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { entityId, entityType } = req.body;

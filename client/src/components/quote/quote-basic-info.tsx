@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, Building2, Calendar, Hash, User, Globe } from "lucide-react";
 import type { Client } from "@shared/schema";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 
 interface QuoteBasicInfoProps {
     form: UseFormReturn<any>;
@@ -24,6 +25,9 @@ interface QuoteBasicInfoProps {
 }
 
 export function QuoteBasicInfo({ form, clients }: QuoteBasicInfoProps) {
+    const showValidityDays = useFeatureFlag('quotes_validityDays');
+    const showReferenceNumber = useFeatureFlag('quotes_referenceNumber');
+    const showAttentionTo = useFeatureFlag('quotes_attentionTo');
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col gap-2">
@@ -126,74 +130,24 @@ export function QuoteBasicInfo({ form, clients }: QuoteBasicInfoProps) {
                     </div>
                 </CardHeader>
                 <CardContent className="grid gap-6 md:grid-cols-2">
-                    <FormField
-                        control={form.control}
-                        name="validityDays"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Validity Period (Days) <span className="text-destructive">*</span></FormLabel>
-                                <FormControl>
-                                    <div className="relative">
-                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                                            <Calendar className="h-4 w-4" />
-                                        </div>
-                                        <Input
-                                            {...field}
-                                            type="number"
-                                            onChange={(e) => field.onChange(Number(e.target.value))}
-                                            data-testid="input-validity-days"
-                                            className="pl-9 h-11"
-                                        />
-                                    </div>
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                    <FormField
-                        control={form.control}
-                        name="referenceNumber"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Reference / PO Number</FormLabel>
-                                <FormControl>
-                                    <div className="relative">
-                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                                            <Hash className="h-4 w-4" />
-                                        </div>
-                                        <Input
-                                            {...field}
-                                            value={field.value || ""}
-                                            data-testid="input-reference-number"
-                                            className="pl-9 h-11"
-                                            placeholder="Optional"
-                                        />
-                                    </div>
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                    <div className="md:col-span-2">
+                    {showValidityDays && (
                         <FormField
                             control={form.control}
-                            name="attentionTo"
+                            name="validityDays"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Attention To</FormLabel>
+                                    <FormLabel>Validity Period (Days) <span className="text-destructive">*</span></FormLabel>
                                     <FormControl>
                                         <div className="relative">
                                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                                                <User className="h-4 w-4" />
+                                                <Calendar className="h-4 w-4" />
                                             </div>
                                             <Input
                                                 {...field}
-                                                value={field.value || ""}
-                                                data-testid="input-attention-to"
+                                                type="number"
+                                                onChange={(e) => field.onChange(Number(e.target.value))}
+                                                data-testid="input-validity-days"
                                                 className="pl-9 h-11"
-                                                placeholder="Specific person or department (Optional)"
                                             />
                                         </div>
                                     </FormControl>
@@ -201,7 +155,63 @@ export function QuoteBasicInfo({ form, clients }: QuoteBasicInfoProps) {
                                 </FormItem>
                             )}
                         />
-                    </div>
+                    )}
+
+                    {showReferenceNumber && (
+                        <FormField
+                            control={form.control}
+                            name="referenceNumber"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Reference / PO Number</FormLabel>
+                                    <FormControl>
+                                        <div className="relative">
+                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                                <Hash className="h-4 w-4" />
+                                            </div>
+                                            <Input
+                                                {...field}
+                                                value={field.value || ""}
+                                                data-testid="input-reference-number"
+                                                className="pl-9 h-11"
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
+
+                    {showAttentionTo && (
+                        <div className="md:col-span-2">
+                            <FormField
+                                control={form.control}
+                                name="attentionTo"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Attention To</FormLabel>
+                                        <FormControl>
+                                            <div className="relative">
+                                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                                    <User className="h-4 w-4" />
+                                                </div>
+                                                <Input
+                                                    {...field}
+                                                    value={field.value || ""}
+                                                    data-testid="input-attention-to"
+                                                    className="pl-9 h-11"
+                                                    placeholder="Specific person or department (Optional)"
+                                                />
+                                            </div>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

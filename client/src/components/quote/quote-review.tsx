@@ -17,6 +17,7 @@ import {
     CheckCircle2, 
     Receipt
 } from "lucide-react";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 
 interface TaxRate {
     id: string;
@@ -41,6 +42,10 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
     const sgst = form.watch("sgst");
     const igst = form.watch("igst");
     const shippingCharges = form.watch("shippingCharges");
+
+    const showDiscount = useFeatureFlag("quotes_discount");
+    const showShipping = useFeatureFlag("quotes_shippingCharges");
+
 
     // Apply selected tax rate
     const applyTaxRate = (taxRateId: string) => {
@@ -149,28 +154,30 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
                             )}
 
                             <div className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="discount"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <div className="flex justify-between items-center mb-1">
-                                                <FormLabel className="text-xs">Discount (%)</FormLabel>
-                                                <span className="text-xs font-mono text-muted-foreground">
-                                                    -{formatCurrency(discountAmount, currency)}
-                                                </span>
-                                            </div>
-                                            <FormControl>
-                                                <Input
-                                                    {...field}
-                                                    type="number"
-                                                    min="0"
-                                                    onChange={(e) => field.onChange(Number(e.target.value))}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
+                                {showDiscount && (
+                                    <FormField
+                                        control={form.control}
+                                        name="discount"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <FormLabel className="text-xs">Discount (%)</FormLabel>
+                                                    <span className="text-xs font-mono text-muted-foreground">
+                                                        -{formatCurrency(discountAmount, currency)}
+                                                    </span>
+                                                </div>
+                                                <FormControl>
+                                                    <Input
+                                                        {...field}
+                                                        type="number"
+                                                        min="0"
+                                                        onChange={(e) => field.onChange(Number(e.target.value))}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
 
                                 <div className="grid grid-cols-3 gap-3">
                                     <FormField
@@ -211,7 +218,8 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
                                     />
                                 </div>
 
-                                <FormField
+                                {showShipping && (
+                                    <FormField
                                         control={form.control}
                                         name="shippingCharges"
                                         render={({ field }) => (
@@ -233,6 +241,7 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
                                             </FormItem>
                                         )}
                                     />
+                                )}
                             </div>
 
                             <Separator />

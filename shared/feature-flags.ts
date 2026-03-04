@@ -18,6 +18,7 @@ export interface FeatureFlags {
   pages_quoteDetail: boolean;
   pages_invoices: boolean;
   pages_invoiceDetail: boolean;
+  pages_salesOrders: boolean;
   pages_vendors: boolean;
   pages_vendorPOs: boolean;
   pages_vendorPODetail: boolean;
@@ -313,6 +314,7 @@ export interface FeatureFlags {
   admin_governance: boolean;
   admin_bankDetails: boolean;
   admin_taxRates: boolean;
+  admin_paymentTerms: boolean;
   admin_numberingSchemes: boolean;
   admin_templates: boolean;
   admin_activityLogs: boolean;
@@ -424,6 +426,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   pages_quoteDetail: true,
   pages_invoices: true,
   pages_invoiceDetail: true,
+  pages_salesOrders: true,
   pages_vendors: true,
   pages_vendorPOs: true,
   pages_vendorPODetail: true,
@@ -664,6 +667,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   admin_governance: true,
   admin_bankDetails: true,
   admin_taxRates: true,
+  admin_paymentTerms: true,
   admin_numberingSchemes: true,
   admin_templates: true,
   admin_activityLogs: true,

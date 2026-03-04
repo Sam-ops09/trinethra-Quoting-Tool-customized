@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/currency";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import {
     ResponsiveContainer,
     CartesianGrid,
@@ -331,6 +332,12 @@ export default function Dashboard() {
     const [, setLocation] = useLocation();
     const [timeRange, setTimeRange] = useState("last-90");
 
+    const canCreateQuote = useFeatureFlag('quotes_create');
+    const canCreateClient = useFeatureFlag('clients_create');
+    const canViewInvoices = useFeatureFlag('invoices_module');
+    const canViewAnalytics = useFeatureFlag('analytics_module');
+    const canViewRevenue = useFeatureFlag('analytics_revenueMetrics');
+
     const dateParams = useMemo(() => {
         const today = new Date();
         let fromDate = new Date();
@@ -372,23 +379,27 @@ export default function Dashboard() {
                             Start managing your quotes and clients efficiently. Create your first quote or add a client to begin.
                         </p>
                         <div className="grid sm:grid-cols-2 gap-4 max-w-md mx-auto">
-                            <Button
-                                size="lg"
-                                onClick={() => setLocation("/quotes/create")}
-                                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg transition-all"
-                            >
-                                <Plus className="h-5 w-5 mr-2" />
-                                Create Quote
-                            </Button>
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                onClick={() => setLocation("/clients")}
-                                className="border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            >
-                                <Users className="h-5 w-5 mr-2" />
-                                Add Client
-                            </Button>
+                            {canCreateQuote && (
+                                <Button
+                                    size="lg"
+                                    onClick={() => setLocation("/quotes/create")}
+                                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg transition-all"
+                                >
+                                    <Plus className="h-5 w-5 mr-2" />
+                                    Create Quote
+                                </Button>
+                            )}
+                            {canCreateClient && (
+                                <Button
+                                    size="lg"
+                                    variant="outline"
+                                    onClick={() => setLocation("/clients")}
+                                    className="border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                >
+                                    <Users className="h-5 w-5 mr-2" />
+                                    Add Client
+                                </Button>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -527,13 +538,15 @@ export default function Dashboard() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <Button
-                                        onClick={() => setLocation("/quotes/create")}
-                                        className="w-full bg-white text-slate-900 hover:bg-white/90 shadow-lg border-0 font-semibold h-11"
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        New Quote
-                                    </Button>
+                                    {canCreateQuote && (
+                                        <Button
+                                            onClick={() => setLocation("/quotes/create")}
+                                            className="w-full bg-white text-slate-900 hover:bg-white/90 shadow-lg border-0 font-semibold h-11"
+                                        >
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            New Quote
+                                        </Button>
+                                    )}
                                     <div className="grid grid-cols-2 gap-2">
                                         <Button
                                             size="sm"
@@ -544,63 +557,68 @@ export default function Dashboard() {
                                             <Users className="h-4 w-4 mr-2" />
                                             Clients
                                         </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setLocation("/invoices")}
-                                            className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white border-0 h-9"
-                                        >
-                                            <Receipt className="h-4 w-4 mr-2" />
-                                            Invoices
-                                        </Button>
+                                        {canViewInvoices && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setLocation("/invoices")}
+                                                className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white border-0 h-9"
+                                            >
+                                                <Receipt className="h-4 w-4 mr-2" />
+                                                Invoices
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
                     </motion.div>
 
-                     {/* Right: KPI Metrics */}
-                    <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <MetricCard
-                            label="Total Quotes"
-                            value={metrics.totalQuotes}
-                            sub="Across all stages"
-                            icon={FileText}
-                            sparkData={sparkSeries}
-                            trend={quoteTrend.trend}
-                            trendValue={quoteTrend.value}
-                            index={0}
-                        />
-                        <MetricCard
-                            label="Total Clients"
-                            value={metrics.totalClients}
-                            sub="Active in your pipeline"
-                            icon={Users}
-                            sparkData={sparkSeries}
-                            tint="blue"
-                            index={1}
-                        />
-                        <MetricCard
-                            label="Total Collected"
-                            value={formatMultiCurrency(metrics.revenueByCurrency, totalRevenueNum)}
-                            sub="From paid invoices"
-                            icon={DollarSign}
-                            sparkData={sparkSeries}
-                            tint="green"
-                            trend={revenueTrend.trend}
-                            trendValue={revenueTrend.value}
-                            index={2}
-                        />
-                        <MetricCard
-                            label="Conversion Rate"
-                            value={`${metrics.conversionRate}%`}
-                            sub="Quotes converting to approval"
-                            icon={TrendingUp}
-                            sparkData={sparkSeries}
-                            tint="purple"
-                            index={3}
-                        />
-                    </div>
+                      {canViewAnalytics && (
+                        <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <MetricCard
+                                label="Total Quotes"
+                                value={metrics.totalQuotes}
+                                sub="Across all stages"
+                                icon={FileText}
+                                sparkData={sparkSeries}
+                                trend={quoteTrend.trend}
+                                trendValue={quoteTrend.value}
+                                index={0}
+                            />
+                            <MetricCard
+                                label="Total Clients"
+                                value={metrics.totalClients}
+                                sub="Active in your pipeline"
+                                icon={Users}
+                                sparkData={sparkSeries}
+                                tint="blue"
+                                index={1}
+                            />
+                            {canViewRevenue && (
+                                <MetricCard
+                                    label="Total Collected"
+                                    value={formatMultiCurrency(metrics.revenueByCurrency, totalRevenueNum)}
+                                    sub="From paid invoices"
+                                    icon={DollarSign}
+                                    sparkData={sparkSeries}
+                                    tint="green"
+                                    trend={revenueTrend.trend}
+                                    trendValue={revenueTrend.value}
+                                    index={2}
+                                />
+                            )}
+                            <MetricCard
+                                label="Conversion Rate"
+                                value={`${metrics.conversionRate}%`}
+                                sub="Quotes converting to approval"
+                                icon={TrendingUp}
+                                sparkData={sparkSeries}
+                                tint="purple"
+                                index={3}
+                            />
+                        </div>
+                      )}
                 </div>
 
                 {/* ---------- Analytics Dashboard ---------- */}

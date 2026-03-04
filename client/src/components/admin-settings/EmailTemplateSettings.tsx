@@ -39,6 +39,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Plus, Eye, Trash2, Edit, RefreshCw, Code } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { InfoIcon, Lock } from "lucide-react";
 
 interface EmailTemplate {
     id: string;
@@ -74,26 +77,49 @@ export function EmailTemplateSettings() {
     const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
     const [previewHtml, setPreviewHtml] = useState<{ subject: string; body: string } | null>(null);
 
+    // Feature Flags
+    const canSendQuotes = useFeatureFlag("email_quoteSending");
+    const canSendInvoices = useFeatureFlag("email_invoiceSending");
+    const canSendPaymentReminders = useFeatureFlag("email_paymentReminders");
+    const canSendVendorPO = useFeatureFlag("email_vendorPO");
+
+    const activeTypes = Object.keys(TYPE_LABELS).filter(type => {
+        if (type === 'quote') return canSendQuotes;
+        if (type === 'invoice') return canSendInvoices;
+        if (type === 'payment_reminder') return canSendPaymentReminders;
+        if (type === 'vendor_po') return canSendVendorPO;
+        return true; // Keep others by default
+    });
+
     // Form state
     const [formData, setFormData] = useState({
         name: "",
-        type: "quote",
+        type: activeTypes[0] || "quote",
         subject: "",
         body: "",
         isActive: true,
         isDefault: false,
     });
-
+ 
     // Fetch templates
     const { data: templates, isLoading } = useQuery<EmailTemplate[]>({
         queryKey: ["/api/email-templates"],
     });
 
+    // Filter templates based on flags
+    const filteredTemplates = templates?.filter(t => {
+        if (t.type === 'quote') return canSendQuotes;
+        if (t.type === 'invoice') return canSendInvoices;
+        if (t.type === 'payment_reminder') return canSendPaymentReminders;
+        if (t.type === 'vendor_po') return canSendVendorPO;
+        return true;
+    });
+ 
     // Fetch template types
     const { data: templateTypes } = useQuery<TemplateType[]>({
         queryKey: ["/api/email-templates/types"],
     });
-
+ 
     // Create mutation
     const createMutation = useMutation({
         mutationFn: async (data: typeof formData) => {
@@ -116,7 +142,7 @@ export function EmailTemplateSettings() {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         },
     });
-
+ 
     // Update mutation
     const updateMutation = useMutation({
         mutationFn: async (data: { id: string } & typeof formData) => {
@@ -140,7 +166,7 @@ export function EmailTemplateSettings() {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         },
     });
-
+ 
     // Delete mutation
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
@@ -159,7 +185,7 @@ export function EmailTemplateSettings() {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         },
     });
-
+ 
     // Seed defaults mutation
     const seedMutation = useMutation({
         mutationFn: async () => {
@@ -178,7 +204,7 @@ export function EmailTemplateSettings() {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         },
     });
-
+ 
     // Preview mutation
     const previewMutation = useMutation({
         mutationFn: async (data: { subject: string; body: string; type: string }) => {
@@ -195,18 +221,18 @@ export function EmailTemplateSettings() {
             setPreviewHtml({ subject: data.subject, body: data.body });
         },
     });
-
+ 
     const resetForm = () => {
         setFormData({
             name: "",
-            type: "quote",
+            type: activeTypes[0] || "quote",
             subject: "",
             body: "",
             isActive: true,
             isDefault: false,
         });
     };
-
+ 
     const handleEdit = (template: EmailTemplate) => {
         setEditingTemplate(template);
         setFormData({
@@ -218,7 +244,7 @@ export function EmailTemplateSettings() {
             isDefault: template.isDefault,
         });
     };
-
+ 
     const handleSubmit = () => {
         if (editingTemplate) {
             updateMutation.mutate({ id: editingTemplate.id, ...formData });
@@ -226,7 +252,7 @@ export function EmailTemplateSettings() {
             createMutation.mutate(formData);
         }
     };
-
+ 
     const handlePreview = () => {
         previewMutation.mutate({
             subject: formData.subject,
@@ -234,17 +260,17 @@ export function EmailTemplateSettings() {
             type: formData.type,
         });
     };
-
+ 
     const getCurrentVariables = () => {
         const typeInfo = templateTypes?.find((t) => t.type === formData.type);
         return typeInfo?.variables || [];
     };
-
+ 
     const insertVariable = (varName: string) => {
         const newBody = formData.body + `{{${varName}}}`;
         setFormData({ ...formData, body: newBody });
     };
-
+ 
     const loadDefaultTemplate = () => {
         const typeInfo = templateTypes?.find((t) => t.type === formData.type);
         if (typeInfo?.defaultTemplate) {
@@ -255,7 +281,7 @@ export function EmailTemplateSettings() {
             });
         }
     };
-
+ 
     return (
         <Card className="card-elegant hover-glow">
             <CardHeader className="p-4 sm:p-6 border-b bg-gradient-to-r from-purple-500/5 to-transparent">
@@ -270,19 +296,21 @@ export function EmailTemplateSettings() {
                         </CardDescription>
                     </div>
                     <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => seedMutation.mutate()}
-                            disabled={seedMutation.isPending}
-                        >
-                            {seedMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <RefreshCw className="h-4 w-4" />
-                            )}
-                            <span className="hidden sm:inline ml-2">Seed Defaults</span>
-                        </Button>
+                        {(canSendQuotes || canSendInvoices || canSendPaymentReminders || canSendVendorPO) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => seedMutation.mutate()}
+                                disabled={seedMutation.isPending}
+                            >
+                                {seedMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="h-4 w-4" />
+                                )}
+                                <span className="hidden sm:inline ml-2">Seed Defaults</span>
+                            </Button>
+                        )}
                         <Dialog open={isCreateOpen || !!editingTemplate} onOpenChange={(open) => {
                             if (!open) {
                                 setIsCreateOpen(false);
@@ -329,8 +357,8 @@ export function EmailTemplateSettings() {
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                                                            <SelectItem key={value} value={value}>{label}</SelectItem>
+                                                        {activeTypes.map((value) => (
+                                                            <SelectItem key={value} value={value}>{TYPE_LABELS[value]}</SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
@@ -457,14 +485,14 @@ export function EmailTemplateSettings() {
                                         <Loader2 className="h-4 w-4 animate-spin mx-auto" />
                                     </TableCell>
                                 </TableRow>
-                            ) : !templates?.length ? (
+                            ) : !filteredTemplates?.length ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                                         No templates configured. Click "Seed Defaults" to create default templates.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                templates.map((template) => (
+                                filteredTemplates.map((template) => (
                                     <TableRow key={template.id}>
                                         <TableCell className="font-medium">{template.name}</TableCell>
                                         <TableCell>

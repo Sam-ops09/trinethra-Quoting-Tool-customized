@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useUndoAction } from "@/hooks/use-undo-action";
 import { formatCurrency } from "@/lib/currency";
 
@@ -78,6 +79,8 @@ export function PaymentTracker({
         notes: "",
         paymentDate: new Date().toISOString().split("T")[0]
     });
+
+    const canViewPaymentHistory = useFeatureFlag('invoices_paymentHistory');
 
     const { data: paymentHistory, isLoading } = useQuery<PaymentHistoryEntry[]>({
         queryKey: [`/api/invoices/${invoiceId}/payment-history-detailed`],
@@ -336,20 +339,21 @@ export function PaymentTracker({
                 </div>
 
                 {/* HISTORY */}
-                <div className="space-y-2">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                        <h4 className="flex items-center gap-1.5 text-xs font-semibold">
-                            <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10">
-                                <Calendar className="h-3 w-3 text-primary" />
-                            </div>
-                            <span>{isMaster ? "Child Payments" : "History"}</span>
-                        </h4>
-                        {paymentHistory && paymentHistory.length > 0 && (
-                            <Badge className="border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">
-                                {paymentHistory.length}
-                            </Badge>
-                        )}
-                    </div>
+                {canViewPaymentHistory && (
+                    <div className="space-y-2">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                            <h4 className="flex items-center gap-1.5 text-xs font-semibold">
+                                <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10">
+                                    <Calendar className="h-3 w-3 text-primary" />
+                                </div>
+                                <span>{isMaster ? "Child Payments" : "History"}</span>
+                            </h4>
+                            {paymentHistory && paymentHistory.length > 0 && (
+                                <Badge className="border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">
+                                    {paymentHistory.length}
+                                </Badge>
+                            )}
+                        </div>
 
                     {/* Empty for master */}
                     {isMaster && paymentHistory && paymentHistory.length === 0 && (
@@ -480,6 +484,7 @@ export function PaymentTracker({
                         </div>
                     ) : null}
                 </div>
+            )}
             </CardContent>
 
             {/* DIALOG */}

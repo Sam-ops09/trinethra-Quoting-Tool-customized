@@ -4,6 +4,7 @@ import { authMiddleware, AuthRequest } from "../middleware";
 import { logger } from "../utils/logger";
 import { db } from "../db";
 import * as schema from "../../shared/schema";
+import { storage } from "../storage";
 import { eq } from "drizzle-orm";
 import { requireFeature } from "../feature-flags-middleware";
 import { isFeatureEnabled } from "../../shared/feature-flags";
@@ -12,9 +13,12 @@ import { requirePermission } from "../permissions-middleware";
 
 const router = Router();
 
+// Apply products module feature flag to all routes
+router.use(requireFeature("products_module"));
+
 // ==================== PRODUCTS ROUTES ====================
 
-router.get("/", authMiddleware, requireFeature('products_module'), requirePermission("products", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/", authMiddleware, requirePermission("products", "view"), async (req: AuthRequest, res: Response) => {
   try {
     const products = await db.select().from(schema.products).orderBy(schema.products.name);
     res.json(products);
@@ -24,7 +28,7 @@ router.get("/", authMiddleware, requireFeature('products_module'), requirePermis
   }
 });
 
-router.get("/:id", authMiddleware, requireFeature('products_module'), requirePermission("products", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/:id", authMiddleware, requirePermission("products", "view"), async (req: AuthRequest, res: Response) => {
   try {
     const [product] = await db
       .select()
@@ -49,7 +53,12 @@ router.post("/", authMiddleware, requireFeature('products_create'), requirePermi
       req.body.unitPrice = String(req.body.unitPrice);
     }
 
-    // Feature Flag Guards
+    if (!isFeatureEnabled('products_categories') && req.body.categoryId) {
+       return res.status(403).json({ error: "Product categories feature is disabled" });
+    }
+    if (!isFeatureEnabled('products_reorderLevel') && req.body.reorderLevel) {
+       delete req.body.reorderLevel;
+    }
     if (!isFeatureEnabled('products_sku') && req.body.sku) {
        // Option: block or delete. Let's block if specific value provided, ensuring data integrity.
        return res.status(403).json({ error: "SKU feature is disabled" });
@@ -98,6 +107,8 @@ router.patch("/:id", authMiddleware, requireFeature('products_edit'), requirePer
     const updates = { ...req.body, updatedAt: new Date() };
          
     // Feature Guards
+    if (!isFeatureEnabled('products_categories') && updates.categoryId) delete updates.categoryId;
+    if (!isFeatureEnabled('products_reorderLevel') && updates.reorderLevel) delete updates.reorderLevel;
     if (!isFeatureEnabled('products_sku') && updates.sku) delete updates.sku;
     if (!isFeatureEnabled('products_stock_tracking')) {
         delete updates.stockQuantity;
@@ -119,6 +130,31 @@ router.patch("/:id", authMiddleware, requireFeature('products_edit'), requirePer
   } catch (error) {
     logger.error("Error updating product:", error);
     res.status(500).json({ error: "Failed to update product" });
+  }
+});
+
+router.delete("/:id", authMiddleware, requireFeature('products_delete'), requirePermission("products", "delete"), async (req: AuthRequest, res: Response) => {
+  try {
+    const [deleted] = await db
+      .delete(schema.products)
+      .where(eq(schema.products.id, req.params.id))
+      .returning();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "delete_product",
+      entityType: "product",
+      entityId: deleted.id,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("Error deleting product:", error);
+    res.status(500).json({ error: "Failed to delete product" });
   }
 });
 

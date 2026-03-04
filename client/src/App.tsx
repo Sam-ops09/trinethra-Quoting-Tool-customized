@@ -175,7 +175,9 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_clients') && (
             <>
               <Route path="/clients" component={() => <ProtectedRoute component={Clients} requiredPath="/clients" />} />
-              <Route path="/clients/:id" component={() => <ProtectedRoute component={ClientDetail} requiredPath="/clients" />} />
+              {isFeatureEnabled('pages_clientDetail') && (
+                <Route path="/clients/:id" component={() => <ProtectedRoute component={ClientDetail} requiredPath="/clients" />} />
+              )}
             </>
           )}
 
@@ -183,23 +185,35 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_quotes') && (
             <>
               <Route path="/quotes" component={() => <ProtectedRoute component={Quotes} requiredPath="/quotes" />} />
-              <Route path="/quotes/create" component={() => <ProtectedRoute component={QuoteCreate} requiredPath="/quotes" />} />
-              <Route path="/quotes/:id/edit" component={() => <ProtectedRoute component={QuoteCreate} requiredPath="/quotes" />} />
-              <Route path="/quotes/:id" component={() => <ProtectedRoute component={QuoteDetail} requiredPath="/quotes" />} />
+              {isFeatureEnabled('pages_quoteCreate') && (
+                <>
+                  <Route path="/quotes/create" component={() => <ProtectedRoute component={QuoteCreate} requiredPath="/quotes" />} />
+                  <Route path="/quotes/:id/edit" component={() => <ProtectedRoute component={QuoteCreate} requiredPath="/quotes" />} />
+                </>
+              )}
+              {isFeatureEnabled('pages_quoteDetail') && (
+                <Route path="/quotes/:id" component={() => <ProtectedRoute component={QuoteDetail} requiredPath="/quotes" />} />
+              )}
             </>
           )}
 
           {/* Sales Orders */}
-          <Route path="/sales-orders" component={() => <ProtectedRoute component={SalesOrdersList} requiredPath="/sales-orders" />} />
-          <Route path="/sales-orders/:id/edit" component={() => <ProtectedRoute component={SalesOrderEdit} requiredPath="/sales-orders" />} />
-          <Route path="/sales-orders/:id" component={() => <ProtectedRoute component={SalesOrderDetail} requiredPath="/sales-orders" />} />
+          {isFeatureEnabled('pages_salesOrders') && (
+            <>
+              <Route path="/sales-orders" component={() => <ProtectedRoute component={SalesOrdersList} requiredPath="/sales-orders" />} />
+              <Route path="/sales-orders/:id/edit" component={() => <ProtectedRoute component={SalesOrderEdit} requiredPath="/sales-orders" />} />
+              <Route path="/sales-orders/:id" component={() => <ProtectedRoute component={SalesOrderDetail} requiredPath="/sales-orders" />} />
+            </>
+          )}
 
           {/* Invoices - with feature flag */}
           {isFeatureEnabled('pages_invoices') && (
             <>
               <Route path="/invoices" component={() => <ProtectedRoute component={Invoices} requiredPath="/invoices" />} />
               <Route path="/invoices/analytics" component={() => <ProtectedRoute component={InvoiceAnalytics} requiredPath="/invoices" />} />
-              <Route path="/invoices/:id" component={() => <ProtectedRoute component={InvoiceDetail} requiredPath="/invoices" />} />
+              {isFeatureEnabled('pages_invoiceDetail') && (
+                <Route path="/invoices/:id" component={() => <ProtectedRoute component={InvoiceDetail} requiredPath="/invoices" />} />
+              )}
             </>
           )}
 
@@ -243,7 +257,9 @@ function AuthenticatedLayout() {
             <>
               <Route path="/vendor-pos" component={() => <ProtectedRoute component={VendorPOs} requiredPath="/vendor-pos" />} />
               <Route path="/vendor-pos/create" component={() => <ProtectedRoute component={VendorPoCreate} requiredPath="/vendor-pos" />} />
-              <Route path="/vendor-pos/:id" component={() => <ProtectedRoute component={VendorPoDetail} requiredPath="/vendor-pos" />} />
+              {isFeatureEnabled('pages_vendorPODetail') && (
+                <Route path="/vendor-pos/:id" component={() => <ProtectedRoute component={VendorPoDetail} requiredPath="/vendor-pos" />} />
+              )}
             </>
           )}
 
@@ -256,7 +272,9 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_grn') && (
             <>
               <Route path="/grn" component={() => <ProtectedRoute component={GRNList} requiredPath="/grn" />} />
-              <Route path="/grn/:id" component={() => <ProtectedRoute component={GRNDetail} requiredPath="/grn" />} />
+              {isFeatureEnabled('pages_grnDetail') && (
+                <Route path="/grn/:id" component={() => <ProtectedRoute component={GRNDetail} requiredPath="/grn" />} />
+              )}
             </>
           )}
 
@@ -300,7 +318,9 @@ function AuthenticatedLayout() {
           )}
 
           {/* Audit Trail */}
-          <Route path="/admin/audit-trail" component={() => <ProtectedRoute component={AuditTrail} requiredPath="/admin/analytics" />} />
+          {isFeatureEnabled('admin_activityLogs') && isFeatureEnabled('security_auditLogs') && (
+            <Route path="/admin/audit-trail" component={() => <ProtectedRoute component={AuditTrail} requiredPath="/admin/analytics" />} />
+          )}
 
           {/* Workflows */}
           {isFeatureEnabled('pages_workflows') && (

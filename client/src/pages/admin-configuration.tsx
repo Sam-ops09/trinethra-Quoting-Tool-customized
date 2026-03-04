@@ -128,6 +128,8 @@ export default function AdminConfiguration() {
   const showNumberingSchemes = useFeatureFlag('admin_numberingSchemes');
   const showEmailTemplates = useFeatureFlag('email_integration');
   const showAdvancedEmailTemplates = useFeatureFlag('email_templates_module');
+  const showTaxRates = useFeatureFlag('admin_taxRates');
+  const showPaymentTerms = useFeatureFlag('admin_paymentTerms');
 
   // Module-specific flags for numbering schemes
   const showQuotes = useFeatureFlag('quotes_module');
@@ -143,7 +145,8 @@ export default function AdminConfiguration() {
     (showNumberingSchemes ? 1 : 0) +
     (showBankDetails ? 1 : 0) +
     (showEmailTemplates ? 1 : 0) +
-    (showAdvancedEmailTemplates ? 1 : 0);
+    (showAdvancedEmailTemplates ? 1 : 0) +
+    (showTaxRates || showPaymentTerms ? 1 : 0);
 
   // Fetch settings
   const { data: settings, isLoading: settingsLoading } = useQuery<Record<string, any>>({
@@ -675,12 +678,13 @@ export default function AdminConfiguration() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
             <TabsList className={cn(
-              "inline-flex sm:grid w-full sm:max-w-4xl h-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-1",
+              "inline-flex sm:grid w-full sm:max-w-5xl h-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-1",
               visibleTabsCount === 1 && "sm:grid-cols-1",
               visibleTabsCount === 2 && "sm:grid-cols-2",
               visibleTabsCount === 3 && "sm:grid-cols-3",
               visibleTabsCount === 4 && "sm:grid-cols-4",
-              visibleTabsCount === 5 && "sm:grid-cols-5"
+              visibleTabsCount === 5 && "sm:grid-cols-5",
+              visibleTabsCount === 6 && "sm:grid-cols-6"
             )}>
               <TabsTrigger value="company" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                 <Building className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
@@ -708,6 +712,12 @@ export default function AdminConfiguration() {
                 <TabsTrigger value="email-templates" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                   <Mail className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                   <span className="hidden xs:inline">Templates</span>
+                </TabsTrigger>
+              )}
+              {(showTaxRates || showPaymentTerms) && (
+                <TabsTrigger value="tax" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
+                  <Percent className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                  <span className="hidden xs:inline">Tax & Terms</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -1438,9 +1448,11 @@ export default function AdminConfiguration() {
         )}
 
         {/* Tax & Terms Tab */}
-        <TabsContent value="tax" className="space-y-3">
-          {/* Tax Rates Section */}
-          <Card className="border-slate-200 dark:border-slate-800">
+        {(showTaxRates || showPaymentTerms) && (
+          <TabsContent value="tax" className="space-y-3">
+            {/* Tax Rates Section */}
+            {showTaxRates && (
+              <Card className="border-slate-200 dark:border-slate-800">
             <CardHeader className="p-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center shrink-0">
@@ -1571,8 +1583,10 @@ export default function AdminConfiguration() {
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Payment Terms Section */}
+          {showPaymentTerms && (
           <Card className="border-slate-200 dark:border-slate-800">
             <CardHeader className="p-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -1704,7 +1718,9 @@ export default function AdminConfiguration() {
               </div>
             </CardContent>
           </Card>
+          )}
         </TabsContent>
+        )}
 
         {/* Bank Details Tab */}
         {showBankDetails && (

@@ -43,6 +43,7 @@ import { ROLE_INFO } from "@/lib/permissions-new";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isFeatureEnabled } from "@shared/feature-flags";
 
 // --- Types ---
 interface GovernanceStats {
@@ -76,9 +77,35 @@ const getCapabilities = (role: string) => {
 
 export default function GovernanceDashboard() {
     const { user } = useAuth();
+    const isEnabled = isFeatureEnabled('admin_governance') || isFeatureEnabled('security_rbac');
+
     const { data: stats, isLoading } = useQuery<GovernanceStats>({
         queryKey: ["/api/governance/stats"],
+        enabled: isEnabled && user?.role === "admin",
     });
+
+    if (!isEnabled) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-3 bg-slate-50 dark:bg-slate-950">
+                <Card className="w-full max-w-md border-red-200 dark:border-red-800">
+                    <CardHeader className="text-center p-4">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+                            <Lock className="h-6 w-6 text-red-600 dark:text-red-400" />
+                        </div>
+                        <CardTitle className="text-base text-red-600 dark:text-red-400">Feature Disabled</CardTitle>
+                        <CardDescription className="text-xs mt-1">
+                            The Governance Dashboard module is currently disabled via feature flags (`security_rbac`).
+                        </CardDescription>
+                    </CardHeader>
+                    <CardFooter className="justify-center pb-4">
+                        <Badge variant="outline" className="border-red-300 text-red-600 dark:text-red-400 text-[10px]">
+                            Access Gated
+                        </Badge>
+                    </CardFooter>
+                </Card>
+            </div>
+        );
+    }
 
     const breadcrumbs = [
         { label: "Admin", href: "/admin/users", icon: Users },

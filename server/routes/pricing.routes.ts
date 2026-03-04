@@ -3,10 +3,11 @@ import { Router, Response } from "express";
 import { storage } from "../storage";
 import { authMiddleware, AuthRequest } from "../middleware";
 import { logger } from "../utils/logger";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
 
-router.get("/pricing-tiers", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/pricing-tiers", authMiddleware, requireFeature('pricing_tiers'), async (req: AuthRequest, res: Response) => {
   try {
     const tiers = await storage.getAllPricingTiers();
     res.json(tiers);
@@ -16,7 +17,7 @@ router.get("/pricing-tiers", authMiddleware, async (req: AuthRequest, res: Respo
   }
 });
 
-router.post("/pricing-tiers", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/pricing-tiers", authMiddleware, requireFeature('pricing_tiers'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -51,7 +52,7 @@ router.post("/pricing-tiers", authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
-router.patch("/pricing-tiers/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.patch("/pricing-tiers/:id", authMiddleware, requireFeature('pricing_tiers'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -76,7 +77,7 @@ router.patch("/pricing-tiers/:id", authMiddleware, async (req: AuthRequest, res:
   }
 });
 
-router.delete("/pricing-tiers/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.delete("/pricing-tiers/:id", authMiddleware, requireFeature('pricing_tiers'), async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ error: "Forbidden" });
@@ -102,7 +103,7 @@ router.delete("/pricing-tiers/:id", authMiddleware, async (req: AuthRequest, res
 // PHASE 3 - PRICING CALCULATION ENDPOINTS
 import { pricingService } from "../services/pricing.service";
 
-router.post("/pricing/calculate-discount", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/pricing/calculate-discount", authMiddleware, requireFeature('pricing_automatic'), async (req: AuthRequest, res: Response) => {
   try {
     const { subtotal } = req.body;
 
@@ -118,7 +119,7 @@ router.post("/pricing/calculate-discount", authMiddleware, async (req: AuthReque
   }
 });
 
-router.post("/pricing/calculate-taxes", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/pricing/calculate-taxes", authMiddleware, requireFeature('pricing_automatic'), async (req: AuthRequest, res: Response) => {
   try {
     const { amount, region, useIGST } = req.body;
 
@@ -134,7 +135,7 @@ router.post("/pricing/calculate-taxes", authMiddleware, async (req: AuthRequest,
   }
 });
 
-router.post("/pricing/calculate-total", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/pricing/calculate-total", authMiddleware, requireFeature('pricing_automatic'), async (req: AuthRequest, res: Response) => {
   try {
     const { subtotal, region, useIGST, shippingCharges, customDiscount } = req.body;
 
@@ -157,7 +158,7 @@ router.post("/pricing/calculate-total", authMiddleware, async (req: AuthRequest,
   }
 });
 
-router.post("/pricing/convert-currency", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/pricing/convert-currency", authMiddleware, requireFeature('pricing_automatic'), async (req: AuthRequest, res: Response) => {
   try {
     const { amount, fromCurrency, toCurrency } = req.body;
 

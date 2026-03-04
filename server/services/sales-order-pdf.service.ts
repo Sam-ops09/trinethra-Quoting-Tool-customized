@@ -108,6 +108,9 @@ export class SalesOrderPDFService {
     if (!isFeatureEnabled('sales_orders_module')) {
       throw new Error("Sales Orders module is disabled");
     }
+    if (!isFeatureEnabled('sales_orders_pdfGeneration')) {
+      throw new Error("Sales Order PDF generation is disabled");
+    }
 
     const doc = new PDFDocument({
       size: "A4",

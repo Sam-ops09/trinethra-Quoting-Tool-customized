@@ -2,13 +2,14 @@
 import { Router, Response } from "express";
 import { authMiddleware, AuthRequest } from "../middleware";
 import { requirePermission } from "../permissions-middleware";
+import { requireFeature } from "../feature-flags-middleware";
 import { storage } from "../storage";
 
 const router = Router();
 
 // User Management (Admin Panel)
 
-router.get("/", authMiddleware, requirePermission("users", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/", authMiddleware, requireFeature('admin_userManagement'), requirePermission("users", "view"), async (req: AuthRequest, res: Response) => {
     try {
       // Manual check removed in favor of middleware
       // if (req.user!.role !== "admin") { ... }
@@ -29,7 +30,7 @@ router.get("/", authMiddleware, requirePermission("users", "view"), async (req: 
     }
 });
 
-router.patch("/:userId/role", authMiddleware, requirePermission("users", "edit"), async (req: AuthRequest, res: Response) => {
+router.patch("/:userId/role", authMiddleware, requireFeature('admin_userManagement'), requirePermission("users", "edit"), async (req: AuthRequest, res: Response) => {
     try {
        // Manual check removed in favor of middleware
 
@@ -56,7 +57,7 @@ router.patch("/:userId/role", authMiddleware, requirePermission("users", "edit")
     }
 });
 
-router.patch("/:userId/status", authMiddleware, requirePermission("users", "edit"), async (req: AuthRequest, res: Response) => {
+router.patch("/:userId/status", authMiddleware, requireFeature('admin_userManagement'), requirePermission("users", "edit"), async (req: AuthRequest, res: Response) => {
     try {
         // Manual check removed in favor of middleware
 

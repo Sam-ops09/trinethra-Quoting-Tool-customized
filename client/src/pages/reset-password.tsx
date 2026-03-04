@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Loader2, Lock, CheckCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { isFeatureEnabled } from "@shared/feature-flags";
 
 const resetPasswordSchema = z.object({
   password: z
@@ -44,7 +45,11 @@ export default function ResetPassword() {
   const [token, setToken] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const isEnabled = isFeatureEnabled('security_passwordReset');
+
   useEffect(() => {
+    if (!isEnabled) return;
+
     // Get token from URL query params
     const params = new URLSearchParams(window.location.search);
     const tokenParam = params.get("token");
@@ -59,7 +64,30 @@ export default function ResetPassword() {
     } else {
       setToken(tokenParam);
     }
-  }, [toast, setLocation]);
+  }, [toast, setLocation, isEnabled]);
+
+  if (!isEnabled) {
+    return (
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center px-4">
+        <Card className="w-full max-w-md border-red-200 dark:border-red-800">
+          <CardHeader className="text-center p-6">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+              <Lock className="h-7 w-7 text-red-600 dark:text-red-400" />
+            </div>
+            <CardTitle className="text-xl text-red-600 dark:text-red-400">Feature Disabled</CardTitle>
+            <CardDescription className="text-sm mt-2 text-slate-600 dark:text-slate-400">
+              Password reset functionality is currently disabled by administrators for security reasons.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center pb-6">
+            <Button variant="outline" onClick={() => setLocation("/login")}>
+              Back to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const form = useForm<z.infer<typeof resetPasswordSchema>>({
     resolver: zodResolver(resetPasswordSchema),

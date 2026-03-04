@@ -148,14 +148,19 @@ export default function InvoiceDetail() {
     // Feature flags
     const canGeneratePDF = useFeatureFlag('invoices_pdfGeneration');
     const canSendEmail = useFeatureFlag('invoices_emailSending');
-    const canSendReminder = useFeatureFlag('invoices_paymentReminders');
-    const canCreatePayment = useFeatureFlag('payments_create');
-    const canCreateChildInvoice = useFeatureFlag('invoices_childInvoices');
-    const canFinalizeInvoice = useFeatureFlag('invoices_finalize');
     const canLockInvoice = useFeatureFlag('invoices_lock');
     const canCancelInvoice = useFeatureFlag('invoices_cancel');
-    const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
+    const canCreateChildInvoice = useFeatureFlag('invoices_childInvoices');
+    const canFinalizeInvoice = useFeatureFlag('invoices_finalize');
     const canManageEInvoice = useFeatureFlag('financial_eInvoicing');
+    const canSendReminder = useFeatureFlag('invoices_paymentReminders');
+    const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
+    const canViewMasterInvoices = useFeatureFlag('invoices_masterInvoices');
+    const canViewChildInvoices = useFeatureFlag('invoices_childInvoices');
+    const canViewMilestoneInvoices = useFeatureFlag('invoices_milestoneInvoices');
+    const canViewBom = useFeatureFlag('quotes_bomSection');
+    const canTrackPayments = useFeatureFlag('invoices_paymentTracking');
+    const canViewPaymentHistory = useFeatureFlag('invoices_paymentHistory');
 
     const [showEmailDialog, setShowEmailDialog] = useState(false);
     const [emailData, setEmailData] = useState({ email: "", message: "" });
@@ -491,7 +496,7 @@ export default function InvoiceDetail() {
             setCancellationReason("");
         },
         onError: (error: any) => {
-            toast({
+                toast({
                 title: "Error",
                 description: error?.message || "Failed to cancel invoice.",
                 variant: "destructive",
@@ -714,7 +719,7 @@ export default function InvoiceDetail() {
                                     </div>
                                 </div>
                             </div>
-
+ 
                             {/* ACTIONS */}
                             <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
                                 {/* Edit button visibility logic:
@@ -811,150 +816,78 @@ export default function InvoiceDetail() {
                                   </Button>
                                 )}
 
-                                {/* Payment Reminder Button - Show for pending, partial, or overdue invoices */}
-                                {canSendReminder && (invoice.paymentStatus === "pending" ||
-                                  invoice.paymentStatus === "partial" ||
-                                  invoice.paymentStatus === "overdue") && (
-                                    <PermissionGuard resource="payments" action="create" tooltipText="Only Finance/Accounts can send payment reminders">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-warning/10 hover:border-warning hover:text-warning"
-                                        onClick={() => {
-                                            setReminderEmail(invoice.client.email);
-                                            setShowReminderDialog(true);
-                                        }}
-                                        data-testid="button-payment-reminder"
-                                      >
-                                        <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                        <span className="hidden sm:inline">Payment Reminder</span>
-                                        <span className="sm:hidden">Remind</span>
-                                      </Button>
-                                    </PermissionGuard>
+                                {canManageEInvoice && invoice.paymentStatus !== "cancelled" && (
+                                    <div className="flex gap-2">
+                                        {!invoice.eInvoiceData?.irn ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+                                                onClick={() => generateEInvoiceMutation.mutate()}
+                                                disabled={generateEInvoiceMutation.isPending}
+                                            >
+                                                {generateEInvoiceMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+                                                Generate E-Invoice
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm border-rose-200 text-rose-700 hover:bg-rose-50"
+                                                onClick={() => setShowEInvoiceCancelDialog(true)}
+                                                disabled={cancelEInvoiceMutation.isPending}
+                                            >
+                                                <XCircle className="h-3.5 w-3.5" />
+                                                Cancel E-Invoice
+                                            </Button>
+                                        )}
+                                    </div>
                                 )}
-
-                                <PermissionGuard resource="payments" action="create" tooltipText="Only Finance/Accounts can record payments">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-primary/10 hover:border-primary hover:text-primary"
-                                    onClick={() => {
-                                        setPaymentData({
-                                            status: invoice.paymentStatus,
-                                            paidAmount: invoice.paidAmount ?? "",
-                                        });
-                                        setShowPaymentDialog(true);
-                                    }}
-                                    data-testid="button-open-payment-dialog"
-                                  >
-                                    <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                    <span className="hidden sm:inline">Update Payment</span>
-                                    <span className="sm:hidden">Payment</span>
-                                  </Button>
-                                </PermissionGuard>
-
-                                {/* E-Invoice Action Buttons */}
-                                {canManageEInvoice && invoice.finalizedAt && invoice.eInvoiceStatus !== "generated" && invoice.status !== "cancelled" && (
-                                    <PermissionGuard resource="invoices" action="finalize" tooltipText="Only Finance can generate E-Invoices">
+                                
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    {canLockInvoice && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm h-8"
+                                            onClick={() => lockMutation.mutate(!invoice.isLocked)}
+                                            disabled={lockMutation.isPending}
+                                        >
+                                            {lockMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : invoice.isLocked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                                            {invoice.isLocked ? "Unlock" : "Lock"}
+                                        </Button>
+                                    )}
+                                    
+                                    {canFinalizeInvoice && invoice.status === "draft" && (
                                         <Button
                                             variant="default"
                                             size="sm"
-                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm bg-orange-600 hover:bg-orange-700 text-white"
-                                            onClick={() => generateEInvoiceMutation.mutate()}
-                                            disabled={generateEInvoiceMutation.isPending}
-                                        >
-                                            {generateEInvoiceMutation.isPending ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            ) : (
-                                                <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                            )}
-                                            <span className="hidden sm:inline text-white">Generate E-Invoice</span>
-                                            <span className="sm:hidden text-white font-semibold">E-Invoice</span>
-                                        </Button>
-                                    </PermissionGuard>
-                                )}
-
-                                {canManageEInvoice && invoice.eInvoiceStatus === "generated" && (
-                                    <PermissionGuard resource="invoices" action="finalize" tooltipText="Only Finance can cancel E-Invoices">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm border-orange-200 text-orange-700 hover:bg-orange-50"
-                                            onClick={() => setShowEInvoiceCancelDialog(true)}
-                                        >
-                                            <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                            <span className="hidden sm:inline">Cancel E-Invoice</span>
-                                            <span className="sm:hidden">Cancel IRN</span>
-                                        </Button>
-                                    </PermissionGuard>
-                                )}
-
-                                {/* Finalize Button - Show for draft/sent unpaid invoices */}
-                                {canFinalizeInvoice && !invoice.finalizedAt && invoice.paymentStatus !== "paid" && invoice.status !== "cancelled" && (
-                                    <PermissionGuard resource="invoices" action="finalize" tooltipText="Only authorized users can finalize invoices">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-green-50 hover:border-green-600 hover:text-green-600"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm h-8 bg-emerald-600 hover:bg-emerald-700"
                                             onClick={() => setShowFinalizeDialog(true)}
-                                            data-testid="button-finalize-invoice"
                                         >
-                                            <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                            <span className="hidden sm:inline">Finalize</span>
-                                            <span className="sm:hidden">Finalize</span>
+                                            <CheckCircle className="h-3.5 w-3.5" />
+                                            Finalize
                                         </Button>
-                                    </PermissionGuard>
-                                )}
+                                    )}
 
-                                {/* Lock/Unlock Button - Show for finalized or paid invoices */}
-                                {canLockInvoice && (invoice.finalizedAt || invoice.paymentStatus === "paid") && invoice.status !== "cancelled" && (
-                                    <PermissionGuard resource="invoices" action="lock" tooltipText="Only Finance/Admin can lock invoices">
+                                    {canCancelInvoice && invoice.paymentStatus !== "cancelled" && (
                                         <Button
-                                            variant="outline"
+                                            variant="ghost"
                                             size="sm"
-                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-amber-50 hover:border-amber-600 hover:text-amber-600"
-                                            onClick={() => lockMutation.mutate(!invoice.isLocked)}
-                                            data-testid="button-lock-invoice"
-                                        >
-                                            {invoice.isLocked ? (
-                                                <>
-                                                    <Unlock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                                    <span className="hidden sm:inline">Unlock</span>
-                                                    <span className="sm:hidden">Unlock</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Lock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                                    <span className="hidden sm:inline">Lock</span>
-                                                    <span className="sm:hidden">Lock</span>
-                                                </>
-                                            )}
-                                        </Button>
-                                    </PermissionGuard>
-                                )}
-
-                                {/* Cancel Button - Show for unpaid invoices that aren't cancelled */}
-                                {canCancelInvoice && invoice.paymentStatus !== "paid" && invoice.status !== "cancelled" && (
-                                    <PermissionGuard resource="invoices" action="cancel" tooltipText="Only authorized users can cancel invoices">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-orange-50 hover:border-orange-600 hover:text-orange-600"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8"
                                             onClick={() => setShowCancelDialog(true)}
-                                            data-testid="button-cancel-invoice"
                                         >
-                                            <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                            <span className="hidden sm:inline">Cancel Invoice</span>
-                                            <span className="sm:hidden">Cancel</span>
+                                            <XCircle className="h-3.5 w-3.5" />
+                                            Cancel
                                         </Button>
-                                    </PermissionGuard>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                {invoice.isMaster && (
+                {canViewMasterInvoices && invoice.isMaster && (
                     <MasterInvoiceManager invoiceId={invoice.id} />
                 )}
                 
@@ -1059,7 +992,7 @@ export default function InvoiceDetail() {
                         </Card>
 
                         {/* CHILD INVOICES (if master) */}
-                        {invoice.isMaster && invoice.childInvoices && invoice.childInvoices.length > 0 && (
+                        {canViewChildInvoices && invoice.isMaster && invoice.childInvoices && invoice.childInvoices.length > 0 && (
                             <Card className="border-slate-200 dark:border-slate-800">
                                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
                                     <div className="flex items-center justify-between gap-2">
@@ -1110,7 +1043,7 @@ export default function InvoiceDetail() {
                         )}
 
                         {/* INVOICING PROGRESS (if master) */}
-                        {invoice.isMaster && (
+                        {canViewMasterInvoices && invoice.isMaster && (
                             <Card className="border-slate-200 dark:border-slate-800">
                                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
                                     <div className="flex items-center gap-2">
@@ -1270,8 +1203,9 @@ export default function InvoiceDetail() {
                                                 </div>
                                             </div>
                                         </div>
-                                    )})}
-                                </div>
+                                    );
+                                })}
+                            </div>
 
                                 {/* DESKTOP / TABLE VIEW */}
                                 <div className="hidden sm:block w-full overflow-x-auto">
@@ -1294,7 +1228,7 @@ export default function InvoiceDetail() {
                                                 Serial Numbers
                                             </th>
                                             <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                Unit Price
+                                                Amount ({invoice?.currency})
                                             </th>
                                             <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
                                                 Total
@@ -1388,7 +1322,7 @@ export default function InvoiceDetail() {
         <DollarSign className="h-3 w-3" />
         Subtotal:{" "}
                                         <span className="font-semibold text-foreground">
-          {formatCurrency(invoice.subtotal, invoice.currency)}
+          {invoice && formatCurrency(invoice.subtotal, invoice.currency)}
         </span>
       </span>
                                 </div>
@@ -1402,14 +1336,16 @@ export default function InvoiceDetail() {
                             <CardHeader className="border-b px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                                 <div className="flex items-center gap-2 sm:gap-3">
                                     <div className="p-1.5 sm:p-2 rounded-md bg-primary/10 text-primary">
-                                        <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
+                                        <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10">
+                                            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <CardTitle className="text-sm sm:text-lg">
-                                            Invoice Summary
+                                    <div>
+                                        <CardTitle className="text-sm sm:text-base font-bold">
+                                            Payment Summary
                                         </CardTitle>
-                                        <p className="text-[11px] sm:text-xs text-muted-foreground font-['Open_Sans'] truncate">
-                                            Financial overview
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                            Fees, taxes, and totals
                                         </p>
                                     </div>
                                 </div>
@@ -1514,7 +1450,7 @@ export default function InvoiceDetail() {
                                                 Paid
                                             </p>
                                             <p className="font-bold text-success break-words">
-                                                {formatCurrency(Number(invoice.paidAmount))}
+                                                {invoice && formatCurrency(Number(invoice.paidAmount), invoice.currency)}
                                             </p>
                                         </div>
                                         <div className="rounded-lg bg-background/80 px-2.5 py-2">
@@ -1659,50 +1595,68 @@ export default function InvoiceDetail() {
                         )}
                     </div>
                 </div>
-
-                {/* BOM SECTION */}
-                <Card className="border-slate-200 dark:border-slate-800 mt-4 sm:mt-6">
-                    <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-4 flex flex-row items-center justify-between">
-                         <CardTitle className="text-base">Bill of Materials</CardTitle>
-                         {isBomDirty && (
-                             <Button size="sm" onClick={handleSaveBom} disabled={updateBomMutation.isPending}>
-                                 {updateBomMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                 Save BOM
-                             </Button>
-                         )}
-                    </CardHeader>
-                    <CardContent className="p-4">
-                        <ExecBOMSection 
-                            value={bomData} 
-                            onChange={handleBomChange} 
-                            readonly={invoice.isLocked || (invoice.paymentStatus === 'paid' && !invoice.isMaster)}
-                        />
-                    </CardContent>
-                </Card>
+                {/* Optional BOM Section */}
+                        {canViewBom && (
+                            <Card className="border-border/70 shadow-sm">
+                                <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b border-border/70 py-3 px-4 flex-row items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center shrink-0">
+                                            <Package className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-sm font-bold">Bill of Materials</CardTitle>
+                                            <p className="text-[10px] text-muted-foreground font-medium uppercase">Components & Specifications</p>
+                                        </div>
+                                    </div>
+                                    {!invoice.isLocked && (
+                                         <Button 
+                                            size="sm" 
+                                            variant={isBomDirty ? "default" : "outline"}
+                                            className={`h-7 text-xs ${isBomDirty ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                            disabled={!isBomDirty || updateBomMutation.isPending}
+                                            onClick={handleSaveBom}
+                                         >
+                                            {updateBomMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                                            {isBomDirty ? "Save Changes" : "Save"}
+                                         </Button>
+                                    )}
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    <ExecBOMSection
+                                        value={bomData}
+                                        onChange={handleBomChange}
+                                        readonly={invoice.isLocked}
+                                    />
+                                </CardContent>
+                            </Card>
+                        )}
 
                 {/* PAYMENT TRACKER (bottom section) */}
-                <div className="mt-4 sm:mt-6">
-                    <PaymentTracker
-                        invoiceId={invoice.id}
-                        total={Number(invoice.total)}
-                        paidAmount={Number(invoice.paidAmount)}
-                        paymentStatus={invoice.paymentStatus}
-                        parentInvoiceId={invoice.parentInvoiceId}
-                        isMaster={invoice.isMaster}
-                        currency={invoice.currency}
-                        onUpdate={() => {
-                            queryClient.invalidateQueries({
-                                queryKey: ["/api/invoices", params?.id],
-                            });
-                            // If this is a child invoice, also invalidate parent
-                            if (invoice.parentInvoiceId) {
+                {canTrackPayments && (
+                    <div className="mt-4 sm:mt-6">
+                        <PaymentTracker
+                            invoiceId={invoice.id}
+                            total={Number(invoice.total)}
+                            paidAmount={Number(invoice.paidAmount)}
+                            paymentStatus={invoice.paymentStatus}
+                            parentInvoiceId={invoice.parentInvoiceId}
+                            isMaster={invoice.isMaster}
+                            currency={invoice.currency}
+                            onUpdate={() => {
                                 queryClient.invalidateQueries({
-                                    queryKey: ["/api/invoices", invoice.parentInvoiceId],
+                                    queryKey: ["/api/invoices", params?.id],
                                 });
-                            }
-                        }}
-                    />
-                </div>
+                                // If this is a child invoice, also invalidate parent
+                                if (invoice.parentInvoiceId) {
+                                    queryClient.invalidateQueries({
+                                        queryKey: ["/api/invoices", invoice.parentInvoiceId],
+                                    });
+                                }
+                            }}
+                        />
+                    </div>
+                )}
+
 
                 {/* DELIVERY NOTES SECTION */}
                 {invoice.deliveryNotes && (
@@ -2332,8 +2286,8 @@ export default function InvoiceDetail() {
                 open={showPdfPreview}
                 onOpenChange={setShowPdfPreview}
                 pdfUrl={`/api/invoices/${params?.id}/pdf`}
-                filename={`Invoice-${invoice.invoiceNumber || "document"}.pdf`}
-                title={`Invoice ${invoice.invoiceNumber} — PDF Preview`}
+                filename={`Invoice-${invoice?.invoiceNumber || "document"}.pdf`}
+                title={`Invoice ${invoice?.invoiceNumber || ""} — PDF Preview`}
             />
         </div>
     </div>

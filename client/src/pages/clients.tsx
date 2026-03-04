@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -57,58 +58,9 @@ import { z } from "zod";
 import { PermissionGuard } from "@/components/permission-guard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const SEGMENT_OPTIONS = [
-    { 
-        value: "enterprise", 
-        label: "Enterprise – Large corporations",
-        color: "from-indigo-500/10 to-purple-500/10",
-        borderColor: "border-indigo-200 dark:border-indigo-800",
-        textColor: "text-indigo-700 dark:text-indigo-300",
-        bgColor: "bg-indigo-500/10"
-    },
-    { 
-        value: "corporate", 
-        label: "Corporate – Standard business",
-        color: "from-blue-500/10 to-cyan-500/10",
-        borderColor: "border-blue-200 dark:border-blue-800",
-        textColor: "text-blue-700 dark:text-blue-300",
-        bgColor: "bg-blue-500/10"
-    },
-    { 
-        value: "startup", 
-        label: "Startup – Tech companies",
-        color: "from-emerald-500/10 to-teal-500/10",
-        borderColor: "border-emerald-200 dark:border-emerald-800",
-        textColor: "text-emerald-700 dark:text-emerald-300",
-        bgColor: "bg-emerald-500/10"
-    },
-    { 
-        value: "government", 
-        label: "Government – Public sector",
-        color: "from-slate-500/10 to-gray-500/10",
-        borderColor: "border-slate-200 dark:border-slate-700",
-        textColor: "text-slate-700 dark:text-slate-300",
-        bgColor: "bg-slate-500/10"
-    },
-    { 
-        value: "education", 
-        label: "Education – Schools & universities",
-        color: "from-amber-500/10 to-orange-500/10",
-        borderColor: "border-amber-200 dark:border-amber-800",
-        textColor: "text-amber-700 dark:text-amber-300",
-        bgColor: "bg-amber-500/10"
-    },
-    { 
-        value: "creative", 
-        label: "Creative – Design agencies",
-        color: "from-pink-500/10 to-rose-500/10",
-        borderColor: "border-pink-200 dark:border-pink-800",
-        textColor: "text-pink-700 dark:text-pink-300",
-        bgColor: "bg-pink-500/10"
-    },
-];
+import { ClientFormDialog, SEGMENT_OPTIONS, clientFormSchema } from "@/components/client-form-dialog";
 
-type ClientFormValues = z.infer<typeof insertClientSchema>;
+type ClientFormValues = z.infer<typeof clientFormSchema>;
 
 function useClientFilters(
     clients: Client[] | undefined,
@@ -138,10 +90,14 @@ function ClientListCard({
     client,
     onEdit,
     onDelete,
+    canEdit,
+    canDelete,
 }: {
     client: Client;
     onEdit: (client: Client) => void;
     onDelete: (id: string) => void;
+    canEdit: boolean;
+    canDelete: boolean;
 }) {
     const segment = (client as any).segment || "corporate";
     const segmentData = SEGMENT_OPTIONS.find((s) => s.value === segment);
@@ -212,28 +168,32 @@ function ClientListCard({
                                     <Eye className="h-4 w-4" />
                                 </Button>
                             </Link>
-                            <PermissionGuard resource="clients" action="edit">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onEdit(client)}
-                                    className="h-9 w-9 p-0 hover:bg-primary/10 hover:text-primary"
-                                >
-                                    <Edit className="h-4 w-4" />
-                                </Button>
-                            </PermissionGuard>
-                            <PermissionGuard resource="clients" action="delete">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                        if (confirm("Delete this client?")) onDelete(client.id);
-                                    }}
-                                    className="h-9 w-9 p-0 hover:bg-destructive/10 hover:text-destructive"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </PermissionGuard>
+                            {canEdit && (
+                                <PermissionGuard resource="clients" action="edit">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => onEdit(client)}
+                                        className="h-9 w-9 p-0 hover:bg-primary/10 hover:text-primary"
+                                    >
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                </PermissionGuard>
+                            )}
+                            {canDelete && (
+                                <PermissionGuard resource="clients" action="delete">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            if (confirm("Delete this client?")) onDelete(client.id);
+                                        }}
+                                        className="h-9 w-9 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </PermissionGuard>
+                            )}
                         </div>
                     </div>
                 </CardContent>
@@ -247,10 +207,14 @@ function ClientGridCard({
     client,
     onEdit,
     onDelete,
+    canEdit,
+    canDelete,
 }: {
     client: Client;
     onEdit: (client: Client) => void;
     onDelete: (id: string) => void;
+    canEdit: boolean;
+    canDelete: boolean;
 }) {
     const segment = (client as any).segment || "corporate";
     const segmentData = SEGMENT_OPTIONS.find((s) => s.value === segment);
@@ -313,7 +277,7 @@ function ClientGridCard({
                     </div>
                     
                     <div className="flex gap-1.5 pt-3 border-t border-border/50">
-                        <Link href={`/clients/${client.id}`} className="flex-1">
+                         <Link href={`/clients/${client.id}`} className="flex-1">
                             <Button 
                                 variant="outline" 
                                 size="sm" 
@@ -323,28 +287,32 @@ function ClientGridCard({
                                 View
                             </Button>
                         </Link>
-                        <PermissionGuard resource="clients" action="edit">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onEdit(client)}
-                                className="h-9 px-2.5 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-                            >
-                                <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                        </PermissionGuard>
-                        <PermissionGuard resource="clients" action="delete">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    if (confirm("Delete this client?")) onDelete(client.id);
-                                }}
-                                className="h-9 px-2.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                        </PermissionGuard>
+                        {canEdit && (
+                            <PermissionGuard resource="clients" action="edit">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onEdit(client)}
+                                    className="h-9 px-2.5 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                                >
+                                    <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                            </PermissionGuard>
+                        )}
+                        {canDelete && (
+                            <PermissionGuard resource="clients" action="delete">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (confirm("Delete this client?")) onDelete(client.id);
+                                    }}
+                                    className="h-9 px-2.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                            </PermissionGuard>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -352,186 +320,6 @@ function ClientGridCard({
     );
 }
 
-// Compact Client Form Dialog
-function ClientFormDialog({
-    open,
-    onOpenChange,
-    form,
-    onSubmit,
-    isEditing,
-    isPending,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    form: any;
-    onSubmit: (data: ClientFormValues) => void;
-    isEditing: boolean;
-    isPending: boolean;
-}) {
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[min(100%-1rem,48rem)] max-h-[92vh] overflow-y-auto p-0">
-                <DialogHeader className="px-4 xs:px-5 sm:px-6 pt-4 xs:pt-5 pb-3 xs:pb-4 border-b bg-muted/40">
-                    <DialogTitle className="text-lg xs:text-xl sm:text-2xl font-bold">
-                        {isEditing ? "Edit Client" : "Add New Client"}
-                    </DialogTitle>
-                    <DialogDescription className="text-[11px] xs:text-xs sm:text-sm">
-                        {isEditing ? "Update client information" : "Create a new client record"}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="px-4 xs:px-5 sm:px-6 py-4 xs:py-5 sm:py-6">
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 xs:space-y-5">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xs:gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="name"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">Client Name *</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} placeholder="ABC Corporation" className="h-10 xs:h-11 text-xs xs:text-sm mt-1.5" />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="email"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">Email *</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} type="email" placeholder="contact@example.com" className="h-10 xs:h-11 text-xs xs:text-sm mt-1.5" />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="phone"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">Phone</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} value={field.value || ""} placeholder="+91 98765 43210" className="h-10 xs:h-11 text-xs xs:text-sm mt-1.5" />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="contactPerson"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">Contact Person</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} value={field.value || ""} placeholder="John Doe" className="h-10 xs:h-11 text-xs xs:text-sm mt-1.5" />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="gstin"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">GSTIN</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} value={field.value || ""} placeholder="22AAAAA0000A1Z5" className="h-10 xs:h-11 text-xs xs:text-sm mt-1.5" />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="segment"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">Segment</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="h-10 xs:h-11 text-xs xs:text-sm mt-1.5">
-                                                        <SelectValue placeholder="Select segment" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {SEGMENT_OPTIONS.map((seg) => (
-                                                        <SelectItem key={seg.value} value={seg.value} className="text-xs xs:text-sm">
-                                                            {seg.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xs:gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="billingAddress"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">Billing Address</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    {...field}
-                                                    value={field.value || ""}
-                                                    placeholder="123 Main St, City"
-                                                    className="min-h-[80px] xs:min-h-[90px] text-xs xs:text-sm resize-none mt-1.5"
-                                                />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="shippingAddress"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs xs:text-sm font-semibold">Shipping Address</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    {...field}
-                                                    value={field.value || ""}
-                                                    placeholder="Same as billing"
-                                                    className="min-h-[80px] xs:min-h-[90px] text-xs xs:text-sm resize-none mt-1.5"
-                                                />
-                                            </FormControl>
-                                            <FormMessage className="text-[10px] xs:text-xs mt-1" />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                            <div className="flex gap-2 xs:gap-3 pt-4 xs:pt-6 border-t border-slate-200 dark:border-slate-800">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => onOpenChange(false)}
-                                    className="flex-1 h-10 xs:h-11 text-xs xs:text-sm"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button type="submit" disabled={isPending} className="flex-1 h-10 xs:h-11 text-xs xs:text-sm">
-                                    {isPending && <Loader2 className="mr-2 h-3.5 xs:h-4 w-3.5 xs:w-4 animate-spin" />}
-                                    {isEditing ? "Update" : "Create"} Client
-                                </Button>
-                            </div>
-                        </form>
-                    </Form>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
 
 export default function Clients() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -541,6 +329,15 @@ export default function Clients() {
     const [editingClient, setEditingClient] = useState<Client | null>(null);
     const { toast } = useToast();
     const [, setLocation] = useLocation();
+
+    // Feature flags
+    const canCreateClient = useFeatureFlag('clients_create');
+    const canEditClient = useFeatureFlag('clients_edit');
+    const canDeleteClient = useFeatureFlag('clients_delete');
+    const canManageSegments = useFeatureFlag('clients_segmentation');
+    const canViewGSTIN = useFeatureFlag('clients_gstin');
+    const canViewBilling = useFeatureFlag('clients_billingAddress');
+    const canViewShipping = useFeatureFlag('clients_shippingAddress');
 
     const { data: clients, isLoading } = useQuery<Client[]>({
         queryKey: ["/api/clients"],
@@ -559,7 +356,7 @@ export default function Clients() {
     }, [clients]);
 
     const form = useForm<ClientFormValues>({
-        resolver: zodResolver(insertClientSchema),
+        resolver: zodResolver(clientFormSchema),
         defaultValues: {
             name: "",
             email: "",
@@ -676,69 +473,73 @@ export default function Clients() {
                                 variant="outline" 
                                 className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 text-primary font-semibold h-auto py-1.5 xs:py-2 text-[10px] xs:text-xs px-2.5 xs:px-3 shadow-sm"
                             >
-                                {stats.total} Total
+                                 {stats.total} Total
                             </Badge>
-                            <PermissionGuard resource="clients" action="create">
-                                <Button
-                                    onClick={() => {
-                                        setEditingClient(null);
-                                        form.reset();
-                                        setIsAddDialogOpen(true);
-                                    }}
-                                    size="sm"
-                                    className="h-9 xs:h-10 text-xs xs:text-sm px-3 xs:px-4 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-r from-primary to-primary/90"
-                                >
-                                    <Plus className="h-4 w-4 mr-1.5" />
-                                    <span className="hidden xs:inline">Add Client</span>
-                                    <span className="xs:hidden">Add</span>
-                                </Button>
-                            </PermissionGuard>
+                            {canCreateClient && (
+                                <PermissionGuard resource="clients" action="create">
+                                    <Button
+                                        onClick={() => {
+                                            setEditingClient(null);
+                                            form.reset();
+                                            setIsAddDialogOpen(true);
+                                        }}
+                                        size="sm"
+                                        className="h-9 xs:h-10 text-xs xs:text-sm px-3 xs:px-4 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-r from-primary to-primary/90"
+                                    >
+                                        <Plus className="h-4 w-4 mr-1.5" />
+                                        <span className="hidden xs:inline">Add Client</span>
+                                        <span className="xs:hidden">Add</span>
+                                    </Button>
+                                </PermissionGuard>
+                            )}
                         </div>
                     </div>
                 </div>
             </motion.div>
 
             <div className="flex-1 w-full max-w-[1800px] mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 py-4 xs:py-5 sm:py-6 space-y-4 xs:space-y-5 sm:space-y-6 pb-8">
-                {/* Premium Stats Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 xs:gap-3">
-                    {SEGMENT_OPTIONS.map((seg, index) => {
-                        const count = stats.bySegment[seg.value] || 0;
-                        return (
-                            <motion.div
-                                key={seg.value}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3, delay: index * 0.05 }}
-                                whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                            >
-                                <Card
-                                    className={`
-                                        relative overflow-hidden cursor-pointer transition-all duration-300
-                                        border ${seg.borderColor}
-                                        bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl
-                                        ${segmentFilter === seg.value 
-                                            ? `ring-2 ring-offset-2 ${seg.borderColor} shadow-lg scale-105` 
-                                            : "hover:shadow-md"
-                                        }
-                                    `}
-                                    onClick={() => setSegmentFilter(seg.value)}
+                 {/* Premium Stats Grid */}
+                {canManageSegments && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 xs:gap-3">
+                        {SEGMENT_OPTIONS.map((seg, index) => {
+                            const count = stats.bySegment[seg.value] || 0;
+                            return (
+                                <motion.div
+                                    key={seg.value}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
                                 >
-                                    <div className={`absolute inset-0 bg-gradient-to-br ${seg.color} opacity-20`} />
-                                    <CardContent className="p-3 xs:p-4 relative z-10">
-                                        <div className="text-center space-y-1">
-                                            <p className={`text-2xl xs:text-3xl font-bold ${seg.textColor}`}>
-                                                {count}
-                                            </p>
-                                            <p className="text-[9px] xs:text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                                                {seg.label.split("–")[0].trim()}
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </motion.div>
-                        );
-                    })}
-                </div>
+                                    <Card
+                                        className={`
+                                            relative overflow-hidden cursor-pointer transition-all duration-300
+                                            border ${seg.borderColor}
+                                            bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl
+                                            ${segmentFilter === seg.value 
+                                                ? `ring-2 ring-offset-2 ${seg.borderColor} shadow-lg scale-105` 
+                                                : "hover:shadow-md"
+                                            }
+                                        `}
+                                        onClick={() => setSegmentFilter(seg.value)}
+                                    >
+                                        <div className={`absolute inset-0 bg-gradient-to-br ${seg.color} opacity-20`} />
+                                        <CardContent className="p-3 xs:p-4 relative z-10">
+                                            <div className="text-center space-y-1">
+                                                <p className={`text-2xl xs:text-3xl font-bold ${seg.textColor}`}>
+                                                    {count}
+                                                </p>
+                                                <p className="text-[9px] xs:text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                                                    {seg.label.split("–")[0].trim()}
+                                                </p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                )}
 
                 {/* Compact Search & Filters */}
                 <Card className="border-slate-200 dark:border-slate-800">
@@ -754,21 +555,23 @@ export default function Clients() {
                                     className="pl-8 xs:pl-9 pr-2 xs:pr-3 text-xs xs:text-sm h-9 xs:h-10"
                                 />
                             </div>
-                            <div className="flex gap-1.5 xs:gap-2">
-                                <Select value={segmentFilter} onValueChange={setSegmentFilter}>
-                                    <SelectTrigger className="h-9 xs:h-10 text-xs xs:text-sm w-auto min-w-[120px]">
-                                        <Filter className="h-3 xs:h-3.5 w-3 xs:w-3.5 mr-1" />
-                                        <SelectValue placeholder="Filter" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Segments</SelectItem>
-                                        {SEGMENT_OPTIONS.map((seg) => (
-                                            <SelectItem key={seg.value} value={seg.value} className="text-xs xs:text-sm">
-                                                {seg.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                             <div className="flex gap-1.5 xs:gap-2">
+                                {canManageSegments && (
+                                    <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                                        <SelectTrigger className="h-9 xs:h-10 text-xs xs:text-sm w-auto min-w-[120px]">
+                                            <Filter className="h-3 xs:h-3.5 w-3 xs:w-3.5 mr-1" />
+                                            <SelectValue placeholder="Filter" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Segments</SelectItem>
+                                            {SEGMENT_OPTIONS.map((seg) => (
+                                                <SelectItem key={seg.value} value={seg.value} className="text-xs xs:text-sm">
+                                                    {seg.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
                                 <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
                                     <TabsList className="h-9 xs:h-10">
                                         <TabsTrigger value="list" className="px-2 text-xs xs:text-sm">
@@ -798,38 +601,43 @@ export default function Clients() {
                         ))}
                     </div>
                 ) : filteredClients.length === 0 ? (
-                    <Card className="border-2 border-dashed border-slate-300 dark:border-slate-700">
-                        <CardContent className="flex flex-col items-center justify-center py-8 xs:py-10 sm:py-12 text-center">
-                            <div className="rounded-full bg-slate-100 dark:bg-slate-900 p-4 xs:p-5 mb-2 xs:mb-3">
-                                <Users className="h-7 xs:h-8 w-7 xs:w-8 text-slate-400" />
-                            </div>
-                            <h3 className="text-sm xs:text-base font-semibold mb-1 text-slate-900 dark:text-white">No clients found</h3>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 max-w-sm">
-                                {searchQuery || segmentFilter !== "all"
-                                    ? "Try adjusting your search or filter"
-                                    : "Start by adding your first client"}
-                            </p>
+                    <Card className="border-dashed border-2 py-10 xs:py-16">
+                        <CardContent className="flex flex-col items-center text-center">
+                            <Users className="h-10 xs:h-16 w-10 xs:w-16 text-muted-foreground/30 mb-4" />
+                            <h3 className="text-base xs:text-lg font-semibold">No clients found</h3>
+                            <p className="text-xs xs:text-sm text-muted-foreground mb-6">Try adjusting your search or filters</p>
+                            {canCreateClient && (
+                                <PermissionGuard resource="clients" action="create">
+                                    <Button onClick={() => setIsAddDialogOpen(true)}>
+                                        <Plus className="h-4 w-4 mr-2" /> Add Your First Client
+                                    </Button>
+                                </PermissionGuard>
+                            )}
                         </CardContent>
                     </Card>
-                ) : viewMode === "list" ? (
-                    <div className="space-y-1.5 xs:space-y-2">
-                        {filteredClients.map((client) => (
-                            <ClientListCard
-                                key={client.id}
-                                client={client}
-                                onEdit={openEditDialog}
-                                onDelete={deleteMutation.mutate}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="grid gap-2 xs:gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                ) : viewMode === "grid" ? (
+                    <div className="grid gap-3 xs:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {filteredClients.map((client) => (
                             <ClientGridCard
                                 key={client.id}
                                 client={client}
                                 onEdit={openEditDialog}
-                                onDelete={deleteMutation.mutate}
+                                onDelete={(id) => deleteMutation.mutate(id)}
+                                canEdit={canEditClient}
+                                canDelete={canDeleteClient}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-2 xs:gap-3">
+                        {filteredClients.map((client) => (
+                            <ClientListCard
+                                key={client.id}
+                                client={client}
+                                onEdit={openEditDialog}
+                                onDelete={(id) => deleteMutation.mutate(id)}
+                                canEdit={canEditClient}
+                                canDelete={canDeleteClient}
                             />
                         ))}
                     </div>
@@ -850,6 +658,10 @@ export default function Clients() {
                 onSubmit={handleSubmit}
                 isEditing={!!editingClient}
                 isPending={createMutation.isPending || updateMutation.isPending}
+                canViewGSTIN={canViewGSTIN}
+                canManageSegments={canManageSegments}
+                canViewBilling={canViewBilling}
+                canViewShipping={canViewShipping}
             />
         </div>
     );

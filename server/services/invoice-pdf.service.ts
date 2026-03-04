@@ -154,6 +154,9 @@ export class InvoicePDFService {
   // Public API
   // ---------------------------
   static async generateInvoicePDF(data: InvoicePdfData, res: NodeJS.WritableStream): Promise<void> {
+    if (!isFeatureEnabled('invoices_pdfGeneration')) {
+      throw new Error("Invoice PDF generation is disabled");
+    }
     const doc = new PDFDocument({
       size: "A4",
       margins: {

@@ -7,6 +7,7 @@
 
 import { storage } from "../storage";
 import { logger } from "../utils/logger";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 import { EmailService } from "./email.service";
 import { NotificationService } from "./notification.service";
 import type {
@@ -129,15 +130,19 @@ export class WorkflowEngine {
       
       switch (trigger.triggerType) {
         case "status_change":
+          if (!isFeatureEnabled('workflows_trigger_statusChange')) return false;
           return this.evaluateStatusChange(conditions, context);
         
         case "amount_threshold":
+          if (!isFeatureEnabled('workflows_trigger_amountThreshold')) return false;
           return this.evaluateAmountThreshold(conditions, context);
         
         case "field_change":
+          if (!isFeatureEnabled('workflows_trigger_fieldChange')) return false;
           return this.evaluateFieldChange(conditions, context);
         
         case "date_based":
+          if (!isFeatureEnabled('workflows_trigger_dateBased')) return false;
           return this.evaluateDateBased(conditions, context);
         
         case "created":
@@ -145,6 +150,7 @@ export class WorkflowEngine {
           return context.eventType === "created";
         
         case "manual":
+          if (!isFeatureEnabled('workflows_trigger_manual')) return false;
           // Manual triggers always return true when explicitly triggered
           return context.eventType === "manual";
         
@@ -483,22 +489,27 @@ export class WorkflowEngine {
       try {
         switch (action.actionType) {
           case "send_email":
+            if (!isFeatureEnabled('workflows_action_sendEmail')) throw new Error("Email action is disabled");
             await this.executeSendEmail(config, context);
             break;
           
           case "create_notification":
+            if (!isFeatureEnabled('workflows_action_createNotification')) throw new Error("Notification action is disabled");
             await this.executeCreateNotification(config, context);
             break;
           
           case "update_field":
+            if (!isFeatureEnabled('workflows_action_updateField')) throw new Error("Update field action is disabled");
             await this.executeUpdateField(config, context);
             break;
           
           case "create_activity_log":
+            if (!isFeatureEnabled('workflows_action_activityLog')) throw new Error("Activity log action is disabled");
             await this.executeCreateActivityLog(config, context);
             break;
             
           case "assign_user":
+            if (!isFeatureEnabled('workflows_action_assignUser')) throw new Error("Assign user action is disabled");
             await this.executeAssignUser(config, context);
             break;
           

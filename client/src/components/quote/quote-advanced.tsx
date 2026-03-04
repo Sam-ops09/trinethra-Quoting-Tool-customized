@@ -37,6 +37,8 @@ export function QuoteAdvanced({
     const showBOM = useFeatureFlag("quotes_bomSection");
     const showSLA = useFeatureFlag("quotes_slaSection");
     const showTimeline = useFeatureFlag("quotes_timelineSection");
+    const showNotes = useFeatureFlag("quotes_notes");
+    const showTermsConditions = useFeatureFlag("quotes_termsConditions");
     
     // Determine the default tab dynamically based on active features
     const defaultTab = showBOM ? "bom" : showSLA ? "sla" : showTimeline ? "timeline" : undefined;
@@ -50,50 +52,56 @@ export function QuoteAdvanced({
                 </p>
             </div>
 
-            <Card className="border-border/50 shadow-sm">
-                <CardHeader>
-                    <CardTitle>Additional Information</CardTitle>
-                    <CardDescription>Add notes and terms for your client</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <FormField
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Notes</FormLabel>
-                                <FormControl>
-                                    <Textarea
-                                        {...field}
-                                        value={field.value || ""}
-                                        placeholder="Add any additional notes (e.g. Bank details, Special instructions)..."
-                                        className="min-h-[100px]"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
+            {(showNotes || showTermsConditions) && (
+                <Card className="border-border/50 shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Additional Information</CardTitle>
+                        <CardDescription>Add notes and terms for your client</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {showNotes && (
+                            <FormField
+                                control={form.control}
+                                name="notes"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Notes</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                {...field}
+                                                value={field.value || ""}
+                                                placeholder="Add any additional notes (e.g. Bank details, Special instructions)..."
+                                                className="min-h-[100px]"
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                         )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="termsAndConditions"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Terms & Conditions</FormLabel>
-                                <FormControl>
-                                    <Textarea
-                                        {...field}
-                                        value={field.value || ""}
-                                        placeholder="Enter specific terms and conditions..."
-                                        className="min-h-[120px]"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
+                        {showTermsConditions && (
+                            <FormField
+                                control={form.control}
+                                name="termsAndConditions"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Terms & Conditions</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                {...field}
+                                                value={field.value || ""}
+                                                placeholder="Enter specific terms and conditions..."
+                                                className="min-h-[120px]"
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                         )}
-                    />
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card className="border-border/50 shadow-sm">
                 <CardHeader>

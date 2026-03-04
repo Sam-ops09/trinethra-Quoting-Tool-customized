@@ -22,11 +22,17 @@ import { isFeatureEnabled } from "@shared/feature-flags";
 export default function AdminSettings() {
     const { taxRates, pricingTiers, currencyForm } = useAdminSettings();
 
+    const isTaxEnabled = isFeatureEnabled('admin_taxRates');
+    const isPricingEnabled = isFeatureEnabled('pricing_automatic');
+    const isApprovalsEnabled = isFeatureEnabled('approvalRules_module');
+
     const metrics = {
         regions: taxRates?.length ?? 0,
         tiers: pricingTiers?.length ?? 0,
         baseCurrency: currencyForm.watch("baseCurrency"),
     };
+
+    const enabledTabsCount = [isTaxEnabled, isPricingEnabled, true, isApprovalsEnabled].filter(Boolean).length;
 
     return (
         <div className="min-h-screen">
@@ -122,17 +128,21 @@ export default function AdminSettings() {
                 </div>
 
                 {/* Tabs: scrollable on mobile */}
-                <Tabs defaultValue="tax" className="w-full">
+                <Tabs defaultValue={isTaxEnabled ? "tax" : "currency"} className="w-full">
                     <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-                        <TabsList className={`inline-flex sm:grid w-full sm:max-w-3xl ${isFeatureEnabled('approvalRules_module') ? 'grid-cols-4' : 'grid-cols-3'} h-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-1`}>
+                        <TabsList className={`inline-flex sm:grid w-full sm:max-w-3xl grid-cols-${enabledTabsCount} h-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 p-1`}>
+                            {isTaxEnabled && (
                             <TabsTrigger value="tax" data-testid="tab-tax" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                                 <Calculator className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                                 <span className="hidden xs:inline">Tax Rates</span>
                             </TabsTrigger>
+                            )}
+                            {isPricingEnabled && (
                             <TabsTrigger value="pricing" data-testid="tab-pricing" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                                 <DollarSign className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                                 <span className="hidden xs:inline">Pricing</span>
                             </TabsTrigger>
+                            )}
                             <TabsTrigger value="currency" data-testid="tab-currency" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                                 <Globe2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                                 <span className="hidden xs:inline">Currency</span>
@@ -146,13 +156,17 @@ export default function AdminSettings() {
                         </TabsList>
                     </div>
 
-                    <TabsContent value="tax" className="space-y-3">
-                        <TaxSettings />
-                    </TabsContent>
+                    {isTaxEnabled && (
+                        <TabsContent value="tax" className="space-y-3">
+                            <TaxSettings />
+                        </TabsContent>
+                    )}
 
-                    <TabsContent value="pricing" className="space-y-3">
-                        <PricingSettings />
-                    </TabsContent>
+                    {isPricingEnabled && (
+                        <TabsContent value="pricing" className="space-y-3">
+                            <PricingSettings />
+                        </TabsContent>
+                    )}
 
                     <TabsContent value="currency" className="space-y-3">
                         <CurrencySettings />

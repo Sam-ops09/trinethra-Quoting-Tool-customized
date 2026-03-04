@@ -86,7 +86,7 @@ const menuItems = [
             "viewer",
         ],
         description: "Manage sales orders",
-        featureFlag: 'pages_quotes' as const,
+        featureFlag: 'pages_salesOrders' as const,
     },
     {
         title: "Clients",
@@ -191,6 +191,21 @@ const menuItems = [
         featureFlag: 'pages_grn' as const,
     },
     {
+        title: "Dashboards",
+        url: "/dashboards",
+        icon: BarChart3,
+        roles: [
+            "admin",
+            "sales_executive",
+            "sales_manager",
+            "purchase_operations",
+            "finance_accounts",
+            "viewer",
+        ],
+        description: "Analytics dashboards",
+        featureFlag: 'pages_dashboardsOverview' as const,
+    },
+    {
         title: "Serial Search",
         url: "/serial-search",
         icon: Search,
@@ -245,7 +260,7 @@ const adminItems = [
         icon: Activity,
         roles: ["admin"],
         description: "System activity logs",
-        featureFlag: 'pages_adminAnalytics' as const,
+        featureFlag: 'admin_activityLogs' as const,
     },
     {
         title: "Configuration",
@@ -465,7 +480,7 @@ export function AppSidebar() {
                     <div className="flex items-center gap-2 sm:gap-4">
                         <GlobalSearch />
                         <NotificationCenter />
-                        {isFeatureEnabled('ui_themeToggle') && <ThemeToggle />}
+                        {(isFeatureEnabled('ui_themeToggle') && isFeatureEnabled('ui_darkMode')) && <ThemeToggle />}
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

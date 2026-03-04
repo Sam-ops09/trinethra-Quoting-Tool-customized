@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import type { Readable } from "stream";
 import { prepareLogoSync, drawLogo } from "./pdf-helpers";
 import { formatCurrency, formatCurrencyPdf } from "./currency-helper";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 interface VendorPoPDFData {
   po: {
@@ -44,6 +45,9 @@ interface VendorPoPDFData {
 
 export class VendorPoPDFService {
   static generateVendorPoPDF(data: VendorPoPDFData): Readable {
+    if (!isFeatureEnabled('vendorPO_pdfGeneration')) {
+      throw new Error("Vendor PO PDF generation is disabled");
+    }
     const doc = new PDFDocument({ margin: 50, size: "A4" });
 
     // Register Fonts

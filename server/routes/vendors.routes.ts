@@ -256,6 +256,11 @@ router.post("/vendor-pos", authMiddleware, requireFeature('vendorPO_create'), re
 
 router.patch("/vendor-pos/:id", authMiddleware, requireFeature('vendorPO_edit'), async (req: AuthRequest, res: Response) => {
   try {
+    // Feature gate for status tracking
+    if (req.body.status && !isFeatureEnabled('vendorPO_statusTracking')) {
+        delete req.body.status;
+    }
+
     const updated = await storage.updateVendorPo(req.params.id, req.body);
     if (!updated) {
       return res.status(404).json({ error: "Vendor PO not found" });
@@ -283,6 +288,16 @@ router.patch("/vendor-pos/:id/items/:itemId/serials", authMiddleware, requireFea
   } catch (error) {
     logger.error("Error updating serial numbers:", error);
     res.status(500).json({ error: "Failed to update serial numbers" });
+  }
+});
+
+router.delete("/vendor-pos/:id", authMiddleware, requireFeature('vendorPO_delete'), requirePermission("vendor_pos", "delete"), async (req: AuthRequest, res: Response) => {
+  try {
+    await db.delete(schema.vendorPurchaseOrders).where(eq(schema.vendorPurchaseOrders.id, req.params.id));
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("Error deleting vendor PO:", error);
+    res.status(500).json({ error: "Failed to delete vendor PO" });
   }
 });
 
@@ -426,6 +441,14 @@ router.post("/grns", authMiddleware, requireFeature('grn_create'), async (req: A
       serialNumbers,
     } = req.body;
 
+    if (!isFeatureEnabled('grn_qualityNotes') && (inspectionStatus || inspectionNotes)) {
+       delete req.body.inspectionStatus;
+       delete req.body.inspectionNotes;
+    }
+    if (!isFeatureEnabled('grn_serialNumberTracking') && serialNumbers) {
+       delete req.body.serialNumbers;
+    }
+
     // Generate GRN number using NumberingService
     const grnNumber = await NumberingService.generateGrnNumber();
 
@@ -521,6 +544,11 @@ router.patch("/grns/:id", authMiddleware, requireFeature('grn_edit'), async (req
       batchNumber,
     } = req.body;
 
+    if (!isFeatureEnabled('grn_qualityNotes') && (inspectionStatus || inspectionNotes)) {
+       delete req.body.inspectionStatus;
+       delete req.body.inspectionNotes;
+    }
+
     const [grn] = await db
       .update(schema.goodsReceivedNotes)
       .set({
@@ -552,6 +580,31 @@ router.patch("/grns/:id", authMiddleware, requireFeature('grn_edit'), async (req
   } catch (error: any) {
     logger.error("Error updating GRN:", error);
     res.status(500).json({ error: error.message || "Failed to update GRN" });
+  }
+});
+
+router.delete("/grns/:id", authMiddleware, requireFeature('grn_delete'), requirePermission("vendor_pos", "delete"), async (req: AuthRequest, res: Response) => {
+  try {
+    const [deleted] = await db
+      .delete(schema.goodsReceivedNotes)
+      .where(eq(schema.goodsReceivedNotes.id, req.params.id))
+      .returning();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "GRN not found" });
+    }
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "delete_grn",
+      entityType: "grn",
+      entityId: deleted.id,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("Error deleting GRN:", error);
+    res.status(500).json({ error: "Failed to delete GRN" });
   }
 });
 

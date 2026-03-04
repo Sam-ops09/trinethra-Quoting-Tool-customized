@@ -25,12 +25,13 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 
 // Data
-const dashboards = [
+const allDashboards = [
     {
         title: "Sales & Quote Dashboard",
         description: "Sales pipeline visibility, quote performance metrics, and conversion rates.",
@@ -39,7 +40,8 @@ const dashboards = [
         gradient: "from-blue-500/20 via-indigo-500/20 to-purple-500/20",
         iconInit: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
         badge: "Sales",
-        badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400"
+        badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
+        flag: "dashboard_salesQuotes"
     },
     {
         title: "Vendor PO & Procurement",
@@ -49,7 +51,8 @@ const dashboards = [
         gradient: "from-emerald-500/20 via-green-500/20 to-teal-500/20",
         iconInit: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
         badge: "Procurement",
-        badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
+        badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400",
+        flag: "dashboard_vendorPO"
     },
     {
         title: "Invoice & Collections",
@@ -59,7 +62,8 @@ const dashboards = [
         gradient: "from-orange-500/20 via-amber-500/20 to-yellow-500/20",
         iconInit: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
         badge: "Finance",
-        badgeColor: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400"
+        badgeColor: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400",
+        flag: "dashboard_invoiceCollections"
     },
     {
         title: "Serial Tracking & Warranty",
@@ -69,7 +73,8 @@ const dashboards = [
         gradient: "from-purple-500/20 via-pink-500/20 to-rose-500/20",
         iconInit: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
         badge: "Operations",
-        badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400"
+        badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400",
+        flag: "dashboard_serialTracking"
     },
 ];
 
@@ -113,6 +118,20 @@ function FeatureBox({ icon: Icon, title, description }: { icon: any, title: stri
 
 export default function DashboardsOverview() {
     const [, setLocation] = useLocation();
+
+    // Specific feature flags for dashboards
+    const canSales = useFeatureFlag('dashboard_salesQuotes');
+    const canVendor = useFeatureFlag('dashboard_vendorPO');
+    const canInvoice = useFeatureFlag('dashboard_invoiceCollections');
+    const canSerial = useFeatureFlag('dashboard_serialTracking');
+
+    const dashboards = allDashboards.filter(db => {
+        if (db.flag === 'dashboard_salesQuotes') return canSales;
+        if (db.flag === 'dashboard_vendorPO') return canVendor;
+        if (db.flag === 'dashboard_invoiceCollections') return canInvoice;
+        if (db.flag === 'dashboard_serialTracking') return canSerial;
+        return true;
+    });
 
     return (
         <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950/50 pb-12 animate-in fade-in duration-500">

@@ -6,6 +6,7 @@ import type { Quote, QuoteItem, Client } from "@shared/schema";
 import { getTheme, getSuggestedTheme, type PDFTheme } from "./pdf-themes";
 import { prepareLogo, drawLogo } from "./pdf-helpers";
 import { formatCurrency, formatCurrencyPdf } from "./currency-helper";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 export interface QuoteWithDetails {
   quote: Quote;
@@ -148,6 +149,9 @@ export class PDFService {
   }
 
   static async generateQuotePDF(data: QuoteWithDetails, res: NodeJS.WritableStream): Promise<void> {
+    if (!isFeatureEnabled('pdf_generation')) {
+        throw new Error("PDF generation is currently disabled.");
+    }
     // Theme selection
     let selectedTheme: PDFTheme;
     // ... existing implementation remains ...
@@ -186,7 +190,7 @@ export class PDFService {
     doc.lineGap(2);
 
     // Optional cover only if abstract exists
-    if (this.clean(data.abstract)) {
+    if (this.clean(data.abstract) && isFeatureEnabled('pdf_watermark')) {
       this.drawCover(doc, data);
       doc.addPage();
     }
@@ -485,7 +489,7 @@ export class PDFService {
     const logoPath = (data as any).resolvedLogo;
     const mimeType = (data as any).logoMimeType || "";
     
-    if (logoPath) {
+    if (logoPath && isFeatureEnabled('pdf_logo')) {
         const drawn = drawLogo(doc, logoPath, mimeType, x, topY + 12, logoSize);
         logoPrinted = drawn;
     }

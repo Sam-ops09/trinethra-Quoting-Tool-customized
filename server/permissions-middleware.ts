@@ -15,6 +15,7 @@ import {
   formatAuditLogEntry
 } from "./permissions-service";
 import { storage } from "./storage";
+import { isFeatureEnabled } from "../shared/feature-flags";
 
 /**
  * Middleware to check if user has permission for a resource action
@@ -26,6 +27,11 @@ export function requirePermission(resource: ResourceType, action: ActionType) {
 
       if (!user) {
         return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      // Feature Flag Gate for RBAC
+      if (!isFeatureEnabled('security_rbac')) {
+        return next();
       }
 
       const hasAccess = hasPermission(user.role as UserRole, resource, action);
@@ -63,6 +69,11 @@ export function auditLog(resource: ResourceType, action: ActionType) {
       const user = req.user;
 
       if (!user) {
+        return next();
+      }
+
+      // Feature Flag Gate for Audit Logs
+      if (!isFeatureEnabled('security_auditLogs')) {
         return next();
       }
 
@@ -217,6 +228,11 @@ export async function createDetailedAuditLog(
   additionalContext?: Record<string, any>
 ) {
   try {
+    // Feature Flag Gate for Audit Logs
+    if (!isFeatureEnabled('security_auditLogs')) {
+        return;
+    }
+
     const message = formatAuditLogEntry(resource, action, entityId, changes);
 
     await storage.createActivityLog({

@@ -4,6 +4,9 @@ import { authMiddleware, AuthRequest } from "../middleware";
 
 const router = Router();
 
+// Note: In-app notifications are core infrastructure, not feature-gated.
+// Auth middleware is sufficient protection.
+
 /**
  * GET /api/notifications
  * Get notifications for the current user

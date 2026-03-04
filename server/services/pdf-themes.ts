@@ -1,5 +1,6 @@
 // server/services/pdf-themes.ts
 // PDF Theme Configuration for different client segments
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 export interface PDFTheme {
   name: string;
@@ -284,6 +285,16 @@ export function getSuggestedTheme(segment?: string): PDFTheme {
 
 // Get all available themes
 export function getAllThemes(): PDFTheme[] {
-  return Object.values(themeRegistry);
+  if (!isFeatureEnabled('pdf_themes')) {
+    return [professionalTheme];
+  }
+  return Object.values(themeRegistry).filter(theme => {
+    const flagName = `theme_${theme.name}` as any;
+    try {
+      return isFeatureEnabled(flagName);
+    } catch {
+      return true; // Fallback if flag not found (like 'professional')
+    }
+  });
 }
 

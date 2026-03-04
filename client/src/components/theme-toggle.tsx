@@ -1,9 +1,14 @@
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/lib/theme-provider";
+import { isFeatureEnabled } from "@shared/feature-flags";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  
+  if (!isFeatureEnabled('ui_themeToggle') || !isFeatureEnabled('ui_darkMode')) {
+    return null;
+  }
 
   return (
     <Button

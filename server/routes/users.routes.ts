@@ -4,8 +4,12 @@ import bcrypt from "bcryptjs";
 import { storage } from "../storage";
 import { logger } from "../utils/logger";
 import { authMiddleware, AuthRequest } from "../middleware";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
+
+// Gate all user management routes behind feature flag
+router.use(requireFeature('admin_userManagement'));
 
 // Get all users (Admin only)
 router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {

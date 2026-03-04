@@ -52,6 +52,8 @@ interface TimelineData {
   milestones: TimelineMilestone[];
 }
 
+import { isFeatureEnabled } from "@shared/feature-flags";
+
 interface AdvancedSectionsDisplayProps {
   bomData?: BOMItem[] | ExecBOMData;
   slaData?: SLAData;
@@ -60,9 +62,9 @@ interface AdvancedSectionsDisplayProps {
 
 export function AdvancedSectionsDisplay({ bomData, slaData, timelineData }: AdvancedSectionsDisplayProps) {
   const isLegacyBOM = Array.isArray(bomData);
-  const hasBOM = bomData && (isLegacyBOM ? (bomData as BOMItem[]).length > 0 : (bomData as ExecBOMData).blocks?.length > 0);
-  const hasSLA = slaData && (slaData.overview || slaData.metrics.length > 0);
-  const hasTimeline = timelineData && (timelineData.projectOverview || timelineData.milestones.length > 0);
+  const hasBOM = isFeatureEnabled('quotes_bomSection') && bomData && (isLegacyBOM ? (bomData as BOMItem[]).length > 0 : (bomData as ExecBOMData).blocks?.length > 0);
+  const hasSLA = isFeatureEnabled('quotes_slaSection') && slaData && (slaData.overview || slaData.metrics.length > 0);
+  const hasTimeline = isFeatureEnabled('quotes_timelineSection') && timelineData && (timelineData.projectOverview || timelineData.milestones.length > 0);
 
   if (!hasBOM && !hasSLA && !hasTimeline) {
     return null;
