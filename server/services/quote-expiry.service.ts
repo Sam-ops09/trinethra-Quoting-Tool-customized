@@ -88,8 +88,8 @@ export class QuoteExpiryAlertService {
         const notifyUserId = quote.assignedTo || quote.createdBy;
 
         try {
-          if (daysUntilExpiry === 0) {
-            // Expired today
+          if (daysUntilExpiry <= 0) {
+            // Expired today or earlier
             await NotificationService.notifyQuoteExpiring(
               notifyUserId,
               quote.quoteNumber,
@@ -97,6 +97,9 @@ export class QuoteExpiryAlertService {
               0,
               String(quote.total)
             );
+            
+            // Mark quote as expired
+            await storage.updateQuote(quote.id, { status: "expired" });
           } else {
             // Expiring soon (3 or 7 days)
             await NotificationService.notifyQuoteExpiring(
@@ -113,12 +116,12 @@ export class QuoteExpiryAlertService {
           // Log the activity
           await storage.createActivityLog({
             userId: notifyUserId,
-            action: daysUntilExpiry === 0 ? "quote_expired" : "quote_expiring_soon",
+            action: daysUntilExpiry <= 0 ? "quote_expired" : "quote_expiring_soon",
             entityType: "quote",
             entityId: quote.id,
           });
 
-          logger.info(`[QuoteExpiry] Notified for quote ${quote.quoteNumber} (${daysUntilExpiry === 0 ? "expired today" : `expires in ${daysUntilExpiry} days`})`);
+          logger.info(`[QuoteExpiry] Notified for quote ${quote.quoteNumber} (${daysUntilExpiry <= 0 ? "expired today" : `expires in ${daysUntilExpiry} days`})`);
         } catch (error) {
           logger.error(`[QuoteExpiry] Failed to notify for quote ${quote.quoteNumber}:`, error);
         }

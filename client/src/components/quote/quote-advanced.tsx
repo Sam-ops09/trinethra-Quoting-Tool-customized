@@ -1,4 +1,5 @@
 import { UseFormReturn } from "react-hook-form";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import {
     FormControl,
     FormField,
@@ -33,6 +34,13 @@ export function QuoteAdvanced({
     timelineData, 
     setTimelineData 
 }: QuoteAdvancedProps) {
+    const showBOM = useFeatureFlag("quotes_bomSection");
+    const showSLA = useFeatureFlag("quotes_slaSection");
+    const showTimeline = useFeatureFlag("quotes_timelineSection");
+    
+    // Determine the default tab dynamically based on active features
+    const defaultTab = showBOM ? "bom" : showSLA ? "sla" : showTimeline ? "timeline" : undefined;
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col gap-2">
@@ -93,40 +101,48 @@ export function QuoteAdvanced({
                     <CardDescription>Include Bill of Materials, SLA definitions, or Project Timelines if applicable.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Tabs defaultValue="bom" className="w-full">
-                        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto gap-1 mb-6">
-                            <TabsTrigger value="bom" className="py-2.5">📦 Bill of Materials</TabsTrigger>
-                            <TabsTrigger value="sla" className="py-2.5">📋 Service Level Agreement</TabsTrigger>
-                            <TabsTrigger value="timeline" className="py-2.5">📅 Project Timeline</TabsTrigger>
-                        </TabsList>
-                        
-                        <TabsContent value="bom" className="space-y-4">
-                             <div className="bg-muted/10 p-4 rounded-lg border border-dashed">
-                                <ExecBOMSection
-                                    value={bomData}
-                                    onChange={setBomData}
-                                />
-                             </div>
-                        </TabsContent>
-                        
-                        <TabsContent value="sla" className="space-y-4">
-                             <div className="bg-muted/10 p-4 rounded-lg border border-dashed">
-                                <SLASection
-                                    data={slaData}
-                                    onChange={setSlaData}
-                                />
-                             </div>
-                        </TabsContent>
-                        
-                        <TabsContent value="timeline" className="space-y-4">
-                             <div className="bg-muted/10 p-4 rounded-lg border border-dashed">
-                                <TimelineSection
-                                    data={timelineData}
-                                    onChange={setTimelineData}
-                                />
-                             </div>
-                        </TabsContent>
-                    </Tabs>
+                    {(showBOM || showSLA || showTimeline) && defaultTab && (
+                      <Tabs defaultValue={defaultTab} className="w-full">
+                          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto gap-1 mb-6">
+                              {showBOM && <TabsTrigger value="bom" className="py-2.5">📦 Bill of Materials</TabsTrigger>}
+                              {showSLA && <TabsTrigger value="sla" className="py-2.5">📋 Service Level Agreement</TabsTrigger>}
+                              {showTimeline && <TabsTrigger value="timeline" className="py-2.5">📅 Project Timeline</TabsTrigger>}
+                          </TabsList>
+                          
+                          {showBOM && (
+                            <TabsContent value="bom" className="space-y-4">
+                                <div className="bg-muted/10 p-4 rounded-lg border border-dashed">
+                                    <ExecBOMSection
+                                        value={bomData}
+                                        onChange={setBomData}
+                                    />
+                                </div>
+                            </TabsContent>
+                          )}
+                          
+                          {showSLA && (
+                            <TabsContent value="sla" className="space-y-4">
+                                <div className="bg-muted/10 p-4 rounded-lg border border-dashed">
+                                    <SLASection
+                                        data={slaData}
+                                        onChange={setSlaData}
+                                    />
+                                </div>
+                            </TabsContent>
+                          )}
+                          
+                          {showTimeline && (
+                            <TabsContent value="timeline" className="space-y-4">
+                                <div className="bg-muted/10 p-4 rounded-lg border border-dashed">
+                                    <TimelineSection
+                                        data={timelineData}
+                                        onChange={setTimelineData}
+                                    />
+                                </div>
+                            </TabsContent>
+                          )}
+                      </Tabs>
+                    )}
                 </CardContent>
             </Card>
         </div>

@@ -757,8 +757,7 @@ export default function QuoteDetail() {
                     size="sm"
                     onClick={async () => {
                       try {
-                        const res = await fetch(`/api/whatsapp/share-quote/${params?.id}`, { credentials: "include" });
-                        if (!res.ok) throw new Error("Failed to generate WhatsApp link");
+                        const res = await apiRequest("GET", `/api/whatsapp/share-quote/${params?.id}`);
                         const data = await res.json();
                         window.open(data.url, "_blank");
                       } catch {

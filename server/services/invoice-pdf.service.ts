@@ -100,6 +100,15 @@ interface InvoicePdfData {
   bankIfscCode?: string;
   bankBranch?: string;
   bankSwiftCode?: string;
+  
+  // E-Invoice fields
+  eInvoiceStatus?: string;
+  eInvoiceData?: {
+    irn?: string;
+    ackNo?: string;
+    ackDate?: string;
+    signedQrCode?: string;
+  } | null;
 }
 
 type SerialAppendixItem = {
@@ -504,10 +513,33 @@ export class InvoicePDFService {
       lineBreak: false,
     });
 
-    const minLineY = topY + 58;
+    // Draw E-Invoice QR if available
+    if (data.eInvoiceStatus === "generated" && data.eInvoiceData?.signedQrCode) {
+      this.drawEInvoiceQR(doc, data.eInvoiceData.signedQrCode, x + w - 60, topY + 58);
+    }
+
+    const minLineY = (data.eInvoiceStatus === "generated") ? topY + 120 : topY + 58;
     doc.y = Math.max(doc.y + 6, minLineY);
     this.hr(doc);
     doc.y += 8;
+  }
+
+  /**
+   * Generates a QR code on the PDF for E-Invoicing.
+   * Since this is a mock, we use a simple image placeholder if the QR is a URL.
+   */
+  private static drawEInvoiceQR(doc: PDFKit.PDFDocument, qrData: string, x: number, y: number) {
+    doc.save();
+    
+    // Draw QR Box
+    this.box(doc, x, y, 60, 60, { fill: "#FFFFFF", stroke: "#EA580C", lineWidth: 0.5 });
+    
+    // Mock QR placeholder for PDF
+    doc.fontSize(6).fillColor("#9A3412");
+    doc.text("E-INVOICE QR", x, y + 25, { width: 60, align: "center" });
+    doc.fontSize(4).text("Scan for IRN details", x, y + 35, { width: 60, align: "center" });
+
+    doc.restore();
   }
 
   // ---------------------------

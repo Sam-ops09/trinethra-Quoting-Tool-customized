@@ -60,8 +60,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth Routes
   app.use("/api/auth", authRoutes);
 
-
-
+  // WhatsApp Routes (Public routes must be registered early)
+  app.use("/api/whatsapp", whatsappRoutes);
 
   // Workflow Automation Routes (Must come before generic routes to ensure specific endpoints like /quotes/:id/revise are matched)
   app.use("/api", authMiddleware, quoteWorkflowRoutes);
@@ -127,7 +127,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Data Export Routes (CSV)
   app.use("/api/export", authMiddleware, exportRoutes);
-  app.use("/api/whatsapp", authMiddleware, whatsappRoutes);
 
   // Moved to invoices.routes.ts
 

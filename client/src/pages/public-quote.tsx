@@ -1,6 +1,6 @@
 import { useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, MessageSquare, Send, FileText, User, Calendar, DollarSign, Clock, Building2, Receipt, Home, ChevronRight, Hash } from "lucide-react";
+import { Loader2, CheckCircle2, MessageCircle, XCircle, MessageSquare, Send, FileText, User, Calendar, DollarSign, Clock, Building2, Receipt, Home, ChevronRight, Hash } from "lucide-react";
 import { format } from "date-fns";
 import { Quote, QuoteItem, QuoteComment } from "@shared/schema";
 import { isFeatureEnabled } from "@shared/feature-flags";
@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox as CheckboxUI } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@/lib/currency";
 
 type PublicQuoteData = Quote & {
@@ -216,6 +217,24 @@ export default function PublicQuote() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/quotes/public", params?.token] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // WhatsApp Share Mutation for public page
+  const whatsappShareMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", `/api/whatsapp/public/share-quote/${params?.token}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      window.open(data.url, "_blank");
     },
     onError: (error: Error) => {
       toast({
@@ -472,6 +491,18 @@ export default function PublicQuote() {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+                
+                {/* WhatsApp Share Button */}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => whatsappShareMutation.mutate()}
+                  className="flex-1 sm:flex-initial h-9 justify-center gap-2 text-xs sm:text-sm border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/20"
+                >
+                  <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Share to WhatsApp</span>
+                  <span className="sm:hidden">WhatsApp</span>
+                </Button>
               </div>
             )}
           </CardContent>

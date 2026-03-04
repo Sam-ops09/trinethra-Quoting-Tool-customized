@@ -12,6 +12,8 @@ import { NumberingService } from "../services/numbering.service";
 import { InvoicePDFService } from "../services/invoice-pdf.service";
 import { EmailService } from "../services/email.service";
 import { calculateLineSubtotal, toMoneyString, toDecimal } from "../utils/financial";
+import { eInvoiceService, EInvoiceService } from "../services/e-invoice.service";
+import { EInvoiceValidator } from "../services/e-invoice-validator.service";
 
 const router = Router();
 
@@ -1557,5 +1559,105 @@ router.post("/:id/email", authMiddleware, requireFeature('invoices_emailSending'
       return res.status(500).json({ error: error.message || "Failed to check permissions" });
     }
   });
+
+// Generate E-Invoice
+router.post("/:id/generate-e-invoice", authMiddleware, requireFeature('financial_eInvoicing'), requirePermission("invoices", "finalize"), async (req: AuthRequest, res: Response) => {
+  try {
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    if (invoice.status === "draft") {
+      return res.status(400).json({ error: "Invoice must be finalized before generating E-Invoice." });
+    }
+
+    if (invoice.eInvoiceStatus === "generated") {
+      return res.status(400).json({ error: "E-Invoice already generated for this invoice." });
+    }
+
+    const items = await storage.getInvoiceItems(invoice.id);
+    logger.info(`[E-Invoice] Invoice items for ${invoice.id}: ${items.length}`);
+    logger.info(`[E-Invoice] Invoice total: ${invoice.total} (Type: ${typeof invoice.total})`);
+
+    const client = invoice.clientId ? await storage.getClient(invoice.clientId) : null;
+    if (!client) return res.status(400).json({ error: "Client not found for this invoice." });
+
+    // Fetch company details for validation
+    const settingsArray = await storage.getAllSettings();
+    const companyDetails = settingsArray.reduce((acc, s) => {
+      acc[s.key] = s.value;
+      return acc;
+    }, {} as Record<string, string>);
+
+    // 1. Validation
+    const validation = EInvoiceValidator.validate(invoice, items, client, companyDetails);
+    if (!validation.isValid) {
+      return res.status(400).json({ error: "Regulatory Validation Failed", details: validation.errors });
+    }
+
+    // 2. Generation
+    const eInvoiceData = await EInvoiceService.generateEInvoice({
+      invoiceNumber: invoice.invoiceNumber,
+      clientId: invoice.clientId!,
+      total: invoice.total!,
+      supplierGstin: companyDetails.gstin || companyDetails.company_gstin,
+      buyerGstin: client.gstin || undefined,
+      invoiceDate: invoice.issueDate || (invoice as any).createdAt || new Date()
+    });
+
+    const updatedInvoice = await storage.updateInvoice(invoice.id, {
+      eInvoiceStatus: "generated",
+      eInvoiceData: eInvoiceData
+    });
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "generate_e_invoice",
+      entityType: "invoice",
+      entityId: invoice.id,
+      metadata: { irn: eInvoiceData.irn }
+    });
+
+    res.json({ success: true, invoice: updatedInvoice });
+  } catch (error: any) {
+    logger.error("Generate e-invoice error:", error);
+    res.status(500).json({ error: error.message || "Failed to generate e-invoice" });
+  }
+});
+
+// Cancel E-Invoice
+router.post("/:id/cancel-e-invoice", authMiddleware, requireFeature('financial_eInvoicing'), requirePermission("invoices", "finalize"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { reason } = req.body;
+    if (!reason) return res.status(400).json({ error: "Cancellation reason is required." });
+
+    const invoice = await storage.getInvoice(req.params.id);
+    if (!invoice || !invoice.eInvoiceData) return res.status(404).json({ error: "Invoice or E-Invoice data not found." });
+
+    if (invoice.eInvoiceStatus !== "generated") {
+      return res.status(400).json({ error: "Only generated E-Invoices can be cancelled." });
+    }
+
+    const irn = (invoice.eInvoiceData as any).irn;
+    await EInvoiceService.cancelEInvoice(irn, reason);
+
+    const updatedInvoice = await storage.updateInvoice(invoice.id, {
+      eInvoiceStatus: "cancelled",
+      eInvoiceData: { ...(invoice.eInvoiceData as object), cancellationReason: reason }
+    });
+
+    await storage.createActivityLog({
+      userId: req.user!.id,
+      action: "cancel_e_invoice",
+      entityType: "invoice",
+      entityId: invoice.id,
+      metadata: { irn, reason }
+    });
+
+    res.json({ success: true, invoice: updatedInvoice });
+  } catch (error: any) {
+    logger.error("Cancel e-invoice error:", error);
+    res.status(500).json({ error: error.message || "Failed to cancel e-invoice" });
+  }
+});
 
 export default router;

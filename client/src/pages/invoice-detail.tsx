@@ -30,6 +30,8 @@ import {
     Unlock,
     CheckCircle,
     XCircle,
+    Copy,
+    ExternalLink,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -128,6 +130,14 @@ interface InvoiceDetail {
     finalizedAt?: string;
     finalizedBy?: string;
     isLocked?: boolean;
+    eInvoiceStatus?: "pending" | "generated" | "cancelled" | "failed";
+    eInvoiceData?: {
+        irn?: string;
+        ackNo?: string;
+        ackDate?: string;
+        signedQrCode?: string;
+        cancellationReason?: string;
+    } | null;
 }
 
 export default function InvoiceDetail() {
@@ -145,6 +155,7 @@ export default function InvoiceDetail() {
     const canLockInvoice = useFeatureFlag('invoices_lock');
     const canCancelInvoice = useFeatureFlag('invoices_cancel');
     const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
+    const canManageEInvoice = useFeatureFlag('financial_eInvoicing');
 
     const [showEmailDialog, setShowEmailDialog] = useState(false);
     const [emailData, setEmailData] = useState({ email: "", message: "" });
@@ -164,6 +175,8 @@ export default function InvoiceDetail() {
     const [showCancelDialog, setShowCancelDialog] = useState(false);
     const [cancellationReason, setCancellationReason] = useState("");
     const [showFinalizeDialog, setShowFinalizeDialog] = useState(false);
+    const [showEInvoiceCancelDialog, setShowEInvoiceCancelDialog] = useState(false);
+    const [eInvoiceCancelReason, setEInvoiceCancelReason] = useState("");
     
     // BOM State
     const [bomData, setBomData] = useState<ExecBOMData>({ blocks: [] });
@@ -486,6 +499,48 @@ export default function InvoiceDetail() {
         },
     });
 
+    const generateEInvoiceMutation = useMutation({
+        mutationFn: async () => {
+            return await apiRequest("POST", `/api/invoices/${params?.id}/generate-e-invoice`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices", params?.id] });
+            toast({
+                title: "Success",
+                description: "E-Invoice generated successfully. IRN is now attached.",
+            });
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Error",
+                description: error?.message || "Failed to generate E-Invoice.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const cancelEInvoiceMutation = useMutation({
+        mutationFn: async (reason: string) => {
+            return await apiRequest("POST", `/api/invoices/${params?.id}/cancel-e-invoice`, { reason });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/invoices", params?.id] });
+            toast({
+                title: "E-Invoice Cancelled",
+                description: "The E-Invoice IRN has been cancelled successfully.",
+            });
+            setShowEInvoiceCancelDialog(false);
+            setEInvoiceCancelReason("");
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Error",
+                description: error?.message || "Failed to cancel E-Invoice.",
+                variant: "destructive",
+            });
+        },
+    });
+
     const getPaymentStatusColor = (status: string) => {
         switch (status) {
             case "paid":
@@ -797,6 +852,42 @@ export default function InvoiceDetail() {
                                     <span className="sm:hidden">Payment</span>
                                   </Button>
                                 </PermissionGuard>
+
+                                {/* E-Invoice Action Buttons */}
+                                {canManageEInvoice && invoice.finalizedAt && invoice.eInvoiceStatus !== "generated" && invoice.status !== "cancelled" && (
+                                    <PermissionGuard resource="invoices" action="finalize" tooltipText="Only Finance can generate E-Invoices">
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm bg-orange-600 hover:bg-orange-700 text-white"
+                                            onClick={() => generateEInvoiceMutation.mutate()}
+                                            disabled={generateEInvoiceMutation.isPending}
+                                        >
+                                            {generateEInvoiceMutation.isPending ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                            )}
+                                            <span className="hidden sm:inline text-white">Generate E-Invoice</span>
+                                            <span className="sm:hidden text-white font-semibold">E-Invoice</span>
+                                        </Button>
+                                    </PermissionGuard>
+                                )}
+
+                                {canManageEInvoice && invoice.eInvoiceStatus === "generated" && (
+                                    <PermissionGuard resource="invoices" action="finalize" tooltipText="Only Finance can cancel E-Invoices">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm border-orange-200 text-orange-700 hover:bg-orange-50"
+                                            onClick={() => setShowEInvoiceCancelDialog(true)}
+                                        >
+                                            <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                            <span className="hidden sm:inline">Cancel E-Invoice</span>
+                                            <span className="sm:hidden">Cancel IRN</span>
+                                        </Button>
+                                    </PermissionGuard>
+                                )}
 
                                 {/* Finalize Button - Show for draft/sent unpaid invoices */}
                                 {canFinalizeInvoice && !invoice.finalizedAt && invoice.paymentStatus !== "paid" && invoice.status !== "cancelled" && (
@@ -1462,6 +1553,110 @@ export default function InvoiceDetail() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* E-INVOICE COMPLIANCE SUMMARY */}
+                        {canManageEInvoice && invoice.eInvoiceStatus && invoice.eInvoiceStatus !== "pending" && (
+                            <Card className="border-orange-100 dark:border-orange-900/30 bg-orange-50/30 dark:bg-orange-950/10 shadow-sm">
+                                <CardHeader className="border-b border-orange-100 dark:border-orange-900/30 p-3 sm:p-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 rounded-md bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 font-bold">
+                                            <CheckCircle className="h-4 w-4" />
+                                        </div>
+                                        <CardTitle className="text-sm font-bold text-orange-800 dark:text-orange-300">
+                                            E-Invoice Compliance
+                                        </CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-3 sm:p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Status</span>
+                                        <Badge className={`${
+                                            invoice.eInvoiceStatus === 'generated' ? 'bg-success/20 text-success border-success/30' :
+                                            invoice.eInvoiceStatus === 'cancelled' ? 'bg-destructive/20 text-destructive border-destructive/30' :
+                                            'bg-muted text-muted-foreground'
+                                        } text-[10px] px-2 py-0.5 capitalize`}>
+                                            {invoice.eInvoiceStatus}
+                                        </Badge>
+                                    </div>
+
+                                    {invoice.eInvoiceData?.irn && (
+                                        <div className="space-y-4 pt-1">
+                                            {invoice.eInvoiceStatus === 'generated' && invoice.eInvoiceData.signedQrCode && (
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-center p-3.5 bg-white rounded-lg border-2 border-slate-950 dark:border-white shadow-md relative group">
+                                                        <img 
+                                                            src={invoice.eInvoiceData.signedQrCode} 
+                                                            alt="E-Invoice QR Code" 
+                                                            className="w-40 h-40 object-contain"
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).src = 'https://placehold.co/300x300?text=QR+Code';
+                                                            }}
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none rounded-lg" />
+                                                    </div>
+                                                    
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="h-8 text-[10px] gap-1.5 border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(invoice.eInvoiceData?.irn || '');
+                                                                toast({ title: "Copied IRN", description: "IRN copied to clipboard" });
+                                                            }}
+                                                        >
+                                                            <Copy className="w-3 h-3" />
+                                                            Copy IRN
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="h-8 text-[10px] gap-1.5 border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                                                            onClick={async () => {
+                                                                // Use the QR server data URL to get the actual content (verify URL)
+                                                                const verificationUrl = `https://einvoice1.gst.gov.in/verify?irn=${invoice.eInvoiceData?.irn}`;
+                                                                navigator.clipboard.writeText(verificationUrl);
+                                                                toast({ title: "Copied QR Link", description: "Verification URL copied to clipboard" });
+                                                            }}
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" />
+                                                            Copy Link
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="p-2.5 rounded-md border border-orange-100 dark:border-orange-900/30 bg-white/50 dark:bg-black/20">
+                                                <p className="text-[10px] text-muted-foreground font-semibold mb-1 uppercase tracking-wider">IRN Identification</p>
+                                                <p className="text-[11px] font-mono break-all text-slate-700 dark:text-slate-300 leading-relaxed font-bold">
+                                                    {invoice.eInvoiceData.irn}
+                                                </p>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div className="p-2.5 rounded-md border border-orange-100 dark:border-orange-900/30 bg-white/50 dark:bg-black/20">
+                                                    <p className="text-[10px] text-muted-foreground font-semibold mb-0.5 uppercase tracking-wider">Ack No.</p>
+                                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{invoice.eInvoiceData.ackNo}</p>
+                                                </div>
+                                                <div className="p-2.5 rounded-md border border-orange-100 dark:border-orange-900/30 bg-white/50 dark:bg-black/20">
+                                                    <p className="text-[10px] text-muted-foreground font-semibold mb-0.5 uppercase tracking-wider">Ack Date</p>
+                                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                        {new Date(invoice.eInvoiceData.ackDate!).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {invoice.eInvoiceStatus === 'cancelled' && invoice.eInvoiceData.cancellationReason && (
+                                                <div className="p-2.5 rounded-md border border-destructive/20 bg-destructive/5">
+                                                    <p className="text-[10px] text-destructive font-semibold mb-0.5 uppercase tracking-wider">Cancellation Reason</p>
+                                                    <p className="text-xs text-destructive/90 italic">"{invoice.eInvoiceData.cancellationReason}"</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 </div>
 
@@ -2066,6 +2261,67 @@ export default function InvoiceDetail() {
                             disabled={!cancellationReason.trim()}
                         >
                             Cancel Invoice
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* E-Invoice Cancellation Dialog */}
+            <Dialog open={showEInvoiceCancelDialog} onOpenChange={setShowEInvoiceCancelDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-destructive">
+                            <XCircle className="h-5 w-5" />
+                            Cancel E-Invoice (IRN)
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            You are about to cancel the IRN for invoice <strong>{invoice.invoiceNumber}</strong>. 
+                            This action is permanent and will be logged for compliance.
+                        </p>
+                        <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-md">
+                            <p className="text-xs text-destructive font-medium">
+                                ⚠️ Government regulations typically allow IRN cancellation only within 24 hours of generation.
+                            </p>
+                        </div>
+                        <div>
+                            <Label htmlFor="e-invoice-cancel-reason">Cancellation Reason *</Label>
+                            <Select 
+                                value={eInvoiceCancelReason} 
+                                onValueChange={setEInvoiceCancelReason}
+                            >
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select a reason" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1">1 - Duplicate</SelectItem>
+                                    <SelectItem value="2">2 - Data Entry Mistake</SelectItem>
+                                    <SelectItem value="3">3 - Order Cancelled</SelectItem>
+                                    <SelectItem value="4">4 - Others</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowEInvoiceCancelDialog(false);
+                                setEInvoiceCancelReason("");
+                            }}
+                        >
+                            Back
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => cancelEInvoiceMutation.mutate(eInvoiceCancelReason)}
+                            disabled={!eInvoiceCancelReason || cancelEInvoiceMutation.isPending}
+                        >
+                            {cancelEInvoiceMutation.isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Confirm IRN Cancellation
                         </Button>
                     </DialogFooter>
                 </DialogContent>

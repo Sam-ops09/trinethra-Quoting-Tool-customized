@@ -7,7 +7,7 @@ import { z } from "zod";
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "sales_executive", "sales_manager", "purchase_operations", "finance_accounts", "viewer", "guest"]);
 export const userStatusEnum = pgEnum("user_status", ["active", "inactive", "pending"]);
-export const quoteStatusEnum = pgEnum("quote_status", ["draft", "sent", "approved", "rejected", "invoiced", "closed_paid", "closed_cancelled"]);
+export const quoteStatusEnum = pgEnum("quote_status", ["draft", "sent", "approved", "rejected", "invoiced", "closed_paid", "closed_cancelled", "expired"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "partial", "paid", "overdue"]);
 export const vendorPoStatusEnum = pgEnum("vendor_po_status", ["draft", "sent", "acknowledged", "fulfilled", "cancelled"]);
 export const invoiceItemStatusEnum = pgEnum("invoice_item_status", ["pending", "fulfilled", "partial"]);
@@ -19,6 +19,7 @@ export const debitNoteStatusEnum = pgEnum("debit_note_status", ["draft", "issued
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "paused", "cancelled", "expired"]);
 export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "quarterly", "annually"]);
 export const approvalStatusEnum = pgEnum("approval_status", ["none", "pending", "approved", "rejected"]);
+export const eInvoiceStatusEnum = pgEnum("e_invoice_status", ["pending", "generated", "cancelled", "failed"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -442,6 +443,8 @@ export const invoices = pgTable("invoices", {
   cancellationReason: text("cancellation_reason"),
   finalizedAt: timestamp("finalized_at"),
   finalizedBy: varchar("finalized_by").references(() => users.id),
+  eInvoiceStatus: eInvoiceStatusEnum("e_invoice_status").notNull().default("pending"),
+  eInvoiceData: jsonb("e_invoice_data"), // Stores { irn, ackNo, ackDate, signedQrCode, error }
   isLocked: boolean("is_locked").notNull().default(false),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),

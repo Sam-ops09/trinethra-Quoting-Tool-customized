@@ -8,6 +8,7 @@ import { registerReportRoutes } from "./reports-routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { EmailService } from "./services/email.service";
 import { PaymentReminderScheduler } from "./services/payment-reminder.service";
+import { QuoteExpiryAlertService } from "./services/quote-expiry.service";
 import { WebSocketService } from "./services/websocket.service";
 import { SchedulerService } from "./services/scheduler.service";
 import { BackupService } from "./services/backup.service";
@@ -158,6 +159,9 @@ app.use((req, res, next) => {
     
     // Start automatic payment reminder scheduler
     PaymentReminderScheduler.start();
+    
+    // Start quote expiry alert scheduler
+    QuoteExpiryAlertService.start();
     
     // Start general scheduler (subscriptions etc)
     SchedulerService.init();

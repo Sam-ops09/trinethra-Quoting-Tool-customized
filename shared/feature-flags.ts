@@ -405,6 +405,9 @@ export interface FeatureFlags {
   approvalRules_create: boolean;
   approvalRules_edit: boolean;
   approvalRules_delete: boolean;
+
+  // Financial Enhancements
+  financial_eInvoicing: boolean;
 }
 
 /**
@@ -746,6 +749,9 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   approvalRules_create: true,
   approvalRules_edit: true,
   approvalRules_delete: true,
+
+  // Financial Enhancements
+  financial_eInvoicing: true,
 };
 
 /**
