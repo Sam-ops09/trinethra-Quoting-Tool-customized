@@ -594,6 +594,24 @@ export const invoiceAttachments = pgTable("invoice_attachments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Quote Attachments table
+export const quoteAttachments = pgTable("quote_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quoteId: varchar("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  content: text("content").notNull(), // Base64
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const quoteAttachmentsRelations = relations(quoteAttachments, ({ one }) => ({
+  quote: one(quotes, {
+    fields: [quoteAttachments.quoteId],
+    references: [quotes.id],
+  }),
+}));
+
 export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
   invoice: one(invoices, {
     fields: [invoiceItems.invoiceId],
@@ -1414,6 +1432,8 @@ export type InsertSalesOrderItem = z.infer<typeof insertSalesOrderItemSchema>;
 export const insertInvoiceAttachmentSchema = createInsertSchema(invoiceAttachments);
 
 export type InvoiceAttachment = typeof invoiceAttachments.$inferSelect;
+export type QuoteAttachment = typeof quoteAttachments.$inferSelect;
+export type InsertQuoteAttachment = typeof quoteAttachments.$inferInsert;
 export type InsertInvoiceAttachment = z.infer<typeof insertInvoiceAttachmentSchema>;
 
 // EMAIL TEMPLATES INSERT SCHEMA

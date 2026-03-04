@@ -5,6 +5,7 @@ import { db } from "../db";
 import * as schema from "@shared/schema";
 import { eq, gte, lte, and, desc } from "drizzle-orm";
 import { logger } from "../utils/logger";
+import ExcelJS from "exceljs";
 
 const router = Router();
 
@@ -49,11 +50,73 @@ function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+/** Column definition for XLSX generation */
+interface XlsxColumnDef {
+  header: string;
+  key: string;
+  width?: number;
+  isCurrency?: boolean;
+  isDate?: boolean;
+}
+
+/**
+ * Build an XLSX workbook from column definitions and row data, then stream it to the response.
+ */
+async function sendXlsx(
+  res: Response,
+  sheetName: string,
+  columns: XlsxColumnDef[],
+  rows: Record<string, any>[],
+  filename: string
+) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "T-Quoting Tool";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet(sheetName);
+
+  sheet.columns = columns.map(col => ({
+    header: col.header,
+    key: col.key,
+    width: col.width || 18,
+    style: col.isCurrency ? { numFmt: '#,##0.00' } : col.isDate ? { numFmt: 'yyyy-mm-dd' } : undefined,
+  }));
+
+  // Bold header row
+  sheet.getRow(1).font = { bold: true, size: 11 };
+  sheet.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE8EDF5" },
+  };
+
+  for (const row of rows) {
+    sheet.addRow(row);
+  }
+
+  // Auto-fit column widths based on content (cap at 40)
+  sheet.columns.forEach((col) => {
+    if (!col || !col.eachCell) return;
+    let maxLen = (col.header as string)?.length || 10;
+    col.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
+      if (rowNumber === 1) return; // skip header
+      const len = cell.value ? String(cell.value).length : 0;
+      if (len > maxLen) maxLen = len;
+    });
+    col.width = Math.min(maxLen + 4, 40);
+  });
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  await workbook.xlsx.write(res);
+  res.end();
+}
+
 // ==================== QUOTES EXPORT ====================
 
 router.get("/quotes", async (req: AuthRequest, res: Response) => {
   try {
-    const { status, dateFrom, dateTo } = req.query;
+    const { status, dateFrom, dateTo, format } = req.query;
 
     // Fetch quotes with client names
     const quotesWithClients = await db.select()
@@ -90,6 +153,50 @@ router.get("/quotes", async (req: AuthRequest, res: Response) => {
       "Created By", "Created At",
     ];
 
+    // ---- XLSX FORMAT ----
+    if (format === "xlsx") {
+      const columns: XlsxColumnDef[] = [
+        { header: "Quote Number", key: "quoteNumber", width: 18 },
+        { header: "Version", key: "version", width: 10 },
+        { header: "Client Name", key: "clientName", width: 25 },
+        { header: "Status", key: "status", width: 14 },
+        { header: "Quote Date", key: "quoteDate", isDate: true },
+        { header: "Valid Until", key: "validUntil", isDate: true },
+        { header: "Currency", key: "currency", width: 10 },
+        { header: "Subtotal", key: "subtotal", isCurrency: true },
+        { header: "Discount", key: "discount", isCurrency: true },
+        { header: "CGST", key: "cgst", isCurrency: true },
+        { header: "SGST", key: "sgst", isCurrency: true },
+        { header: "IGST", key: "igst", isCurrency: true },
+        { header: "Shipping", key: "shipping", isCurrency: true },
+        { header: "Total", key: "total", isCurrency: true },
+        { header: "Created By", key: "createdBy", width: 20 },
+        { header: "Created At", key: "createdAt", isDate: true },
+      ];
+
+      const rows = results.map(q => ({
+        quoteNumber: q.quoteNumber,
+        version: q.version,
+        clientName: q.clientName,
+        status: q.status,
+        quoteDate: formatDate(q.quoteDate),
+        validUntil: formatDate(q.validUntil),
+        currency: q.currency,
+        subtotal: Number(q.subtotal),
+        discount: Number(q.discount),
+        cgst: Number(q.cgst),
+        sgst: Number(q.sgst),
+        igst: Number(q.igst),
+        shipping: Number(q.shippingCharges),
+        total: Number(q.total),
+        createdBy: q.createdByName,
+        createdAt: formatDate(q.createdAt),
+      }));
+
+      return await sendXlsx(res, "Quotes", columns, rows, `quotes_export_${todayStr()}.xlsx`);
+    }
+
+    // ---- CSV FORMAT (default) ----
     const rows = results.map(q => [
       q.quoteNumber,
       String(q.version),
@@ -124,7 +231,7 @@ router.get("/quotes", async (req: AuthRequest, res: Response) => {
 
 router.get("/invoices", async (req: AuthRequest, res: Response) => {
   try {
-    const { paymentStatus, status, dateFrom, dateTo } = req.query;
+    const { paymentStatus, status, dateFrom, dateTo, format } = req.query;
 
     const invoicesWithClients = await db.select()
       .from(schema.invoices)
@@ -161,6 +268,54 @@ router.get("/invoices", async (req: AuthRequest, res: Response) => {
       "Paid Amount", "Remaining Amount", "Last Payment Date", "Created At",
     ];
 
+    // ---- XLSX FORMAT ----
+    if (format === "xlsx") {
+      const columns: XlsxColumnDef[] = [
+        { header: "Invoice Number", key: "invoiceNumber", width: 18 },
+        { header: "Client Name", key: "clientName", width: 25 },
+        { header: "Status", key: "status", width: 14 },
+        { header: "Payment Status", key: "paymentStatus", width: 16 },
+        { header: "Issue Date", key: "issueDate", isDate: true },
+        { header: "Due Date", key: "dueDate", isDate: true },
+        { header: "Currency", key: "currency", width: 10 },
+        { header: "Subtotal", key: "subtotal", isCurrency: true },
+        { header: "Discount", key: "discount", isCurrency: true },
+        { header: "CGST", key: "cgst", isCurrency: true },
+        { header: "SGST", key: "sgst", isCurrency: true },
+        { header: "IGST", key: "igst", isCurrency: true },
+        { header: "Shipping", key: "shipping", isCurrency: true },
+        { header: "Total", key: "total", isCurrency: true },
+        { header: "Paid Amount", key: "paidAmount", isCurrency: true },
+        { header: "Remaining Amount", key: "remainingAmount", isCurrency: true },
+        { header: "Last Payment Date", key: "lastPaymentDate", isDate: true },
+        { header: "Created At", key: "createdAt", isDate: true },
+      ];
+
+      const rows = results.map(inv => ({
+        invoiceNumber: inv.invoiceNumber,
+        clientName: inv.clientName,
+        status: inv.status,
+        paymentStatus: inv.paymentStatus || "",
+        issueDate: formatDate(inv.issueDate),
+        dueDate: formatDate(inv.dueDate),
+        currency: inv.currency,
+        subtotal: Number(inv.subtotal || 0),
+        discount: Number(inv.discount || 0),
+        cgst: Number(inv.cgst || 0),
+        sgst: Number(inv.sgst || 0),
+        igst: Number(inv.igst || 0),
+        shipping: Number(inv.shippingCharges || 0),
+        total: Number(inv.total || 0),
+        paidAmount: Number(inv.paidAmount || 0),
+        remainingAmount: Number(inv.remainingAmount || 0),
+        lastPaymentDate: formatDate(inv.lastPaymentDate),
+        createdAt: formatDate(inv.createdAt),
+      }));
+
+      return await sendXlsx(res, "Invoices", columns, rows, `invoices_export_${todayStr()}.xlsx`);
+    }
+
+    // ---- CSV FORMAT (default) ----
     const rows = results.map(inv => [
       inv.invoiceNumber,
       inv.clientName,
@@ -197,7 +352,7 @@ router.get("/invoices", async (req: AuthRequest, res: Response) => {
 
 router.get("/payments", async (req: AuthRequest, res: Response) => {
   try {
-    const { dateFrom, dateTo } = req.query;
+    const { dateFrom, dateTo, format } = req.query;
 
     const paymentsWithDetails = await db.select()
       .from(schema.paymentHistory)
@@ -228,6 +383,34 @@ router.get("/payments", async (req: AuthRequest, res: Response) => {
       "Payment Date", "Notes", "Recorded By", "Created At",
     ];
 
+    // ---- XLSX FORMAT ----
+    if (format === "xlsx") {
+      const columns: XlsxColumnDef[] = [
+        { header: "Invoice Number", key: "invoiceNumber", width: 18 },
+        { header: "Amount", key: "amount", isCurrency: true },
+        { header: "Payment Method", key: "paymentMethod", width: 18 },
+        { header: "Transaction ID", key: "transactionId", width: 22 },
+        { header: "Payment Date", key: "paymentDate", isDate: true },
+        { header: "Notes", key: "notes", width: 30 },
+        { header: "Recorded By", key: "recordedBy", width: 20 },
+        { header: "Created At", key: "createdAt", isDate: true },
+      ];
+
+      const rows = results.map(p => ({
+        invoiceNumber: p.invoiceNumber,
+        amount: Number(p.amount),
+        paymentMethod: p.paymentMethod,
+        transactionId: p.transactionId || "",
+        paymentDate: formatDate(p.paymentDate),
+        notes: p.notes || "",
+        recordedBy: p.recordedByName,
+        createdAt: formatDate(p.createdAt),
+      }));
+
+      return await sendXlsx(res, "Payments", columns, rows, `payments_export_${todayStr()}.xlsx`);
+    }
+
+    // ---- CSV FORMAT (default) ----
     const rows = results.map(p => [
       p.invoiceNumber,
       String(p.amount),

@@ -12,6 +12,9 @@ import {
   invoiceAttachments,
   type InvoiceAttachment,
   type InsertInvoiceAttachment,
+  quoteAttachments,
+  type QuoteAttachment,
+  type InsertQuoteAttachment,
   paymentHistory,
   templates,
   activityLogs,
@@ -1119,6 +1122,27 @@ export class DatabaseStorage implements IStorage {
   async createInvoiceAttachment(attachment: InsertInvoiceAttachment): Promise<InvoiceAttachment> {
     const [newAttachment] = await db.insert(invoiceAttachments).values(attachment).returning();
     return newAttachment;
+  }
+
+  // Quote Attachments
+  async getQuoteAttachments(quoteId: string): Promise<QuoteAttachment[]> {
+    return await db.select().from(quoteAttachments)
+      .where(eq(quoteAttachments.quoteId, quoteId))
+      .orderBy(desc(quoteAttachments.createdAt));
+  }
+
+  async getQuoteAttachment(id: string): Promise<QuoteAttachment | undefined> {
+    const [attachment] = await db.select().from(quoteAttachments).where(eq(quoteAttachments.id, id));
+    return attachment || undefined;
+  }
+
+  async createQuoteAttachment(attachment: InsertQuoteAttachment): Promise<QuoteAttachment> {
+    const [newAttachment] = await db.insert(quoteAttachments).values(attachment).returning();
+    return newAttachment;
+  }
+
+  async deleteQuoteAttachment(id: string): Promise<void> {
+    await db.delete(quoteAttachments).where(eq(quoteAttachments.id, id));
   }
 
   async getInvoicesBySalesOrder(salesOrderId: string): Promise < Invoice[] > { return await db.select().from(invoices).where(eq(invoices.salesOrderId, salesOrderId)).orderBy(desc(invoices.createdAt)); }

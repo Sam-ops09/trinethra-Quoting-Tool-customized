@@ -1,10 +1,12 @@
 import { storage } from "../storage";
 import { NotificationService } from "./notification.service";
+import { EmailService } from "./email.service";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 import { logger } from "../utils/logger";
 
 /**
  * Quote Expiry Alert Service
- * Detects quotes approaching their validUntil date and sends in-app notifications.
+ * Detects quotes approaching their validUntil date and sends in-app notifications + client emails.
  * Follows the same pattern as PaymentReminderScheduler.
  */
 export class QuoteExpiryAlertService {
@@ -45,6 +47,72 @@ export class QuoteExpiryAlertService {
     }
     this.isRunning = false;
     logger.info("[QuoteExpiry] Scheduler stopped");
+  }
+
+  /**
+   * Send an expiry notification email to the client.
+   */
+  private static async sendClientExpiryEmail(
+    quote: any,
+    daysUntilExpiry: number
+  ) {
+    if (!isFeatureEnabled("email_integration")) return;
+
+    try {
+      const client = await storage.getClient(quote.clientId);
+      if (!client?.email) return;
+
+      const appUrl = process.env.APP_URL || "http://localhost:5000";
+      const publicLink = quote.publicToken
+        ? `${appUrl}/public/quote/${quote.publicToken}`
+        : null;
+
+      const expiryDate = new Date(quote.validUntil).toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      const subject =
+        daysUntilExpiry <= 0
+          ? `Quote ${quote.quoteNumber} has expired`
+          : `Quote ${quote.quoteNumber} expires in ${daysUntilExpiry} day${daysUntilExpiry > 1 ? "s" : ""}`;
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; color: #333;">
+          <h2 style="color: #1a1a2e;">${subject}</h2>
+          <p>Dear ${client.contactPerson || client.name},</p>
+          ${
+            daysUntilExpiry <= 0
+              ? `<p>The quote <strong>${quote.quoteNumber}</strong> with a value of <strong>${quote.currency} ${Number(quote.total).toLocaleString("en-IN")}</strong> expired on <strong>${expiryDate}</strong>.</p>
+                 <p>Please contact us if you would like to extend or renew this quote.</p>`
+              : `<p>This is a reminder that quote <strong>${quote.quoteNumber}</strong> with a value of <strong>${quote.currency} ${Number(quote.total).toLocaleString("en-IN")}</strong> will expire on <strong>${expiryDate}</strong> (${daysUntilExpiry} day${daysUntilExpiry > 1 ? "s" : ""} from now).</p>
+                 <p>Please review and accept the quote before it expires.</p>`
+          }
+          ${
+            publicLink
+              ? `<p><a href="${publicLink}" style="display:inline-block;padding:10px 24px;background:#0046FF;color:#fff;text-decoration:none;border-radius:6px;">View Quote</a></p>`
+              : ""
+          }
+          <p style="color:#888;font-size:12px;margin-top:24px;">This is an automated notification from QuoteProGen.</p>
+        </div>
+      `;
+
+      await EmailService.sendEmail({
+        to: client.email,
+        subject,
+        html,
+      });
+
+      logger.info(
+        `[QuoteExpiry] Expiry email sent to ${client.email} for quote ${quote.quoteNumber}`
+      );
+    } catch (error) {
+      logger.error(
+        `[QuoteExpiry] Failed to send expiry email for quote ${quote.quoteNumber}:`,
+        error
+      );
+    }
   }
 
   /**
@@ -111,6 +179,9 @@ export class QuoteExpiryAlertService {
             );
           }
 
+          // Send email to client
+          await this.sendClientExpiryEmail(quote, daysUntilExpiry);
+
           alertsSent++;
 
           // Log the activity
@@ -140,3 +211,4 @@ export class QuoteExpiryAlertService {
     await this.checkAndNotify();
   }
 }
+

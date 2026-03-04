@@ -17,9 +17,35 @@ const router = Router();
 
 router.get("/dashboard", authMiddleware, requireFeature('analytics_module'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
     try {
-      const quotes = await storage.getAllQuotes();
-      const clients = await storage.getAllClients();
-      const invoices = await storage.getAllInvoices();
+      // Date range filter support
+      const fromParam = req.query.from as string | undefined;
+      const toParam = req.query.to as string | undefined;
+
+      let dateFrom: Date | null = null;
+      let dateTo: Date | null = null;
+
+      if (fromParam) {
+        dateFrom = new Date(fromParam);
+        dateFrom.setHours(0, 0, 0, 0);
+      }
+      if (toParam) {
+        dateTo = new Date(toParam);
+        dateTo.setHours(23, 59, 59, 999);
+      }
+
+      let quotes = await storage.getAllQuotes();
+      let clients = await storage.getAllClients();
+      let invoices = await storage.getAllInvoices();
+
+      // Apply date filters
+      if (dateFrom) {
+        quotes = quotes.filter(q => new Date(q.createdAt) >= dateFrom!);
+        invoices = invoices.filter(inv => new Date(inv.createdAt) >= dateFrom!);
+      }
+      if (dateTo) {
+        quotes = quotes.filter(q => new Date(q.createdAt) <= dateTo!);
+        invoices = invoices.filter(inv => new Date(inv.createdAt) <= dateTo!);
+      }
 
       const totalQuotes = quotes.length;
       const totalClients = clients.length;
@@ -133,6 +159,11 @@ router.get("/dashboard", authMiddleware, requireFeature('analytics_module'), req
         topClients,
         quotesByStatus,
         monthlyRevenue,
+        // Include the date range in response so frontend can confirm
+        dateRange: {
+          from: fromParam || null,
+          to: toParam || null,
+        },
       });
     } catch (error) {
       logger.error("Analytics error:", error);

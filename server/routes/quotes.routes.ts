@@ -339,6 +339,56 @@ router.post("/public/:token/:action", async (req: any, res: Response) => {
     }
 });
 
+// PUBLIC ROUTE: List Quote Attachments
+router.get("/public/:token/attachments", async (req: any, res: Response) => {
+    try {
+        const quote = await storage.getQuoteByToken(req.params.token);
+        if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        const attachments = await storage.getQuoteAttachments(quote.id);
+        res.json(attachments.map(a => ({
+            id: a.id,
+            fileName: a.fileName,
+            fileType: a.fileType,
+            fileSize: a.fileSize,
+            createdAt: a.createdAt,
+        })));
+    } catch (error) {
+        logger.error("Public quote attachments error:", error);
+        res.status(500).json({ error: "Failed to fetch attachments" });
+    }
+});
+
+// PUBLIC ROUTE: Download Quote Attachment
+router.get("/public/:token/attachments/:attachmentId", async (req: any, res: Response) => {
+    try {
+        const quote = await storage.getQuoteByToken(req.params.token);
+        if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+        if (quote.tokenExpiresAt && new Date(quote.tokenExpiresAt) < new Date()) {
+            return res.status(410).json({ error: "Quote link has expired" });
+        }
+
+        const attachment = await storage.getQuoteAttachment(req.params.attachmentId);
+        if (!attachment || attachment.quoteId !== quote.id) {
+            return res.status(404).json({ error: "Attachment not found" });
+        }
+
+        const buffer = Buffer.from(attachment.content, 'base64');
+        res.setHeader("Content-Type", attachment.fileType);
+        res.setHeader("Content-Disposition", `attachment; filename="${attachment.fileName}"`);
+        res.setHeader("Content-Length", buffer.length);
+        res.send(buffer);
+    } catch (error) {
+        logger.error("Public quote attachment download error:", error);
+        res.status(500).json({ error: "Failed to download attachment" });
+    }
+});
+
 // ============================================
 // INTERNAL ROUTES - Require Authentication
 // ============================================
@@ -584,6 +634,24 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
     const { items, ...updateFields } = req.body;
     const nextVersion = existingQuote.version + 1;
 
+    // Convert ISO date strings to Date objects (Drizzle timestamps require Date)
+    if (updateFields.quoteDate && typeof updateFields.quoteDate === "string") {
+      const parsed = new Date(updateFields.quoteDate);
+      if (!isNaN(parsed.getTime())) {
+        updateFields.quoteDate = parsed;
+      } else {
+        delete updateFields.quoteDate;
+      }
+    }
+    if (updateFields.validUntil && typeof updateFields.validUntil === "string") {
+      const parsed = new Date(updateFields.validUntil);
+      if (!isNaN(parsed.getTime())) {
+        updateFields.validUntil = parsed;
+      } else {
+        delete updateFields.validUntil;
+      }
+    }
+
     // Feature Flags & Sanitization
     if (!isFeatureEnabled('quotes_discount') && updateFields.discount && Number(updateFields.discount) > 0) {
       return res.status(403).json({ error: "Discounts are currently disabled" });
@@ -704,8 +772,8 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
     return res.json(updatedQuote);
 
   } catch (error: any) {
-    logger.error("Update quote error:", error);
-    res.status(500).json({ error: "Failed to update quote" });
+    logger.error("Update quote error:", error?.message || error, error?.stack);
+    res.status(500).json({ error: "Failed to update quote", details: error?.message || String(error) });
   }
 });
 
@@ -1362,4 +1430,177 @@ router.post("/:id/reject", authMiddleware, requireFeature('quotes_approve'), req
     }
 });
 
+// ==================== QUOTE ATTACHMENTS ====================
+
+// List attachments for a quote
+router.get("/:id/attachments", authMiddleware, requireFeature('quotes_module'), async (req: AuthRequest, res: Response) => {
+    try {
+        const quote = await storage.getQuote(req.params.id);
+        if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+        const attachments = await storage.getQuoteAttachments(req.params.id);
+        // Return list without the base64 content (for performance)
+        res.json(attachments.map(a => ({
+            id: a.id,
+            quoteId: a.quoteId,
+            fileName: a.fileName,
+            fileType: a.fileType,
+            fileSize: a.fileSize,
+            createdAt: a.createdAt,
+        })));
+    } catch (error) {
+        logger.error("Get quote attachments error:", error);
+        res.status(500).json({ error: "Failed to fetch attachments" });
+    }
+});
+
+// Upload attachment (base64)
+router.post("/:id/attachments", authMiddleware, requireFeature('quotes_module'), requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+    try {
+        const { fileName, fileType, fileSize, content } = req.body;
+
+        if (!fileName || !fileType || !content) {
+            return res.status(400).json({ error: "fileName, fileType, and content (base64) are required" });
+        }
+
+        // Max 10MB file size
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (fileSize && fileSize > MAX_SIZE) {
+            return res.status(400).json({ error: "File size exceeds 10MB limit" });
+        }
+
+        const quote = await storage.getQuote(req.params.id);
+        if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+        const attachment = await storage.createQuoteAttachment({
+            quoteId: req.params.id,
+            fileName,
+            fileType,
+            fileSize: fileSize || Buffer.from(content, 'base64').length,
+            content,
+        });
+
+        await storage.createActivityLog({
+            userId: req.user!.id,
+            action: "upload_quote_attachment",
+            entityType: "quote",
+            entityId: req.params.id,
+            metadata: { fileName, attachmentId: attachment.id },
+        });
+
+        // Return without content
+        res.json({
+            id: attachment.id,
+            quoteId: attachment.quoteId,
+            fileName: attachment.fileName,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+            createdAt: attachment.createdAt,
+        });
+    } catch (error) {
+        logger.error("Upload quote attachment error:", error);
+        res.status(500).json({ error: "Failed to upload attachment" });
+    }
+});
+
+// Download a single attachment
+router.get("/attachments/:attachmentId", authMiddleware, requireFeature('quotes_module'), async (req: AuthRequest, res: Response) => {
+    try {
+        const attachment = await storage.getQuoteAttachment(req.params.attachmentId);
+        if (!attachment) return res.status(404).json({ error: "Attachment not found" });
+
+        const buffer = Buffer.from(attachment.content, 'base64');
+        res.setHeader("Content-Type", attachment.fileType);
+        res.setHeader("Content-Disposition", `attachment; filename="${attachment.fileName}"`);
+        res.setHeader("Content-Length", buffer.length);
+        res.send(buffer);
+    } catch (error) {
+        logger.error("Download quote attachment error:", error);
+        res.status(500).json({ error: "Failed to download attachment" });
+    }
+});
+
+// Delete an attachment
+router.delete("/attachments/:attachmentId", authMiddleware, requireFeature('quotes_module'), requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+    try {
+        const attachment = await storage.getQuoteAttachment(req.params.attachmentId);
+        if (!attachment) return res.status(404).json({ error: "Attachment not found" });
+
+        await storage.deleteQuoteAttachment(req.params.attachmentId);
+
+        await storage.createActivityLog({
+            userId: req.user!.id,
+            action: "delete_quote_attachment",
+            entityType: "quote",
+            entityId: attachment.quoteId,
+            metadata: { fileName: attachment.fileName, attachmentId: attachment.id },
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        logger.error("Delete quote attachment error:", error);
+        res.status(500).json({ error: "Failed to delete attachment" });
+    }
+});
+
+// ==================== EXTEND VALIDITY ====================
+
+router.post("/:id/extend-validity", authMiddleware, requireFeature('quotes_edit'), requirePermission("quotes", "edit"), async (req: AuthRequest, res: Response) => {
+    try {
+        const { days } = req.body;
+
+        if (!days || typeof days !== "number" || days < 1 || days > 365) {
+            return res.status(400).json({ error: "Days must be a number between 1 and 365" });
+        }
+
+        const quote = await storage.getQuote(req.params.id);
+        if (!quote) {
+            return res.status(404).json({ error: "Quote not found" });
+        }
+
+        // Only allow extending validity for quotes that are sent, expired, or draft
+        if (!["sent", "expired", "draft"].includes(quote.status)) {
+            return res.status(400).json({ error: `Cannot extend validity for a quote in '${quote.status}' status` });
+        }
+
+        // Calculate new validUntil
+        const baseDate = quote.validUntil ? new Date(quote.validUntil) : new Date();
+        const now = new Date();
+        // If the quote already expired, base the extension from today
+        const startDate = baseDate < now ? now : baseDate;
+        const newValidUntil = new Date(startDate);
+        newValidUntil.setDate(newValidUntil.getDate() + days);
+
+        // Build update data
+        const updateData: Record<string, any> = {
+            validUntil: newValidUntil,
+            validityDays: days,
+            updatedAt: new Date(),
+        };
+
+        // If quote was expired, reset status to sent
+        if (quote.status === "expired") {
+            updateData.status = "sent";
+        }
+
+        const updated = await storage.updateQuote(quote.id, updateData);
+
+        await storage.createActivityLog({
+            userId: req.user!.id,
+            action: "extend_quote_validity",
+            entityType: "quote",
+            entityId: quote.id,
+            metadata: { days, newValidUntil: newValidUntil.toISOString(), previousStatus: quote.status },
+        });
+
+        logger.info(`[QuoteValidity] Extended quote ${quote.quoteNumber} by ${days} days (new expiry: ${newValidUntil.toISOString()})`);
+
+        res.json(updated);
+    } catch (error) {
+        logger.error("Extend validity error:", error);
+        res.status(500).json({ error: "Failed to extend quote validity" });
+    }
+});
+
 export default router;
+
