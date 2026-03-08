@@ -7,6 +7,9 @@ import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
 
+// Apply pricing module feature flag to all routes
+router.use(requireFeature('pricing_tiers'));
+
 router.get("/pricing-tiers", authMiddleware, requireFeature('pricing_tiers'), async (req: AuthRequest, res: Response) => {
   try {
     const tiers = await storage.getAllPricingTiers();

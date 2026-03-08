@@ -17,6 +17,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, Plus, AlertTriangle, CheckCircle2, Hash, ClipboardList, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 
 interface SerialNumberEntryProps {
   open: boolean;
@@ -58,6 +59,8 @@ export function SerialNumberEntry({
   const [patternStart, setPatternStart] = useState<number>(1);
   const [patternPadding, setPatternPadding] = useState<number>(5);
   const [patternPreview, setPatternPreview] = useState<string[]>([]);
+
+  const allowBulkOperations = useFeatureFlag('advanced_bulkOperations');
 
   // Reset state when dialog opens with existing serials
   useEffect(() => {
@@ -281,10 +284,12 @@ export function SerialNumberEntry({
                 <Plus className="h-4 w-4" />
                 One-by-One
               </TabsTrigger>
+              {allowBulkOperations && (
               <TabsTrigger value="bulk" className="flex items-center gap-2">
                 <ClipboardList className="h-4 w-4" />
                 Bulk Paste
               </TabsTrigger>
+              )}
               <TabsTrigger value="pattern" className="flex items-center gap-2">
                 <Wand2 className="h-4 w-4" />
                 Pattern
@@ -351,6 +356,7 @@ export function SerialNumberEntry({
               </div>
             </TabsContent>
 
+            {allowBulkOperations && (
             <TabsContent value="bulk" className="space-y-4 mt-4">
               <div>
                 <Label className="text-sm font-medium mb-2 block">
@@ -398,6 +404,7 @@ export function SerialNumberEntry({
                 </div>
               )}
             </TabsContent>
+            )}
 
             <TabsContent value="pattern" className="space-y-4 mt-4">
               <div className="space-y-4">

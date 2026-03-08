@@ -56,7 +56,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PermissionGuard } from "@/components/permission-guard";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { MessageCircle } from "lucide-react";
 import { PaymentTracker } from "@/components/invoice/payment-tracker";
 import { Separator } from "@/components/ui/separator";
@@ -161,6 +161,12 @@ export default function InvoiceDetail() {
     const canViewBom = useFeatureFlag('quotes_bomSection');
     const canTrackPayments = useFeatureFlag('invoices_paymentTracking');
     const canViewPaymentHistory = useFeatureFlag('invoices_paymentHistory');
+    const showHsnSac = useFeatureFlag('tax_hsnSac');
+    const showDiscount = useFeatureFlag('pricing_discount');
+    const showShipping = useFeatureFlag('pricing_shipping');
+    const showCgst = useFeatureFlag('tax_cgst');
+    const showSgst = useFeatureFlag('tax_sgst');
+    const showIgst = useFeatureFlag('tax_igst');
 
     const [showEmailDialog, setShowEmailDialog] = useState(false);
     const [emailData, setEmailData] = useState({ email: "", message: "" });
@@ -780,20 +786,19 @@ export default function InvoiceDetail() {
                                 {canSendEmail && (
                                   <PermissionGuard resource="invoices" action="edit" tooltipText="Only Finance/Accounts can email invoices">
                                     <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-primary/10 hover:border-primary hover:text-primary"
-                                    onClick={() => setShowEmailDialog(true)}
-                                    data-testid="button-email-invoice"
-                                  >
-                                    <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                                    <span className="hidden sm:inline">Email Invoice</span>
-                                    <span className="sm:hidden">Email</span>
-                                  </Button>
-                                </PermissionGuard>
+                                      variant="outline"
+                                      size="sm"
+                                      className="flex-1 sm:flex-initial justify-center gap-2 text-xs sm:text-sm hover:bg-primary/10 hover:border-primary hover:text-primary"
+                                      onClick={() => setShowEmailDialog(true)}
+                                      data-testid="button-email-invoice"
+                                    >
+                                      <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                      <span className="hidden sm:inline">Email Invoice</span>
+                                      <span className="sm:hidden">Email</span>
+                                    </Button>
+                                  </PermissionGuard>
                                 )}
 
-                                {/* WhatsApp Share */}
                                 {canShareWhatsApp && (
                                   <Button
                                     variant="outline"
@@ -1153,7 +1158,7 @@ export default function InvoiceDetail() {
                                             </p>
 
                                             {/* HSN/SAC Badge */}
-                                            {item.hsnSac && (
+                                            {showHsnSac && item.hsnSac && (
                                                 <div className="flex items-center gap-1.5 pt-1">
                                                     <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                                                         HSN/SAC: {item.hsnSac}
@@ -1221,9 +1226,11 @@ export default function InvoiceDetail() {
                                             <th className="text-right font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
                                                 Qty
                                             </th>
-                                            <th className="text-center font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
-                                                HSN/SAC
-                                            </th>
+                                            {showHsnSac && (
+                                                <th className="text-center font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
+                                                    HSN/SAC
+                                                </th>
+                                            )}
                                             <th className="text-center font-semibold text-muted-foreground uppercase tracking-wide px-4 md:px-6 py-2 sm:py-2.5 text-[10px] sm:text-xs">
                                                 Serial Numbers
                                             </th>
@@ -1257,15 +1264,17 @@ export default function InvoiceDetail() {
                                                 <td className="px-4 md:px-6 py-2.5 sm:py-3 text-right text-[11px] sm:text-sm font-['Open_Sans']">
                                                     {item.quantity}
                                                 </td>
-                                                <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center text-[11px] sm:text-sm font-['Open_Sans']">
-                                                    {item.hsnSac ? (
-                                                        <span className="font-mono bg-muted/50 px-2 py-1 rounded text-primary">
-                                                            {item.hsnSac}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">-</span>
-                                                    )}
-                                                </td>
+                                                {showHsnSac && (
+                                                    <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center text-[11px] sm:text-sm font-['Open_Sans']">
+                                                        {item.hsnSac ? (
+                                                            <span className="font-mono bg-muted/50 px-2 py-1 rounded text-primary">
+                                                                {item.hsnSac}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">-</span>
+                                                        )}
+                                                    </td>
+                                                )}
                                                 <td className="px-4 md:px-6 py-2.5 sm:py-3 text-center">
                                                     <div className="flex flex-col items-center gap-1">
                                                         {serialNumbers.length > 0 ? (
@@ -1391,44 +1400,44 @@ export default function InvoiceDetail() {
                       {formatCurrency(invoice.subtotal, invoice.currency)}
                     </span>
                                     </div>
-                                    {Number(invoice.discount) > 0 && (
+                                    {showDiscount && Number(invoice.discount) > 0 && (
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">Discount</span>
                                             <span className="font-semibold text-success">
-                        -{formatCurrency(invoice.discount, invoice.currency)}
-                      </span>
+                                                -{formatCurrency(invoice.discount, invoice.currency)}
+                                            </span>
                                         </div>
                                     )}
-                                    {Number(invoice.cgst) > 0 && (
+                                    {showCgst && Number(invoice.cgst) > 0 && (
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">CGST</span>
                                             <span className="font-semibold">
-                        {formatCurrency(invoice.cgst, invoice.currency)}
-                      </span>
+                                                {formatCurrency(invoice.cgst, invoice.currency)}
+                                            </span>
                                         </div>
                                     )}
-                                    {Number(invoice.sgst) > 0 && (
+                                    {showSgst && Number(invoice.sgst) > 0 && (
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">SGST</span>
                                             <span className="font-semibold">
-                        {formatCurrency(invoice.sgst, invoice.currency)}
-                      </span>
+                                                {formatCurrency(invoice.sgst, invoice.currency)}
+                                            </span>
                                         </div>
                                     )}
-                                    {Number(invoice.igst) > 0 && (
+                                    {showIgst && Number(invoice.igst) > 0 && (
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">IGST</span>
                                             <span className="font-semibold">
-                        {formatCurrency(invoice.igst, invoice.currency)}
-                      </span>
+                                                {formatCurrency(invoice.igst, invoice.currency)}
+                                            </span>
                                         </div>
                                     )}
-                                    {Number(invoice.shippingCharges) > 0 && (
+                                    {showShipping && Number(invoice.shippingCharges) > 0 && (
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">Shipping</span>
                                             <span className="font-semibold">
-                        {formatCurrency(invoice.shippingCharges, invoice.currency)}
-                      </span>
+                                                {formatCurrency(invoice.shippingCharges, invoice.currency)}
+                                            </span>
                                         </div>
                                     )}
                                 </div>

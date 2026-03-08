@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2, RefreshCw, X, Maximize2, Minimize2, Lock, InfoIcon } from "lucide-react";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface PdfPreviewDialogProps {

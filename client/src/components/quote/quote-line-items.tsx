@@ -21,8 +21,11 @@ import {
     Package, 
     AlertCircle,
     FileSpreadsheet,
-    Download
+    Download,
+    CheckCircle
 } from "lucide-react";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ProductPicker } from "@/components/ProductPicker";
 import { formatCurrency } from "@/lib/currency";
 import { useMutation } from "@tanstack/react-query";
@@ -104,6 +107,10 @@ export function QuoteLineItems({ form }: QuoteLineItemsProps) {
         reader.readAsDataURL(file);
     };
 
+    const showOptionalItems = useFeatureFlag('quotes_optionalItems');
+    const showMultiOption = useFeatureFlag('quotes_multiOption');
+    const showHsnSac = useFeatureFlag('tax_hsnSac');
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -115,6 +122,17 @@ export function QuoteLineItems({ form }: QuoteLineItemsProps) {
                 </div>
                 
                 <div className="flex gap-2">
+                    {showMultiOption && (
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-2"
+                            onClick={() => toast({ title: "Feature coming soon", description: "Multi-option quoting will be available in the next release." })}
+                        >
+                            <CheckCircle className="h-4 w-4 text-indigo-600" />
+                            Add Option Group
+                        </Button>
+                    )}
                     <Button 
                         variant="outline" 
                         size="sm" 
@@ -207,20 +225,40 @@ export function QuoteLineItems({ form }: QuoteLineItemsProps) {
                             </div>
 
                             {/* Numbers - Takes up less space */}
-                            <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name={`items.${index}.hsnSac`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs uppercase text-muted-foreground">HSN/SAC</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} placeholder="Code" className="font-mono text-sm" />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                            <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
+                                {showOptionalItems && (
+                                    <FormField
+                                        control={form.control}
+                                        name={`items.${index}.isOptional`}
+                                        render={({ field }) => (
+                                            <FormItem className="flex flex-col items-center gap-2">
+                                                <FormLabel className="text-xs uppercase text-muted-foreground">Opt?</FormLabel>
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                        className="h-5 w-5"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                                {showHsnSac && (
+                                    <FormField
+                                        control={form.control}
+                                        name={`items.${index}.hsnSac`}
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs uppercase text-muted-foreground">HSN/SAC</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Code" className="font-mono text-sm" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
 
                                 <FormField
                                     control={form.control}

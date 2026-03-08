@@ -57,7 +57,8 @@ import WorkflowBuilder from "@/pages/workflow-builder";
 import WorkflowExecutions from "@/pages/workflow-executions";
 import AuditTrail from "@/pages/audit-trail";
 import { Loader2, ShieldAlert } from "lucide-react";
-import React from "react";
+import React, { useEffect } from "react";
+import { MotionConfig } from "framer-motion";
 import { canAccessRoute, type UserRole } from "@/lib/permissions-new";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SessionMonitor } from "@/components/session-monitor";
@@ -169,7 +170,9 @@ function AuthenticatedLayout() {
       {/* Main Content - Add padding-top to account for fixed navbar */}
       <main className="w-full pt-14 sm:pt-16">
         <Switch>
-          <Route path="/" component={() => <ProtectedRoute component={Dashboard} requiredPath="/" />} />
+          {isFeatureEnabled('pages_dashboard') && (
+            <Route path="/" component={() => <ProtectedRoute component={Dashboard} requiredPath="/" />} />
+          )}
 
           {/* Clients - with feature flag */}
           {isFeatureEnabled('pages_clients') && (
@@ -210,7 +213,9 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_invoices') && (
             <>
               <Route path="/invoices" component={() => <ProtectedRoute component={Invoices} requiredPath="/invoices" />} />
-              <Route path="/invoices/analytics" component={() => <ProtectedRoute component={InvoiceAnalytics} requiredPath="/invoices" />} />
+              {isFeatureEnabled('analytics_invoiceMetrics') && (
+                <Route path="/invoices/analytics" component={() => <ProtectedRoute component={InvoiceAnalytics} requiredPath="/invoices" />} />
+              )}
               {isFeatureEnabled('pages_invoiceDetail') && (
                 <Route path="/invoices/:id" component={() => <ProtectedRoute component={InvoiceDetail} requiredPath="/invoices" />} />
               )}
@@ -326,13 +331,13 @@ function AuthenticatedLayout() {
           {isFeatureEnabled('pages_workflows') && (
             <Route path="/workflows" component={() => <ProtectedRoute component={Workflows} requiredPath="/admin/settings" />} />
           )}
-          {isFeatureEnabled('pages_workflows') && (
+          {isFeatureEnabled('pages_workflowBuilder') && (
             <Route path="/workflows/create" component={() => <ProtectedRoute component={WorkflowBuilder} requiredPath="/admin/settings" />} />
           )}
           {isFeatureEnabled('pages_workflows') && (
             <Route path="/workflows/:id/executions" component={() => <ProtectedRoute component={WorkflowExecutions} requiredPath="/admin/settings" />} />
           )}
-          {isFeatureEnabled('pages_workflows') && (
+          {isFeatureEnabled('pages_workflowBuilder') && (
             <Route path="/workflows/:id" component={() => <ProtectedRoute component={WorkflowBuilder} requiredPath="/admin/settings" />} />
           )}
 
@@ -356,7 +361,13 @@ function Router() {
 
   return (
     <Switch>
-      <Route path="/p/quote/:token" component={PublicQuote} />
+      <Route path="/p/quote/:token">
+        {isFeatureEnabled('quotes_publicSharing') ? (
+          <PublicQuote />
+        ) : (
+          <Redirect to="/login" />
+        )}
+      </Route>
       <Route path="/login" component={() => <PublicRoute component={Login} />} />
       {isFeatureEnabled('pages_signup') && (
         <Route path="/signup" component={() => <PublicRoute component={Signup} />} />
@@ -375,20 +386,37 @@ function App() {
   const defaultTheme = isFeatureEnabled('ui_darkMode') ? 'light' : 'light';
   const showAnalytics = isFeatureEnabled('integration_vercelAnalytics');
 
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      ${!isFeatureEnabled('ui_breadcrumbs') ? 'nav.rounded-full.w-fit { display: none !important; }' : ''}
+      ${!isFeatureEnabled('ui_animations') ? '* { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }' : ''}
+      ${!isFeatureEnabled('ui_pagination') ? 'nav[aria-label="pagination"] { display: none !important; }' : ''}
+      ${!isFeatureEnabled('ui_sorting') ? 'th svg.lucide-arrow-up-down, th svg.lucide-chevron-up, th svg.lucide-chevron-down { display: none !important; } th { pointer-events: none; }' : ''}
+      ${!isFeatureEnabled('ui_responsiveDesign') ? '@media (max-width: 1024px) { body { min-width: 1024px; overflow-x: auto; } }' : ''}
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.href = '/'}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme={defaultTheme}>
-          <AuthProvider>
-            <WebSocketProvider>
-              <TooltipProvider>
-                <Toaster />
-                <SessionMonitor />
-                <Router />
-                {showAnalytics && <VercelAnalytics />}
-              </TooltipProvider>
-            </WebSocketProvider>
-          </AuthProvider>
+          <MotionConfig reducedMotion={isFeatureEnabled('ui_animations') ? "user" : "always"}>
+            <AuthProvider>
+              <WebSocketProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  {isFeatureEnabled('security_sessionManagement') && <SessionMonitor />}
+                  <Router />
+                  {showAnalytics && <VercelAnalytics />}
+                </TooltipProvider>
+              </WebSocketProvider>
+            </AuthProvider>
+          </MotionConfig>
         </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>

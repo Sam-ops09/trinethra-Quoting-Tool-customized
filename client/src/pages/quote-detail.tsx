@@ -25,7 +25,7 @@ import type { TimelineData } from "@/components/quote/timeline-section";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions-new";
 
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { VersionComparisonDialog } from "@/components/quote/version-comparison-dialog";
 import { QuoteVersionViewer } from "@/components/quote/quote-version-viewer";
 import { formatCurrency } from "@/lib/currency";
@@ -106,14 +106,15 @@ export default function QuoteDetail() {
   };
 
   // Feature flags
-  const canCreateVendorPO = useFeatureFlag('vendorPO_create');
+  const canCreateVendorPO = useFeatureFlag('quotes_convertToVendorPO');
   const canSendEmail = useFeatureFlag('quotes_emailSending');
   const canGeneratePDF = useFeatureFlag('quotes_pdfGeneration');
-  const canConvertToInvoice = useFeatureFlag('quotes_convertToInvoice');
+  const canConvertToInvoice = useFeatureFlag('quotes_convertToInvoice') && useFeatureFlag('invoices_create');
   const canConvertToSalesOrder = useFeatureFlag('quotes_convertToSalesOrder');
   const canSendQuote = useFeatureFlag('quotes_sendQuote');
   const canClone = useFeatureFlag('quotes_clone');
   const canShareWhatsApp = useFeatureFlag('notifications_whatsapp');
+  const canShare = useFeatureFlag('quotes_publicSharing');
   const canEdit = useFeatureFlag('quotes_edit');
   const canDelete = useFeatureFlag('quotes_delete');
   const canApprove = useFeatureFlag('quotes_approve');
@@ -123,6 +124,13 @@ export default function QuoteDetail() {
   const canViewBOM = useFeatureFlag('quotes_bomSection');
   const canViewSLA = useFeatureFlag('quotes_slaSection');
   const canViewTimeline = useFeatureFlag('quotes_timelineSection');
+  const canTrackActivity = useFeatureFlag('quotes_activityTracking');
+  const showHsnSac = useFeatureFlag('tax_hsnSac');
+  const showDiscount = useFeatureFlag('pricing_discount');
+  const showShipping = useFeatureFlag('pricing_shipping');
+  const showCgst = useFeatureFlag('tax_cgst');
+  const showSgst = useFeatureFlag('tax_sgst');
+  const showIgst = useFeatureFlag('tax_igst');
 
   // Comment state
   const [newComment, setNewComment] = useState("");
@@ -787,18 +795,20 @@ export default function QuoteDetail() {
                   </PermissionGuard>
                 )}
                 {/* Share Button (Always visible if edit permission exists) */}
-                <PermissionGuard resource="quotes" action="edit" tooltipText="Only authorized users can share quotes">
-                   <Button
-                     variant="outline"
-                     size="sm"
-                     onClick={() => shareMutation.mutate()}
-                     disabled={shareMutation.isPending || quote.approvalStatus === "pending" || quote.approvalStatus === "rejected"}
-                     className="flex-1 sm:flex-initial h-7 text-xs"
-                   >
-                     {shareMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
-                     <span className="hidden xs:inline">Share</span>
-                   </Button>
-                </PermissionGuard>
+                {canShare && (
+                  <PermissionGuard resource="quotes" action="edit" tooltipText="Only authorized users can share quotes">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => shareMutation.mutate()}
+                      disabled={shareMutation.isPending || quote.approvalStatus === "pending" || quote.approvalStatus === "rejected"}
+                      className="flex-1 sm:flex-initial h-7 text-xs"
+                    >
+                      {shareMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+                      <span className="hidden xs:inline">Share</span>
+                    </Button>
+                  </PermissionGuard>
+                )}
 
                 {canGeneratePDF && (
                   <Button
@@ -1094,7 +1104,7 @@ export default function QuoteDetail() {
                               <span className="font-medium">Unit:</span>
                               <span className="font-bold">{formatCurrency(item.unitPrice, quote.currency)}</span>
                             </span>
-                            {item.hsnSac && (
+                            {showHsnSac && item.hsnSac && (
                               <span className="flex items-center gap-1">
                                 <span className="font-medium">HSN/SAC:</span>
                                 <span className="font-mono font-bold bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-900 dark:text-white">{item.hsnSac}</span>
@@ -1156,6 +1166,97 @@ export default function QuoteDetail() {
               slaData={canViewSLA ? (quote.slaSection ? JSON.parse(quote.slaSection) : undefined) : undefined}
               timelineData={canViewTimeline ? (quote.timelineSection ? JSON.parse(quote.timelineSection) : undefined) : undefined}
             />
+
+              {/* Activity / Comments Tab */}
+              {canTrackActivity && (
+                <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-[600px]">
+                  <CardHeader className="p-4 border-b bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <History className="h-4 w-4 text-primary" />
+                        <CardTitle className="text-sm font-semibold">Activity & Comments</CardTitle>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] bg-white dark:bg-slate-950 font-medium">
+                        {comments.length}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0 flex-1 overflow-hidden flex flex-col">
+                    {/* Scrollable Comments Area */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 bg-slate-50/30 dark:bg-slate-900/20">
+                      {comments.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full py-12 text-center opacity-60">
+                          <MessageSquare className="h-10 w-10 text-slate-300 mb-3" />
+                          <p className="text-xs text-slate-500">No activity or comments yet</p>
+                        </div>
+                      ) : (
+                        comments.map((comment) => (
+                          <div
+                            key={comment.id}
+                            className={`flex flex-col gap-1.5 max-w-[85%] ${comment.authorName === user?.name ? 'ml-auto items-end' : 'mr-auto items-start'}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                {comment.authorName}
+                              </span>
+                              <span className="text-[9px] text-slate-400">
+                                {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <div
+                              className={`rounded-2xl px-4 py-2.5 text-xs shadow-sm shadow-slate-200/50 dark:shadow-none ${comment.authorName === user?.name
+                                ? 'bg-primary text-primary-foreground rounded-tr-none'
+                                : `${comment.isInternal ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-200/50 dark:border-amber-800/50' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700'} rounded-tl-none`
+                                }`}
+                            >
+                              {comment.message}
+                            </div>
+                            {comment.isInternal && (
+                              <div className="flex items-center gap-1 text-[9px] font-semibold text-amber-600 dark:text-amber-400 mt-1 uppercase tracking-tighter">
+                                <ShieldAlert className="h-2.5 w-2.5" />
+                                Internal Only
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Quick Add Comment Area */}
+                    <div className="p-4 border-t bg-white dark:bg-slate-950 shrink-0">
+                      <div className="flex flex-col gap-3">
+                        <Textarea
+                          placeholder="Type a message or internal note..."
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          className="min-h-[80px] text-xs resize-none bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 focus:ring-1 focus:ring-primary/20"
+                        />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800/50 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors" onClick={() => setIsInternalComment(!isInternalComment)}>
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-all ${isInternalComment ? 'border-amber-500 bg-amber-500 ring-2 ring-amber-500/20' : 'border-slate-300 dark:border-slate-600'}`}>
+                              {isInternalComment && <div className="w-1 h-1 bg-white rounded-full" />}
+                            </div>
+                            <span className={`text-[10px] font-bold uppercase tracking-tight ${isInternalComment ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'}`}>Internal Note</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => addCommentMutation.mutate()}
+                            disabled={!newComment || addCommentMutation.isPending}
+                            className="h-8 px-4 rounded-full text-[11px] font-bold uppercase tracking-wider"
+                          >
+                            {addCommentMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                            ) : (
+                              <Send className="h-3 w-3 mr-2" />
+                            )}
+                            Send
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
             {/* Attachments Section */}
             <Card className="border-slate-200 dark:border-slate-800">
@@ -1223,7 +1324,7 @@ export default function QuoteDetail() {
           {/* Quote Summary Sidebar */}
           <div className="lg:sticky lg:top-6 space-y-3">
              {/* Versions History */}
-             {versions && versions.length > 0 && (
+             {canTrackActivity && versions && versions.length > 0 && (
                 <Card className="border-slate-200 dark:border-slate-800">
                     <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
                         <div className="flex items-center gap-2">
@@ -1334,35 +1435,35 @@ export default function QuoteDetail() {
                       <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.subtotal, quote.currency)}</span>
                     </div>
 
-                    {Number(quote.discount) > 0 && (
+                    {showDiscount && Number(quote.discount) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded bg-rose-50 dark:bg-rose-950">
                         <span className="text-slate-600 dark:text-slate-400">Discount</span>
                         <span className="font-semibold text-rose-600 dark:text-rose-400">-{formatCurrency(quote.discount, quote.currency)}</span>
                       </div>
                     )}
-
-                    {Number(quote.cgst) > 0 && (
+ 
+                    {showCgst && Number(quote.cgst) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">CGST</span>
                         <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.cgst, quote.currency)}</span>
                       </div>
                     )}
-
-                    {Number(quote.sgst) > 0 && (
+ 
+                    {showSgst && Number(quote.sgst) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">SGST</span>
                         <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.sgst, quote.currency)}</span>
                       </div>
                     )}
-
-                    {Number(quote.igst) > 0 && (
+ 
+                    {showIgst && Number(quote.igst) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">IGST</span>
                         <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.igst, quote.currency)}</span>
                       </div>
                     )}
-
-                    {Number(quote.shippingCharges) > 0 && (
+ 
+                    {showShipping && Number(quote.shippingCharges) > 0 && (
                       <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                         <span className="text-slate-600 dark:text-slate-400">Shipping</span>
                         <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(quote.shippingCharges, quote.currency)}</span>

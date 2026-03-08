@@ -39,6 +39,7 @@ import {
 import { Loader2, Plus, Trash2, Edit, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 
 const formSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -54,6 +55,10 @@ export function ApprovalSettings() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [editingRule, setEditingRule] = useState<any>(null);
+
+    const canCreate = useFeatureFlag('approvalRules_create');
+    const canEdit = useFeatureFlag('approvalRules_edit');
+    const canDelete = useFeatureFlag('approvalRules_delete');
 
     const { data: rules, isLoading } = useQuery({
         queryKey: ["approval-rules"],
@@ -295,12 +300,14 @@ export function ApprovalSettings() {
                             />
 
                             <div className="flex gap-2">
+                                {((!editingRule && canCreate) || (editingRule && canEdit)) && (
                                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
                                     {(createMutation.isPending || updateMutation.isPending) && (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     )}
                                     {editingRule ? "Update Rule" : "Create Rule"}
                                 </Button>
+                                )}
                                 {editingRule && (
                                     <Button type="button" variant="outline" onClick={handleCancelEdit}>
                                         Cancel
@@ -361,6 +368,7 @@ export function ApprovalSettings() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex gap-2">
+                                            {canEdit && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -368,6 +376,8 @@ export function ApprovalSettings() {
                                             >
                                                 <Edit className="h-4 w-4 text-blue-500" />
                                             </Button>
+                                            )}
+                                            {canDelete && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -375,6 +385,7 @@ export function ApprovalSettings() {
                                             >
                                                 <Trash2 className="h-4 w-4 text-red-500" />
                                             </Button>
+                                            )}
                                         </div>
                                     </TableCell>
                                 </TableRow>

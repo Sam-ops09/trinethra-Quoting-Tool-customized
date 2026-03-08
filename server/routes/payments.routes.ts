@@ -12,6 +12,9 @@ import { toDecimal, add, subtract, toMoneyString, moneyGte, moneyGt } from "../u
 
 const router = Router();
 
+// Apply payments module feature flag to all routes
+router.use(requireFeature('payments_module'));
+
 // ==================== PAYMENTS ROUTES ====================
 
 // Update Invoice Payment Status and Amount

@@ -18,6 +18,9 @@ import { toDecimal, add, subtract, toMoneyString, moneyGte, moneyGt } from "../u
 
 const router = Router();
 
+// Apply debit notes module feature flag to all routes
+router.use(requireFeature('debitNotes_module'));
+
 // ==================== GET ALL DEBIT NOTES ====================
 router.get("/debit-notes", authMiddleware, requireFeature('debitNotes_module'), async (req: AuthRequest, res: Response) => {
   try {

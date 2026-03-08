@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 
 interface CounterData {
   quote?: number;

@@ -29,7 +29,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CreateGRNDialog } from "@/components/vendor-po/create-grn-dialog";
 import { PermissionGuard } from "@/components/permission-guard";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -120,6 +120,11 @@ export default function VendorPoDetailPage() {
     const canCreateGRN = useFeatureFlag('grn_create');
     const canEmailVendorPO = useFeatureFlag('vendorPO_emailSending');
     const canGeneratePDF = useFeatureFlag('vendorPO_pdfGeneration');
+    const showDiscount = useFeatureFlag('pricing_discount');
+    const showShipping = useFeatureFlag('pricing_shipping');
+    const showCgst = useFeatureFlag('tax_cgst');
+    const showSgst = useFeatureFlag('tax_sgst');
+    const showIgst = useFeatureFlag('tax_igst');
 
     const [showSerialDialog, setShowSerialDialog] = useState(false);
     const [showGRNDialog, setShowGRNDialog] = useState(false);
@@ -642,31 +647,31 @@ export default function VendorPoDetailPage() {
                                         {formatCurrency(po.subtotal, po.quote?.currency)}
                                     </span>
                                 </div>
-                                {parseFloat(po.discount) > 0 && (
+                                {showDiscount && parseFloat(po.discount) > 0 && (
                                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                                         <span>Discount</span>
                                         <span>-{formatCurrency(po.discount, po.quote?.currency)}</span>
                                     </div>
                                 )}
-                                {parseFloat(po.cgst) > 0 && (
+                                {showCgst && parseFloat(po.cgst) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">CGST</span>
                                         <span className="text-slate-900 dark:text-white">{formatCurrency(po.cgst, po.quote?.currency)}</span>
                                     </div>
                                 )}
-                                {parseFloat(po.sgst) > 0 && (
+                                {showSgst && parseFloat(po.sgst) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">SGST</span>
                                         <span className="text-slate-900 dark:text-white">{formatCurrency(po.sgst, po.quote?.currency)}</span>
                                     </div>
                                 )}
-                                {parseFloat(po.igst) > 0 && (
+                                {showIgst && parseFloat(po.igst) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">IGST</span>
                                         <span className="text-slate-900 dark:text-white">{formatCurrency(po.igst, po.quote?.currency)}</span>
                                     </div>
                                 )}
-                                {parseFloat(po.shippingCharges) > 0 && (
+                                {showShipping && parseFloat(po.shippingCharges) > 0 && (
                                     <div className="flex justify-between">
                                         <span className="text-slate-600 dark:text-slate-400">Shipping</span>
                                         <span className="text-slate-900 dark:text-white">

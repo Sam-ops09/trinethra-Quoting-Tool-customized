@@ -4,10 +4,11 @@ import { quotes, clients, users, invoices } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
+import { requireFeature } from "./feature-flags-middleware";
 
 export function registerReportRoutes(app: Express) {
   // Generate Invoice Report (Excel or PDF)
-  app.get("/api/reports/invoices", async (req, res) => {
+  app.get("/api/reports/invoices", requireFeature('advanced_customReports'), async (req, res) => {
     try {
       const format = req.query.format as string;
 
@@ -50,7 +51,7 @@ export function registerReportRoutes(app: Express) {
   });
 
   // Generate Quote Report (Excel or PDF)
-  app.get("/api/reports/quotes", async (req, res) => {
+  app.get("/api/reports/quotes", requireFeature('advanced_customReports'), async (req, res) => {
     try {
       const format = req.query.format as string;
 

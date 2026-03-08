@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,12 @@ export default function SalesOrderDetail() {
     const canGeneratePDF = useFeatureFlag("sales_orders_pdfGeneration");
     const canSendEmail = useFeatureFlag("sales_orders_emailSending");
     const canConvertToInvoice = useFeatureFlag("sales_orders_convertToInvoice");
+    const showHsnSac = useFeatureFlag('tax_hsnSac');
+    const showDiscount = useFeatureFlag('pricing_discount');
+    const showShipping = useFeatureFlag('pricing_shipping');
+    const showCgst = useFeatureFlag('tax_cgst');
+    const showSgst = useFeatureFlag('tax_sgst');
+    const showIgst = useFeatureFlag('tax_igst');
     const { toast } = useToast();
 
     if (isEnabled === false) {
@@ -526,7 +532,7 @@ export default function SalesOrderDetail() {
                                                                 <span className="font-medium">Unit:</span>
                                                                 <span className="font-bold">{formatCurrency(item.unitPrice, order.quote?.currency)}</span>
                                                             </span>
-                                                            {item.hsnSac && (
+                                                            {showHsnSac && item.hsnSac && (
                                                                 <span className="flex items-center gap-1">
                                                                     <span className="font-medium">HSN/SAC:</span>
                                                                     <span className="font-mono font-bold bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-900 dark:text-white">{item.hsnSac}</span>
@@ -745,35 +751,35 @@ export default function SalesOrderDetail() {
                                             <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.subtotal, order.quote?.currency)}</span>
                                         </div>
 
-                                        {Number(order.discount) > 0 && (
+                                        {showDiscount && Number(order.discount) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded bg-rose-50 dark:bg-rose-950">
                                                 <span className="text-slate-600 dark:text-slate-400">Discount</span>
                                                 <span className="font-semibold text-rose-600 dark:text-rose-400">-{formatCurrency(order.discount, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
-                                        {Number(order.cgst) > 0 && (
+                                        {showCgst && Number(order.cgst) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">CGST</span>
                                                 <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.cgst, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
-                                        {Number(order.sgst) > 0 && (
+                                        {showSgst && Number(order.sgst) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">SGST</span>
                                                 <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.sgst, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
-                                        {Number(order.igst) > 0 && (
+                                        {showIgst && Number(order.igst) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">IGST</span>
                                                 <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.igst, order.quote?.currency)}</span>
                                             </div>
                                         )}
 
-                                        {Number(order.shippingCharges) > 0 && (
+                                        {showShipping && Number(order.shippingCharges) > 0 && (
                                             <div className="flex justify-between items-center text-xs p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-900">
                                                 <span className="text-slate-600 dark:text-slate-400">Shipping</span>
                                                 <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.shippingCharges, order.quote?.currency)}</span>

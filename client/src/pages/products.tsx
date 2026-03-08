@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { PermissionGuard } from "@/components/permission-guard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { formatCurrency } from "@/lib/currency";
 
 interface Product {
@@ -47,6 +47,11 @@ export default function Products() {
   // Feature flags for stock tracking
   const stockTrackingEnabled = useFeatureFlag('products_stock_tracking');
   const stockWarningsEnabled = useFeatureFlag('products_stock_warnings');
+  const canUseSku = useFeatureFlag('products_sku');
+  const canUseCategories = useFeatureFlag('products_categories');
+  const canUsePricing = useFeatureFlag('products_pricing');
+  const canUseReorderLevel = useFeatureFlag('products_reorderLevel');
+  const canTrackSerials = useFeatureFlag('serialNumber_tracking');
   
   const [formData, setFormData] = useState({
     sku: "",
@@ -247,7 +252,7 @@ export default function Products() {
             </Card>
           )}
 
-          {stockTrackingEnabled && (
+          {stockTrackingEnabled && canUsePricing && (
             <Card className="border-slate-200 dark:border-slate-800">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between mb-1.5">
@@ -344,9 +349,11 @@ export default function Products() {
                         <CardTitle className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1 mb-1">
                           {product.name}
                         </CardTitle>
-                        <p className="text-[10px] text-slate-600 dark:text-slate-400 font-mono truncate">
-                          SKU: {product.sku}
-                        </p>
+                        {canUseSku && (
+                          <p className="text-[10px] text-slate-600 dark:text-slate-400 font-mono truncate">
+                            SKU: {product.sku}
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-col gap-1 shrink-0">
                         <Badge
@@ -382,14 +389,18 @@ export default function Products() {
                   <CardContent className="space-y-2.5 p-3 pt-0">
                     {/* Price & Category */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="p-2 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Price</p>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(parseFloat(product.unitPrice))}</p>
-                      </div>
-                      <div className="p-2 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Category</p>
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{product.category || "—"}</p>
-                      </div>
+                      {canUsePricing && (
+                        <div className="p-2 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Price</p>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(parseFloat(product.unitPrice))}</p>
+                        </div>
+                      )}
+                      {canUseCategories && (
+                        <div className="p-2 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 uppercase font-semibold">Category</p>
+                          <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{product.category || "—"}</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Stock Info - only when stock tracking enabled */}
@@ -408,7 +419,7 @@ export default function Products() {
 
                     {/* Badges */}
                     <div className="flex flex-wrap gap-1.5">
-                      {product.requiresSerialNumber && (
+                      {canTrackSerials && product.requiresSerialNumber && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-300 dark:border-slate-700">
                           Serial #
                         </Badge>
@@ -428,8 +439,8 @@ export default function Products() {
 
                     <Separator />
 
-                    {/* Edit Button */}
-                    <div className="flex gap-2">
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-2">
                       <PermissionGuard resource="products" action="edit">
                         <Button
                           variant="outline"
@@ -459,6 +470,21 @@ export default function Products() {
                           </Button>
                         </PermissionGuard>
                       )}
+                      {useFeatureFlag('products_link_to_quotes') && (
+                          <Button variant="outline" size="sm" className="h-8 text-xs flex-1 min-w-[30%]" onClick={() => toast({ title: "Feature coming soon", description: "Linking to quotes is under development." })}>
+                              Quotes
+                          </Button>
+                      )}
+                      {useFeatureFlag('products_link_to_invoices') && (
+                          <Button variant="outline" size="sm" className="h-8 text-xs flex-1 min-w-[30%]" onClick={() => toast({ title: "Feature coming soon", description: "Linking to invoices is under development." })}>
+                              Invoices
+                          </Button>
+                      )}
+                      {useFeatureFlag('products_link_to_vendor_pos') && (
+                          <Button variant="outline" size="sm" className="h-8 text-xs flex-1 min-w-[30%]" onClick={() => toast({ title: "Feature coming soon", description: "Linking to POs is under development." })}>
+                              POs
+                          </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -487,17 +513,19 @@ export default function Products() {
                           </div>
 
                           <div className="flex gap-1.5 shrink-0">
-                            <Badge
-                              className={`text-[10px] px-1.5 py-0 ${
-                                status.color === 'destructive' 
-                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border-rose-200 dark:border-rose-900' 
-                                  : status.color === 'warning' 
-                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border-amber-200 dark:border-amber-900'
-                                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'
-                              }`}
-                            >
-                              {status.label}
-                            </Badge>
+                            {stockTrackingEnabled && (
+                              <Badge
+                                className={`text-[10px] px-1.5 py-0 ${
+                                  status.color === 'destructive' 
+                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border-rose-200 dark:border-rose-900' 
+                                    : status.color === 'warning' 
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border-amber-200 dark:border-amber-900'
+                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'
+                                }`}
+                              >
+                                {status.label}
+                              </Badge>
+                            )}
                             <Badge
                               className={`text-[10px] px-1.5 py-0 ${
                                 product.isActive 
@@ -547,6 +575,21 @@ export default function Products() {
                             <span className="hidden sm:inline">Edit</span>
                           </Button>
                         </PermissionGuard>
+                        {useFeatureFlag('products_link_to_quotes') && (
+                            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast({ title: "Feature coming soon" })}>
+                                Quotes
+                            </Button>
+                        )}
+                        {useFeatureFlag('products_link_to_invoices') && (
+                            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast({ title: "Feature coming soon" })}>
+                                Invoices
+                            </Button>
+                        )}
+                        {useFeatureFlag('products_link_to_vendor_pos') && (
+                            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast({ title: "Feature coming soon" })}>
+                                POs
+                            </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -566,15 +609,17 @@ export default function Products() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU *</Label>
-                  <Input
-                    id="sku"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    required
-                  />
-                </div>
+                {canUseSku && (
+                  <div className="space-y-2">
+                    <Label htmlFor="sku">SKU *</Label>
+                    <Input
+                      id="sku"
+                      value={formData.sku}
+                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="name">Product Name *</Label>
                   <Input
@@ -597,25 +642,29 @@ export default function Products() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Input
-                    id="category"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unitPrice">Unit Price *</Label>
-                  <Input
-                    id="unitPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.unitPrice}
-                    onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
-                    required
-                  />
-                </div>
+                {canUseCategories && (
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Input
+                      id="category"
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    />
+                  </div>
+                )}
+                {canUsePricing && (
+                  <div className="space-y-2">
+                    <Label htmlFor="unitPrice">Unit Price *</Label>
+                    <Input
+                      id="unitPrice"
+                      type="number"
+                      step="0.01"
+                      value={formData.unitPrice}
+                      onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               {stockTrackingEnabled && (
@@ -629,15 +678,17 @@ export default function Products() {
                       onChange={(e) => setFormData({ ...formData, stockQuantity: parseInt(e.target.value) || 0 })}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reorderLevel">Reorder Level</Label>
-                    <Input
-                      id="reorderLevel"
-                      type="number"
-                      value={formData.reorderLevel}
-                      onChange={(e) => setFormData({ ...formData, reorderLevel: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
+                  {canUseReorderLevel && (
+                    <div className="space-y-2">
+                      <Label htmlFor="reorderLevel">Reorder Level</Label>
+                      <Input
+                        id="reorderLevel"
+                        type="number"
+                        value={formData.reorderLevel}
+                        onChange={(e) => setFormData({ ...formData, reorderLevel: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -651,14 +702,16 @@ export default function Products() {
                     onChange={(e) => setFormData({ ...formData, warrantyMonths: parseInt(e.target.value) || 0 })}
                   />
                 </div>
-                <div className="flex items-center space-x-2 pt-8">
-                  <Switch
-                    id="requiresSerialNumber"
-                    checked={formData.requiresSerialNumber}
-                    onCheckedChange={(checked) => setFormData({ ...formData, requiresSerialNumber: checked })}
-                  />
-                  <Label htmlFor="requiresSerialNumber">Requires Serial Number</Label>
-                </div>
+                {canTrackSerials && (
+                  <div className="flex items-center space-x-2 pt-8">
+                    <Switch
+                      id="requiresSerialNumber"
+                      checked={formData.requiresSerialNumber}
+                      onCheckedChange={(checked) => setFormData({ ...formData, requiresSerialNumber: checked })}
+                    />
+                    <Label htmlFor="requiresSerialNumber">Requires Serial Number</Label>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">

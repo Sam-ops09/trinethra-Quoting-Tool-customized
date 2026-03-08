@@ -83,6 +83,7 @@ interface QuoteDetail {
     referenceNumber?: string;
     attentionTo?: string;
     currency?: string;
+    templateId?: string | null;
     notes?: string;
     termsAndConditions?: string;
     quoteDate?: string;
@@ -111,6 +112,7 @@ interface QuoteDetail {
 const quoteFormSchema = z.object({
     clientId: z.string().min(1, "Client is required"),
     currency: z.string().default("INR"),
+    templateId: z.string().optional().nullable(),
     validityDays: z.coerce.number().min(1, "Validity period is required"),
     referenceNumber: z.string().optional(),
     attentionTo: z.string().optional(),
@@ -178,6 +180,7 @@ export default function QuoteCreate() {
         defaultValues: {
             clientId: "",
             currency: "INR",
+            templateId: null,
             validityDays: 30,
             referenceNumber: "",
             attentionTo: "",
@@ -241,6 +244,7 @@ export default function QuoteCreate() {
             form.reset({
                 clientId: existingQuote.clientId,
                 currency: existingQuote.currency || "INR",
+                templateId: existingQuote.templateId || null,
                 validityDays: existingQuote.validityDays,
                 referenceNumber: existingQuote.referenceNumber || "",
                 attentionTo: existingQuote.attentionTo || "",
@@ -389,9 +393,10 @@ export default function QuoteCreate() {
             { cgst: values.cgst, sgst: values.sgst, igst: values.igst }
         );
 
-        const quoteData: QuoteCreatePayload = {
+        const quoteData: QuoteCreatePayload & { templateId?: string | null } = {
             clientId: values.clientId,
             currency: values.currency,
+            templateId: values.templateId,
             validityDays: values.validityDays,
             referenceNumber: values.referenceNumber || undefined,
             attentionTo: values.attentionTo || undefined,

@@ -22,7 +22,10 @@ import { eq, desc, sql } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/", requireFeature('quotes_module'), authMiddleware, async (req: AuthRequest, res: Response) => {
+// Apply quotes module feature flag to all routes
+router.use(requireFeature('quotes_module'));
+
+router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const quotesWithClients = await db.select()
       .from(schema.quotes)
@@ -49,7 +52,7 @@ router.get("/", requireFeature('quotes_module'), authMiddleware, async (req: Aut
 // ============================================
 
 // PUBLIC ROUTE: Get Quote by Token
-router.get("/public/:token", async (req: any, res: Response) => {
+router.get("/public/:token", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const token = req.params.token;
         if (!token) return res.status(400).json({ error: "Token required" });
@@ -120,7 +123,7 @@ router.get("/public/:token", async (req: any, res: Response) => {
 });
 
 // PUBLIC ROUTE: Get Comments for Quote
-router.get("/public/:token/comments", async (req: any, res: Response) => {
+router.get("/public/:token/comments", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const quote = await storage.getQuoteByToken(req.params.token);
         if (!quote) {
@@ -140,7 +143,7 @@ router.get("/public/:token/comments", async (req: any, res: Response) => {
 });
 
 // PUBLIC ROUTE: Add Client Comment
-router.post("/public/:token/comments", async (req: any, res: Response) => {
+router.post("/public/:token/comments", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const { authorName, authorEmail, message, parentCommentId } = req.body;
         
@@ -183,7 +186,7 @@ router.post("/public/:token/comments", async (req: any, res: Response) => {
 });
 
 // PUBLIC ROUTE: Update Optional Item Selections
-router.post("/public/:token/select-items", async (req: any, res: Response) => {
+router.post("/public/:token/select-items", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const { selections } = req.body;
 
@@ -250,7 +253,7 @@ router.post("/public/:token/select-items", async (req: any, res: Response) => {
 });
 
 // PUBLIC ROUTE: Enhanced Accept with Signature
-router.post("/public/:token/accept", async (req: any, res: Response) => {
+router.post("/public/:token/accept", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const { clientName, clientSignature } = req.body;
         
@@ -299,7 +302,7 @@ router.post("/public/:token/accept", async (req: any, res: Response) => {
 });
 
 // PUBLIC ROUTE: Generic Client Action (Approve/Reject)
-router.post("/public/:token/:action", async (req: any, res: Response) => {
+router.post("/public/:token/:action", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const { token, action } = req.params;
         const { reason } = req.body;
@@ -341,7 +344,7 @@ router.post("/public/:token/:action", async (req: any, res: Response) => {
 });
 
 // PUBLIC ROUTE: List Quote Attachments
-router.get("/public/:token/attachments", async (req: any, res: Response) => {
+router.get("/public/:token/attachments", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const quote = await storage.getQuoteByToken(req.params.token);
         if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -365,7 +368,7 @@ router.get("/public/:token/attachments", async (req: any, res: Response) => {
 });
 
 // PUBLIC ROUTE: Download Quote Attachment
-router.get("/public/:token/attachments/:attachmentId", async (req: any, res: Response) => {
+router.get("/public/:token/attachments/:attachmentId", requireFeature('quotes_publicSharing'), async (req: any, res: Response) => {
     try {
         const quote = await storage.getQuoteByToken(req.params.token);
         if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -430,6 +433,9 @@ router.post("/", requireFeature('quotes_create'), authMiddleware, requirePermiss
       }
       if (!isFeatureEnabled('quotes_shippingCharges') && Number(quoteData.shippingCharges || 0) > 0) {
         return res.status(403).json({ error: "Shipping charges feature is disabled" });
+      }
+      if (!isFeatureEnabled('quotes_taxation') && (Number(quoteData.cgst || 0) > 0 || Number(quoteData.sgst || 0) > 0 || Number(quoteData.igst || 0) > 0)) {
+        return res.status(403).json({ error: "Taxation module is disabled" });
       }
       if (!isFeatureEnabled('quotes_notes') && quoteData.notes) {
         delete quoteData.notes; // Silently drop notes if disabled
@@ -657,6 +663,12 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
     if (!isFeatureEnabled('quotes_discount') && updateFields.discount && Number(updateFields.discount) > 0) {
       return res.status(403).json({ error: "Discounts are currently disabled" });
     }
+    if (!isFeatureEnabled('quotes_shippingCharges') && updateFields.shippingCharges && Number(updateFields.shippingCharges) > 0) {
+      return res.status(403).json({ error: "Shipping charges feature is disabled" });
+    }
+    if (!isFeatureEnabled('quotes_taxation') && (Number(updateFields.cgst || 0) > 0 || Number(updateFields.sgst || 0) > 0 || Number(updateFields.igst || 0) > 0)) {
+      return res.status(403).json({ error: "Taxation module is disabled" });
+    }
     
     // Prepare Data for Evaluation
     // We construct a "Proposed State" to check against Approval Rules
@@ -784,7 +796,7 @@ router.patch("/:id", authMiddleware, requireFeature('quotes_edit'), requirePermi
   }
 });
 
-router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_convertToInvoice'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/convert-to-invoice", authMiddleware, requireFeature('quotes_convertToInvoice'), requireFeature('invoices_create'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
   try {
     // Generate a new master invoice number using admin master invoice numbering settings
     const invoiceNumber = await NumberingService.generateMasterInvoiceNumber();

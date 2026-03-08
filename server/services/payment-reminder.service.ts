@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { EmailService } from "./email.service";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 /**
  * Payment Reminder Scheduler Service
@@ -50,6 +51,11 @@ export class PaymentReminderScheduler {
    */
   static async checkAndSendReminders() {
     try {
+      if (!isFeatureEnabled("invoices_autoReminders") || !isFeatureEnabled("invoices_overdueNotifications")) {
+        console.log("[Payment Reminders] Auto-reminders are disabled via feature flag");
+        return;
+      }
+
       console.log("[Payment Reminders] Checking for overdue invoices...");
 
       const invoices = await storage.getAllInvoices();

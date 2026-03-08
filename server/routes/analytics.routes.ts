@@ -809,7 +809,7 @@ router.get("/vendor-po", authMiddleware, requireFeature('analytics_module'), req
   }
 });
 
-router.get("/invoice-collections", authMiddleware, requireFeature('analytics_module'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
+router.get("/invoice-collections", authMiddleware, requireFeature('analytics_module'), requireFeature('payments_analytics'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
   try {
     const allInvoices = await storage.getAllInvoices();
     const allClients = await storage.getAllClients();
@@ -992,7 +992,7 @@ router.get("/invoice-collections", authMiddleware, requireFeature('analytics_mod
   }
 });
 
-router.get("/serial-tracking", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/serial-tracking", authMiddleware, requireFeature('dashboard_serialTracking'), requirePermission("analytics", "view"), async (req: AuthRequest, res: Response) => {
   try {
     const serialNumbers = await db.execute(sql`
       SELECT * FROM serial_numbers ORDER BY created_at DESC

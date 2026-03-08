@@ -7,6 +7,8 @@ import { getTheme, getSuggestedTheme, type PDFTheme } from "./pdf-themes";
 import { prepareLogo, drawLogo } from "./pdf-helpers";
 import { formatCurrency, formatCurrencyPdf } from "./currency-helper";
 import { isFeatureEnabled } from "../../shared/feature-flags";
+import { db } from "../db";
+import * as schema from "../../shared/schema";
 
 export interface QuoteWithDetails {
   quote: Quote;
@@ -152,15 +154,20 @@ export class PDFService {
     if (!isFeatureEnabled('pdf_generation')) {
         throw new Error("PDF generation is currently disabled.");
     }
+    // Fetch settings from DB
+    const allSettings = await db.select().from(schema.settings);
+    const settingsMap: Record<string, string> = allSettings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
+
     // Theme selection
     let selectedTheme: PDFTheme;
-    // ... existing implementation remains ...
-    if (data.theme) selectedTheme = getTheme(data.theme);
+    if (data.theme) selectedTheme = getTheme(data.theme, settingsMap);
     else if (data.client?.preferredTheme)
-      selectedTheme = getTheme(data.client.preferredTheme);
+      selectedTheme = getTheme(data.client.preferredTheme, settingsMap);
     else if (data.client?.segment)
-      selectedTheme = getSuggestedTheme(data.client.segment);
-    else selectedTheme = getTheme("professional");
+      selectedTheme = getSuggestedTheme(data.client.segment, settingsMap);
+    else selectedTheme = getTheme(undefined, settingsMap);
+
+    (data as any).settingsMap = settingsMap; // Store for other methods
 
     this.applyTheme(selectedTheme);
 
@@ -190,7 +197,9 @@ export class PDFService {
     doc.lineGap(2);
 
     // Optional cover only if abstract exists
-    if (this.clean(data.abstract) && isFeatureEnabled('pdf_watermark')) {
+    const watermarkEnabled = isFeatureEnabled('pdf_watermark') && settingsMap['pdf_watermark_enabled'] !== 'false';
+
+    if (this.clean(data.abstract) && watermarkEnabled) {
       this.drawCover(doc, data);
       doc.addPage();
     }
@@ -206,11 +215,14 @@ export class PDFService {
     this.drawSignaturesRow(doc, data); // Kept original structure for these
 
     // Footer on every page
-    const range = doc.bufferedPageRange();
-    const total = range.count;
-    for (let i = 0; i < total; i++) {
-      doc.switchToPage(i);
-      this.drawFooter(doc, i + 1, total);
+    const showHeaderFooter = isFeatureEnabled('pdf_headerFooter') && settingsMap['pdf_headerFooter_enabled'] !== 'false';
+    if (showHeaderFooter) {
+      const range = doc.bufferedPageRange();
+      const total = range.count;
+      for (let i = 0; i < total; i++) {
+        doc.switchToPage(i);
+        this.drawFooter(doc, i + 1, total);
+      }
     }
 
     doc.end();
@@ -488,8 +500,10 @@ export class PDFService {
     // Logo (use pre-resolved)
     const logoPath = (data as any).resolvedLogo;
     const mimeType = (data as any).logoMimeType || "";
+    const settingsMap: Record<string, string> = (data as any).settingsMap || {};
+    const logoEnabled = isFeatureEnabled('pdf_logo') && settingsMap['pdf_logo_enabled'] !== 'false';
     
-    if (logoPath && isFeatureEnabled('pdf_logo')) {
+    if (logoPath && logoEnabled) {
         const drawn = drawLogo(doc, logoPath, mimeType, x, topY + 12, logoSize);
         logoPrinted = drawn;
     }

@@ -271,30 +271,45 @@ export const segmentThemeMapping: Record<string, string> = {
 };
 
 // Get theme by name or return default
-export function getTheme(themeName?: string): PDFTheme {
-  if (!themeName) return professionalTheme;
-  return themeRegistry[themeName] || professionalTheme;
+export function getTheme(themeName?: string, settings?: Record<string, string>): PDFTheme {
+  const defaultThemeName = settings?.company_defaultPdfTheme || 'professional';
+  const nameToUse = themeName || defaultThemeName;
+  return themeRegistry[nameToUse] || themeRegistry[defaultThemeName] || professionalTheme;
 }
 
 // Get suggested theme for a client segment
-export function getSuggestedTheme(segment?: string): PDFTheme {
-  if (!segment) return professionalTheme;
+export function getSuggestedTheme(segment?: string, settings?: Record<string, string>): PDFTheme {
+  if (!segment) return getTheme(undefined, settings);
   const themeName = segmentThemeMapping[segment] || 'professional';
-  return getTheme(themeName);
+  return getTheme(themeName, settings);
 }
 
 // Get all available themes
-export function getAllThemes(): PDFTheme[] {
+export function getAllThemes(settings?: Record<string, string>): PDFTheme[] {
   if (!isFeatureEnabled('pdf_themes')) {
     return [professionalTheme];
   }
+
   return Object.values(themeRegistry).filter(theme => {
+    // 1. Check hardcoded feature flag first
     const flagName = `theme_${theme.name}` as any;
+    let enabledByFlag = true;
     try {
-      return isFeatureEnabled(flagName);
+      enabledByFlag = isFeatureEnabled(flagName);
     } catch {
-      return true; // Fallback if flag not found (like 'professional')
+      // Fallback if flag not found (like 'professional')
+      enabledByFlag = true; 
     }
+
+    if (!enabledByFlag) return false;
+
+    // 2. Check database setting override (e.g. theme_modern_enabled)
+    const settingKey = `theme_${theme.name}_enabled`;
+    const settingValue = settings?.[settingKey];
+    
+    if (settingValue === 'false') return false;
+    
+    return true;
   });
 }
 

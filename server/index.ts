@@ -55,7 +55,7 @@ const authLimiter = rateLimit({
 
 import { isFeatureEnabled } from "../shared/feature-flags";
 
-if (!isTestEnv && isFeatureEnabled('security_rateLimiting')) {
+if (!isTestEnv && (isFeatureEnabled('security_rateLimiting') || isFeatureEnabled('advanced_apiRateLimiting'))) {
   app.use("/api/", limiter);
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/signup", authLimiter);

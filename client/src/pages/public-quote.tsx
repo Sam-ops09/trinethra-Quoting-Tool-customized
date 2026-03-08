@@ -433,19 +433,25 @@ export default function PublicQuote() {
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Accept Quote</DialogTitle>
-                      <DialogDescription>Confirm your acceptance by entering your name below.</DialogDescription>
+                      <DialogDescription>
+                        {isFeatureEnabled('quotes_eSignature') 
+                          ? "Confirm your acceptance by entering your name below."
+                          : "Are you sure you want to accept this quote?"}
+                      </DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
-                      <div>
-                        <Label htmlFor="clientName">Your Full Name *</Label>
-                        <Input 
-                          id="clientName" 
-                          placeholder="Enter your full name" 
-                          value={clientName}
-                          onChange={(e) => setClientName(e.target.value)}
-                          className="mt-2"
-                        />
-                      </div>
+                      {isFeatureEnabled('quotes_eSignature') && (
+                        <div>
+                          <Label htmlFor="clientName">Your Full Name *</Label>
+                          <Input 
+                            id="clientName" 
+                            placeholder="Enter your full name" 
+                            value={clientName}
+                            onChange={(e) => setClientName(e.target.value)}
+                            className="mt-2"
+                          />
+                        </div>
+                      )}
                       <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
                         <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
                           Total Amount: {formatCurrency(displayTotal, quote.currency)}
@@ -457,7 +463,7 @@ export default function PublicQuote() {
                       <Button 
                         className="bg-emerald-600 hover:bg-emerald-700"
                         onClick={() => acceptMutation.mutate()}
-                        disabled={!clientName || acceptMutation.isPending}
+                        disabled={(isFeatureEnabled('quotes_eSignature') && !clientName) || acceptMutation.isPending}
                       >
                         {acceptMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin"/> : "Confirm Acceptance"}
                       </Button>

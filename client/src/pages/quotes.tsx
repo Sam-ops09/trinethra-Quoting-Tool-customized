@@ -52,7 +52,7 @@ import {
 import { PermissionGuard } from "@/components/permission-guard";
 import { SendQuoteEmailDialog } from "@/components/send-quote-email-dialog";
 import { cn } from "@/lib/utils";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions-new";
 

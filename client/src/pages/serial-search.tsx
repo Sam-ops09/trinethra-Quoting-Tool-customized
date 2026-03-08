@@ -18,6 +18,7 @@ import {
     StickyNote,
     ChevronRight,
     Home,
+    Download,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +30,8 @@ import { Separator } from "@/components/ui/separator";
 
 // New UI building blocks (shadcn/ui)
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
+import { useToast } from "@/hooks/use-toast";
 import {
     CommandDialog,
     CommandEmpty,
@@ -71,6 +74,7 @@ export default function SerialNumberSearch() {
     const [query, setQuery] = React.useState("");
     const [term, setTerm] = React.useState("");
     const [, navigate] = useLocation();
+    const { toast } = useToast();
 
     // Command palette state + search history
     const [cmdOpen, setCmdOpen] = React.useState(false);
@@ -518,6 +522,16 @@ export default function SerialNumberSearch() {
                                             <Search className="h-3.5 xs:h-4 w-3.5 xs:w-4 mr-1" />
                                             Quick
                                         </Button>
+                                        {useFeatureFlag('serialNumber_export') && (
+                                            <Button
+                                                variant="outline"
+                                                className="flex-1 h-8 xs:h-9 text-xs xs:text-sm"
+                                                onClick={() => toast({ title: "Feature coming soon", description: "Export functionality is currently under development." })}
+                                            >
+                                                <Download className="h-3.5 xs:h-4 w-3.5 xs:w-4 mr-1" />
+                                                Export
+                                            </Button>
+                                        )}
                                     </div>
                                 </CardHeader>
 
@@ -670,7 +684,7 @@ export default function SerialNumberSearch() {
                                     <Tabs defaultValue="overview">
                                         <TabsList className="w-full flex flex-wrap justify-start">
                                             <TabsTrigger value="overview">Overview</TabsTrigger>
-                                            <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                                            {useFeatureFlag('serialNumber_history') && <TabsTrigger value="timeline">Timeline</TabsTrigger>}
                                             <TabsTrigger value="warranty">Warranty</TabsTrigger>
                                             <TabsTrigger value="notes">Notes</TabsTrigger>
                                         </TabsList>
@@ -738,9 +752,11 @@ export default function SerialNumberSearch() {
                                             </div>
                                         </TabsContent>
 
-                                        <TabsContent value="timeline" className="mt-5">
-                                            <Timeline history={data.history} />
-                                        </TabsContent>
+                                        {useFeatureFlag('serialNumber_history') && (
+                                            <TabsContent value="timeline" className="mt-5">
+                                                <Timeline history={data.history} />
+                                            </TabsContent>
+                                        )}
 
                                         <TabsContent value="warranty" className="mt-5 space-y-4">
                                             {!data.warranty ? (

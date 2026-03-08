@@ -14,26 +14,35 @@ import { getAllThemes, getSuggestedTheme } from "../services/pdf-themes";
 
 const router = Router();
 
-// ==================== THEME ROUTES ====================
+// ==================== THEME ROUTES (Public) ====================
 router.get("/themes", authMiddleware, async (req: AuthRequest, res: Response) => {
-  try {
-    const themes = getAllThemes();
-    return res.json(themes);
-  } catch (error) {
-    logger.error("Error fetching themes:", error);
-    return res.status(500).json({ error: "Failed to fetch themes" });
-  }
+    try {
+        const allSettings = await db.select().from(schema.settings);
+        const settingsMap = allSettings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
+        
+        const themes = getAllThemes(settingsMap);
+        return res.json(themes);
+    } catch (error) {
+        logger.error("Error fetching themes:", error);
+        return res.status(500).json({ error: "Failed to fetch themes" });
+    }
 });
 
 router.get("/themes/segment/:segment", authMiddleware, async (req: AuthRequest, res: Response) => {
-  try {
-    const theme = getSuggestedTheme(req.params.segment);
-    return res.json(theme);
-  } catch (error) {
-    logger.error("Error fetching suggested theme:", error);
-    return res.status(500).json({ error: "Failed to fetch suggested theme" });
-  }
+    try {
+        const allSettings = await db.select().from(schema.settings);
+        const settingsMap = allSettings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
+        
+        const theme = getSuggestedTheme(req.params.segment, settingsMap);
+        return res.json(theme);
+    } catch (error) {
+        logger.error("Error fetching suggested theme:", error);
+        return res.status(500).json({ error: "Failed to fetch suggested theme" });
+    }
 });
+
+// Apply admin_settings feature flag to all remaining routes
+router.use(requireFeature('admin_settings'));
 
 // ==================== SETTINGS ROUTES ====================
 router.get("/settings", authMiddleware, requireFeature('admin_settings'), requirePermission("settings", "manage"), async (req: AuthRequest, res: Response) => {
@@ -84,6 +93,19 @@ router.post("/settings", authMiddleware, requireFeature('admin_settings'), requi
       // Public page branding
       "publicPage_brandColor", "publicPage_accentColor", "publicPage_headerText",
       "publicPage_footerText", "publicPage_showLogo", "publicPage_showTerms",
+      // PDF Themes & Customization
+      "company_defaultPdfTheme",
+      "theme_professional_enabled", "theme_modern_enabled", "theme_minimal_enabled",
+      "theme_creative_enabled", "theme_premium_enabled", "theme_government_enabled",
+      "theme_education_enabled",
+      "pdf_logo_enabled",
+      "pdf_headerFooter_enabled",
+      "pdf_watermark_enabled",
+      "integrations_googleDrive_enabled",
+      "integrations_oneDrive_enabled",
+      "integrations_tallyReady_enabled",
+      "integrations_whatsapp_enabled",
+      "integration_vercelAnalytics_enabled"
     ];
 
     const validateSettingKey = (key: string): boolean => {

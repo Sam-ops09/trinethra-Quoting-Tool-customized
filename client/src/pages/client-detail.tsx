@@ -71,7 +71,7 @@ import type {
     Invoice,
 } from "@shared/schema";
 import { format } from "date-fns";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { formatCurrency } from "@/lib/currency";
 import { ClientFormDialog, type ClientFormValues, clientFormSchema } from "@/components/client-form-dialog";
 
@@ -115,11 +115,12 @@ export default function ClientDetail() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [selectedSegment, setSelectedSegment] = useState("");
     const [selectedTheme, setSelectedTheme] = useState("");
+
  
     // Feature flags
     const canViewTags = useFeatureFlag('clients_tags');
     const canViewHistory = useFeatureFlag('clients_communicationHistory');
-    const canViewTheme = useFeatureFlag('clients_preferredTheme');
+    const canViewTheme = useFeatureFlag('clients_preferredTheme') && useFeatureFlag('pdf_clientSpecificThemes');
     const canViewQuotes = useFeatureFlag('quotes_module');
     const canViewInvoices = useFeatureFlag('invoices_module');
     const canManageSegments = useFeatureFlag('clients_segmentation');
@@ -127,12 +128,22 @@ export default function ClientDetail() {
     const canViewBilling = useFeatureFlag('clients_billingAddress');
     const canViewShipping = useFeatureFlag('clients_shippingAddress');
     const canCreateQuote = useFeatureFlag('quotes_create');
+    const canViewTimeline = useFeatureFlag('clients_timeline');
+    const canViewNotes = useFeatureFlag('clients_notes');
 
     // Fetch client data
     const { data: client, isLoading: clientLoading } = useQuery<Client>({
         queryKey: [`/api/clients/${clientId}`],
         enabled: !!clientId,
     });
+
+    // Update theme selection state when client data is loaded
+    React.useEffect(() => {
+        if (client) {
+            setSelectedSegment((client as any).segment || "");
+            setSelectedTheme((client as any).preferredTheme || "");
+        }
+    }, [client]);
 
     // Fetch themes
     const { data: themes = [] } = useQuery<Theme[]>({
@@ -1157,7 +1168,7 @@ export default function ClientDetail() {
                                                             <SelectItem value="email">Email</SelectItem>
                                                             <SelectItem value="call">Phone call</SelectItem>
                                                             <SelectItem value="meeting">Meeting</SelectItem>
-                                                            <SelectItem value="note">Note</SelectItem>
+                                                            {canViewNotes && <SelectItem value="note">Note</SelectItem>}
                                                         </SelectContent>
                                                     </Select>
                                                     <FormMessage />
@@ -1216,68 +1227,69 @@ export default function ClientDetail() {
                         )}
                     </div>
 
-                    {communications.length > 0 ? (
-                        <div className="space-y-3">
-                            {communications.map((comm) => (
-                                <Card
-                                    key={comm.id}
-                                    className="border bg-background/95 hover:bg-muted/70 transition-colors"
-                                >
-                                    <CardContent className="p-4 sm:p-4.5">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                <div className="p-2 bg-primary/10 rounded-md text-primary shrink-0">
-                                                    {getCommunicationIcon(comm.type)}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="capitalize text-[10px] sm:text-xs"
-                                                        >
-                                                            {comm.type}
-                                                        </Badge>
-                                                        <span className="text-[11px] sm:text-xs text-muted-foreground">
-                              {format(
-                                  new Date(comm.date),
-                                  "MMM dd, yyyy 'at' h:mm a"
-                              )}
-                            </span>
+                    {canViewTimeline ? (
+                        communications.length > 0 ? (
+                            <div className="space-y-3">
+                                {communications.map((comm) => (
+                                    <Card
+                                        key={comm.id}
+                                        className="border bg-background/95 hover:bg-muted/70 transition-colors"
+                                    >
+                                        <CardContent className="p-4 sm:p-4.5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                    <div className="p-2 bg-primary/10 rounded-md text-primary shrink-0">
+                                                        {getCommunicationIcon(comm.type)}
                                                     </div>
-                                                    {comm.subject && (
-                                                        <h4 className="font-semibold text-sm mb-1 truncate">
-                                                            {comm.subject}
-                                                        </h4>
-                                                    )}
-                                                    <p className="text-xs sm:text-sm text-muted-foreground font-['Open_Sans'] whitespace-pre-line">
-                                                        {comm.message}
-                                                    </p>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="capitalize text-[10px] sm:text-xs"
+                                                            >
+                                                                {comm.type}
+                                                            </Badge>
+                                                            <span className="text-[11px] sm:text-xs text-muted-foreground">
+                                  {format(
+                                      new Date(comm.date),
+                                      "MMM dd, yyyy 'at' h:mm a"
+                                  )}
+                                </span>
+                                                        </div>
+                                                        {comm.subject && (
+                                                            <h4 className="font-semibold text-sm mb-1 truncate">
+                                                                {comm.subject}
+                                                            </h4>
+                                                        )}
+                                                        <p className="text-xs sm:text-sm text-muted-foreground font-['Open_Sans'] whitespace-pre-line">
+                                                            {comm.message}
+                                                        </p>
+                                                    </div>
                                                 </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        deleteCommunicationMutation.mutate(comm.id)
+                                                    }
+                                                    data-testid={`button-delete-comm-${comm.id}`}
+                                                    className="shrink-0"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    deleteCommunicationMutation.mutate(comm.id)
-                                                }
-                                                data-testid={`button-delete-comm-${comm.id}`}
-                                                className="shrink-0"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <Card>
-                            <CardContent className="flex flex-col items-center justify-center py-10 sm:py-12 text-center">
-                                <MessageSquare className="h-14 w-14 sm:h-16 sm:w-16 text-muted-foreground mb-4 opacity-60" />
-                                <h3 className="text-base sm:text-lg font-semibold mb-2">
-                                    No communications logged
-                                </h3>
-                                <p className="text-xs sm:text-sm text-muted-foreground font-['Open_Sans'] mb-4 max-w-sm">
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <Card>
+                                <CardContent className="flex flex-col items-center justify-center py-10 sm:py-12 text-center">
+                                    <MessageSquare className="h-14 w-14 sm:h-16 sm:w-16 text-muted-foreground mb-4 opacity-60" />
+                                    <h3 className="text-base sm:text-lg font-semibold mb-2">
+                                        No communications logged
+                                    </h3>
+                                    <p className="text-xs sm:text-sm text-muted-foreground font-['Open_Sans'] mb-4 max-w-sm">
                                     Start tracking your interactions with this client.
                                 </p>
                                 <Button
@@ -1287,6 +1299,19 @@ export default function ClientDetail() {
                                     <Plus className="h-4 w-4 mr-2" />
                                     Log first communication
                                 </Button>
+                            </CardContent>
+                        </Card>
+                    )
+                ) : (
+                    <Card>
+                            <CardContent className="flex flex-col items-center justify-center py-10 sm:py-12 text-center">
+                                <MessageSquare className="h-14 w-14 sm:h-16 sm:w-16 text-muted-foreground mb-4 opacity-60" />
+                                <h3 className="text-base sm:text-lg font-semibold mb-2">
+                                    Timeline View Disabled
+                                </h3>
+                                <p className="text-xs sm:text-sm text-muted-foreground font-['Open_Sans'] mb-4 max-w-sm">
+                                    You don't have permission to view the communication timeline.
+                                </p>
                             </CardContent>
                         </Card>
                     )}
@@ -1306,6 +1331,7 @@ export default function ClientDetail() {
                     canManageSegments={canManageSegments}
                     canViewBilling={canViewBilling}
                     canViewShipping={canViewShipping}
+                    canViewTheme={canViewTheme}
                 />
             )}
         </div>

@@ -4,6 +4,7 @@ import type { Notification, InsertNotification, NotificationType } from "@shared
 import { eq, and, desc, sql, lt } from "drizzle-orm";
 import { WebSocketService } from "./websocket.service";
 import { logger } from "../utils/logger";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 
 interface CreateNotificationOptions {
   userId: string;
@@ -391,6 +392,8 @@ class NotificationServiceClass {
     daysOverdue: number,
     amount: string
   ): Promise<void> {
+    if (!isFeatureEnabled("invoices_overdueNotifications")) return;
+
     await this.create({
       userId,
       type: "payment_overdue",

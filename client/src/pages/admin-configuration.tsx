@@ -27,11 +27,23 @@ import {
   Home,
   ChevronRight,
   Receipt,
+  Palette,
+  Check,
+  Settings2,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { CounterManagement } from "@/components/counter-management";
 import { EmailTemplateSettings } from "@/components/admin-settings/EmailTemplateSettings";
 
@@ -114,6 +126,30 @@ const emailTemplatesSchema = z.object({
   paymentReminderBody: z.string().min(1, "Payment reminder body is required"),
 });
 
+// Themes Settings Schema
+const themesSettingsSchema = z.object({
+  defaultPdfTheme: z.string().min(1, "Default theme is required"),
+  professionalEnabled: z.boolean().default(true),
+  modernEnabled: z.boolean().default(true),
+  minimalEnabled: z.boolean().default(true),
+  creativeEnabled: z.boolean().default(true),
+  premiumEnabled: z.boolean().default(true),
+  governmentEnabled: z.boolean().default(true),
+  educationEnabled: z.boolean().default(true),
+  pdfLogoEnabled: z.boolean().default(true),
+  pdfHeaderFooterEnabled: z.boolean().default(true),
+  pdfWatermarkEnabled: z.boolean().default(true),
+});
+
+// Integrations Settings Schema
+const integrationsSettingsSchema = z.object({
+  googleDriveEnabled: z.boolean().default(false),
+  oneDriveEnabled: z.boolean().default(false),
+  tallyReadyEnabled: z.boolean().default(false),
+  whatsappEnabled: z.boolean().default(false),
+  vercelAnalyticsEnabled: z.boolean().default(false),
+});
+
 /* ────────────────────────────────────────────────────────────────────────────
    COMPONENT
 ──────────────────────────────────────────────────────────────────────────── */
@@ -123,13 +159,30 @@ export default function AdminConfiguration() {
   const [activeTab, setActiveTab] = useState("company");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  // Feature flags
+  const isEnabled = useFeatureFlag('admin_configuration');
   const showBankDetails = useFeatureFlag('admin_bankDetails');
   const showNumberingSchemes = useFeatureFlag('admin_numberingSchemes');
   const showEmailTemplates = useFeatureFlag('email_integration');
   const showAdvancedEmailTemplates = useFeatureFlag('email_templates_module');
   const showTaxRates = useFeatureFlag('admin_taxRates');
   const showPaymentTerms = useFeatureFlag('admin_paymentTerms');
+  const showThemes = useFeatureFlag('pdf_themes') && useFeatureFlag('pdf_customThemes');
+  const showIntegrations = useFeatureFlag("integration_externalApi");
+
+  // PDF Theme Flags
+  const showThemeProfessional = useFeatureFlag('theme_professional');
+  const showThemeModern = useFeatureFlag('theme_modern');
+  const showThemeMinimal = useFeatureFlag('theme_minimal');
+  const showThemeCreative = useFeatureFlag('theme_creative');
+  const showThemePremium = useFeatureFlag('theme_premium');
+  const showThemeGovernment = useFeatureFlag('theme_government');
+  const showThemeEducation = useFeatureFlag('theme_education');
+
+  // Integration Flags
+  const showWhatsapp = useFeatureFlag('integrations_whatsapp');
+  const showGoogleDrive = useFeatureFlag('integrations_googleDrive');
+  const showOneDrive = useFeatureFlag('integrations_oneDrive');
+  const showTallyReady = useFeatureFlag('integrations_tallyReady');
 
   // Module-specific flags for numbering schemes
   const showQuotes = useFeatureFlag('quotes_module');
@@ -139,14 +192,19 @@ export default function AdminConfiguration() {
   const showSalesOrders = useFeatureFlag('sales_orders_module');
   const showCreditNotes = useFeatureFlag('creditNotes_module');
   const showDebitNotes = useFeatureFlag('debitNotes_module');
+  const showGst = useFeatureFlag('tax_gst');
+  const showMultiRate = useFeatureFlag('tax_multiRate');
 
   // Calculate number of visible tabs for responsive grid
-  const visibleTabsCount = 1 + // Company tab (always visible)
-    (showNumberingSchemes ? 1 : 0) +
-    (showBankDetails ? 1 : 0) +
-    (showEmailTemplates ? 1 : 0) +
-    (showAdvancedEmailTemplates ? 1 : 0) +
-    (showTaxRates || showPaymentTerms ? 1 : 0);
+  const visibleTabsCount = [
+    true, // Company
+    showBankDetails,
+    showNumberingSchemes,
+    (showTaxRates || showPaymentTerms), // Tax & Terms
+    (showEmailTemplates || showAdvancedEmailTemplates), // Email or Templates
+    showThemes,
+    showIntegrations
+  ].filter(Boolean).length;
 
   // Fetch settings
   const { data: settings, isLoading: settingsLoading } = useQuery<Record<string, any>>({
@@ -626,6 +684,126 @@ export default function AdminConfiguration() {
     },
   });
 
+  /* ── THEMES & CUSTOMIZATION ──────────────────────────────────────────────── */
+
+  const themesForm = useForm<z.infer<typeof themesSettingsSchema>>({
+    resolver: zodResolver(themesSettingsSchema),
+    defaultValues: {
+      defaultPdfTheme: "professional",
+      professionalEnabled: true,
+      modernEnabled: true,
+      minimalEnabled: true,
+      creativeEnabled: true,
+      premiumEnabled: true,
+      governmentEnabled: true,
+      educationEnabled: true,
+      pdfLogoEnabled: true,
+      pdfHeaderFooterEnabled: true,
+      pdfWatermarkEnabled: true,
+    },
+  });
+
+  const integrationsForm = useForm<z.infer<typeof integrationsSettingsSchema>>({
+    resolver: zodResolver(integrationsSettingsSchema),
+    defaultValues: {
+      googleDriveEnabled: false,
+      oneDriveEnabled: false,
+      tallyReadyEnabled: false,
+      whatsappEnabled: false,
+      vercelAnalyticsEnabled: false,
+    },
+  });
+
+  // Update form when settings are loaded
+  useEffect(() => {
+    if (settings) {
+      const settingsMap = settings || {}; // Ensure settings is an object
+      themesForm.reset({
+        defaultPdfTheme: settingsMap["company_defaultPdfTheme"] || "professional",
+        professionalEnabled: settingsMap["theme_professional_enabled"] !== "false",
+        modernEnabled: settingsMap["theme_modern_enabled"] !== "false",
+        minimalEnabled: settingsMap["theme_minimal_enabled"] !== "false",
+        creativeEnabled: settingsMap["theme_creative_enabled"] !== "false",
+        premiumEnabled: settingsMap["theme_premium_enabled"] !== "false",
+        governmentEnabled: settingsMap["theme_government_enabled"] !== "false",
+        educationEnabled: settingsMap["theme_education_enabled"] !== "false",
+        pdfLogoEnabled: settingsMap["pdf_logo_enabled"] !== "false",
+        pdfHeaderFooterEnabled: settingsMap["pdf_headerFooter_enabled"] !== "false",
+        pdfWatermarkEnabled: settingsMap["pdf_watermark_enabled"] !== "false",
+      });
+
+      integrationsForm.reset({
+        googleDriveEnabled: settingsMap["integrations_googleDrive_enabled"] === "true",
+        oneDriveEnabled: settingsMap["integrations_oneDrive_enabled"] === "true",
+        tallyReadyEnabled: settingsMap["integrations_tallyReady_enabled"] === "true",
+        whatsappEnabled: settingsMap["integrations_whatsapp_enabled"] === "true",
+        vercelAnalyticsEnabled: settingsMap["integration_vercelAnalytics_enabled"] === "true",
+      });
+    }
+  }, [settings, themesForm, integrationsForm]);
+
+  const saveThemesMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof themesSettingsSchema>) => {
+      const updates = [
+        { key: "company_defaultPdfTheme", value: data.defaultPdfTheme },
+        { key: "theme_professional_enabled", value: String(data.professionalEnabled) },
+        { key: "theme_modern_enabled", value: String(data.modernEnabled) },
+        { key: "theme_minimal_enabled", value: String(data.minimalEnabled) },
+        { key: "theme_creative_enabled", value: String(data.creativeEnabled) },
+        { key: "theme_premium_enabled", value: String(data.premiumEnabled) },
+        { key: "theme_government_enabled", value: String(data.governmentEnabled) },
+        { key: "theme_education_enabled", value: String(data.educationEnabled) },
+        { key: "pdf_logo_enabled", value: String(data.pdfLogoEnabled) },
+        { key: "pdf_headerFooter_enabled", value: String(data.pdfHeaderFooterEnabled) },
+        { key: "pdf_watermark_enabled", value: String(data.pdfWatermarkEnabled) },
+      ];
+
+      for (const update of updates) {
+        await apiRequest("PATCH", `/api/settings/${update.key}`, { value: update.value });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["api", "settings"] });
+      toast({ title: "Success", description: "Theme settings updated successfully" });
+    },
+    onError: (error: any) => {
+      console.error("Error saving theme settings:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update theme settings",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveIntegrationsMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof integrationsSettingsSchema>) => {
+      const updates = [
+        { key: "integrations_googleDrive_enabled", value: String(data.googleDriveEnabled) },
+        { key: "integrations_oneDrive_enabled", value: String(data.oneDriveEnabled) },
+        { key: "integrations_tallyReady_enabled", value: String(data.tallyReadyEnabled) },
+        { key: "integrations_whatsapp_enabled", value: String(data.whatsappEnabled) },
+        { key: "integration_vercelAnalytics_enabled", value: String(data.vercelAnalyticsEnabled) },
+      ];
+
+      for (const update of updates) {
+        await apiRequest("PATCH", `/api/settings/${update.key}`, { value: update.value });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["api", "settings"] });
+      toast({ title: "Success", description: "Integration settings updated successfully" });
+    },
+    onError: (error: any) => {
+      console.error("Error saving integration settings:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update integration settings",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (settingsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -633,6 +811,20 @@ export default function AdminConfiguration() {
           <Loader2 className="h-8 w-8 animate-spin text-slate-900 dark:text-slate-100 mx-auto" />
           <p className="text-xs text-slate-600 dark:text-slate-400">Loading configuration...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (!isEnabled) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center h-[50vh]">
+        <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+          <SettingsIcon className="h-6 w-6 text-slate-400" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Configuration Disabled</h2>
+        <p className="text-slate-500 dark:text-slate-400 max-w-md">
+          The Admin Configuration feature is currently disabled. Please contact your system administrator to enable it.
+        </p>
       </div>
     );
   }
@@ -684,7 +876,8 @@ export default function AdminConfiguration() {
               visibleTabsCount === 3 && "sm:grid-cols-3",
               visibleTabsCount === 4 && "sm:grid-cols-4",
               visibleTabsCount === 5 && "sm:grid-cols-5",
-              visibleTabsCount === 6 && "sm:grid-cols-6"
+              visibleTabsCount === 6 && "sm:grid-cols-6",
+              visibleTabsCount === 7 && "sm:grid-cols-7"
             )}>
               <TabsTrigger value="company" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                 <Building className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
@@ -718,6 +911,18 @@ export default function AdminConfiguration() {
                 <TabsTrigger value="tax" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
                   <Percent className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                   <span className="hidden xs:inline">Tax & Terms</span>
+                </TabsTrigger>
+              )}
+              {showThemes && (
+                <TabsTrigger value="themes" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
+                  <Palette className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                  <span className="hidden xs:inline">Themes</span>
+                </TabsTrigger>
+              )}
+              {showIntegrations && (
+                <TabsTrigger value="integrations" className="flex items-center gap-1 text-[10px] sm:text-xs py-2 px-2 sm:px-3 whitespace-nowrap data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm rounded">
+                  <Settings2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                  <span className="hidden xs:inline">Integrations</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -919,9 +1124,10 @@ export default function AdminConfiguration() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Tax Identifiers</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <FormField
-                        control={companyForm.control}
-                        name="gstin"
+                      {showGst && (
+                        <FormField
+                          control={companyForm.control}
+                          name="gstin"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>GSTIN</FormLabel>
@@ -933,6 +1139,7 @@ export default function AdminConfiguration() {
                           </FormItem>
                         )}
                       />
+                      )}
 
                       <FormField
                         control={companyForm.control}
@@ -1467,6 +1674,7 @@ export default function AdminConfiguration() {
               </div>
             </CardHeader>
             <CardContent className="p-3 space-y-3">
+              {(showMultiRate || !taxRates || taxRates.length === 0) && (
               <Form {...taxRateForm}>
                 <form onSubmit={taxRateForm.handleSubmit((data) => saveTaxRateMutation.mutate(data))} className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1540,6 +1748,7 @@ export default function AdminConfiguration() {
                   </Button>
                 </form>
               </Form>
+              )}
 
               <Separator />
 
@@ -2041,6 +2250,476 @@ export default function AdminConfiguration() {
         {showAdvancedEmailTemplates && (
           <TabsContent value="email-templates" className="space-y-3">
             <EmailTemplateSettings />
+          </TabsContent>
+        )}
+
+        {showThemes && (
+          <TabsContent value="themes" className="space-y-3">
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center shrink-0">
+                    <Palette className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold">PDF Themes & Branding</CardTitle>
+                    <CardDescription className="text-[10px]">
+                      Customize the look and feel of your generated documents
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3">
+                <Form {...themesForm}>
+                  <form onSubmit={themesForm.handleSubmit((data) => saveThemesMutation.mutate(data))} className="space-y-4">
+                    {/* Default Theme Selection */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Settings2 className="h-4 w-4 text-slate-500" />
+                        <h3 className="text-sm font-semibold">Default Configuration</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={themesForm.control}
+                          name="defaultPdfTheme"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Default PDF Theme</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger className="h-9 text-xs">
+                                    <SelectValue placeholder="Select a theme" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="professional">Professional (Classic)</SelectItem>
+                                  <SelectItem value="modern">Modern (Vibrant)</SelectItem>
+                                  <SelectItem value="minimal">Minimal (Clean)</SelectItem>
+                                  <SelectItem value="creative">Creative (Bold)</SelectItem>
+                                  <SelectItem value="premium">Premium (Luxury)</SelectItem>
+                                  <SelectItem value="government">Government (Formal)</SelectItem>
+                                  <SelectItem value="education">Education (Approachable)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormDescription className="text-[10px]">
+                                This theme will be used by default for all new quotes and invoices.
+                              </FormDescription>
+                              <FormMessage className="text-[10px]" />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Branding Toggles */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Building className="h-4 w-4 text-slate-500" />
+                        <h3 className="text-sm font-semibold">Branding Options</h3>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <FormField
+                          control={themesForm.control}
+                          name="pdfLogoEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                              <div className="space-y-0.5">
+                                <FormLabel className="text-xs">Show Logo</FormLabel>
+                                <FormDescription className="text-[10px]">
+                                  Include company logo
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={themesForm.control}
+                          name="pdfHeaderFooterEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                              <div className="space-y-0.5">
+                                <FormLabel className="text-xs">Header & Footer</FormLabel>
+                                <FormDescription className="text-[10px]">
+                                  Show standard details
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={themesForm.control}
+                          name="pdfWatermarkEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                              <div className="space-y-0.5">
+                                <FormLabel className="text-xs">Watermark</FormLabel>
+                                <FormDescription className="text-[10px]">
+                                  Show "Draft" or logo
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Available Themes */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Palette className="h-4 w-4 text-slate-500" />
+                        <h3 className="text-sm font-semibold">Available Themes</h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Enable or disable specific themes for use across the application.
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {showThemeProfessional && (
+                        <FormField
+                          control={themesForm.control}
+                          name="professionalEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0 p-2 border rounded-md">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  disabled // Professional is core
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs">Professional</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        )}
+                        {showThemeModern && (
+                        <FormField
+                          control={themesForm.control}
+                          name="modernEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0 p-2 border rounded-md">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs">Modern</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        )}
+                        {showThemeMinimal && (
+                        <FormField
+                          control={themesForm.control}
+                          name="minimalEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0 p-2 border rounded-md">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs">Minimal</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        )}
+                        {showThemeCreative && (
+                        <FormField
+                          control={themesForm.control}
+                          name="creativeEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0 p-2 border rounded-md">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs">Creative</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        )}
+                        {showThemePremium && (
+                        <FormField
+                          control={themesForm.control}
+                          name="premiumEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0 p-2 border rounded-md">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs">Premium</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        )}
+                        {showThemeGovernment && (
+                        <FormField
+                          control={themesForm.control}
+                          name="governmentEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0 p-2 border rounded-md">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs">Government</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        )}
+                        {showThemeEducation && (
+                        <FormField
+                          control={themesForm.control}
+                          name="educationEnabled"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-2 space-y-0 p-2 border rounded-md">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs">Education</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <Button
+                        type="submit"
+                        disabled={saveThemesMutation.isPending}
+                        className="h-8 text-xs bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900"
+                      >
+                        {saveThemesMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-3 w-3 mr-1.5" />
+                            Save Theme Settings
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {showIntegrations && (
+          <TabsContent value="integrations" className="space-y-3">
+            <Card className="border-slate-200 dark:border-slate-800">
+              <CardHeader className="border-b border-slate-200 dark:border-slate-800 p-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center shrink-0">
+                    <Settings2 className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold">External Integrations</CardTitle>
+                    <CardDescription className="text-[10px]">
+                      Connect your account with external services
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3">
+                <Form {...integrationsForm}>
+                  <form onSubmit={integrationsForm.handleSubmit((data) => saveIntegrationsMutation.mutate(data))} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* WhatsApp */}
+                      {showWhatsapp && (
+                      <FormField
+                        control={integrationsForm.control}
+                        name="whatsappEnabled"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-xs">WhatsApp Business</FormLabel>
+                              <FormDescription className="text-[10px]">
+                                Share documents via WhatsApp
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      )}
+
+                      {/* Google Drive */}
+                      {showGoogleDrive && (
+                      <FormField
+                        control={integrationsForm.control}
+                        name="googleDriveEnabled"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-xs">Google Drive</FormLabel>
+                              <FormDescription className="text-[10px]">
+                                Backup and store PDFs in Drive
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      )}
+
+                      {/* OneDrive */}
+                      {showOneDrive && (
+                      <FormField
+                        control={integrationsForm.control}
+                        name="oneDriveEnabled"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-xs">Microsoft OneDrive</FormLabel>
+                              <FormDescription className="text-[10px]">
+                                Backup and store PDFs in OneDrive
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      )}
+
+                      {/* Tally Ready */}
+                      {showTallyReady && (
+                      <FormField
+                        control={integrationsForm.control}
+                        name="tallyReadyEnabled"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-xs">Tally Integration</FormLabel>
+                              <FormDescription className="text-[10px]">
+                                Export data in Tally-compatible format
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      )}
+
+                      {/* Vercel Analytics */}
+                      <FormField
+                        control={integrationsForm.control}
+                        name="vercelAnalyticsEnabled"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-2.5 shadow-sm">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-xs">Vercel Analytics</FormLabel>
+                              <FormDescription className="text-[10px]">
+                                Enable usage tracking and analytics
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <Button
+                        type="submit"
+                        disabled={saveIntegrationsMutation.isPending}
+                        className="h-8 text-xs bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900"
+                      >
+                        {saveIntegrationsMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-3 w-3 mr-1.5" />
+                            Save Integration Settings
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
       </Tabs>

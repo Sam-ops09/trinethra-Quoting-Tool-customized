@@ -13,6 +13,9 @@ import { isFeatureEnabled } from "@shared/feature-flags";
 
 const router = Router();
 
+// Apply vendors module feature flag to all routes
+router.use(requireFeature('vendors_module'));
+
 // ==================== VENDORS ROUTES ====================
 router.get("/vendors", authMiddleware, requireFeature('vendors_module'), async (req: AuthRequest, res: Response) => {
   try {

@@ -39,7 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Plus, Eye, Trash2, Edit, RefreshCw, Code } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InfoIcon, Lock } from "lucide-react";
 

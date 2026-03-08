@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { useUndoAction } from "@/hooks/use-undo-action";
 import { formatCurrency } from "@/lib/currency";
 
@@ -80,7 +80,12 @@ export function PaymentTracker({
         paymentDate: new Date().toISOString().split("T")[0]
     });
 
-    const canViewPaymentHistory = useFeatureFlag('invoices_paymentHistory');
+    const canViewPaymentHistory = useFeatureFlag('invoices_paymentHistory') && useFeatureFlag('payments_history');
+    const canDoPartialPayments = useFeatureFlag('invoices_partialPayments');
+    const canUseTxnIds = useFeatureFlag('payments_transactionIds');
+    const canUseNotes = useFeatureFlag('payments_notes');
+    const canUseMultipleMethods = useFeatureFlag('payments_methods');
+    const canEditPayments = useFeatureFlag('payments_edit');
 
     const { data: paymentHistory, isLoading } = useQuery<PaymentHistoryEntry[]>({
         queryKey: [`/api/invoices/${invoiceId}/payment-history-detailed`],
@@ -111,7 +116,7 @@ export function PaymentTracker({
             });
             setShowAddPaymentDialog(false);
             setNewPayment({
-                amount: "",
+                amount: !canDoPartialPayments ? (total - paidAmount).toString() : "",
                 paymentMethod: "",
                 transactionId: "",
                 notes: "",
@@ -433,14 +438,14 @@ export function PaymentTracker({
                                                     )}
                                                 </div>
 
-                                                {payment.transactionId && (
+                                                {canUseTxnIds && payment.transactionId && (
                                                     <div className="rounded bg-muted/50 px-1.5 py-0.5 text-[9px]">
                                                         <span className="text-muted-foreground">ID:</span>{" "}
                                                         <span className="font-mono">{payment.transactionId}</span>
                                                     </div>
                                                 )}
 
-                                                {payment.notes && (
+                                                {canUseNotes && payment.notes && (
                                                     <div className="rounded border-l-2 border-primary bg-primary/5 px-1.5 py-1 text-[10px] italic text-muted-foreground">
                                                         {payment.notes}
                                                     </div>
@@ -448,18 +453,30 @@ export function PaymentTracker({
                                             </div>
 
                                             {!isMaster && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 shrink-0 rounded opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                                                    onClick={() => {
-                                                        pendingDeleteId.current = payment.id;
-                                                        undoDeletePayment.trigger();
-                                                    }}
-                                                    data-testid={`button-delete-payment-${payment.id}`}
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                </Button>
+                                                <div className="flex gap-1">
+                                                    {canEditPayments && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 shrink-0 rounded opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+                                                            onClick={() => toast({ title: "Feature coming soon", description: "Editing payments is currently under development." })}
+                                                        >
+                                                            <TrendingUp className="h-3 w-3" />
+                                                        </Button>
+                                                    )}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 shrink-0 rounded opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                                                        onClick={() => {
+                                                            pendingDeleteId.current = payment.id;
+                                                            undoDeletePayment.trigger();
+                                                        }}
+                                                        data-testid={`button-delete-payment-${payment.id}`}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -528,6 +545,7 @@ export function PaymentTracker({
                                     onChange={(e) =>
                                         setNewPayment({ ...newPayment, amount: e.target.value })
                                     }
+                                    disabled={!canDoPartialPayments}
                                     min="0"
                                     step="0.01"
                                     data-testid="input-payment-amount"
@@ -569,36 +587,40 @@ export function PaymentTracker({
                                                 <span>🏦</span> Bank Transfer
                                             </div>
                                         </SelectItem>
-                                        <SelectItem value="credit_card">
-                                            <div className="flex items-center gap-2">
-                                                <span>💳</span> Credit Card
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="debit_card">
-                                            <div className="flex items-center gap-2">
-                                                <span>💳</span> Debit Card
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="check">
-                                            <div className="flex items-center gap-2">
-                                                <span>📝</span> Check
-                                            </div>
-                                        </SelectItem>
                                         <SelectItem value="cash">
                                             <div className="flex items-center gap-2">
                                                 <span>💵</span> Cash
                                             </div>
                                         </SelectItem>
-                                        <SelectItem value="upi">
-                                            <div className="flex items-center gap-2">
-                                                <span>📱</span> UPI
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="other">
-                                            <div className="flex items-center gap-2">
-                                                <span>⚙️</span> Other
-                                            </div>
-                                        </SelectItem>
+                                        {canUseMultipleMethods && (
+                                            <>
+                                                <SelectItem value="credit_card">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>💳</span> Credit Card
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="debit_card">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>💳</span> Debit Card
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="check">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>📝</span> Check
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="upi">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>📱</span> UPI
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="other">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>⚙️</span> Other
+                                                    </div>
+                                                </SelectItem>
+                                            </>
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -621,43 +643,47 @@ export function PaymentTracker({
                         </div>
 
                         {/* TXN ID */}
-                        <div className="space-y-2">
-                            <Label htmlFor="transaction-id" className="text-sm font-semibold">
-                                Transaction ID / Reference
-                            </Label>
-                            <Input
-                                id="transaction-id"
-                                type="text"
-                                placeholder="e.g., TXN123456789 (optional)"
-                                className="input-elegant h-11 font-mono text-sm shadow-elegant-xs sm:h-12"
-                                value={newPayment.transactionId}
-                                onChange={(e) =>
-                                    setNewPayment({ ...newPayment, transactionId: e.target.value })
-                                }
-                                data-testid="input-transaction-id"
-                            />
-                        </div>
+                        {canUseTxnIds && (
+                            <div className="space-y-2">
+                                <Label htmlFor="transaction-id" className="text-sm font-semibold">
+                                    Transaction ID / Reference
+                                </Label>
+                                <Input
+                                    id="transaction-id"
+                                    type="text"
+                                    placeholder="e.g., TXN123456789 (optional)"
+                                    className="input-elegant h-11 font-mono text-sm shadow-elegant-xs sm:h-12"
+                                    value={newPayment.transactionId}
+                                    onChange={(e) =>
+                                        setNewPayment({ ...newPayment, transactionId: e.target.value })
+                                    }
+                                    data-testid="input-transaction-id"
+                                />
+                            </div>
+                        )}
 
                         {/* NOTES */}
-                        <div className="space-y-2">
-                            <Label htmlFor="payment-notes" className="text-sm font-semibold">
-                                Additional Notes
-                            </Label>
-                            <Textarea
-                                id="payment-notes"
-                                placeholder="Add any additional notes about this payment (optional)..."
-                                className="input-elegant min-h-[90px] resize-none text-sm font-['Open_Sans'] shadow-elegant-xs sm:min-h-[110px]"
-                                value={newPayment.notes}
-                                onChange={(e) =>
-                                    setNewPayment({ ...newPayment, notes: e.target.value })
-                                }
-                                rows={4}
-                                data-testid="textarea-payment-notes"
-                            />
-                            <p className="px-1 text-xs font-['Open_Sans'] text-muted-foreground">
-                                Any relevant information about this transaction
-                            </p>
-                        </div>
+                        {canUseNotes && (
+                            <div className="space-y-2">
+                                <Label htmlFor="payment-notes" className="text-sm font-semibold">
+                                    Additional Notes
+                                </Label>
+                                <Textarea
+                                    id="payment-notes"
+                                    placeholder="Add any additional notes about this payment (optional)..."
+                                    className="input-elegant min-h-[90px] resize-none text-sm font-['Open_Sans'] shadow-elegant-xs sm:min-h-[110px]"
+                                    value={newPayment.notes}
+                                    onChange={(e) =>
+                                        setNewPayment({ ...newPayment, notes: e.target.value })
+                                    }
+                                    rows={4}
+                                    data-testid="textarea-payment-notes"
+                                />
+                                <p className="px-1 text-xs font-['Open_Sans'] text-muted-foreground">
+                                    Any relevant information about this transaction
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter className="flex flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:gap-3 sm:pt-4">

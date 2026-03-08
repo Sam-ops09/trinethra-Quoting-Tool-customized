@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CheckCircle, XCircle, AlertCircle, Package, FileText, Save, Upload, PackageCheck, Building2, Mail, Phone, Clock, DollarSign, UserCheck, Barcode, Home, ChevronRight } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, AlertCircle, Package, FileText, Save, Upload, PackageCheck, Building2, Mail, Phone, Clock, DollarSign, UserCheck, Barcode, Home, ChevronRight, Hash } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -15,8 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { PermissionGuard } from "@/components/permission-guard";
 import { formatCurrency } from "@/lib/currency";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
+import { Product } from "@shared/schema";
 
-// Interface (Unchanged)
+// Interface (Enriched with productId for serial tracking)
 interface GRNDetail {
     id: string;
     grnNumber: string;
@@ -32,6 +34,7 @@ interface GRNDetail {
     };
     vendorPoItem: {
         id: string;
+        productId?: string;
         description: string;
         quantity: number;
         receivedQuantity: number;
@@ -60,7 +63,12 @@ export default function GRNDetailPage() {
     const { toast } = useToast();
     const [isEditing, setIsEditing] = useState(false);
 
-    // Form State (Unchanged)
+    // Feature Flags
+    const globalSerialEnabled = useFeatureFlag('serialNumber_tracking');
+    const grnSerialEnabled = useFeatureFlag('grn_serialNumberTracking');
+    const qualityNotesEnabled = useFeatureFlag('grn_qualityNotes');
+
+    // Form State (Added serialNumbers)
     const [formData, setFormData] = useState({
         quantityReceived: 0,
         quantityRejected: 0,
@@ -68,15 +76,23 @@ export default function GRNDetailPage() {
         inspectionNotes: "",
         deliveryNoteNumber: "",
         batchNumber: "",
+        serialNumbers: [] as string[],
     });
 
-    // Data Fetching (Unchanged)
-    const { data: grn, isLoading } = useQuery<GRNDetail>({
+    // Data Fetching (Fetch product if available to check requiresSerialNumber)
+    const { data: grn, isLoading: grnLoading } = useQuery<GRNDetail>({
         queryKey: ["/api/grns", params?.id],
         enabled: !!params?.id,
     });
 
-    // Sync state with fetched data on load (Unchanged)
+    const { data: product, isLoading: productLoading } = useQuery<Product>({
+        queryKey: ["/api/products", grn?.vendorPoItem?.productId],
+        enabled: !!grn?.vendorPoItem?.productId,
+    });
+
+    const isLoading = grnLoading || (!!grn?.vendorPoItem?.productId && productLoading);
+
+    // Sync state with fetched data on load
     useEffect(() => {
         if (grn) {
             setFormData({
@@ -86,18 +102,19 @@ export default function GRNDetailPage() {
                 inspectionNotes: grn.inspectionNotes || "",
                 deliveryNoteNumber: grn.deliveryNoteNumber || "",
                 batchNumber: grn.batchNumber || "",
+                serialNumbers: Array(grn.quantityReceived).fill(""),
             });
         }
     }, [grn]);
 
-    // Mutation (Unchanged)
+    const requiresSerials = globalSerialEnabled && grnSerialEnabled && product?.requiresSerialNumber;
+
+    // Mutation
     const updateMutation = useMutation({
         mutationFn: async (data: typeof formData) => {
-            // Logic to determine final status before sending
             let finalStatus = data.inspectionStatus;
             const totalReceived = data.quantityReceived + data.quantityRejected;
 
-            // Automatic status correction logic (as in previous version)
             if (totalReceived > 0 && totalReceived < grn!.quantityOrdered && finalStatus === 'approved') {
                 finalStatus = 'partial';
             }
@@ -127,7 +144,7 @@ export default function GRNDetailPage() {
         },
     });
 
-    // Submission Handler (Unchanged validation)
+    // Submission Handler
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -141,13 +158,16 @@ export default function GRNDetailPage() {
             return;
         }
 
-        if (totalCount === 0 && (grn?.quantityOrdered || 0) > 0 && (formData.inspectionStatus !== 'rejected' && formData.inspectionStatus !== 'pending')) {
-            toast({
-                title: "Quantity mismatch",
-                description: `A status of ${formData.inspectionStatus} requires a positive received or rejected quantity.`,
-                variant: "destructive",
-            });
-            return;
+        if (requiresSerials) {
+            const emptySerials = formData.serialNumbers.filter(s => !s || s.trim().length === 0);
+            if (emptySerials.length > 0) {
+                toast({
+                    title: "Missing serial numbers",
+                    description: `Please provide serial numbers for all ${formData.quantityReceived} received items.`,
+                    variant: "destructive",
+                });
+                return;
+            }
         }
 
         updateMutation.mutate(formData);
@@ -176,7 +196,7 @@ export default function GRNDetailPage() {
     // Helper for formatting date
     const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-    // Error/Loading States (Using the refined skeleton)
+    // Error/Loading States
     if (isLoading) {
         return <LoadingSkeleton />;
     }
@@ -309,6 +329,8 @@ export default function GRNDetailPage() {
                                 updateMutation={updateMutation}
                                 setIsEditing={setIsEditing}
                                 isEditing={isEditing}
+                                requiresSerials={requiresSerials}
+                                qualityNotesEnabled={qualityNotesEnabled}
                             />
                         ) : (
                             <InspectionDetails grn={grn} setIsEditing={setIsEditing} />
@@ -436,9 +458,23 @@ function SummaryMetric({ label, value, color, largeText = false }: { label: stri
 }
 
 // 4. Inspection Form Component (Compact)
-function InspectionForm({ grn, formData, setFormData, handleSubmit, updateMutation, setIsEditing, isEditing }: any) {
+function InspectionForm({ grn, formData, setFormData, handleSubmit, updateMutation, setIsEditing, isEditing, requiresSerials, qualityNotesEnabled }: any) {
     const totalCount = formData.quantityReceived + formData.quantityRejected;
     const isExceeded = totalCount > grn.quantityOrdered;
+
+    const handleReceivedQtyChange = (val: number) => {
+        setFormData((prev: any) => ({
+            ...prev,
+            quantityReceived: val,
+            serialNumbers: Array(val).fill("").map((_, i) => prev.serialNumbers[i] || ""),
+        }));
+    };
+
+    const handleSerialChange = (index: number, val: string) => {
+        const newSerials = [...formData.serialNumbers];
+        newSerials[index] = val;
+        setFormData({ ...formData, serialNumbers: newSerials });
+    };
 
     return (
         <Card className="border-slate-200 dark:border-slate-800">
@@ -451,7 +487,7 @@ function InspectionForm({ grn, formData, setFormData, handleSubmit, updateMutati
                 </CardTitle>
             </CardHeader>
             <CardContent className="p-3">
-                <form onSubmit={handleSubmit} className="space-y-3">
+                <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Quantity Inputs */}
                     <div className="grid grid-cols-3 gap-2">
                         <InputGroup label="Ordered Qty" value={grn.quantityOrdered} disabled={true} />
@@ -459,7 +495,7 @@ function InspectionForm({ grn, formData, setFormData, handleSubmit, updateMutati
                             label="Received Qty *"
                             type="number"
                             value={formData.quantityReceived}
-                            onChange={(e:any) => setFormData({ ...formData, quantityReceived: parseInt(e.target.value) || 0 })}
+                            onChange={(e:any) => handleReceivedQtyChange(parseInt(e.target.value) || 0)}
                         />
                         <InputGroup
                             label="Rejected Qty"
@@ -473,6 +509,29 @@ function InspectionForm({ grn, formData, setFormData, handleSubmit, updateMutati
                             <XCircle className="h-3 w-3" />
                             Total quantity ({totalCount}) exceeds ordered quantity ({grn.quantityOrdered}).
                         </p>
+                    )}
+
+                    {/* Serial Numbers (Conditional) */}
+                    {requiresSerials && formData.quantityReceived > 0 && (
+                        <div className="space-y-2 p-3 rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20">
+                            <Label className="text-xs font-bold flex items-center gap-1.5 text-amber-900 dark:text-amber-300">
+                                <Hash className="h-3.5 w-3.5" />
+                                Serial Numbers Required
+                            </Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {formData.serialNumbers.map((sn: string, idx: number) => (
+                                    <div key={idx} className="space-y-1">
+                                        <p className="text-[10px] text-slate-500">Item {idx + 1}</p>
+                                        <Input
+                                            value={sn}
+                                            onChange={(e) => handleSerialChange(idx, e.target.value)}
+                                            placeholder="S/N..."
+                                            className="h-7 text-[10px]"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
 
                     {/* Status Select */}
@@ -501,17 +560,19 @@ function InspectionForm({ grn, formData, setFormData, handleSubmit, updateMutati
                     </div>
 
                     {/* Notes */}
-                    <div className="space-y-1">
-                        <Label htmlFor="inspectionNotes" className="text-xs font-semibold">Inspection Notes</Label>
-                        <Textarea
-                            id="inspectionNotes"
-                            rows={2}
-                            value={formData.inspectionNotes}
-                            onChange={(e) => setFormData({ ...formData, inspectionNotes: e.target.value })}
-                            placeholder="Enter inspection findings, quality notes, or any issues..."
-                            className="resize-none text-xs"
-                        />
-                    </div>
+                    {qualityNotesEnabled && (
+                        <div className="space-y-1">
+                            <Label htmlFor="inspectionNotes" className="text-xs font-semibold">Inspection Notes</Label>
+                            <Textarea
+                                id="inspectionNotes"
+                                rows={2}
+                                value={formData.inspectionNotes}
+                                onChange={(e) => setFormData({ ...formData, inspectionNotes: e.target.value })}
+                                placeholder="Enter inspection findings, quality notes, or any issues..."
+                                className="resize-none text-xs"
+                            />
+                        </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">

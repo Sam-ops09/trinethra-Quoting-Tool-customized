@@ -10,6 +10,9 @@ import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
 
+// Apply search feature flag to all routes
+router.use(requireFeature('ui_searchFilters'));
+
 router.get("/", requireFeature('ui_searchFilters'), async (req, res) => {
   try {
     const q = req.query.q as string;

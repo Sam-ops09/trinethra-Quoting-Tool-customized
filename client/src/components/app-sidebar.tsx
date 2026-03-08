@@ -203,7 +203,7 @@ const menuItems = [
             "viewer",
         ],
         description: "Analytics dashboards",
-        featureFlag: 'pages_dashboardsOverview' as const,
+        featureFlag: 'nav_dashboardsLink' as const,
     },
     {
         title: "Serial Search",
@@ -217,9 +217,9 @@ const menuItems = [
             "viewer",
         ],
         description: "Track serial numbers",
-        featureFlag: 'pages_serialSearch' as const,
+        featureFlag: 'nav_serialSearchLink' as const,
     },
-].filter(item => !item.featureFlag || isFeatureEnabled(item.featureFlag));
+].filter(item => !item.featureFlag || isFeatureEnabled(item.featureFlag as any));
 
 const adminItems = [
     {
@@ -278,7 +278,7 @@ const adminItems = [
         description: "Advanced options",
         featureFlag: 'pages_adminSettings' as const,
     },
-].filter(item => !item.featureFlag || isFeatureEnabled(item.featureFlag));
+].filter(item => !item.featureFlag || isFeatureEnabled(item.featureFlag as any));
 
 const springConfig = { type: "spring", stiffness: 400, damping: 30 };
 
@@ -479,7 +479,7 @@ export function AppSidebar() {
                     {/* RIGHT — NOTIFICATIONS, USER, THEME, MOBILE TOGGLE */}
                     <div className="flex items-center gap-2 sm:gap-4">
                         <GlobalSearch />
-                        <NotificationCenter />
+                        {isFeatureEnabled('ui_notifications') && <NotificationCenter />}
                         {(isFeatureEnabled('ui_themeToggle') && isFeatureEnabled('ui_darkMode')) && <ThemeToggle />}
 
                         <DropdownMenu>

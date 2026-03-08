@@ -121,6 +121,11 @@ export class QuoteExpiryAlertService {
    */
   static async checkAndNotify() {
     try {
+      if (!isFeatureEnabled("quotes_autoExpiration")) {
+        logger.info("[QuoteExpiry] Auto-expiration is disabled by feature flag");
+        return;
+      }
+
       logger.info("[QuoteExpiry] Checking for expiring quotes...");
 
       const quotes = await storage.getAllQuotes();

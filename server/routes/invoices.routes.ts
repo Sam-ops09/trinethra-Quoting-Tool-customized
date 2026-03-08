@@ -3,6 +3,7 @@ import { Router, Response } from "express";
 import { storage } from "../storage";
 import { authMiddleware, AuthRequest } from "../middleware";
 import { requireFeature } from "../feature-flags-middleware";
+import { isFeatureEnabled } from "../../shared/feature-flags";
 import { requirePermission } from "../permissions-middleware";
 import { logger } from "../utils/logger";
 import { db } from "../db";
@@ -193,6 +194,22 @@ router.put("/:id/master-details", authMiddleware, requireFeature('invoices_edit'
 
             for (const field of editableFields) {
                 if (req.body[field] !== undefined) {
+                    // Feature Flag Guards
+                    if (field === "discount" && !requireFeature("invoices_discount")) {
+                        // requireFeature is middleware, but we are inside a route handler.
+                        // We should use isFeatureEnabled here.
+                    }
+                    
+                    if (field === "discount" && !isFeatureEnabled("invoices_discount") && Number(req.body[field] || 0) > 0) {
+                        return res.status(403).json({ error: "Discounts are currently disabled" });
+                    }
+                    if (field === "shippingCharges" && !isFeatureEnabled("invoices_shippingCharges") && Number(req.body[field] || 0) > 0) {
+                        return res.status(403).json({ error: "Shipping charges feature is disabled" });
+                    }
+                    if (["cgst", "sgst", "igst"].includes(field) && !isFeatureEnabled("invoices_taxation") && Number(req.body[field] || 0) > 0) {
+                        return res.status(403).json({ error: "Taxation module is disabled" });
+                    }
+
                     updateData[field] = req.body[field];
                 }
             }
@@ -656,7 +673,7 @@ router.post("/:id/comments", requireFeature('invoices_edit'), authMiddleware, re
 
 
 // Create Child Invoice from Master Invoice
-router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoices_childInvoices'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
+router.post("/:id/create-child-invoice", authMiddleware, requireFeature('invoices_create'), requireFeature('invoices_childInvoices'), requirePermission("invoices", "create"), async (req: AuthRequest, res: Response) => {
   try {
     const result = await db.transaction(async (tx) => {
         const { items, dueDate, notes, deliveryNotes, milestoneDescription } = req.body;

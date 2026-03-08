@@ -23,7 +23,7 @@ router.get("/", authMiddleware, requirePermission("settings", "view"), async (re
 });
 
 // Create rule
-router.post("/", authMiddleware, requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
+router.post("/", authMiddleware, requireFeature("approvalRules_create"), requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const validatedRule = insertApprovalRuleSchema.parse({
       ...req.body,
@@ -39,7 +39,7 @@ router.post("/", authMiddleware, requirePermission("settings", "edit"), async (r
 });
 
 // Update rule
-router.patch("/:id", authMiddleware, requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authMiddleware, requireFeature("approvalRules_edit"), requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
   try {
     const updated = await storage.updateApprovalRule(req.params.id, req.body);
     if (!updated) {
@@ -53,7 +53,7 @@ router.patch("/:id", authMiddleware, requirePermission("settings", "edit"), asyn
 });
 
 // Delete rule
-router.delete("/:id", authMiddleware, requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authMiddleware, requireFeature("approvalRules_delete"), requirePermission("settings", "edit"), async (req: AuthRequest, res: Response) => {
   try {
      await storage.deleteApprovalRule(req.params.id);
      res.json({ success: true });

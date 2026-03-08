@@ -21,11 +21,12 @@ import {
     ChevronRight,
     Sparkles,
     Globe,
-    Home
+    Home,
+    Shield
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,17 @@ const allDashboards = [
         badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400",
         flag: "dashboard_serialTracking"
     },
+    {
+        title: "Governance & Compliance",
+        description: "Security events, audit logs, and access control insights.",
+        icon: Shield,
+        url: "/admin/governance",
+        gradient: "from-blue-500/20 via-indigo-500/20 to-purple-500/20",
+        iconInit: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+        badge: "Admin",
+        badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
+        flag: "dashboard_governance"
+    },
 ];
 
 const features = [
@@ -124,12 +136,14 @@ export default function DashboardsOverview() {
     const canVendor = useFeatureFlag('dashboard_vendorPO');
     const canInvoice = useFeatureFlag('dashboard_invoiceCollections');
     const canSerial = useFeatureFlag('dashboard_serialTracking');
+    const canGovernance = useFeatureFlag('dashboard_governance');
 
     const dashboards = allDashboards.filter(db => {
         if (db.flag === 'dashboard_salesQuotes') return canSales;
         if (db.flag === 'dashboard_vendorPO') return canVendor;
         if (db.flag === 'dashboard_invoiceCollections') return canInvoice;
         if (db.flag === 'dashboard_serialTracking') return canSerial;
+        if (db.flag === 'dashboard_governance') return canGovernance;
         return true;
     });
 

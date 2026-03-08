@@ -16,8 +16,11 @@ import { getSerialTraceability } from "../serial-number-service";
 
 const router = Router();
 
+// Apply serial number module feature flag to all routes
+router.use(requireFeature('serialNumber_tracking'));
+
 // Serial Number Search/Traceability Route
-router.get("/search", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.get("/search", authMiddleware, requireFeature('serialNumber_search'), async (req: AuthRequest, res: Response) => {
     try {
         const { getSerialTraceability } = await import("../serial-number-service");
         const serialNumber = req.query.q as string;
@@ -40,7 +43,7 @@ router.get("/search", authMiddleware, async (req: AuthRequest, res: Response) =>
 });
 
 // Batch validate serial numbers
-router.post("/batch-validate", authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post("/batch-validate", authMiddleware, requireFeature('serialNumber_tracking'), async (req: AuthRequest, res: Response) => {
     try {
         const { getSerialTraceability } = await import("../serial-number-service");
         const { serials } = req.body;

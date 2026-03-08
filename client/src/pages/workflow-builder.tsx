@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { motion } from "framer-motion";
 
 interface WorkflowTrigger {
@@ -73,6 +74,11 @@ export default function WorkflowBuilderPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const isEditMode = Boolean(id);
+
+  const canUseWebhook = useFeatureFlag('workflows_action_webhook');
+  const canCreateTask = useFeatureFlag('workflows_action_createTask');
+  const canEscalate = useFeatureFlag('workflows_action_escalate');
+  const canSchedule = useFeatureFlag('workflows_trigger_scheduled');
 
   const [workflow, setWorkflow] = useState<WorkflowData>({
     name: "",
@@ -442,6 +448,9 @@ export default function WorkflowBuilderPage() {
                                                     <SelectItem value="field_update">Field Update</SelectItem>
                                                     <SelectItem value="created">Entity Created</SelectItem>
                                                     <SelectItem value="amount_threshold">Amount Threshold</SelectItem>
+                                                    {canSchedule && (
+                                                        <SelectItem value="scheduled">Scheduled Trigger</SelectItem>
+                                                    )}
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -540,7 +549,15 @@ export default function WorkflowBuilderPage() {
                                                         <SelectItem value="create_notification">In-App Notification</SelectItem>
                                                         <SelectItem value="update_field">Update Field</SelectItem>
                                                         <SelectItem value="assign_user">Assign User</SelectItem>
-                                                        <SelectItem value="webhook">Call Webhook</SelectItem>
+                                                        {canUseWebhook && (
+                                                            <SelectItem value="webhook">Call Webhook</SelectItem>
+                                                        )}
+                                                        {canCreateTask && (
+                                                            <SelectItem value="create_task">Create Task</SelectItem>
+                                                        )}
+                                                        {canEscalate && (
+                                                            <SelectItem value="escalate">Escalate</SelectItem>
+                                                        )}
                                                     </SelectContent>
                                                 </Select>
                                             </div>

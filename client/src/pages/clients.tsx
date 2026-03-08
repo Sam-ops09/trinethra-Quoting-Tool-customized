@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -338,6 +338,8 @@ export default function Clients() {
     const canViewGSTIN = useFeatureFlag('clients_gstin');
     const canViewBilling = useFeatureFlag('clients_billingAddress');
     const canViewShipping = useFeatureFlag('clients_shippingAddress');
+    const canUseAdvancedSearch = useFeatureFlag('clients_advancedSearch');
+    const canViewTheme = useFeatureFlag('clients_preferredTheme');
 
     const { data: clients, isLoading } = useQuery<Client[]>({
         queryKey: ["/api/clients"],
@@ -366,6 +368,7 @@ export default function Clients() {
             gstin: "",
             contactPerson: "",
             segment: "corporate",
+            preferredTheme: "modern",
         },
     });
 
@@ -426,6 +429,7 @@ export default function Clients() {
             gstin: client.gstin || "",
             contactPerson: client.contactPerson || "",
             segment: (client as any).segment || "corporate",
+            preferredTheme: (client as any).preferredTheme || "modern",
         });
     };
 
@@ -556,7 +560,7 @@ export default function Clients() {
                                 />
                             </div>
                              <div className="flex gap-1.5 xs:gap-2">
-                                {canManageSegments && (
+                                {canManageSegments && canUseAdvancedSearch && (
                                     <Select value={segmentFilter} onValueChange={setSegmentFilter}>
                                         <SelectTrigger className="h-9 xs:h-10 text-xs xs:text-sm w-auto min-w-[120px]">
                                             <Filter className="h-3 xs:h-3.5 w-3 xs:w-3.5 mr-1" />
@@ -662,6 +666,7 @@ export default function Clients() {
                 canManageSegments={canManageSegments}
                 canViewBilling={canViewBilling}
                 canViewShipping={canViewShipping}
+                canViewTheme={canViewTheme}
             />
         </div>
     );

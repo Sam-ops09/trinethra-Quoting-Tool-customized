@@ -17,7 +17,7 @@ import {
     CheckCircle2, 
     Receipt
 } from "lucide-react";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 
 interface TaxRate {
     id: string;
@@ -43,8 +43,12 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
     const igst = form.watch("igst");
     const shippingCharges = form.watch("shippingCharges");
 
-    const showDiscount = useFeatureFlag("quotes_discount");
-    const showShipping = useFeatureFlag("quotes_shippingCharges");
+    const showDiscount = useFeatureFlag("pricing_discount");
+    const showShipping = useFeatureFlag("pricing_shipping");
+    const showCgst = useFeatureFlag("tax_cgst");
+    const showSgst = useFeatureFlag("tax_sgst");
+    const showIgst = useFeatureFlag("tax_igst");
+    const showTaxRateMgmt = useFeatureFlag("tax_rateManagement");
 
 
     // Apply selected tax rate
@@ -135,7 +139,7 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            {activeTaxRates.length > 0 && (
+                             {showTaxRateMgmt && activeTaxRates.length > 0 && (
                                 <div className="space-y-2">
                                     <Label className="text-xs uppercase text-muted-foreground">Quick Apply Tax Rate</Label>
                                     <Select onValueChange={applyTaxRate}>
@@ -180,42 +184,48 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
                                 )}
 
                                 <div className="grid grid-cols-3 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="cgst"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">CGST %</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} type="number" onChange={(e) => field.onChange(Number(e.target.value))} />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="sgst"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">SGST %</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} type="number" onChange={(e) => field.onChange(Number(e.target.value))} />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="igst"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">IGST %</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} type="number" onChange={(e) => field.onChange(Number(e.target.value))} />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
+                                    {showCgst && (
+                                        <FormField
+                                            control={form.control}
+                                            name="cgst"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-xs">CGST %</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} type="number" onChange={(e) => field.onChange(Number(e.target.value))} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
+                                    {showSgst && (
+                                        <FormField
+                                            control={form.control}
+                                            name="sgst"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-xs">SGST %</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} type="number" onChange={(e) => field.onChange(Number(e.target.value))} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
+                                    {showIgst && (
+                                        <FormField
+                                            control={form.control}
+                                            name="igst"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-xs">IGST %</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} type="number" onChange={(e) => field.onChange(Number(e.target.value))} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
                                 </div>
 
                                 {showShipping && (
@@ -257,13 +267,22 @@ export function QuoteReview({ form, activeTaxRates }: QuoteReviewProps) {
                                 </div>
                                 <div className="flex justify-between text-muted-foreground">
                                     <span>Total Tax</span>
-                                    <span>{formatCurrency(cgstAmount + sgstAmount + igstAmount, currency)}</span>
+                                    <span>{formatCurrency((showCgst ? cgstAmount : 0) + (showSgst ? sgstAmount : 0) + (showIgst ? igstAmount : 0), currency)}</span>
                                 </div>
                                 <Separator className="my-2" />
-                                <div className="flex justify-between items-center text-lg font-bold text-primary">
-                                    <span>Total</span>
-                                    <span>{formatCurrency(total, currency)}</span>
+                                <div className="flex justify-between items-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
+                                    <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">Total</span>
+                                    <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(total, currency)}</span>
                                 </div>
+                                {useFeatureFlag('quotes_profitMargin') && (
+                                    <div className="flex justify-between items-center p-2 mt-2 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/50 text-xs text-blue-700 dark:text-blue-300">
+                                        <div className="flex items-center gap-1.5">
+                                            <Calculator className="h-3 w-3" />
+                                            <span>Est. Profit Margin</span>
+                                        </div>
+                                        <span className="font-bold">20.00%</span>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

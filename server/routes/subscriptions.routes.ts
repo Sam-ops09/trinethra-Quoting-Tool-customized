@@ -13,6 +13,9 @@ import { requirePermission } from "../permissions-middleware";
 
 const router = Router();
 
+// Apply subscriptions module feature flag to all routes
+router.use(requireFeature('subscriptions_module'));
+
 // List all subscriptions
 router.get("/subscriptions", authMiddleware, requireFeature('subscriptions_module'), async (req: AuthRequest, res: Response) => {
   try {

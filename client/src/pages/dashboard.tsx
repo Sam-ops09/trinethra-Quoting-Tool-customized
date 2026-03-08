@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/currency";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import {
     ResponsiveContainer,
     CartesianGrid,

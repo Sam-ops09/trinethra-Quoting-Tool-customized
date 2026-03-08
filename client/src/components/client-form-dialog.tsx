@@ -88,6 +88,8 @@ export const SEGMENT_OPTIONS = [
     },
 ];
 
+import { useQuery } from "@tanstack/react-query";
+
 interface ClientFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -99,6 +101,7 @@ interface ClientFormDialogProps {
     canManageSegments: boolean;
     canViewBilling: boolean;
     canViewShipping: boolean;
+    canViewTheme?: boolean;
 }
 
 export function ClientFormDialog({
@@ -112,7 +115,12 @@ export function ClientFormDialog({
     canManageSegments,
     canViewBilling,
     canViewShipping,
+    canViewTheme = false,
 }: ClientFormDialogProps) {
+    const { data: themes = [] } = useQuery<any[]>({
+        queryKey: ["/api/themes"],
+        enabled: open && canViewTheme,
+    });
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="w-[min(100%-1rem,48rem)] max-h-[92vh] overflow-y-auto p-0 border-none shadow-2xl">
@@ -212,6 +220,32 @@ export function ClientFormDialog({
                                                         {SEGMENT_OPTIONS.map((seg) => (
                                                             <SelectItem key={seg.value} value={seg.value} className="text-xs xs:text-sm focus:bg-primary/10">
                                                                 {seg.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage className="text-[10px] xs:text-xs mt-1" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                                {canViewTheme && (
+                                    <FormField
+                                        control={form.control}
+                                        name="preferredTheme"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs xs:text-sm font-semibold">Preferred Theme</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value || "modern"}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-10 xs:h-11 text-xs xs:text-sm mt-1.5 focus:ring-primary/30 transition-shadow">
+                                                            <SelectValue placeholder="Select theme" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {themes.map((theme) => (
+                                                            <SelectItem key={theme.name} value={theme.name} className="text-xs xs:text-sm focus:bg-primary/10">
+                                                                {theme.name}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>

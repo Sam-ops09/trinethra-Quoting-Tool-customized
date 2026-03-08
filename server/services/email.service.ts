@@ -37,6 +37,10 @@ export class EmailService {
   }
 
   static async getTransporter(): Promise<Transporter> {
+    if (!isFeatureEnabled('email_smtp')) {
+      throw new Error("SMTP email service is disabled via feature flags");
+    }
+
     if (!this.transporter) {
       // Use test transporter in development/testing
       if (process.env.NODE_ENV !== "production") {
@@ -65,6 +69,9 @@ export class EmailService {
   }
 
   private static async sendWithResend(params: any, retries = 3, delay = 1000): Promise<any> {
+    if (!isFeatureEnabled('email_resend')) {
+       throw new Error("Resend email service is disabled via feature flags");
+    }
     if (!this.resend) throw new Error("Resend service not initialized");
     
     for (let i = 0; i <= retries; i++) {

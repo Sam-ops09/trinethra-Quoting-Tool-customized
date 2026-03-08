@@ -1,5 +1,5 @@
 import { UseFormReturn } from "react-hook-form";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import {
     FormControl,
     FormField,

@@ -18,6 +18,9 @@ import { toDecimal, add, subtract, toMoneyString, moneyGte, moneyGt } from "../u
 
 const router = Router();
 
+// Apply credit notes module feature flag to all routes
+router.use(requireFeature('creditNotes_module'));
+
 // ==================== GET ALL CREDIT NOTES ====================
 router.get("/credit-notes", authMiddleware, requireFeature('creditNotes_module'), async (req: AuthRequest, res: Response) => {
   try {

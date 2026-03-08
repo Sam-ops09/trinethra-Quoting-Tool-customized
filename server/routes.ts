@@ -68,69 +68,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api", authMiddleware, quoteWorkflowRoutes);
 
   // Users Routes (Admin only)
-  app.use("/api/users", authMiddleware, usersRoutes);
+  app.use("/api/users", authMiddleware, requireFeature('admin_userManagement'), usersRoutes);
 
   // Clients Routes
-  app.use("/api/clients", authMiddleware, clientsRoutes);
+  app.use("/api/clients", authMiddleware, requireFeature('clients_module'), clientsRoutes);
 
   // Quotes Routes
   // NOTE: Public routes (/public/:token/*) in quotesRoutes handle their own auth check
-  app.use("/api/quotes", quotesRoutes);
+  app.use("/api/quotes", requireFeature('quotes_module'), quotesRoutes);
 
   // Invoices Routes
-  app.use("/api/invoices", authMiddleware, invoicesRoutes);
+  app.use("/api/invoices", authMiddleware, requireFeature('invoices_module'), invoicesRoutes);
 
   // Payments Routes
-  app.use("/api", authMiddleware, paymentsRoutes);
+  app.use("/api", authMiddleware, requireFeature('payments_module'), paymentsRoutes);
 
   // Products Routes
-  app.use("/api/products", authMiddleware, productsRoutes);
+  app.use("/api/products", authMiddleware, requireFeature('products_module'), productsRoutes);
 
   // Vendors Routes (includes POs and GRNs)
-  app.use("/api", authMiddleware, vendorsRoutes);
+  app.use("/api", authMiddleware, requireFeature('vendors_module'), vendorsRoutes);
 
   // Settings Routes
-  app.use("/api", authMiddleware, settingsRoutes);
+  app.use("/api", authMiddleware, requireFeature('admin_settings'), settingsRoutes);
 
   // Serial Number Routes
-  app.use("/api/serial-numbers", authMiddleware, serialNumbersRoutes);
+  app.use("/api/serial-numbers", authMiddleware, requireFeature('serialNumber_tracking'), serialNumbersRoutes);
 
   // Approval Rules Routes
-  app.use("/api/approval-rules", authMiddleware, approvalRulesRoutes);
+  app.use("/api/approval-rules", authMiddleware, requireFeature('approvalRules_module'), approvalRulesRoutes);
 
   // Pricing Tiers Routes
-  app.use("/api", authMiddleware, pricingRoutes);
+  app.use("/api", authMiddleware, requireFeature('pricing_tiers'), pricingRoutes);
 
   // Email Templates Routes
-  app.use("/api/email-templates", emailTemplatesRoutes);
+  app.use("/api/email-templates", requireFeature('email_templates_module'), emailTemplatesRoutes);
 
   // Notification Routes
-  app.use("/api/notifications", notificationRoutes);
+  app.use("/api/notifications", requireFeature('ui_notifications'), notificationRoutes);
 
   // Collaboration Routes
-  app.use("/api/collaboration", authMiddleware, collaborationRoutes);
+  app.use("/api/collaboration", authMiddleware, requireFeature('advanced_websockets'), collaborationRoutes);
 
   // Credit Notes Routes
-  app.use("/api", creditNotesRoutes);
+  app.use("/api", requireFeature('creditNotes_module'), creditNotesRoutes);
 
   // Debit Notes Routes
-  app.use("/api", debitNotesRoutes);
+  app.use("/api", requireFeature('debitNotes_module'), debitNotesRoutes);
 
   // Subscriptions Routes
-  app.use("/api", subscriptionRoutes);
+  app.use("/api", requireFeature('subscriptions_module'), subscriptionRoutes);
 
   // Workflow Automation Routes
-  app.use("/api/workflows", authMiddleware, workflowsRoutes);
+  app.use("/api/workflows", authMiddleware, requireFeature('workflows_module'), workflowsRoutes);
 
   // Governance & Activity Logs
-  app.use("/api/governance", authMiddleware, governanceRoutes);
-  app.use("/api/activity-logs", authMiddleware, activityLogsRoutes);
+  app.use("/api/governance", authMiddleware, requireFeature('admin_governance'), governanceRoutes);
+  app.use("/api/activity-logs", authMiddleware, requireFeature('admin_activityLogs'), activityLogsRoutes);
 
   // Data Export Routes (CSV)
-  app.use("/api/export", authMiddleware, exportRoutes);
+  app.use("/api/export", authMiddleware, requireFeature('advanced_excelExport'), exportRoutes);
 
   // Global Search
-  app.use("/api/search", authMiddleware, searchRoutes);
+  app.use("/api/search", authMiddleware, requireFeature('ui_searchFilters'), searchRoutes);
 
   // Moved to invoices.routes.ts
 
@@ -140,8 +140,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Moved to invoices.routes.ts
 
-  // Templates Routes
-  app.get("/api/templates", authMiddleware, async (req: AuthRequest, res: Response) => {
+  // Templates Routes (Gated by quotes_templates)
+  app.get("/api/templates", authMiddleware, requireFeature('quotes_templates'), async (req: AuthRequest, res: Response) => {
     try {
       const type = req.query.type as string | undefined;
       const style = req.query.style as string | undefined;
@@ -168,7 +168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/templates/type/:type", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/templates/type/:type", authMiddleware, requireFeature('quotes_templates'), async (req: AuthRequest, res: Response) => {
     try {
       const templates = await storage.getTemplatesByType(req.params.type);
       return res.json(templates);
@@ -177,7 +177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/templates/default/:type", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/templates/default/:type", authMiddleware, requireFeature('quotes_templates'), async (req: AuthRequest, res: Response) => {
     try {
       const template = await storage.getDefaultTemplate(req.params.type);
       if (!template) {
@@ -189,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/templates/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/templates/:id", authMiddleware, requireFeature('quotes_templates'), async (req: AuthRequest, res: Response) => {
     try {
       const cacheKey = `templates:id:${req.params.id}`;
       const cached = await cacheService.get<any>(cacheKey);
@@ -207,7 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/templates", authMiddleware, requireFeature('quotes_templates'), async (req: AuthRequest, res: Response) => {
     try {
       const template = await storage.createTemplate({
         ...req.body,
@@ -228,7 +228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/templates/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/templates/:id", authMiddleware, requireFeature('quotes_templates'), async (req: AuthRequest, res: Response) => {
     try {
       const template = await storage.updateTemplate(req.params.id, req.body);
       if (!template) {
@@ -254,7 +254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/templates/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.delete("/api/templates/:id", authMiddleware, requireFeature('quotes_templates'), async (req: AuthRequest, res: Response) => {
     try {
       await storage.deleteTemplate(req.params.id);
 
@@ -290,7 +290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Moved to settings.routes.ts
 
   // User Management (Admin Panel)
-  app.get("/api/admin/users", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/admin/users", authMiddleware, requireFeature('admin_userManagement'), async (req: AuthRequest, res: Response) => {
     try {
       if (req.user!.role !== "admin") {
         return res.status(403).json({ error: "Forbidden" });
@@ -312,7 +312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/admin/users/:userId/role", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/admin/users/:userId/role", authMiddleware, requireFeature('admin_userManagement'), async (req: AuthRequest, res: Response) => {
     try {
       if (req.user!.role !== "admin") {
         return res.status(403).json({ error: "Forbidden" });
@@ -341,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/admin/users/:userId/status", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/admin/users/:userId/status", authMiddleware, requireFeature('admin_userManagement'), async (req: AuthRequest, res: Response) => {
     try {
       if (req.user!.role !== "admin") {
         return res.status(403).json({ error: "Forbidden" });

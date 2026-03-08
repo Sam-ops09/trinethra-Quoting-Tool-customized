@@ -14,6 +14,7 @@ import {
     UserCheck,
     Home,
     ChevronRight,
+    UserCog,
 } from "lucide-react";
 import {
     Dialog,
@@ -46,6 +47,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@shared/schema";
+import { isFeatureEnabled } from "@shared/feature-flags";
 
 const userFormSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -299,15 +301,17 @@ export default function AdminUsers() {
                         </p>
                     </div>
                     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button
-                                data-testid="button-create-user"
-                                className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 w-full xs:w-auto text-xs xs:text-sm px-3 xs:px-4 py-1.5 xs:py-2 h-auto"
-                            >
-                                <Plus className="h-3.5 w-3.5 mr-1" />
-                                <span>Add User</span>
-                            </Button>
-                        </DialogTrigger>
+                        {isFeatureEnabled('users_create') && (
+                            <DialogTrigger asChild>
+                                <Button
+                                    data-testid="button-create-user"
+                                    className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 w-full xs:w-auto text-xs xs:text-sm px-3 xs:px-4 py-1.5 xs:py-2 h-auto"
+                                >
+                                    <Plus className="h-3.5 w-3.5 mr-1" />
+                                    <span>Add User</span>
+                                </Button>
+                            </DialogTrigger>
+                        )}
 
                                 {/* CREATE USER DIALOG */}
                                 <DialogContent
@@ -378,29 +382,31 @@ export default function AdminUsers() {
                                                 />
 
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xs:gap-3 sm:gap-4">
-                                                    <FormField
-                                                        control={createForm.control}
-                                                        name="backupEmail"
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
-                                                                    Backup Email{" "}
-                                                                    <span className="text-muted-foreground text-[10px] xs:text-[11px]">
-                                    (optional)
-                                  </span>
-                                                                </FormLabel>
-                                                                <FormControl>
-                                                                    <Input
-                                                                        {...field}
-                                                                        type="email"
-                                                                        data-testid="input-user-backup-email"
-                                                                        className="text-xs xs:text-sm"
-                                                                    />
-                                                                </FormControl>
-                                                                <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
-                                                            </FormItem>
-                                                        )}
-                                                    />
+                                                    {isFeatureEnabled('security_backupEmail') && (
+                                                        <FormField
+                                                            control={createForm.control}
+                                                            name="backupEmail"
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
+                                                                        Backup Email{" "}
+                                                                        <span className="text-muted-foreground text-[10px] xs:text-[11px]">
+                                        (optional)
+                                      </span>
+                                                                    </FormLabel>
+                                                                    <FormControl>
+                                                                        <Input
+                                                                            {...field}
+                                                                            type="email"
+                                                                            data-testid="input-user-backup-email"
+                                                                            className="text-xs xs:text-sm"
+                                                                        />
+                                                                    </FormControl>
+                                                                    <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    )}
 
                                                     <FormField
                                                         control={createForm.control}
@@ -425,69 +431,73 @@ export default function AdminUsers() {
                                                 </div>
 
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xs:gap-3 sm:gap-4">
-                                                    <FormField
-                                                        control={createForm.control}
-                                                        name="role"
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
-                                                                    Role <span className="text-destructive">*</span>
-                                                                </FormLabel>
-                                                                <Select
-                                                                    onValueChange={field.onChange}
-                                                                    defaultValue={field.value}
-                                                                >
-                                                                    <FormControl>
-                                                                        <SelectTrigger
-                                                                            data-testid="select-user-role"
-                                                                            className="text-xs xs:text-sm"
-                                                                        >
-                                                                            <SelectValue placeholder="Select role" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        <SelectItem value="admin">Administrator</SelectItem>
-                                                                        <SelectItem value="sales_executive">Sales Executive</SelectItem>
-                                                                        <SelectItem value="sales_manager">Sales Manager</SelectItem>
-                                                                        <SelectItem value="purchase_operations">Purchase / Operations</SelectItem>
-                                                                        <SelectItem value="finance_accounts">Finance / Accounts</SelectItem>
-                                                                        <SelectItem value="viewer">Viewer</SelectItem>
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
-                                                            </FormItem>
-                                                        )}
-                                                    />
+                                                    {isFeatureEnabled('users_roleAssignment') && (
+                                                        <FormField
+                                                            control={createForm.control}
+                                                            name="role"
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
+                                                                        Role <span className="text-destructive">*</span>
+                                                                    </FormLabel>
+                                                                    <Select
+                                                                        onValueChange={field.onChange}
+                                                                        defaultValue={field.value}
+                                                                    >
+                                                                        <FormControl>
+                                                                            <SelectTrigger
+                                                                                data-testid="select-user-role"
+                                                                                className="text-xs xs:text-sm"
+                                                                            >
+                                                                                <SelectValue placeholder="Select role" />
+                                                                            </SelectTrigger>
+                                                                        </FormControl>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="admin">Administrator</SelectItem>
+                                                                            <SelectItem value="sales_executive">Sales Executive</SelectItem>
+                                                                            <SelectItem value="sales_manager">Sales Manager</SelectItem>
+                                                                            <SelectItem value="purchase_operations">Purchase / Operations</SelectItem>
+                                                                            <SelectItem value="finance_accounts">Finance / Accounts</SelectItem>
+                                                                            <SelectItem value="viewer">Viewer</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                    <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    )}
 
-                                                    <FormField
-                                                        control={createForm.control}
-                                                        name="status"
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
-                                                                    Status <span className="text-destructive">*</span>
-                                                                </FormLabel>
-                                                                <Select
-                                                                    onValueChange={field.onChange}
-                                                                    defaultValue={field.value}
-                                                                >
-                                                                    <FormControl>
-                                                                        <SelectTrigger
-                                                                            data-testid="select-user-status"
-                                                                            className="text-xs xs:text-sm"
-                                                                        >
-                                                                            <SelectValue placeholder="Select status" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        <SelectItem value="active">Active</SelectItem>
-                                                                        <SelectItem value="inactive">Inactive</SelectItem>
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
-                                                            </FormItem>
-                                                        )}
-                                                    />
+                                                    {isFeatureEnabled('users_statusControl') && (
+                                                        <FormField
+                                                            control={createForm.control}
+                                                            name="status"
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
+                                                                        Status <span className="text-destructive">*</span>
+                                                                    </FormLabel>
+                                                                    <Select
+                                                                        onValueChange={field.onChange}
+                                                                        defaultValue={field.value}
+                                                                    >
+                                                                        <FormControl>
+                                                                            <SelectTrigger
+                                                                                data-testid="select-user-status"
+                                                                                className="text-xs xs:text-sm"
+                                                                            >
+                                                                                <SelectValue placeholder="Select status" />
+                                                                            </SelectTrigger>
+                                                                        </FormControl>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="active">Active</SelectItem>
+                                                                            <SelectItem value="inactive">Inactive</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                    <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    )}
                                                 </div>
 
                                                 <Button
@@ -681,35 +691,55 @@ export default function AdminUsers() {
                                             >
                                                 <span className="text-[10px] xs:text-[10px]">{user.status}</span>
                                             </Badge>
+                                            {isFeatureEnabled('security_twoFactor') && (
+                                                <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                                                    <span className="text-[10px] xs:text-[10px]">2FA Off</span>
+                                                </Badge>
+                                            )}
                                         </div>
 
-                                        {user.backupEmail && (
+                                        {user.backupEmail && isFeatureEnabled('security_backupEmail') && (
                                             <p className="text-[10px] xs:text-[10px] text-slate-600 dark:text-slate-400 truncate mb-2 xs:mb-3">
                                                 Backup: {user.backupEmail}
                                             </p>
                                         )}
 
                                         <div className="flex gap-1 xs:gap-1.5 pt-2 xs:pt-3 border-t border-slate-200 dark:border-slate-800">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleEditUser(user)}
-                                                data-testid={`button-edit-user-${user.id}`}
-                                                className="flex-1 text-[10px] xs:text-[10px] sm:text-xs h-8 xs:h-8 sm:h-9"
-                                            >
-                                                <Edit className="h-3 xs:h-3 sm:h-3.5 w-3 xs:w-3 sm:w-3.5 mr-0.5" />
-                                                Edit
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => deleteMutation.mutate(user.id)}
-                                                data-testid={`button-delete-user-${user.id}`}
-                                                className="flex-1 text-[10px] xs:text-[10px] sm:text-xs h-8 xs:h-8 sm:h-9 hover:bg-destructive hover:text-destructive-foreground"
-                                            >
-                                                <Trash2 className="h-3 xs:h-3 sm:h-3.5 w-3 xs:w-3 sm:w-3.5 mr-0.5" />
-                                                Delete
-                                            </Button>
+                                            {isFeatureEnabled('users_delegation') && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled
+                                                    className="flex-1 text-[10px] xs:text-[10px] sm:text-xs h-8 xs:h-8 sm:h-9"
+                                                >
+                                                    <UserCog className="h-3 xs:h-3 sm:h-3.5 w-3 xs:w-3 sm:w-3.5 mr-0.5" />
+                                                    Delegate
+                                                </Button>
+                                            )}
+                                            {isFeatureEnabled('users_edit') && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleEditUser(user)}
+                                                    data-testid={`button-edit-user-${user.id}`}
+                                                    className="flex-1 text-[10px] xs:text-[10px] sm:text-xs h-8 xs:h-8 sm:h-9"
+                                                >
+                                                    <Edit className="h-3 xs:h-3 sm:h-3.5 w-3 xs:w-3 sm:w-3.5 mr-0.5" />
+                                                    Edit
+                                                </Button>
+                                            )}
+                                            {isFeatureEnabled('users_delete') && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => deleteMutation.mutate(user.id)}
+                                                    data-testid={`button-delete-user-${user.id}`}
+                                                    className="flex-1 text-[10px] xs:text-[10px] sm:text-xs h-8 xs:h-8 sm:h-9 hover:bg-destructive hover:text-destructive-foreground"
+                                                >
+                                                    <Trash2 className="h-3 xs:h-3 sm:h-3.5 w-3 xs:w-3 sm:w-3.5 mr-0.5" />
+                                                    Delete
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -798,29 +828,31 @@ export default function AdminUsers() {
                                     />
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xs:gap-3 sm:gap-4">
-                                        <FormField
-                                            control={editForm.control}
-                                            name="backupEmail"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
-                                                        Backup Email{" "}
-                                                        <span className="text-muted-foreground text-[10px] xs:text-[11px]">
-                              (optional)
-                            </span>
-                                                    </FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            {...field}
-                                                            type="email"
-                                                            data-testid="input-edit-user-backup-email"
-                                                            className="text-xs xs:text-sm"
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
-                                                </FormItem>
-                                            )}
-                                        />
+                                        {isFeatureEnabled('security_backupEmail') && (
+                                            <FormField
+                                                control={editForm.control}
+                                                name="backupEmail"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
+                                                            Backup Email{" "}
+                                                            <span className="text-muted-foreground text-[10px] xs:text-[11px]">
+                                  (optional)
+                                </span>
+                                                        </FormLabel>
+                                                        <FormControl>
+                                                            <Input
+                                                                {...field}
+                                                                type="email"
+                                                                data-testid="input-edit-user-backup-email"
+                                                                className="text-xs xs:text-sm"
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
 
                                         <FormField
                                             control={editForm.control}
@@ -846,63 +878,67 @@ export default function AdminUsers() {
                                     </div>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xs:gap-3 sm:gap-4">
-                                        <FormField
-                                            control={editForm.control}
-                                            name="role"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
-                                                        Role <span className="text-destructive">*</span>
-                                                    </FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger
-                                                                data-testid="select-edit-user-role"
-                                                                className="text-xs xs:text-sm"
-                                                            >
-                                                                <SelectValue placeholder="Select role" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            <SelectItem value="admin">Administrator</SelectItem>
-                                                            <SelectItem value="sales_executive">Sales Executive</SelectItem>
-                                                            <SelectItem value="sales_manager">Sales Manager</SelectItem>
-                                                            <SelectItem value="purchase_operations">Purchase / Operations</SelectItem>
-                                                            <SelectItem value="finance_accounts">Finance / Accounts</SelectItem>
-                                                            <SelectItem value="viewer">Viewer</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
-                                                </FormItem>
-                                            )}
-                                        />
+                                        {isFeatureEnabled('users_roleAssignment') && (
+                                            <FormField
+                                                control={editForm.control}
+                                                name="role"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
+                                                            Role <span className="text-destructive">*</span>
+                                                        </FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger
+                                                                    data-testid="select-edit-user-role"
+                                                                    className="text-xs xs:text-sm"
+                                                                >
+                                                                    <SelectValue placeholder="Select role" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="admin">Administrator</SelectItem>
+                                                                <SelectItem value="sales_executive">Sales Executive</SelectItem>
+                                                                <SelectItem value="sales_manager">Sales Manager</SelectItem>
+                                                                <SelectItem value="purchase_operations">Purchase / Operations</SelectItem>
+                                                                <SelectItem value="finance_accounts">Finance / Accounts</SelectItem>
+                                                                <SelectItem value="viewer">Viewer</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
 
-                                        <FormField
-                                            control={editForm.control}
-                                            name="status"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
-                                                        Status <span className="text-destructive">*</span>
-                                                    </FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger
-                                                                data-testid="select-edit-user-status"
-                                                                className="text-xs xs:text-sm"
-                                                            >
-                                                                <SelectValue placeholder="Select status" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            <SelectItem value="active">Active</SelectItem>
-                                                            <SelectItem value="inactive">Inactive</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
-                                                </FormItem>
-                                            )}
-                                        />
+                                        {isFeatureEnabled('users_statusControl') && (
+                                            <FormField
+                                                control={editForm.control}
+                                                name="status"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[11px] xs:text-xs sm:text-sm">
+                                                            Status <span className="text-destructive">*</span>
+                                                        </FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger
+                                                                    data-testid="select-edit-user-status"
+                                                                    className="text-xs xs:text-sm"
+                                                                >
+                                                                    <SelectValue placeholder="Select status" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="active">Active</SelectItem>
+                                                                <SelectItem value="inactive">Inactive</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage className="text-[10px] xs:text-[11px] sm:text-xs" />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
                                     </div>
 
                                     <Button

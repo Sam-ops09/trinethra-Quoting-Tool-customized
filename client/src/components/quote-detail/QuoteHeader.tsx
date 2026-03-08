@@ -15,7 +15,7 @@ import {
 import { PermissionGuard } from "@/components/permission-guard";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions-new";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 
 interface QuoteHeaderProps {
   quote: any;

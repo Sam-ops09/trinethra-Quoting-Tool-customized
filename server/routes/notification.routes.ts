@@ -1,8 +1,12 @@
 import { Router, Request, Response } from "express";
 import { NotificationService } from "../services/notification.service";
 import { authMiddleware, AuthRequest } from "../middleware";
+import { requireFeature } from "../feature-flags-middleware";
 
 const router = Router();
+
+// Apply notifications feature flag to all routes
+router.use(requireFeature('ui_notifications'));
 
 // Note: In-app notifications are core infrastructure, not feature-gated.
 // Auth middleware is sufficient protection.

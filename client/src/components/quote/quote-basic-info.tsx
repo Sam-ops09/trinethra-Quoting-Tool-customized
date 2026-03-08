@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, Building2, Calendar, Hash, User, Globe } from "lucide-react";
 import type { Client } from "@shared/schema";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 
 interface QuoteBasicInfoProps {
     form: UseFormReturn<any>;
@@ -114,6 +114,38 @@ export function QuoteBasicInfo({ form, clients }: QuoteBasicInfoProps) {
                             </FormItem>
                         )}
                     />
+
+                    {(useFeatureFlag('quotes_templates') || useFeatureFlag('quotes_dynamicTemplates')) && (
+                        <FormField
+                            control={form.control}
+                            name="templateId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Design Template</FormLabel>
+                                    <Select
+                                        onValueChange={field.onChange}
+                                        value={field.value || ""}
+                                    >
+                                        <FormControl>
+                                            <SelectTrigger className="h-11">
+                                                <div className="flex items-center gap-2">
+                                                    <FileText className="h-4 w-4 text-muted-foreground" />
+                                                    <SelectValue placeholder="Select a template..." />
+                                                </div>
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="default">Standard Professional</SelectItem>
+                                            <SelectItem value="modern">Modern Minimalist</SelectItem>
+                                            <SelectItem value="premium">Premium Business</SelectItem>
+                                            {useFeatureFlag('quotes_dynamicTemplates') && <SelectItem value="dynamic">Dynamic Blank Template</SelectItem>}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                 </CardContent>
             </Card>
 

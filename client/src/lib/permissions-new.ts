@@ -13,6 +13,8 @@ export type UserRole =
   | "viewer"
   | "guest";
 
+import { isFeatureEnabled } from "@shared/feature-flags";
+
 export type Resource =
   | "dashboard"
   | "quotes"
@@ -267,6 +269,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
  * Check if a user has permission
  */
 export function hasPermission(role: UserRole, resource: Resource, action: Permission["action"]): boolean {
+  if (!isFeatureEnabled('security_permissions')) return true;
+
   const permissions = ROLE_PERMISSIONS[role];
   if (!permissions) return false;
 

@@ -36,7 +36,7 @@ import {
 } from "recharts";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { useFeatureFlag } from "@/hooks/use-feature-flag";
 import { formatCurrency } from "@/lib/currency";
 
 // Interface (Unchanged)

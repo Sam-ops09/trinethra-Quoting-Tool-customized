@@ -66,6 +66,7 @@ export interface FeatureFlags {
   quotes_clone: boolean;
   quotes_version: boolean;
   quotes_publicBranding: boolean;
+  quotes_publicSharing: boolean;
   sales_orders_module: boolean;
   sales_orders_pdfGeneration: boolean;
   sales_orders_emailSending: boolean;
@@ -91,6 +92,7 @@ export interface FeatureFlags {
   quotes_validityDays: boolean;
   quotes_discount: boolean;
   quotes_shippingCharges: boolean;
+  quotes_taxation: boolean;
   quotes_notes: boolean;
   quotes_termsConditions: boolean;
   
@@ -112,6 +114,9 @@ export interface FeatureFlags {
   invoices_finalize: boolean;
   invoices_lock: boolean;
   invoices_cancel: boolean;
+  invoices_discount: boolean;
+  invoices_taxation: boolean;
+  invoices_shippingCharges: boolean;
 
   // Invoice Types
   invoices_childInvoices: boolean;
@@ -352,6 +357,7 @@ export interface FeatureFlags {
   // ==================== UI/UX FEATURES ====================
 
   ui_darkMode: boolean;
+  ui_notifications: boolean;
   ui_themeToggle: boolean;
   ui_animations: boolean;
   ui_tooltips: boolean;
@@ -365,6 +371,10 @@ export interface FeatureFlags {
 
   integration_vercelAnalytics: boolean;
   integration_externalApi: boolean;
+  integrations_googleDrive: boolean;
+  integrations_oneDrive: boolean;
+  integrations_tallyReady: boolean;
+  integrations_whatsapp: boolean;
 
   // ==================== NOTIFICATIONS ====================
 
@@ -434,7 +444,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   pages_grn: true,
   pages_grnDetail: true,
   pages_serialSearch: true,
-  pages_dashboardsOverview: true,
+  pages_dashboardsOverview: false,
   pages_salesQuoteDashboard: true,
   pages_vendorPODashboard: true,
   pages_invoiceCollectionsDashboard: true,
@@ -452,7 +462,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   nav_salesDropdown: true,
   nav_purchaseDropdown: true,
   nav_adminDropdown: true,
-  nav_dashboardsLink: true,
+  nav_dashboardsLink: false,
   nav_serialSearchLink: true,
 
   // ==================== QUOTE FEATURES ====================
@@ -466,9 +476,10 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_clone: true,
   quotes_version: true,
   quotes_publicBranding: true,
+  quotes_publicSharing: true,
   sales_orders_module: true,
   sales_orders_pdfGeneration: true,
-  sales_orders_emailSending: false,
+  sales_orders_emailSending: true,
   quotes_bomSection: true,
   quotes_slaSection: true,
   quotes_timelineSection: true,
@@ -485,6 +496,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   quotes_validityDays: true,
   quotes_discount: true,
   quotes_shippingCharges: true,
+  quotes_taxation: true,
   quotes_notes: true,
   quotes_termsConditions: true,
   quotes_optionalItems: true,
@@ -503,6 +515,9 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   invoices_finalize: true,
   invoices_lock: true,
   invoices_cancel: true,
+  invoices_discount: true,
+  invoices_taxation: true,
+  invoices_shippingCharges: true,
   invoices_childInvoices: true,
   invoices_masterInvoices: true,
   invoices_milestoneInvoices: true,
@@ -559,7 +574,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   vendorPO_create: true,
   vendorPO_edit: true,
   vendorPO_delete: true,
-  vendorPO_emailSending: false,
+  vendorPO_emailSending: true,
   vendorPO_pdfGeneration: true,
   vendorPO_statusTracking: true,
   grn_module: true,
@@ -651,14 +666,14 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   email_integration: true,
   email_resend: true,
   email_smtp: true,
-  email_welcome: false,
-  email_quoteSending: false,
-  email_invoiceSending: false,
-  email_paymentReminders: false,
-  email_overdueNotifications: false,
-  email_vendorPO: false,
-  email_templates_module: false,
-  email_subscriptionRenewed: false,
+  email_welcome: true,
+  email_quoteSending: true,
+  email_invoiceSending: true,
+  email_paymentReminders: true,
+  email_overdueNotifications: true,
+  email_vendorPO: true,
+  email_templates_module: true,
+  email_subscriptionRenewed: true,
 
   // ==================== ADMIN & CONFIGURATION ====================
   admin_userManagement: true,
@@ -701,6 +716,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
 
   // ==================== UI/UX FEATURES ====================
   ui_darkMode: true,
+  ui_notifications: true,
   ui_themeToggle: true,
   ui_animations: true,
   ui_tooltips: true,
@@ -713,6 +729,10 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   // ==================== INTEGRATIONS ====================
   integration_vercelAnalytics: true,
   integration_externalApi: true,
+  integrations_googleDrive: true,
+  integrations_oneDrive: true,
+  integrations_tallyReady: true,
+  integrations_whatsapp: true,
 
   // ==================== NOTIFICATIONS ====================
   notifications_whatsapp: true,

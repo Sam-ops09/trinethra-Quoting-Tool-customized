@@ -15,6 +15,9 @@ import { storage } from "../storage";
 
 const router = Router();
 
+// Apply email templates module feature flag to all routes
+router.use(requireFeature('email_templates_module'));
+
 // Get all email templates
 router.get("/", 
   requireFeature('email_templates_module'),
