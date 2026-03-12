@@ -690,7 +690,7 @@ export default function PublicQuote() {
                     <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                       <FileText className="h-4 w-4 text-primary" />
                     </div>
-                    <span className="text-sm font-medium text-foreground truncate">{att.filename}</span>
+                    <span className="text-sm font-medium text-foreground truncate">{att.fileName}</span>
                   </a>
                 ))}
               </div>

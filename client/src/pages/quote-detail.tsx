@@ -186,8 +186,8 @@ export default function QuoteDetail() {
       await new Promise(resolve => reader.onload = resolve);
       const base64 = reader.result as string;
       const res = await apiRequest("POST", `/api/quotes/${params?.id}/attachments`, {
-        filename: file.name,
-        contentType: file.type || 'application/octet-stream',
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
         content: base64.split(',')[1]
       });
       return await res.json();
@@ -1297,7 +1297,7 @@ export default function QuoteDetail() {
                       <div key={att.id} className="flex justify-between items-center p-2 rounded-md bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                         <a href={`/api/quotes/attachments/${att.id}`} target="_blank" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2 font-medium">
                           <FileText className="h-3 w-3" />
-                          {att.filename}
+                          {att.fileName}
                         </a>
                         <Button
                           variant="ghost"
